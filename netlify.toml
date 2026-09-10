@@ -1,0 +1,22 @@
+# Optional Netlify target if Vercel verification is blocked.
+# Production still needs DATABASE_URL + BETTER_AUTH_SECRET in the Netlify env UI.
+[build]
+  command = "NITRO_PRESET=netlify node scripts/with-app-env.mjs vite build && npm run db:migrate"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  STANDALONE = "true"
+  NITRO_PRESET = "netlify"
+
+[[redirects]]
+  from = "http://kasbokarapp.com/*"
+  to = "https://kasbokarapp.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.kasbokarapp.com/*"
+  to = "https://kasbokarapp.com/:splat"
+  status = 301
+  force = true
