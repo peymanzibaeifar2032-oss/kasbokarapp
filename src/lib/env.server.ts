@@ -1,3 +1,5 @@
+import { getConnectionString } from "@netlify/database";
+
 export function env(key: string): string | undefined {
   const fromProcess = process.env[key]?.trim();
   if (fromProcess) return fromProcess;
@@ -32,12 +34,18 @@ export function isStandalone(): boolean {
 
 /** Postgres URL for production: explicit DATABASE_URL or Netlify DB. */
 export function postgresUrl(): string | undefined {
-  return (
+  const explicit =
     env("DATABASE_URL") ||
     env("NETLIFY_DATABASE_URL") ||
     env("NETLIFY_DATABASE_URL_UNPOOLED") ||
-    env("NETLIFY_DB_URL")
-  );
+    env("NETLIFY_DB_URL");
+  if (explicit) return explicit;
+  try {
+    const v = getConnectionString()?.trim();
+    return v || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function originOf(raw: string): string | null {
