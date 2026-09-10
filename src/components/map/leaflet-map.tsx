@@ -3,6 +3,7 @@ import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } f
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Business } from "@/lib/types";
+import { PUBLIC_OSM_TILES, type MapTileConfig } from "@/lib/map/tiles";
 
 type Props = {
   businesses: Business[];
@@ -76,19 +77,45 @@ export function LeafletMap({
   }
 
   function Tiles() {
-    const [url, setUrl] = useState("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+    const [cfg, setCfg] = useState<MapTileConfig | null>(null);
+    const [url, setUrl] = useState<string | null>(null);
     const switched = useRef(false);
+
+    useEffect(() => {
+      let alive = true;
+      void fetch("/api/map-config", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j: MapTileConfig | null) => {
+          if (!alive) return;
+          const next = j?.url ? j : PUBLIC_OSM_TILES;
+          setCfg(next);
+          setUrl(next.url);
+          switched.current = false;
+        })
+        .catch(() => {
+          if (!alive) return;
+          setCfg(PUBLIC_OSM_TILES);
+          setUrl(PUBLIC_OSM_TILES.url);
+        });
+      return () => {
+        alive = false;
+      };
+    }, []);
+
+    if (!cfg || !url) return null;
+
     return (
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        attribution={cfg.attribution}
         url={url}
+        subdomains={cfg.subdomains || "abc"}
         updateWhenZooming={false}
-        maxZoom={19}
+        maxZoom={cfg.maxZoom}
         eventHandlers={{
           tileerror: () => {
-            if (switched.current) return;
+            if (switched.current || !cfg.fallbackUrl) return;
             switched.current = true;
-            setUrl("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}");
+            setUrl(cfg.fallbackUrl);
           },
         }}
       />

@@ -1,25 +1,46 @@
+# Production on a Linux VPS. Preview on Grok does not use this file.
+# Default: app only (set DATABASE_URL to existing Postgres — including Netlify/Neon).
+# Local Postgres:  docker compose --profile with-db up -d --build
+# TLS reverse proxy: docker compose --profile tls --profile with-db up -d --build
+# Do not point kasbokarapp.com DNS here until the VPS is tested.
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
+    profiles: ["with-db"]
     environment:
       POSTGRES_DB: kasbokar
       POSTGRES_USER: kasbokar
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
     volumes:
       - kasbokar_pg:/var/lib/postgresql/data
+      - kasbokar_backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kasbokar"]
       interval: 5s
       timeout: 5s
       retries: 10
+    logging: *default-logging
 
   web:
     build: .
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+        required: false
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
     environment:
       STANDALONE: "true"
       NODE_ENV: production
@@ -28,9 +49,62 @@ services:
       SITE_URL: ${SITE_URL:-https://kasbokarapp.com}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://kasbokarapp.com}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
-      DATABASE_URL: postgres://kasbokar:${POSTGRES_PASSWORD:-change-me-now}@db:5432/kasbokar
+      DATABASE_URL: ${DATABASE_URL:-postgres://kasbokar:${POSTGRES_PASSWORD:-change-me-now}@db:5432/kasbokar}
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MAP_TILE_URL_FALLBACK: ${MAP_TILE_URL_FALLBACK:-}
+      MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+      MAP_TILE_MAX_ZOOM: ${MAP_TILE_MAX_ZOOM:-}
+      MAP_TILE_SUBDOMAINS: ${MAP_TILE_SUBDOMAINS:-}
+      MAP_TILE_PROXY_UPSTREAM: ${MAP_TILE_PROXY_UPSTREAM:-}
+      MAP_TILE_PROXY_KEY: ${MAP_TILE_PROXY_KEY:-}
+      MAP_TILE_PROXY_KEY_HEADER: ${MAP_TILE_PROXY_KEY_HEADER:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      AUTH_FROM_EMAIL: ${AUTH_FROM_EMAIL:-}
       XAI_API_KEY: ${XAI_API_KEY:-}
+      BUG_NOTIFY_EMAIL: ${BUG_NOTIFY_EMAIL:-}
+      BUG_NOTIFY_WEBHOOK_URL: ${BUG_NOTIFY_WEBHOOK_URL:-}
+      BUG_NOTIFY_TELEGRAM_CHAT_ID: ${BUG_NOTIFY_TELEGRAM_CHAT_ID:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    profiles: ["tls"]
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_HOST: ${SITE_HOST:-kasbokarapp.com}
+      CADDY_EMAIL: ${CADDY_EMAIL:-ops@kasbokarapp.com}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging: *default-logging
 
 volumes:
   kasbokar_pg:
+  kasbokar_backups:
+  caddy_data:
+  caddy_config:

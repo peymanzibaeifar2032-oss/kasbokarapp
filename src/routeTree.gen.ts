@@ -18,9 +18,11 @@ import { Route as DownloadRouteImport } from './routes/download'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiTilesSplatRouteImport } from './routes/api/tiles/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -67,6 +69,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMapConfigRoute = ApiMapConfigRouteImport.update({
+  id: '/api/map-config',
+  path: '/api/map-config',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSaveRoute = ApiSaveRouteImport.update({
   id: '/api/save',
   path: '/api/save',
@@ -82,6 +89,11 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTilesSplatRoute = ApiTilesSplatRouteImport.update({
+  id: '/api/tiles/$',
+  path: '/api/tiles/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -93,9 +105,11 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -107,9 +121,11 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -122,9 +138,11 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -138,9 +156,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/api/guide'
     | '/api/health'
+    | '/api/map-config'
     | '/api/save'
     | '/business/$id'
     | '/api/auth/$'
+    | '/api/tiles/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -152,9 +172,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/api/guide'
     | '/api/health'
+    | '/api/map-config'
     | '/api/save'
     | '/business/$id'
     | '/api/auth/$'
+    | '/api/tiles/$'
   id:
     | '__root__'
     | '/'
@@ -166,9 +188,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/api/guide'
     | '/api/health'
+    | '/api/map-config'
     | '/api/save'
     | '/business/$id'
     | '/api/auth/$'
+    | '/api/tiles/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -181,9 +205,11 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ApiGuideRoute: typeof ApiGuideRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiMapConfigRoute: typeof ApiMapConfigRoute
   ApiSaveRoute: typeof ApiSaveRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiTilesSplatRoute: typeof ApiTilesSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -251,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/map-config': {
+      id: '/api/map-config'
+      path: '/api/map-config'
+      fullPath: '/api/map-config'
+      preLoaderRoute: typeof ApiMapConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/save': {
       id: '/api/save'
       path: '/api/save'
@@ -272,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tiles/$': {
+      id: '/api/tiles/$'
+      path: '/api/tiles/$'
+      fullPath: '/api/tiles/$'
+      preLoaderRoute: typeof ApiTilesSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -285,9 +325,11 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ApiGuideRoute: ApiGuideRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiMapConfigRoute: ApiMapConfigRoute,
   ApiSaveRoute: ApiSaveRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiTilesSplatRoute: ApiTilesSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

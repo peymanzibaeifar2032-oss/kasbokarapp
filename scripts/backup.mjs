@@ -7,8 +7,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import pg from "pg";
+import { postgresUrl } from "./db-url.mjs";
 
-const databaseUrl = process.env.DATABASE_URL?.trim();
+const databaseUrl = postgresUrl();
 if (!databaseUrl) {
   console.error("[backup] DATABASE_URL is required.");
   process.exit(1);

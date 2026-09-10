@@ -17,12 +17,9 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import pg from "pg";
 import { pendingMigrations } from "./migration-plan.mjs";
+import { postgresUrl } from "./db-url.mjs";
 
-const databaseUrl =
-  process.env.DATABASE_URL ||
-  process.env.NETLIFY_DATABASE_URL ||
-  process.env.NETLIFY_DATABASE_URL_UNPOOLED ||
-  process.env.NETLIFY_DB_URL;
+const databaseUrl = postgresUrl();
 if (!databaseUrl) {
   const standalone = ["true", "1"].includes((process.env.STANDALONE || "").trim());
   const onNetlify = process.env.NETLIFY === "true";
