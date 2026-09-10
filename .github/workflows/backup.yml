@@ -7,19 +7,34 @@ on:
 
 jobs:
   backup:
-    if: ${{ secrets.DATABASE_URL != '' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check DATABASE_URL
+        id: check
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "DATABASE_URL is not set — skip backup until production database exists."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.check.outputs.skip != 'true'
+        uses: actions/checkout@v4
+      - if: steps.check.outputs.skip != 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
-      - run: node scripts/backup.mjs backups/${{ github.run_id }}
+      - if: steps.check.outputs.skip != 'true'
+        run: npm ci
+      - if: steps.check.outputs.skip != 'true'
+        run: node scripts/backup.mjs backups/${{ github.run_id }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - uses: actions/upload-artifact@v4
+      - if: steps.check.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
         with:
           name: kasbokar-db-backup
           path: backups/${{ github.run_id }}
