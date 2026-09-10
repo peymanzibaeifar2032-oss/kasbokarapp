@@ -24,6 +24,13 @@ const databaseUrl =
   process.env.NETLIFY_DATABASE_URL_UNPOOLED;
 if (!databaseUrl) {
   const standalone = ["true", "1"].includes((process.env.STANDALONE || "").trim());
+  const onNetlify = process.env.NETLIFY === "true";
+  if (onNetlify) {
+    console.log(
+      "[migrate] Netlify Database applies netlify/database/migrations/ automatically — skipping.",
+    );
+    process.exit(0);
+  }
   if (standalone) {
     console.error("[migrate] STANDALONE requires DATABASE_URL or NETLIFY_DATABASE_URL.");
     process.exit(1);

@@ -6,6 +6,7 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
+import netlify from "@netlify/vite-plugin-tanstack-start";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
@@ -215,6 +216,9 @@ function authPopupPlugin(): Plugin {
   };
 }
 
+const isNetlifyBuild =
+  process.env.NITRO_PRESET === "netlify" || process.env.NETLIFY === "true";
+
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
@@ -242,22 +246,26 @@ export default defineConfig(({ command, isPreview }) => ({
     grokPwaPlugin(),
     tailwindcss(),
     tanstackStart(),
-    ...(command === "build" || isPreview
-      ? [
-          nitro({
-            preset: process.env.NITRO_PRESET || "vercel",
-            // Auto-registers server/middleware/* (the PWA install page +
-            // manifest + head-tag middleware). Nitro v3 defaults serverDir to
-            // false, so removing this silently unwires /?install=1 on deploys.
-            serverDir: "./server",
-            hooks: {
-              compiled() {
-                copyPgliteAssets();
+    // Netlify production: official Start plugin (not Nitro). Local preview and
+    // other hosts keep Nitro so this file still builds for Vercel/Docker.
+    ...(command === "build" && isNetlifyBuild
+      ? [netlify()]
+      : command === "build" || isPreview
+        ? [
+            nitro({
+              preset: process.env.NITRO_PRESET || "vercel",
+              // Auto-registers server/middleware/* (the PWA install page +
+              // manifest + head-tag middleware). Nitro v3 defaults serverDir to
+              // false, so removing this silently unwires /?install=1 on deploys.
+              serverDir: "./server",
+              hooks: {
+                compiled() {
+                  copyPgliteAssets();
+                },
               },
-            },
-          }),
-        ]
-      : []),
+            }),
+          ]
+        : []),
     viteReact(),
   ],
 }));

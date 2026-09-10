@@ -1,13 +1,23 @@
-# Optional Netlify target if Vercel verification is blocked.
-# Production still needs DATABASE_URL + BETTER_AUTH_SECRET in the Netlify env UI.
+# Production on Netlify. Schema is applied from netlify/database/migrations/
+# automatically after Postgres is provisioned — do not run db:migrate here
+# (STANDALONE + no DATABASE_URL at build time would fail the deploy).
 [build]
-  command = "NITRO_PRESET=netlify node scripts/with-app-env.mjs vite build && npm run db:migrate"
-  publish = "dist"
+  command = "node scripts/with-app-env.mjs vite build"
+  publish = "dist/client"
 
 [build.environment]
   NODE_VERSION = "22"
   STANDALONE = "true"
   NITRO_PRESET = "netlify"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy = "camera=(), microphone=(), payment=()"
 
 [[redirects]]
   from = "http://kasbokarapp.com/*"
