@@ -20,6 +20,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "backup": "node scripts/backup.mjs",
+    "restore": "node scripts/restore.mjs",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

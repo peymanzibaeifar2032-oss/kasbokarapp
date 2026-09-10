@@ -19,7 +19,8 @@ if (!process.argv.includes("--yes")) {
 }
 
 const replace = process.argv.includes("--replace");
-const dir = process.argv.find((a) => !a.startsWith("-") && a !== process.argv[1]) || join(process.cwd(), "backups");
+const args = process.argv.slice(2).filter((a) => a !== "--yes" && a !== "--replace");
+const dir = args[0] || join(process.cwd(), "backups");
 
 const tables = [
   { file: "user", sql: '"user"', pk: "id" },
