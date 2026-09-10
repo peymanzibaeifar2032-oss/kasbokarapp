@@ -1,0 +1,26 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { isStandalone } from "@/lib/env.server";
+
+export const Route = createFileRoute("/api/health")({
+  server: {
+    handlers: {
+      GET: async () => {
+        try {
+          const { dbSource, getSql } = await import("@/lib/db");
+          const sql = await getSql();
+          await sql.query("select 1 as ok");
+          return Response.json(
+            { ok: true, app: "kasbokar", db: dbSource, standalone: isStandalone() },
+            { headers: { "Cache-Control": "no-store" } },
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "db";
+          return Response.json(
+            { ok: false, error: message.slice(0, 120) },
+            { status: 503, headers: { "Cache-Control": "no-store" } },
+          );
+        }
+      },
+    },
+  },
+});

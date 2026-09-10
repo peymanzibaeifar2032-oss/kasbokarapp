@@ -1,0 +1,151 @@
+@import "tailwindcss";
+@import "@fontsource-variable/vazirmatn/wght.css";
+
+@theme {
+  --font-sans: "Vazirmatn Variable", Vazirmatn, Tahoma, system-ui, sans-serif;
+  --color-bg: #f4efe6;
+  --color-surface: #fffbf5;
+  --color-fg: #152a38;
+  --color-muted: #5c6b73;
+  --color-primary: #1c3d52;
+  --color-primary-fg: #f4efe6;
+  --color-accent: #2f6f68;
+  --color-accent-fg: #f7fbfa;
+  --color-border: #e4d9c8;
+  --color-danger: #a33b32;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  html,
+  body,
+  #app {
+    min-height: 100%;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+}
+
+.leaflet-container {
+  z-index: 0;
+  background: #e8efe9;
+  font-family: var(--font-sans);
+}
+
+.kasb-divicon {
+  background: none;
+  border: none;
+}
+
+.kasb-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: var(--color-primary);
+  border: 2px solid #fffbf5;
+  box-shadow: 0 6px 16px rgba(21, 42, 56, 0.35);
+}
+
+.kasb-pin-pick {
+  width: 28px;
+  height: 28px;
+  background: #c45c26;
+  box-shadow: 0 8px 18px rgba(196, 92, 38, 0.45);
+}
+
+.kasb-crosshair {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+
+.kasb-crosshair::before,
+.kasb-crosshair::after {
+  content: "";
+  position: absolute;
+  background: #c45c26;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px #fffbf5;
+}
+
+.kasb-crosshair::before {
+  left: 10px;
+  top: -8px;
+  width: 2px;
+  height: 38px;
+}
+
+.kasb-crosshair::after {
+  top: 10px;
+  left: -8px;
+  height: 2px;
+  width: 38px;
+}
+
+
+.biz-cover {
+  display: grid;
+  place-items: center;
+  color: var(--color-primary-fg);
+  background: linear-gradient(145deg, var(--color-primary), var(--color-accent));
+}
+.biz-cover-beauty {
+  background: linear-gradient(145deg, #1c3d52, #8a5a44);
+}
+.biz-cover-health {
+  background: linear-gradient(145deg, #2f6f68, #1c3d52);
+}
+.biz-cover-tech {
+  background: linear-gradient(145deg, #1c3d52, #3d5a80);
+}
+.biz-cover-auto {
+  background: linear-gradient(145deg, #3d4a52, #1c3d52);
+}
+.biz-cover-shop {
+  background: linear-gradient(145deg, #2f6f68, #8a5a44);
+}
+.biz-cover-home {
+  background: linear-gradient(145deg, #5c6b73, #1c3d52);
+}
+.biz-cover-food {
+  background: linear-gradient(145deg, #8a5a44, #1c3d52);
+}
+.biz-cover-cafe {
+  background: linear-gradient(145deg, #6b4f3a, #2f6f68);
+}
+.biz-cover-education {
+  background: linear-gradient(145deg, #1c3d52, #2f6f68);
+}
+.biz-cover-sport {
+  background: linear-gradient(145deg, #2f6f68, #152a38);
+}
+.biz-cover-estate {
+  background: linear-gradient(145deg, #5c6b73, #2f6f68);
+}
+.biz-cover-legal {
+  background: linear-gradient(145deg, #1c3d52, #152a38);
+}
