@@ -21,7 +21,8 @@ import { pendingMigrations } from "./migration-plan.mjs";
 const databaseUrl =
   process.env.DATABASE_URL ||
   process.env.NETLIFY_DATABASE_URL ||
-  process.env.NETLIFY_DATABASE_URL_UNPOOLED;
+  process.env.NETLIFY_DATABASE_URL_UNPOOLED ||
+  process.env.NETLIFY_DB_URL;
 if (!databaseUrl) {
   const standalone = ["true", "1"].includes((process.env.STANDALONE || "").trim());
   const onNetlify = process.env.NETLIFY === "true";

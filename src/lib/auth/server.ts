@@ -46,6 +46,7 @@ import {
   PREVIEW_CLIENT_ID,
   PREVIEW_CLIENT_SECRET,
 } from "./preview";
+import { postgresUrl } from "@/lib/env.server";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
 void ensureDbReady();
@@ -67,7 +68,18 @@ function previewAuthSecret(): string {
 /** Read an env var, treating empty/whitespace as unset. */
 const env = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
-  return value ? value : undefined;
+  if (value) return value;
+  try {
+    const netlify = (
+      globalThis as {
+        Netlify?: { env?: { get?: (k: string) => string | undefined } };
+      }
+    ).Netlify;
+    const fromNetlify = netlify?.env?.get?.(key)?.trim();
+    return fromNetlify || undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 // Explicit off-switch. The deployer sets `VITE_AUTH_ENABLED=true` when it
@@ -152,7 +164,7 @@ const trustedOrigins: string[] = [...new Set([
   ...extraSiteOrigins(),
 ])];
 
-const databaseUrl = env("DATABASE_URL") || env("NETLIFY_DATABASE_URL") || env("NETLIFY_DATABASE_URL_UNPOOLED");
+const databaseUrl = postgresUrl();
 
 // Static broker OAuth endpoints (skip OIDC discovery on every sign-in / callback).
 // Discovery would cost an extra network hop to the broker before the popup can

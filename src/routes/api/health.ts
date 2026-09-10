@@ -6,11 +6,17 @@ export const Route = createFileRoute("/api/health")({
     handlers: {
       GET: async () => {
         try {
-          const { dbSource, getSql } = await import("@/lib/db");
+          const { getSql } = await import("@/lib/db");
+          const { postgresUrl } = await import("@/lib/env.server");
           const sql = await getSql();
           await sql.query("select 1 as ok");
           return Response.json(
-            { ok: true, app: "kasbokar", db: dbSource, standalone: isStandalone() },
+            {
+              ok: true,
+              app: "kasbokar",
+              db: postgresUrl() ? "neon" : "pglite",
+              standalone: isStandalone(),
+            },
             { headers: { "Cache-Control": "no-store" } },
           );
         } catch (err) {

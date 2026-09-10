@@ -1,6 +1,17 @@
 export function env(key: string): string | undefined {
-  const v = process.env[key]?.trim();
-  return v || undefined;
+  const fromProcess = process.env[key]?.trim();
+  if (fromProcess) return fromProcess;
+  try {
+    const netlify = (
+      globalThis as {
+        Netlify?: { env?: { get?: (k: string) => string | undefined } };
+      }
+    ).Netlify;
+    const fromNetlify = netlify?.env?.get?.(key)?.trim();
+    return fromNetlify || undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -21,7 +32,12 @@ export function isStandalone(): boolean {
 
 /** Postgres URL for production: explicit DATABASE_URL or Netlify DB. */
 export function postgresUrl(): string | undefined {
-  return env("DATABASE_URL") || env("NETLIFY_DATABASE_URL") || env("NETLIFY_DATABASE_URL_UNPOOLED");
+  return (
+    env("DATABASE_URL") ||
+    env("NETLIFY_DATABASE_URL") ||
+    env("NETLIFY_DATABASE_URL_UNPOOLED") ||
+    env("NETLIFY_DB_URL")
+  );
 }
 
 function originOf(raw: string): string | null {
