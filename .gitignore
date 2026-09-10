@@ -25,3 +25,4 @@ backups
 
 .project_id
 .node_modules.lock
+.netlify

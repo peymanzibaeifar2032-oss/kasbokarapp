@@ -19,6 +19,11 @@ export function isStandalone(): boolean {
   return v === "true" || v === "1";
 }
 
+/** Postgres URL for production: explicit DATABASE_URL or Netlify DB. */
+export function postgresUrl(): string | undefined {
+  return env("DATABASE_URL") || env("NETLIFY_DATABASE_URL") || env("NETLIFY_DATABASE_URL_UNPOOLED");
+}
+
 function originOf(raw: string): string | null {
   try {
     return new URL(raw).origin;

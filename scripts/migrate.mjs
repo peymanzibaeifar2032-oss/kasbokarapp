@@ -18,11 +18,14 @@ import { dirname, join } from "node:path";
 import pg from "pg";
 import { pendingMigrations } from "./migration-plan.mjs";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  process.env.NETLIFY_DATABASE_URL ||
+  process.env.NETLIFY_DATABASE_URL_UNPOOLED;
 if (!databaseUrl) {
   const standalone = ["true", "1"].includes((process.env.STANDALONE || "").trim());
   if (standalone) {
-    console.error("[migrate] STANDALONE requires DATABASE_URL.");
+    console.error("[migrate] STANDALONE requires DATABASE_URL or NETLIFY_DATABASE_URL.");
     process.exit(1);
   }
   console.log(
