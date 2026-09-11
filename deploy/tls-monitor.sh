@@ -44,6 +44,7 @@ for h in $HOSTS; do
   fi
 done
 
+status=$worst
 if [ "$min_days" -eq 9999 ]; then
   status=warn
   min_days=-1
