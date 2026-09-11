@@ -20,7 +20,7 @@ describe("map tiles", () => {
       k === "MAP_TILE_PROXY_UPSTREAM" ? "https://tiles.example.ir/{z}/{x}/{y}.png" : undefined,
     );
     assert.equal(cfg.proxy, true);
-    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=2");
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=3");
   });
 
   it("uses an Iranian or self-hosted URL without rewrite in preview", () => {
@@ -43,7 +43,8 @@ describe("map tiles", () => {
   it("standalone without MAP_TILE_* uses same-origin proxy, not OSM.org", () => {
     const cfg = resolveMapTiles((k) => (k === "STANDALONE" ? "true" : undefined));
     assert.equal(cfg.proxy, true);
-    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=2");
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=3");
+    assert.ok(cfg.fallbackUrl?.includes("arcgisonline.com"));
     assert.doesNotMatch(cfg.url, /openstreetmap\.org/);
   });
 
@@ -54,7 +55,7 @@ describe("map tiles", () => {
       return undefined;
     });
     assert.equal(cfg.proxy, true);
-    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=2");
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=3");
     assert.doesNotMatch(cfg.url, /map\.ir|openstreetmap\.org/);
   });
 
@@ -64,6 +65,7 @@ describe("map tiles", () => {
       assert.doesNotMatch(u, /carto/i);
       assert.equal(isSafeTileTemplate(u), true);
     }
+    assert.match(STANDALONE_UPSTREAM_CANDIDATES[0], /arcgisonline\.com/);
   });
 
   it("fills z/x/y", () => {

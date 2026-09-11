@@ -13,18 +13,22 @@ export type MapTileConfig = {
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const ESRI_ATTR = "Tiles &copy; Esri";
 
+/** Esri World Street Map — no API key. Leaflet template uses {z}/{y}/{x}. */
+export const ESRI_STREET_TEMPLATE =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
+
 /** Preview / Netlify backup only. Never the standalone Iran default. */
 export const PUBLIC_OSM_TILES: MapTileConfig = {
   url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-  fallbackUrl:
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+  fallbackUrl: ESRI_STREET_TEMPLATE,
   attribution: OSM_ATTR,
   maxZoom: 19,
   proxy: false,
 };
 
 export const SAME_ORIGIN_PROXY: MapTileConfig = {
-  url: "/api/tiles/{z}/{x}/{y}?v=2",
+  url: "/api/tiles/{z}/{x}/{y}?v=3",
+  fallbackUrl: ESRI_STREET_TEMPLATE,
   attribution: ESRI_ATTR,
   maxZoom: 19,
   proxy: true,
@@ -34,16 +38,17 @@ export const SAME_ORIGIN_PROXY: MapTileConfig = {
  * Default upstream for the VPS tile proxy when no MAP_TILE_* is set.
  * Browser talks only to this app. Swap via MAP_TILE_PROXY_UPSTREAM or MAP_TILE_URL
  * (Neshan, Map.ir, self-hosted). Not OSM.org.
+ *
+ * Esri first: OSM.de/fr often hang from Iranian VPS (no RST), so a missing
+ * fetch timeout used to block every tile for tens of seconds.
  */
-export const STANDALONE_DEFAULT_UPSTREAM =
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
+export const STANDALONE_DEFAULT_UPSTREAM = ESRI_STREET_TEMPLATE;
 
 /** Tried in order by the VPS proxy. Carto public basemaps watermark "API KEY REQUIRED". */
 export const STANDALONE_UPSTREAM_CANDIDATES = [
+  STANDALONE_DEFAULT_UPSTREAM,
   "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
   "https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
-  "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
-  STANDALONE_DEFAULT_UPSTREAM,
 ] as const;
 
 export function isSafeTileTemplate(url: string): boolean {
@@ -87,6 +92,7 @@ export function resolveMapTiles(get: (key: string) => string | undefined): MapTi
   if (proxyUp && isSafeTileTemplate(proxyUp)) {
     return {
       url: SAME_ORIGIN_PROXY.url,
+      fallbackUrl: fallback && isSafeTileTemplate(fallback) ? fallback : SAME_ORIGIN_PROXY.fallbackUrl,
       attribution: attribution || ESRI_ATTR,
       maxZoom,
       subdomains,
@@ -97,6 +103,7 @@ export function resolveMapTiles(get: (key: string) => string | undefined): MapTi
   if (isStandaloneEnv(get)) {
     return {
       ...SAME_ORIGIN_PROXY,
+      fallbackUrl: fallback && isSafeTileTemplate(fallback) ? fallback : SAME_ORIGIN_PROXY.fallbackUrl,
       attribution: attribution || ESRI_ATTR,
       maxZoom,
       subdomains,

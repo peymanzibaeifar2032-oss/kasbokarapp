@@ -7,6 +7,7 @@ import {
 } from "@/lib/map/tiles";
 
 const UA = "KasbokarApp/1.0 (https://kasbokarapp.com; tile-proxy) Mozilla/5.0";
+const FETCH_MS = 7000;
 
 function parseZxy(pathname: string): { z: number; x: number; y: number } | null {
   const m = pathname.match(/\/api\/tiles\/(\d+)\/(\d+)\/(\d+)(?:\.png)?\/?$/);
@@ -58,6 +59,7 @@ async function fetchImage(
       ...extra,
     },
     redirect: "follow",
+    signal: AbortSignal.timeout(FETCH_MS),
   });
   if (!res.ok) return null;
   const type = res.headers.get("content-type") || "";

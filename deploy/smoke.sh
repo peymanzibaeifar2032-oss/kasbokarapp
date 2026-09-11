@@ -22,11 +22,20 @@ echo "$H" | grep -q '"ok":true' && echo "$H" | grep -q '"standalone":true' && ok
 echo "$H" | grep -q '"db":"postgres"' && ok "health db=postgres" || bad "health db label" "$H"
 
 curl -sS -m 8 -o /tmp/home.html -w "%{http_code}" "$BASE/" | grep -q 200 && grep -q "کسب" /tmp/home.html && ok "home html" || bad "home html" "not 200"
+grep -qiE 'openai\.com|chatgpt\.com|signin-with-chatgpt' /tmp/home.html && bad "home openai remnant" "found" || ok "home no openai/chatgpt"
+
+curl -sS -m 8 -o /tmp/login.html "$BASE/login" || true
+grep -q "ایمیل" /tmp/login.html && ok "login email form" || bad "login email form" "missing"
+grep -qiE 'openai\.com|chatgpt\.com|signin-with-chatgpt' /tmp/login.html && bad "login openai remnant" "found" || ok "login no openai/chatgpt"
+
+curl -sS -m 8 -o /tmp/account.html -D /tmp/account.hdr "$BASE/account" || true
+grep -qiE 'openai\.com|chatgpt\.com|auth\.openai' /tmp/account.html /tmp/account.hdr && bad "account openai redirect" "found" || ok "account not openai"
 
 MC=$(curl -sS -m 8 "$BASE/api/map-config" || true)
 echo "$MC" | grep -q '"url"' && ok "map-config json" || bad "map-config" "$MC"
 echo "$MC" | grep -q openstreetmap.org && bad "map osm.org" "$MC" || ok "map not osm.org"
 echo "$MC" | grep -q '/api/tiles' && ok "map same-origin proxy" || bad "map proxy" "$MC"
+echo "$MC" | grep -q arcgisonline && ok "map fallback esri" || bad "map fallback" "$MC"
 TC=$(curl -sS -m 12 -o /tmp/kasb-tile.bin -w "%{http_code}:%{content_type}" "$BASE/api/tiles/6/40/25" || true)
 echo "$TC" | grep -q '^200:image' && ok "tile proxy image" || bad "tile proxy" "$TC"
 
@@ -93,7 +102,7 @@ echo "$CAT" | grep -q '<!DOCTYPE' && bad "categories" "html instead of json" || 
   echo "$CAT" | grep -q slug && ok "categories" || bad "categories" "$(echo "$CAT" | head -c 120)"
 }
 
-BIZ=$(save '{"type":"createBusiness","payload":{"name":"تست اسموک","province":"کرمانشاه","city":"کرمانشاه","latitude":34.32,"longitude":47.07,"categoryId":1,"slotMinutes":10,"phone":"۰۹۱۲۱۱۱۱۱۱۱","prices":[{"title":"خدمت تست","price":"۶۰۰۰۰۰"}]}}')
+BIZ=$(save '{"type":"createBusiness","payload":{"name":"E2E TEST - DELETE ME","province":"کرمانشاه","city":"کرمانشاه","latitude":34.32,"longitude":47.07,"categoryId":1,"slotMinutes":10,"phone":"۰۹۱۲۱۱۱۱۱۱۱","prices":[{"title":"خدمت تست","price":"۶۰۰۰۰۰"}],"description":"E2E TEST - DELETE ME"}}')
 echo "$BIZ" | grep -q '<!DOCTYPE' && bad "createBusiness" "html instead of json" || {
   echo "$BIZ" | grep -q '"id"' && ok "createBusiness" || bad "createBusiness" "$(echo "$BIZ" | head -c 180)"
 }
@@ -134,11 +143,36 @@ if [ -n "$BID" ]; then
 
   BK=$(save "{\"type\":\"booking\",\"payload\":{\"businessId\":\"$BID\",\"customerName\":\"علی\",\"customerPhone\":\"09120000000\",\"slotStart\":\"$(date -u -d '+2 days' +%Y-%m-%dT10:00:00.000Z)\"}}")
   echo "$BK" | grep -qiE 'ok|id|slot' && ok "booking" || bad "booking" "$(echo "$BK" | head -c 180)"
+  BKID=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('id') or '')" "$BK" 2>/dev/null || true)
+  if [ -n "$BKID" ]; then
+    ST=$(save "{\"type\":\"bookingStatus\",\"payload\":{\"id\":\"$BKID\",\"status\":\"confirmed\"}}")
+    echo "$ST" | grep -q '"ok":true' && ok "booking confirm" || bad "booking confirm" "$(echo "$ST" | head -c 120)"
+    ST2=$(save "{\"type\":\"bookingStatus\",\"payload\":{\"id\":\"$BKID\",\"status\":\"cancelled\"}}")
+    echo "$ST2" | grep -q '"ok":true' && ok "booking cancel" || bad "booking cancel" "$(echo "$ST2" | head -c 120)"
+  fi
+
+  RV=$(save "{\"type\":\"review\",\"payload\":{\"businessId\":\"$BID\",\"rating\":5,\"body\":\"عالی بود\",\"authorName\":\"اسموک\"}}")
+  echo "$RV" | grep -q '"ok":true' && ok "review create" || bad "review" "$(echo "$RV" | head -c 180)"
+  RL=$(save "{\"type\":\"reviews\",\"payload\":{\"businessId\":\"$BID\"}}")
+  echo "$RL" | grep -q 'عالی بود' && ok "review list" || bad "review list" "$(echo "$RL" | head -c 180)"
+
+  docker compose --profile with-db exec -T db \
+    psql -U kasbokar -d kasbokar -c "update businesses set trial_ends_at = now() - interval '1 day', subscription_ends_at = now() + interval '30 days' where id = '$BID';" >/dev/null
+  VIS4=$(save "{\"type\":\"business\",\"payload\":{\"id\":\"$BID\"}}")
+  echo "$VIS4" | grep -q '"subscribed"' && ok "paid restores features" || bad "paid restore" "$(echo "$VIS4" | head -c 180)"
 fi
 
 if [ -n "${SMOKE_UID:-}" ]; then
   docker compose --profile with-db exec -T db \
     psql -U kasbokar -d kasbokar -c "update profiles set is_admin = false where user_id = '$SMOKE_UID';" >/dev/null || true
+fi
+
+# Local HTTPS if cert files are present (does not call Let's Encrypt).
+if [ -s certs/fullchain.pem ] && [ -s certs/privkey.pem ]; then
+  TLS=$(curl -sS -m 10 --resolve kasbokarapp.com:443:127.0.0.1 "https://kasbokarapp.com/api/health" || true)
+  echo "$TLS" | grep -q '"ok":true' && ok "https health" || bad "https health" "$(echo "$TLS" | head -c 120)"
+  WWW=$(curl -sS -m 10 -o /dev/null -w "%{http_code}" --resolve www.kasbokarapp.com:443:127.0.0.1 "https://www.kasbokarapp.com/api/health" || true)
+  echo "$WWW" | grep -q 200 && ok "https www health" || bad "https www" "$WWW"
 fi
 
 GD=$(api -d '{"type":"chat","payload":{"message":"چطور رزرو کنم؟","history":[],"path":"/"}}' "$BASE/api/guide" || true)
@@ -165,6 +199,13 @@ if [ -n "$DUMP" ]; then
     && grep -Eqi 'TABLE' /tmp/pglist && ok "backup restore-list" || bad "backup restore-list" "$(head -c 120 /tmp/pglist.err /tmp/pglist 2>/dev/null)"
 else
   bad "backup file" "none yet"
+fi
+
+# Remove E2E rows so production data stays clean.
+if [ -n "${BID:-}" ]; then
+  docker compose --profile with-db exec -T db \
+    psql -U kasbokar -d kasbokar -c "delete from reviews where business_id = '$BID'; delete from bookings where business_id = '$BID'; delete from businesses where id = '$BID' or name = 'E2E TEST - DELETE ME';" >/dev/null || true
+  ok "e2e rows deleted"
 fi
 
 echo "=== $PASS passed, $FAIL failed ==="

@@ -13,8 +13,11 @@ http://185.204.197.211 {
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
     Permissions-Policy "camera=(), microphone=(), payment=(), geolocation=(self)"
-    Cache-Control "no-store"
   }
+  @cached path /api/tiles/* /assets/* *.js *.css *.woff2 *.png *.svg *.jpg
+  header @cached Cache-Control "public, max-age=86400"
+  @html not path /api/tiles/* /assets/* *.js *.css *.woff2 *.png *.svg *.jpg
+  header @html Cache-Control "no-store"
 }
 
 http://{$SITE_HOST}, http://www.{$SITE_HOST} {
@@ -31,6 +34,9 @@ http://{$SITE_HOST}, http://www.{$SITE_HOST} {
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
     Permissions-Policy "camera=(), microphone=(), payment=(), geolocation=(self)"
-    Cache-Control "no-store"
   }
+  @cached path /api/tiles/* /assets/* *.js *.css *.woff2 *.png *.svg *.jpg
+  header @cached Cache-Control "public, max-age=86400"
+  @html not path /api/tiles/* /assets/* *.js *.css *.woff2 *.png *.svg *.jpg
+  header @html Cache-Control "no-store"
 }
