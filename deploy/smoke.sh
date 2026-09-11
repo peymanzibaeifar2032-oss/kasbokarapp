@@ -107,6 +107,15 @@ EOF
 echo "$MINE" | grep -q '600000' && ok "persian price stored" || bad "persian price" "$(echo "$MINE" | head -c 180)"
 echo "$MINE" | grep -q '"slotMinutes":10' && ok "slotMinutes 10" || bad "slotMinutes" "$(echo "$MINE" | head -c 180)"
 
+SMOKE_UID=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('userId') or '')" <<EOF
+$PROF
+EOF
+)
+if [ -n "$SMOKE_UID" ]; then
+  docker compose --profile with-db exec -T db \
+    psql -U kasbokar -d kasbokar -c "update profiles set is_admin = true where user_id = '$SMOKE_UID';" >/dev/null
+fi
+
 if [ -n "$BID" ]; then
   DEC=$(save "{\"type\":\"adminDecide\",\"payload\":{\"id\":\"$BID\",\"decision\":\"approved\"}}")
   echo "$DEC" | grep -q '"ok":true' && ok "admin approve starts 7-day trial" || bad "adminDecide" "$(echo "$DEC" | head -c 180)"
@@ -125,6 +134,11 @@ if [ -n "$BID" ]; then
 
   BK=$(save "{\"type\":\"booking\",\"payload\":{\"businessId\":\"$BID\",\"customerName\":\"علی\",\"customerPhone\":\"09120000000\",\"slotStart\":\"$(date -u -d '+2 days' +%Y-%m-%dT10:00:00.000Z)\"}}")
   echo "$BK" | grep -qiE 'ok|id|slot' && ok "booking" || bad "booking" "$(echo "$BK" | head -c 180)"
+fi
+
+if [ -n "${SMOKE_UID:-}" ]; then
+  docker compose --profile with-db exec -T db \
+    psql -U kasbokar -d kasbokar -c "update profiles set is_admin = false where user_id = '$SMOKE_UID';" >/dev/null || true
 fi
 
 GD=$(api -d '{"type":"chat","payload":{"message":"چطور رزرو کنم؟","history":[],"path":"/"}}' "$BASE/api/guide" || true)
