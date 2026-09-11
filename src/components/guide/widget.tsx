@@ -14,7 +14,7 @@ import {
 } from "@/lib/guide/version";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, newId } from "@/lib/utils";
 
 type Msg = { id: string; role: "user" | "assistant"; text: string };
 
@@ -44,11 +44,11 @@ function conversationId() {
     const key = "kasb:guide-cid";
     const cur = sessionStorage.getItem(key);
     if (cur) return cur;
-    const id = crypto.randomUUID();
+    const id = newId();
     sessionStorage.setItem(key, id);
     return id;
   } catch {
-    return crypto.randomUUID();
+    return newId();
   }
 }
 
@@ -109,7 +109,7 @@ export function GuideWidget() {
       .filter((m) => m.id !== "hi")
       .slice(-keep)
       .map((m) => ({ role: m.role, content: m.text }));
-    setMessages((m) => [...m, { id: crypto.randomUUID(), role: "user", text: trimmed }]);
+    setMessages((m) => [...m, { id: newId(), role: "user", text: trimmed }]);
     setBusy(true);
     try {
       const res = await guideRequest<GuideChatResponse>("chat", {
@@ -121,7 +121,7 @@ export function GuideWidget() {
         conversationId: cid,
       });
       setOosStreak(res.mode === "out_of_scope" ? res.oosStreak : 0);
-      setMessages((m) => [...m, { id: crypto.randomUUID(), role: "assistant", text: res.reply }]);
+      setMessages((m) => [...m, { id: newId(), role: "assistant", text: res.reply }]);
       if (res.mode === "bug_collect") setPanel("bug");
     } catch (err) {
       setError(err instanceof Error ? err.message : "پاسخ نیامد.");
@@ -235,7 +235,7 @@ export function GuideWidget() {
                   setMessages((m) => [
                     ...m,
                     {
-                      id: crypto.randomUUID(),
+                      id: newId(),
                       role: "assistant",
                       text: "گزارش ثبت شد. مدیریت آن را در پنل می‌بیند.",
                     },
