@@ -23,15 +23,20 @@ function parseZxy(pathname: string): { z: number; x: number; y: number } | null 
 
 let cachedUpstream: string | null = null;
 
+function needsPaidKey(url: string): boolean {
+  return /carto(cdn)?\.com|maptiler\.com|stadiamaps\.com|geoapify\.com|jawg\.io/i.test(url);
+}
+
 function candidateUpstreams(): string[] {
+  const hasKey = Boolean(env("MAP_TILE_PROXY_KEY")?.trim());
   const fromEnv = [
     env("MAP_TILE_PROXY_UPSTREAM")?.trim(),
     env("MAP_TILE_URL")?.trim(),
-  ].filter((u): u is string => Boolean(u && isSafeTileTemplate(u)));
+  ].filter((u): u is string => Boolean(u && isSafeTileTemplate(u) && (hasKey || !needsPaidKey(u))));
   const standalone = env("STANDALONE") === "true" || env("STANDALONE") === "1";
   const rest = standalone ? [...STANDALONE_UPSTREAM_CANDIDATES] : [];
-  const all = [...fromEnv, ...rest.filter((u) => !fromEnv.includes(u))];
-  if (cachedUpstream && all.includes(cachedUpstream)) {
+  const all = [...fromEnv, ...rest.filter((u) => !fromEnv.includes(u) && (hasKey || !needsPaidKey(u)))];
+  if (cachedUpstream && all.includes(cachedUpstream) && (hasKey || !needsPaidKey(cachedUpstream))) {
     return [cachedUpstream, ...all.filter((u) => u !== cachedUpstream)];
   }
   return all;

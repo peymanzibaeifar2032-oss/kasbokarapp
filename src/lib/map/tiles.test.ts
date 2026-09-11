@@ -20,7 +20,7 @@ describe("map tiles", () => {
       k === "MAP_TILE_PROXY_UPSTREAM" ? "https://tiles.example.ir/{z}/{x}/{y}.png" : undefined,
     );
     assert.equal(cfg.proxy, true);
-    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=2");
   });
 
   it("uses an Iranian or self-hosted URL without rewrite in preview", () => {
@@ -43,7 +43,7 @@ describe("map tiles", () => {
   it("standalone without MAP_TILE_* uses same-origin proxy, not OSM.org", () => {
     const cfg = resolveMapTiles((k) => (k === "STANDALONE" ? "true" : undefined));
     assert.equal(cfg.proxy, true);
-    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=2");
     assert.doesNotMatch(cfg.url, /openstreetmap\.org/);
   });
 
@@ -54,13 +54,14 @@ describe("map tiles", () => {
       return undefined;
     });
     assert.equal(cfg.proxy, true);
-    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=2");
     assert.doesNotMatch(cfg.url, /map\.ir|openstreetmap\.org/);
   });
 
-  it("standalone fallback candidates never include osm.org", () => {
+  it("standalone fallback candidates never include osm.org or carto", () => {
     for (const u of STANDALONE_UPSTREAM_CANDIDATES) {
       assert.doesNotMatch(u, /openstreetmap\.org/);
+      assert.doesNotMatch(u, /carto/i);
       assert.equal(isSafeTileTemplate(u), true);
     }
   });

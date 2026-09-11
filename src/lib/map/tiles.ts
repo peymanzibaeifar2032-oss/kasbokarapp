@@ -24,7 +24,7 @@ export const PUBLIC_OSM_TILES: MapTileConfig = {
 };
 
 export const SAME_ORIGIN_PROXY: MapTileConfig = {
-  url: "/api/tiles/{z}/{x}/{y}",
+  url: "/api/tiles/{z}/{x}/{y}?v=2",
   attribution: ESRI_ATTR,
   maxZoom: 19,
   proxy: true,
@@ -38,11 +38,11 @@ export const SAME_ORIGIN_PROXY: MapTileConfig = {
 export const STANDALONE_DEFAULT_UPSTREAM =
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
 
-/** Tried in order by the VPS proxy until one returns a real map image. Not OSM.org. */
+/** Tried in order by the VPS proxy. Carto public basemaps watermark "API KEY REQUIRED". */
 export const STANDALONE_UPSTREAM_CANDIDATES = [
-  "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
   "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
   "https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
+  "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
   STANDALONE_DEFAULT_UPSTREAM,
 ] as const;
 
