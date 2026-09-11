@@ -185,7 +185,11 @@ const database = databaseUrl
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
 /** Session token cookie name — also read by the live-preview popup completion page. */
-export const SESSION_TOKEN_COOKIE = "__Host-grok-auth.session_token";
+export const SESSION_TOKEN_COOKIE = isStandalone()
+  ? ((env("SITE_URL") || env("BETTER_AUTH_URL") || "").startsWith("https:")
+      ? "__Host-kasbokar.session_token"
+      : "kasbokar.session_token")
+  : "__Host-grok-auth.session_token";
 
 // Built separately so the `betterAuth({...})` call stays easy to edit without
 // breaking brackets (models often trip on the conditional plugin spread).
@@ -267,23 +271,40 @@ export const auth = betterAuth({
       }
     : {}),
 
-  // `__Host-` prefixed cookies: the browser REFUSES any same-named cookie that
-  // carries a `Domain` attribute, so a sibling `*.grok.me` app cannot "toss" a
-  // `Domain=.grok.me` session cookie onto this app. `__Host-` requires Secure +
-  // Path=/ + no Domain; Better Auth otherwise uses `__Secure-` (which permits
-  // Domain), so we drop its auto prefix (`useSecureCookies: false`) and set
-  // Secure + the names ourselves. (Browsers allow Secure cookies on
-  // `http://localhost`, so local dev still works.)
-  advanced: {
-    useSecureCookies: false,
-    defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
-    cookies: {
-      session_token: { name: SESSION_TOKEN_COOKIE },
-      session_data: { name: "__Host-grok-auth.session_data" },
-      account_data: { name: "__Host-grok-auth.account_data" },
-      dont_remember: { name: "__Host-grok-auth.dont_remember" },
-    },
-  },
+  // Preview uses `__Host-grok-auth.*` (Secure, no Domain) so sibling grok apps
+  // cannot toss a Domain cookie. Standalone VPS on HTTP cannot set `__Host-`
+  // or Secure cookies; HTTPS standalone uses `__Host-kasbokar.*`.
+  advanced: isStandalone()
+    ? {
+        useSecureCookies: false,
+        defaultCookieAttributes: {
+          secure: (env("SITE_URL") || env("BETTER_AUTH_URL") || "").startsWith("https:"),
+          sameSite: "lax" as const,
+          path: "/",
+        },
+        cookies: {
+          session_token: { name: SESSION_TOKEN_COOKIE },
+          session_data: {
+            name: SESSION_TOKEN_COOKIE.replace("session_token", "session_data"),
+          },
+          account_data: {
+            name: SESSION_TOKEN_COOKIE.replace("session_token", "account_data"),
+          },
+          dont_remember: {
+            name: SESSION_TOKEN_COOKIE.replace("session_token", "dont_remember"),
+          },
+        },
+      }
+    : {
+        useSecureCookies: false,
+        defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
+        cookies: {
+          session_token: { name: SESSION_TOKEN_COOKIE },
+          session_data: { name: "__Host-grok-auth.session_data" },
+          account_data: { name: "__Host-grok-auth.account_data" },
+          dont_remember: { name: "__Host-grok-auth.dont_remember" },
+        },
+      },
 
   plugins: [
     gateIdentitySessions(),

@@ -1,16 +1,14 @@
+# HTTP reverse proxy for the VPS IP. Does not request Let's Encrypt.
+# Switch CADDYFILE=Caddyfile.tls in .env only after DNS A records point here.
 {
-  email {$CADDY_EMAIL}
+  auto_https off
+  admin off
 }
 
-www.{$SITE_HOST} {
-  redir https://{$SITE_HOST}{uri} permanent
-}
-
-{$SITE_HOST} {
+:80 {
   encode gzip zstd
   reverse_proxy web:8080
   header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"

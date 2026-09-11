@@ -1,0 +1,21 @@
+# Enable only after kasbokarapp.com and www A records point at this VPS.
+# Set CADDYFILE=Caddyfile.tls then: docker compose --profile with-db --profile tls up -d
+{
+  email {$CADDY_EMAIL}
+}
+
+www.{$SITE_HOST} {
+  redir https://{$SITE_HOST}{uri} permanent
+}
+
+{$SITE_HOST} {
+  encode gzip zstd
+  reverse_proxy web:8080
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    X-Frame-Options "SAMEORIGIN"
+    Permissions-Policy "camera=(), microphone=(), payment=()"
+  }
+}

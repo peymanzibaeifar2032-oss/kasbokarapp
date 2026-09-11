@@ -30,7 +30,10 @@ services:
     logging: *default-logging
 
   web:
-    build: .
+    build:
+      context: .
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://mirror.abrha.net/repository/npm}
     restart: unless-stopped
     depends_on:
       db:
@@ -48,6 +51,7 @@ services:
       PORT: "8080"
       SITE_URL: ${SITE_URL:-https://kasbokarapp.com}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://kasbokarapp.com}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set BETTER_AUTH_SECRET}
       DATABASE_URL: ${DATABASE_URL:-postgres://kasbokar:${POSTGRES_PASSWORD:-change-me-now}@db:5432/kasbokar}
       MAP_TILE_URL: ${MAP_TILE_URL:-}
@@ -84,6 +88,24 @@ services:
       start_period: 25s
     logging: *default-logging
 
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    profiles: ["with-db"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-change-me-now}
+      PGHOST: db
+      PGUSER: kasbokar
+      PGDATABASE: kasbokar
+    volumes:
+      - kasbokar_backups:/backups
+      - ./deploy/pg-backup-loop.sh:/backup-loop.sh:ro
+    entrypoint: ["/bin/sh", "/backup-loop.sh"]
+    logging: *default-logging
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -98,7 +120,7 @@ services:
       SITE_HOST: ${SITE_HOST:-kasbokarapp.com}
       CADDY_EMAIL: ${CADDY_EMAIL:-ops@kasbokarapp.com}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/${CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     logging: *default-logging

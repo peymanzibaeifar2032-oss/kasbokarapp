@@ -37,15 +37,8 @@ jobs:
             set -eu
             APP_DIR="${{ secrets.VPS_APP_DIR }}"
             if [ -z "$APP_DIR" ]; then APP_DIR=/opt/kasbokarapp; fi
+            export APP_DIR
             cd "$APP_DIR"
-            git fetch origin main
-            git checkout main
-            git pull --ff-only origin main
-            if [ -f .env ]; then
-              set -a
-              # shellcheck disable=SC1091
-              . ./.env
-              set +a
-            fi
-            docker compose up -d --build --remove-orphans
-            docker image prune -f
+            export GIT_SSH_COMMAND='ssh -i /root/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
+            sh deploy/update.sh
+            docker compose --profile with-db --profile tls ps

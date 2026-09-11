@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/health")({
             {
               ok: true,
               app: "kasbokar",
-              db: postgresUrl() ? "neon" : "pglite",
+              db: postgresUrl() ? (isStandalone() ? "postgres" : "neon") : "pglite",
               standalone: isStandalone(),
             },
             { headers: { "Cache-Control": "no-store" } },

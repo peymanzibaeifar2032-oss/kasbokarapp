@@ -1,8 +1,10 @@
 # Production image for a Linux VPS. Not used by the Grok live preview.
 FROM node:22-slim AS deps
 WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN sed -i "s#https://registry.npmjs.org#${NPM_REGISTRY}#g" package-lock.json && npm ci
 
 FROM node:22-slim AS build
 WORKDIR /app
@@ -16,6 +18,8 @@ RUN node scripts/with-app-env.mjs vite build
 
 FROM node:22-slim AS runner
 WORKDIR /app
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY
 ENV NODE_ENV=production
 ENV STANDALONE=true
 ENV NITRO_PRESET=node-server
@@ -26,7 +30,8 @@ RUN apt-get update \
   && groupadd --system kasb \
   && useradd --system --gid kasb --home-dir /app --shell /usr/sbin/nologin kasb
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN sed -i "s#https://registry.npmjs.org#${NPM_REGISTRY}#g" package-lock.json \
+  && npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/migrations ./migrations
 COPY --from=build /app/.output ./.output
