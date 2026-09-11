@@ -38,11 +38,12 @@ export const SAME_ORIGIN_PROXY: MapTileConfig = {
 export const STANDALONE_DEFAULT_UPSTREAM =
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
 
-/** Tried in order by the VPS proxy until one returns an image. Not OSM.org. */
+/** Tried in order by the VPS proxy until one returns a real map image. Not OSM.org. */
 export const STANDALONE_UPSTREAM_CANDIDATES = [
-  STANDALONE_DEFAULT_UPSTREAM,
   "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
   "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+  "https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
+  STANDALONE_DEFAULT_UPSTREAM,
 ] as const;
 
 export function isSafeTileTemplate(url: string): boolean {
@@ -86,11 +87,19 @@ export function resolveMapTiles(get: (key: string) => string | undefined): MapTi
   if (proxyUp && isSafeTileTemplate(proxyUp)) {
     return {
       url: SAME_ORIGIN_PROXY.url,
-      fallbackUrl: explicit && isSafeTileTemplate(explicit) ? explicit : undefined,
       attribution: attribution || ESRI_ATTR,
       maxZoom,
       subdomains,
       proxy: true,
+    };
+  }
+
+  if (isStandaloneEnv(get)) {
+    return {
+      ...SAME_ORIGIN_PROXY,
+      attribution: attribution || ESRI_ATTR,
+      maxZoom,
+      subdomains,
     };
   }
 
@@ -102,15 +111,6 @@ export function resolveMapTiles(get: (key: string) => string | undefined): MapTi
       maxZoom,
       subdomains,
       proxy: false,
-    };
-  }
-
-  if (isStandaloneEnv(get)) {
-    return {
-      ...SAME_ORIGIN_PROXY,
-      attribution: attribution || ESRI_ATTR,
-      maxZoom,
-      subdomains,
     };
   }
 

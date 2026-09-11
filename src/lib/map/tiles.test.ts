@@ -23,7 +23,7 @@ describe("map tiles", () => {
     assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
   });
 
-  it("uses an Iranian or self-hosted URL without rewrite", () => {
+  it("uses an Iranian or self-hosted URL without rewrite in preview", () => {
     const cfg = resolveMapTiles((k) => {
       if (k === "MAP_TILE_URL") return "https://map.ir/shiveh/{z}/{x}/{y}.png";
       if (k === "MAP_TILE_ATTRIBUTION") return "Map.ir";
@@ -45,6 +45,17 @@ describe("map tiles", () => {
     assert.equal(cfg.proxy, true);
     assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
     assert.doesNotMatch(cfg.url, /openstreetmap\.org/);
+  });
+
+  it("standalone keeps MAP_TILE_URL off the browser and uses same-origin proxy", () => {
+    const cfg = resolveMapTiles((k) => {
+      if (k === "STANDALONE") return "true";
+      if (k === "MAP_TILE_URL") return "https://map.ir/shiveh/{z}/{x}/{y}.png";
+      return undefined;
+    });
+    assert.equal(cfg.proxy, true);
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
+    assert.doesNotMatch(cfg.url, /map\.ir|openstreetmap\.org/);
   });
 
   it("standalone fallback candidates never include osm.org", () => {

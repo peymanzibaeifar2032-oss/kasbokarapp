@@ -6,8 +6,7 @@ import {
   STANDALONE_UPSTREAM_CANDIDATES,
 } from "@/lib/map/tiles";
 
-const UA =
-  "KasbokarApp/1.0 (https://kasbokarapp.com; tile-proxy) Mozilla/5.0";
+const UA = "KasbokarApp/1.0 (https://kasbokarapp.com; tile-proxy) Mozilla/5.0";
 
 function parseZxy(pathname: string): { z: number; x: number; y: number } | null {
   const m = pathname.match(/\/api\/tiles\/(\d+)\/(\d+)\/(\d+)(?:\.png)?\/?$/);
@@ -38,9 +37,21 @@ function candidateUpstreams(): string[] {
   return all;
 }
 
-async function fetchImage(url: string, extra: Record<string, string>): Promise<{ buf: ArrayBuffer; type: string } | null> {
+function looksLikeErrorTile(buf: ArrayBuffer): boolean {
+  const s = Buffer.from(buf).toString("latin1").toLowerCase();
+  return /api key required|missing api key|invalid api key|maptiler|provide an api key/.test(s);
+}
+
+async function fetchImage(
+  url: string,
+  extra: Record<string, string>,
+): Promise<{ buf: ArrayBuffer; type: string } | null> {
   const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "image/png,image/jpeg,image/*;q=0.8,*/*;q=0.3", ...extra },
+    headers: {
+      "User-Agent": UA,
+      Accept: "image/png,image/jpeg,image/*;q=0.8,*/*;q=0.3",
+      ...extra,
+    },
     redirect: "follow",
   });
   if (!res.ok) return null;
@@ -48,6 +59,7 @@ async function fetchImage(url: string, extra: Record<string, string>): Promise<{
   if (type && !type.startsWith("image/") && !type.includes("octet-stream")) return null;
   const buf = await res.arrayBuffer();
   if (buf.byteLength < 80) return null;
+  if (looksLikeErrorTile(buf)) return null;
   return { buf, type: type.startsWith("image/") ? type : "image/png" };
 }
 

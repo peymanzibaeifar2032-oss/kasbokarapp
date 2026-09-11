@@ -9,7 +9,7 @@ export const Route = createFileRoute("/api/map-config")({
         const cfg = resolveMapTiles((key) => env(key));
         return Response.json(cfg, {
           headers: {
-            "Cache-Control": "public, max-age=60",
+            "Cache-Control": "no-store",
           },
         });
       },
