@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { t } from "@/lib/i18n";
 
 function AuthSlot() {
   const { user, isPending } = useCurrentUserState();
@@ -20,7 +21,7 @@ function AuthSlot() {
       search={{}}
       className="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
     >
-      ورود
+      {t("navSignIn")}
     </Link>
   );
 }
@@ -35,8 +36,8 @@ export function Shell({ children }: { children: ReactNode }) {
               <Store className="size-5" />
             </span>
             <span className="leading-tight">
-              <strong className="block text-[15px] font-semibold">کسب‌وکار</strong>
-              <small className="text-xs text-muted">پیدا کن، رزرو کن</small>
+              <strong className="block text-[15px] font-semibold">{t("appName")}</strong>
+              <small className="text-xs text-muted">{t("tagline")}</small>
             </span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
@@ -44,33 +45,33 @@ export function Shell({ children }: { children: ReactNode }) {
               to="/"
               className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
             >
-              کشف
+              {t("navDiscover")}
             </Link>
             <Link
               to="/about"
               className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
             >
-              درباره
+              {t("navAbout")}
             </Link>
             <Link
               to="/download"
               className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
             >
-              نصب
+              {t("navInstall")}
             </Link>
             <SignedIn>
               <Link
                 to="/account"
                 className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
               >
-                رزروها
+                {t("navBookings")}
               </Link>
               <Link
                 to="/dashboard"
                 search={{}}
                 className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
               >
-                پنل من
+                {t("navPanel")}
               </Link>
             </SignedIn>
           </nav>
@@ -81,7 +82,7 @@ export function Shell({ children }: { children: ReactNode }) {
                 search={{}}
                 className="hidden h-11 items-center rounded-md border border-border bg-surface px-3 text-sm md:inline-flex"
               >
-                ثبت کسب‌وکار
+                {t("navRegister")}
               </Link>
             </SignedOut>
             <AuthSlot />
@@ -91,11 +92,11 @@ export function Shell({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6 md:pb-16">{children}</main>
       <footer className="hidden border-t border-border py-8 md:block">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 text-sm text-muted">
-          <p>ساخته‌شده برای رشد کسب‌وکارهای ایران</p>
+          <p>{t("footerMade")}</p>
           <div className="flex gap-4">
-            <Link to="/about">درباره ما</Link>
-            <Link to="/download">نصب برنامه</Link>
-            <Link to="/dashboard" search={{}}>ثبت کسب‌وکار</Link>
+            <Link to="/about">{t("footerAbout")}</Link>
+            <Link to="/download">{t("footerInstall")}</Link>
+            <Link to="/dashboard" search={{}}>{t("navRegister")}</Link>
           </div>
         </div>
       </footer>
@@ -103,25 +104,25 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="grid grid-cols-5">
           <Link to="/" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <MapPinned className="size-5" />
-            نقشه
+            {t("navMap")}
           </Link>
           <a href="/#cats" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <LayoutGrid className="size-5" />
-            دسته‌ها
+            {t("navCategories")}
           </a>
           <Link to="/dashboard" search={{}} className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-primary">
             <span className="-mt-5 grid size-10 place-items-center rounded-full bg-primary text-primary-fg shadow-md">
               <Store className="size-5" />
             </span>
-            ثبت
+            {t("navCreate")}
           </Link>
           <Link to="/account" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <CalendarDays className="size-5" />
-            رزروها
+            {t("navBookings")}
           </Link>
           <Link to="/dashboard" search={{}} className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <UserRound className="size-5" />
-            پنل
+            {t("navAccount")}
           </Link>
         </div>
       </nav>

@@ -1,0 +1,32 @@
+/** Default production locale. Keys are stable English; values stay fluent Persian. */
+export const faIR = {
+  appName: "کسب‌وکار",
+  tagline: "پیدا کن، رزرو کن",
+  navDiscover: "کشف",
+  navAbout: "درباره",
+  navInstall: "نصب",
+  navBookings: "رزروها",
+  navPanel: "پنل من",
+  navRegister: "ثبت کسب‌وکار",
+  navSignIn: "ورود",
+  navMap: "نقشه",
+  navCategories: "دسته‌ها",
+  navCreate: "ثبت",
+  navAccount: "پنل",
+  footerMade: "ساخته‌شده برای رشد کسب‌وکارهای ایران",
+  footerAbout: "درباره ما",
+  footerInstall: "نصب برنامه",
+  booking: "رزرو",
+  waitlist: "لیست انتظار",
+  staff: "کارکنان",
+  favorites: "ذخیره‌شده‌ها",
+  reviews: "نظرات",
+  availableToday: "وقت خالی امروز",
+  rebooking: "رزرو مجدد",
+  businessDashboard: "پنل کسب‌وکار",
+  notifications: "اعلان‌ها",
+  loyalty: "باشگاه مشتریان",
+  promotions: "پیشنهادها و تخفیف‌ها",
+} as const;
+
+export type MessageKey = keyof typeof faIR;

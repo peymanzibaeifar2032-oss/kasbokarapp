@@ -45,6 +45,8 @@ services:
     env_file:
       - path: .env
         required: false
+      - path: .deploy-sha
+        required: false
     environment:
       STANDALONE: "true"
       NODE_ENV: production

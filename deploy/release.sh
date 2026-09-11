@@ -60,6 +60,7 @@ $COMPOSE exec -T db sh -c 'pg_dump -Fc -f /backups/pre-deploy-$(date -u +%Y%m%dT
 git reset --hard "$NEW_SHA"
 chmod +x deploy/*.sh 2>/dev/null || true
 export GIT_SHA="$NEW_SHA"
+printf 'GIT_SHA=%s\n' "$NEW_SHA" > .deploy-sha
 
 $COMPOSE build web || fail "build"
 $COMPOSE up -d --remove-orphans || fail "up"

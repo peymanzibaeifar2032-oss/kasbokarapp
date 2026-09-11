@@ -1,5 +1,7 @@
 /** Provider-independent map tiles. Coordinates stay in our Postgres. */
 
+import { ESRI_STREET_TEMPLATE, REGISTERED_MAP_PROVIDERS } from "./providers.ts";
+
 export type MapTileConfig = {
   url: string;
   fallbackUrl?: string;
@@ -13,9 +15,7 @@ export type MapTileConfig = {
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const ESRI_ATTR = "Tiles &copy; Esri";
 
-/** Esri World Street Map — no API key. Leaflet template uses {z}/{y}/{x}. */
-export const ESRI_STREET_TEMPLATE =
-  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
+export { ESRI_STREET_TEMPLATE };
 
 /** Preview / Netlify backup only. Never the standalone Iran default. */
 export const PUBLIC_OSM_TILES: MapTileConfig = {
@@ -42,14 +42,10 @@ export const SAME_ORIGIN_PROXY: MapTileConfig = {
  * Esri first: OSM.de/fr often hang from Iranian VPS (no RST), so a missing
  * fetch timeout used to block every tile for tens of seconds.
  */
-export const STANDALONE_DEFAULT_UPSTREAM = ESRI_STREET_TEMPLATE;
+export const STANDALONE_DEFAULT_UPSTREAM = REGISTERED_MAP_PROVIDERS[0]?.template ?? ESRI_STREET_TEMPLATE;
 
 /** Tried in order by the VPS proxy. Carto public basemaps watermark "API KEY REQUIRED". */
-export const STANDALONE_UPSTREAM_CANDIDATES = [
-  STANDALONE_DEFAULT_UPSTREAM,
-  "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
-  "https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",
-] as const;
+export const STANDALONE_UPSTREAM_CANDIDATES = REGISTERED_MAP_PROVIDERS.map((p) => p.template);
 
 export function isSafeTileTemplate(url: string): boolean {
   const trimmed = url.trim();

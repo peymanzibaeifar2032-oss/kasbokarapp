@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/lib/env.server";
+import { isUsable, recordFailure, recordSuccess, type Circuit } from "@/lib/map/circuit";
+import { REGISTERED_MAP_PROVIDERS } from "@/lib/map/providers";
 import {
   fillTileTemplate,
   isSafeTileTemplate,
@@ -8,6 +10,7 @@ import {
 
 const UA = "KasbokarApp/1.0 (https://kasbokarapp.com; tile-proxy) Mozilla/5.0";
 const FETCH_MS = 7000;
+const circuits = new Map<string, Circuit>();
 
 function parseZxy(pathname: string): { z: number; x: number; y: number } | null {
   const m = pathname.match(/\/api\/tiles\/(\d+)\/(\d+)\/(\d+)(?:\.png)?\/?$/);
@@ -35,12 +38,14 @@ function candidateUpstreams(): string[] {
     env("MAP_TILE_URL")?.trim(),
   ].filter((u): u is string => Boolean(u && isSafeTileTemplate(u) && (hasKey || !needsPaidKey(u))));
   const standalone = env("STANDALONE") === "true" || env("STANDALONE") === "1";
-  const rest = standalone ? [...STANDALONE_UPSTREAM_CANDIDATES] : [];
+  const rest = standalone ? [...STANDALONE_UPSTREAM_CANDIDATES] : REGISTERED_MAP_PROVIDERS.map((p) => p.template);
   const all = [...fromEnv, ...rest.filter((u) => !fromEnv.includes(u) && (hasKey || !needsPaidKey(u)))];
-  if (cachedUpstream && all.includes(cachedUpstream) && (hasKey || !needsPaidKey(cachedUpstream))) {
-    return [cachedUpstream, ...all.filter((u) => u !== cachedUpstream)];
+  const healthy = all.filter((u) => isUsable(circuits.get(u)));
+  const list = healthy.length ? healthy : all;
+  if (cachedUpstream && list.includes(cachedUpstream)) {
+    return [cachedUpstream, ...list.filter((u) => u !== cachedUpstream)];
   }
-  return all;
+  return list;
 }
 
 function looksLikeErrorTile(buf: ArrayBuffer): boolean {
@@ -94,7 +99,11 @@ export const Route = createFileRoute("/api/tiles/$")({
           try {
             const url = fillTileTemplate(tpl, zxy.z, zxy.x, zxy.y);
             const got = await fetchImage(url, extra);
-            if (!got) continue;
+            if (!got) {
+              circuits.set(tpl, recordFailure(circuits.get(tpl) ?? { failures: 0, openUntil: 0 }));
+              continue;
+            }
+            circuits.set(tpl, recordSuccess(circuits.get(tpl) ?? { failures: 0, openUntil: 0 }));
             cachedUpstream = tpl;
             return new Response(got.buf, {
               status: 200,
@@ -104,7 +113,7 @@ export const Route = createFileRoute("/api/tiles/$")({
               },
             });
           } catch {
-            /* try next provider */
+            circuits.set(tpl, recordFailure(circuits.get(tpl) ?? { failures: 0, openUntil: 0 }));
           }
         }
         return new Response(null, { status: 502, headers: { "Cache-Control": "no-store" } });

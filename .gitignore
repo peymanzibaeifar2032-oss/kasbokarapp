@@ -30,3 +30,4 @@ deploy/le-bundle.enc
 .project_id
 .node_modules.lock
 .netlify
+.deploy-sha
