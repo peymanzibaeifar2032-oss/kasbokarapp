@@ -9,7 +9,7 @@ export function friendlyError(raw: unknown) {
         : raw && typeof raw === "object" && "error" in raw && typeof (raw as { error: unknown }).error === "string"
           ? (raw as { error: string }).error
           : "";
-  if (/content-type|Invariant failed|Failed to fetch|NetworkError|Load failed|fetch/i.test(s)) {
+  if (/Failed to fetch|NetworkError|Load failed|Invariant failed|content-type/i.test(s)) {
     return "ارتباط با سرور برقرار نشد. دوباره بزنید.";
   }
   if (/Unauthorized/i.test(s)) return "لطفاً دوباره با ایمیل وارد شوید.";

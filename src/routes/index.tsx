@@ -189,26 +189,30 @@ function Home() {
 
   function locate() {
     setGeoBusy(true);
-    const cityCenter = PROVINCES.find((x) => x.name === province);
-    const fallbackPos = cityCenter ? { lat: cityCenter.lat, lng: cityCenter.lng } : KERMANSHAH_CENTER;
+    setGeoMsg(null);
 
-    function useCity(message: string) {
-      setCenter(fallbackPos);
-      setMapCenter(fallbackPos);
-      setZoom(13);
-      setViewKey((k) => k + 1);
-      setSort("distance");
+    if (typeof window !== "undefined" && window.self !== window.top) {
       setGeoBusy(false);
-      setGeoMsg(message);
-      if (!province) {
-        setProvince("کرمانشاه");
-        setCity("کرمانشاه");
-      }
+      const msg = "در این نمایش توکار، موقعیت گوشی در دسترس نیست. پین را روی نقشه بگذارید.";
+      setGeoMsg(msg);
+      toast.error(msg);
+      return;
     }
 
-    const framed = typeof window !== "undefined" && window.self !== window.top;
-    if (framed || !navigator.geolocation) {
-      useCity("نزدیک‌ترین‌ها نسبت به مرکز شهر مرتب شدند. شهر را عوض کنید یا پین را روی نقشه جابه‌جا کنید.");
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setGeoBusy(false);
+      const msg =
+        "موقعیت دقیق گوشی فقط بعد از اتصال دامنه و HTTPS کار می‌کند. فعلاً شهر را انتخاب کنید یا پین را روی نقشه جابه‌جا کنید.";
+      setGeoMsg(msg);
+      toast.message(msg);
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setGeoBusy(false);
+      const msg = "این مرورگر موقعیت مکانی ندارد.";
+      setGeoMsg(msg);
+      toast.error(msg);
       return;
     }
 
@@ -218,16 +222,23 @@ function Home() {
         setUserPos(next);
         setCenter(next);
         setMapCenter(next);
-        setZoom(14);
+        setZoom(15);
         setViewKey((k) => k + 1);
         setSort("distance");
         setGeoMsg(null);
         setGeoBusy(false);
+        toast.success("موقعیت شما روی نقشه آمد.");
       },
-      () => {
-        useCity("موقعیت گوشی در دسترس نبود؛ فهرست بر اساس مرکز شهر مرتب شد.");
+      (err) => {
+        setGeoBusy(false);
+        let msg = "موقعیت گرفته نشد. دوباره بزنید.";
+        if (err?.code === 1) msg = "اجازهٔ موقعیت رد شد. از تنظیمات مرورگر برای این سایت اجازه بدهید.";
+        if (err?.code === 2) msg = "GPS در دسترس نیست. مکان را روی نقشه انتخاب کنید.";
+        if (err?.code === 3) msg = "زمان موقعیت تمام شد. دوباره بزنید.";
+        setGeoMsg(msg);
+        toast.error(msg);
       },
-      { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 },
     );
   }
 

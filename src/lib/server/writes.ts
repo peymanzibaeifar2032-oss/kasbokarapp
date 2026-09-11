@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
-import { isIranMobile, toWebsiteHref } from "@/lib/format";
+import { isIranMobile, normalizeIranPhone, toWebsiteHref } from "@/lib/format";
 import {
   BOOKING_SELECT,
   BIZ_SELECT,
@@ -84,16 +84,20 @@ export async function performEnsureProfile(userId: string, displayName = "کار
 async function performUpdateProfile(userId: string, raw: unknown) {
   const data = z
     .object({
-      displayName: z.string().min(2).max(80),
-      phone: z.string().max(20).optional(),
+      displayName: z.string().trim().min(2, "نام را کامل بنویسید.").max(80),
+      phone: z.string().max(40).optional(),
     })
     .parse(raw);
+  const phone = data.phone?.trim() ? normalizeIranPhone(data.phone) : "";
+  if (phone && !isIranMobile(phone)) {
+    throw new Error("شماره موبایل ایرانی معتبر وارد کنید. مثل 09126812852");
+  }
   const sql = await getSql();
   await sql.query(
     `insert into profiles (user_id, display_name, phone, is_admin)
      select $1, $2, $3, not exists (select 1 from profiles where is_admin = true)
      on conflict (user_id) do update set display_name = excluded.display_name, phone = excluded.phone`,
-    [userId, data.displayName.trim(), data.phone?.trim() || null],
+    [userId, data.displayName.trim(), phone || null],
   );
   return performEnsureProfile(userId, data.displayName);
 }
@@ -151,7 +155,7 @@ async function performCreateBooking(userId: string, raw: unknown) {
       businessId: z.string(),
       slotStart: z.string(),
       customerName: z.string().min(2).max(80),
-      customerPhone: z.string().min(8).max(20),
+      customerPhone: z.string().min(8).max(40),
       note: z.string().max(300).optional(),
       serviceTitle: z.string().max(80).optional(),
       partySize: z.number().int().min(1).max(20).optional(),
@@ -180,7 +184,7 @@ async function performCreateBooking(userId: string, raw: unknown) {
       data.businessId,
       userId,
       data.customerName.trim(),
-      data.customerPhone.trim(),
+      normalizeIranPhone(data.customerPhone),
       data.slotStart,
       data.note?.trim() || null,
       data.serviceTitle?.trim() || null,

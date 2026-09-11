@@ -408,7 +408,10 @@ function ProfileForm({
       <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="موبایل" />
       <Button
         onClick={() => {
-          void saveAction("updateProfile", { displayName, phone })
+          void saveAction("updateProfile", {
+            displayName: displayName.trim(),
+            phone: phone.trim(),
+          })
             .then(() => {
               toast.success("ذخیره شد.");
               onSaved();

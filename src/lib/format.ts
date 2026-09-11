@@ -98,8 +98,17 @@ export function googleMapsLink(lat: number, lng: number) {
 }
 
 export function isIranMobile(raw: string) {
-  const d = toEnDigits(raw).replace(/[^\d]/g, "");
-  return /^(0?9\d{9}|98?9\d{9})$/.test(d);
+  return /^09\d{9}$/.test(normalizeIranPhone(raw));
+}
+
+/** Persian/Arabic digits and +98 / 0098 / 9xxxxxxxxx → 09xxxxxxxxx */
+export function normalizeIranPhone(raw: string) {
+  let d = toEnDigits(raw).replace(/[^\d]/g, "");
+  if (!d) return "";
+  if (d.startsWith("0098")) d = d.slice(4);
+  else if (d.startsWith("98")) d = d.slice(2);
+  if (d.startsWith("9") && d.length === 10) d = `0${d}`;
+  return d;
 }
 
 function icsStamp(d: Date) {
