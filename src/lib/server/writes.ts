@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
+import { env } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
+import { shouldGrantBootstrapAdmin, isUniqueViolation } from "@/lib/server/admin-bootstrap";
 import {
   BOOKING_SELECT,
   BIZ_SELECT,
@@ -64,12 +66,23 @@ async function requireAdmin(userId: string) {
 
 export async function performEnsureProfile(userId: string, displayName = "کاربر"): Promise<Profile> {
   const sql = await getSql();
+  let email: string | null = null;
+  try {
+    const users = await sql.query<{ email: string }>(`select email from "user" where id = $1`, [userId]);
+    email = users[0]?.email ?? null;
+  } catch {
+    email = null;
+  }
+  const grant = shouldGrantBootstrapAdmin(email, env);
   await sql.query(
     `insert into profiles (user_id, display_name, is_admin)
-     select $1, $2, not exists (select 1 from profiles where is_admin = true)
+     values ($1, $2, $3)
      on conflict (user_id) do nothing`,
-    [userId, displayName.trim() || "کاربر"],
+    [userId, displayName.trim() || "کاربر", grant],
   );
+  if (grant) {
+    await sql.query(`update profiles set is_admin = true where user_id = $1`, [userId]);
+  }
   const rows = await sql.query<{
     user_id: string;
     display_name: string;
@@ -99,7 +112,7 @@ async function performUpdateProfile(userId: string, raw: unknown) {
   const sql = await getSql();
   await sql.query(
     `insert into profiles (user_id, display_name, phone, is_admin)
-     select $1, $2, $3, not exists (select 1 from profiles where is_admin = true)
+     values ($1, $2, $3, false)
      on conflict (user_id) do update set display_name = excluded.display_name, phone = excluded.phone`,
     [userId, data.displayName.trim(), phone || null],
   );
@@ -175,26 +188,32 @@ async function performCreateBooking(userId: string, raw: unknown) {
   if (!visible[0]) throw new Error("این کسب‌وکار الان نوبت نمی‌پذیرد.");
   const clash = await sql.query(
     `select id from bookings
-     where business_id = $1 and slot_start = $2 and status in ('requested','confirmed')`,
-    [data.businessId, data.slotStart],
+     where business_id = $1 and slot_start = $2 and status in ('requested','confirmed')
+       and staff_id is not distinct from $3`,
+    [data.businessId, data.slotStart, null],
   );
   if (clash[0]) throw new Error("این نوبت تازه گرفته شد. ساعت دیگری انتخاب کنید.");
   const id = crypto.randomUUID();
-  await sql.query(
-    `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, note, status, service_title, party_size)
-     values ($1,$2,$3,$4,$5,$6,$7,'requested',$8,$9)`,
-    [
-      id,
-      data.businessId,
-      userId,
-      data.customerName.trim(),
-      normalizeIranPhone(data.customerPhone),
-      data.slotStart,
-      data.note?.trim() || null,
-      data.serviceTitle?.trim() || null,
-      data.partySize ?? 1,
-    ],
-  );
+  try {
+    await sql.query(
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, note, status, service_title, party_size)
+       values ($1,$2,$3,$4,$5,$6,$7,'requested',$8,$9)`,
+      [
+        id,
+        data.businessId,
+        userId,
+        data.customerName.trim(),
+        normalizeIranPhone(data.customerPhone),
+        data.slotStart,
+        data.note?.trim() || null,
+        data.serviceTitle?.trim() || null,
+        data.partySize ?? 1,
+      ],
+    );
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new Error("این نوبت تازه گرفته شد. ساعت دیگری انتخاب کنید.");
+    throw err;
+  }
   return { id, slotStart: data.slotStart };
 }
 
@@ -308,18 +327,8 @@ async function performSetActive(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
-async function performDemoPlan(userId: string, raw: unknown) {
-  const data = z.object({ id: z.string() }).parse(raw);
-  const sql = await getSql();
-  await sql.query(
-    `update businesses
-     set subscription_ends_at = now() + interval '30 days',
-         is_active = true,
-         updated_at = now()
-     where id = $1 and owner_id = $2 and approval_status = 'approved'`,
-    [data.id, userId],
-  );
-  return { ok: true as const };
+async function performDemoPlan(_userId: string, _raw: unknown) {
+  throw new Error("فعال‌سازی اشتراک فقط از مسیر پرداخت انجام می‌شود.");
 }
 
 async function performAdminDecide(userId: string, raw: unknown) {
@@ -438,7 +447,7 @@ async function performCategories() {
   return rows.map(mapCategory);
 }
 
-async function performBusiness(raw: unknown) {
+async function performBusiness(raw: unknown, viewerId?: string) {
   const data = z.object({ id: z.string() }).parse(raw);
   const sql = await getSql();
   const rows = await sql.query<BizRow>(
@@ -446,8 +455,9 @@ async function performBusiness(raw: unknown) {
      from businesses b
      join categories c on c.id = b.category_id
      where b.id = $1
+       and (${VISIBLE_SQL} or b.owner_id = $2)
      limit 1`,
-    [data.id],
+    [data.id, viewerId || ""],
   );
   return rows[0] ? mapBusiness(rows[0]) : null;
 }
@@ -539,7 +549,7 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     case "categories":
       return performCategories();
     case "business":
-      return performBusiness(payload);
+      return performBusiness(payload, userId);
     case "reviews":
       return performReviews(payload);
     case "busySlots":

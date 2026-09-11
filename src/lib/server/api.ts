@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
+import { getSessionUser } from "@/lib/auth/verify.server";
 import { getSql } from "@/lib/db";
 import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { isIranMobile, toWebsiteHref } from "@/lib/format";
@@ -83,13 +84,16 @@ export const getBusiness = createServerFn({ method: "GET" })
   .validator(z.object({ id: z.string() }))
   .handler(async ({ data }) => {
     const sql = await getSql();
+    const viewer = await getSessionUser().catch(() => null);
     const rows = await sql.query<BizRow>(
       `select ${BIZ_SELECT}
        from businesses b
        join categories c on c.id = b.category_id
+       left join profiles p on p.user_id = $2
        where b.id = $1
+         and (${VISIBLE_SQL} or b.owner_id = $2 or p.is_admin = true)
        limit 1`,
-      [data.id],
+      [data.id, viewer?.id || ""],
     );
     return rows[0] ? mapBusiness(rows[0]) : null;
   });
@@ -241,7 +245,7 @@ export const ensureProfile = createServerFn({ method: "POST" })
     const sql = await getSql();
     await sql.query(
       `insert into profiles (user_id, display_name, is_admin)
-       select $1, $2, not exists (select 1 from profiles where is_admin = true)
+       values ($1, $2, false)
        on conflict (user_id) do nothing`,
       [context.userId, "کاربر"],
     );
@@ -275,7 +279,7 @@ export const updateProfile = createServerFn({ method: "POST" })
     const sql = await getSql();
     await sql.query(
       `insert into profiles (user_id, display_name, phone, is_admin)
-       select $1, $2, $3, not exists (select 1 from profiles where is_admin = true)
+       values ($1, $2, $3, false)
        on conflict (user_id) do update set display_name = excluded.display_name, phone = excluded.phone`,
       [context.userId, data.displayName.trim(), data.phone?.trim() || null],
     );
