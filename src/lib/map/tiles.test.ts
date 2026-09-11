@@ -35,6 +35,13 @@ describe("map tiles", () => {
     assert.equal(cfg.proxy, false);
   });
 
+  it("standalone without MAP_TILE_* uses same-origin proxy, not OSM.org", () => {
+    const cfg = resolveMapTiles((k) => (k === "STANDALONE" ? "true" : undefined));
+    assert.equal(cfg.proxy, true);
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
+    assert.doesNotMatch(cfg.url, /openstreetmap\.org/);
+  });
+
   it("fills z/x/y", () => {
     assert.equal(
       fillTileTemplate("https://t.example/{z}/{x}/{y}.png", 6, 40, 25),

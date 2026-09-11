@@ -20,6 +20,9 @@ export function friendlyError(raw: unknown) {
 async function readBody(res: Response): Promise<unknown> {
   const text = await res.text();
   if (!text) return {};
+  if (/^\s*</.test(text)) {
+    return { error: "پاسخ سرور JSON نبود. دوباره تلاش کنید." };
+  }
   try {
     return JSON.parse(text) as unknown;
   } catch {

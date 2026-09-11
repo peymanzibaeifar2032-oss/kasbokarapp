@@ -3,7 +3,7 @@ import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } f
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Business } from "@/lib/types";
-import { PUBLIC_OSM_TILES, type MapTileConfig } from "@/lib/map/tiles";
+import { SAME_ORIGIN_PROXY, type MapTileConfig } from "@/lib/map/tiles";
 
 type Props = {
   businesses: Business[];
@@ -87,15 +87,15 @@ export function LeafletMap({
         .then((r) => (r.ok ? r.json() : null))
         .then((j: MapTileConfig | null) => {
           if (!alive) return;
-          const next = j?.url ? j : PUBLIC_OSM_TILES;
+          const next = j?.url ? j : SAME_ORIGIN_PROXY;
           setCfg(next);
           setUrl(next.url);
           switched.current = false;
         })
         .catch(() => {
           if (!alive) return;
-          setCfg(PUBLIC_OSM_TILES);
-          setUrl(PUBLIC_OSM_TILES.url);
+          setCfg(SAME_ORIGIN_PROXY);
+          setUrl(SAME_ORIGIN_PROXY.url);
         });
       return () => {
         alive = false;

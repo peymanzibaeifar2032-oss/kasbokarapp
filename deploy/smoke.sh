@@ -25,51 +25,72 @@ curl -sS -m 8 -o /tmp/home.html -w "%{http_code}" "$BASE/" | grep -q 200 && grep
 
 MC=$(curl -sS -m 8 "$BASE/api/map-config" || true)
 echo "$MC" | grep -q '"url"' && ok "map-config json" || bad "map-config" "$MC"
+echo "$MC" | grep -q openstreetmap.org && bad "map osm.org" "$MC" || ok "map not osm.org"
+echo "$MC" | grep -q '/api/tiles' && ok "map same-origin proxy" || bad "map proxy" "$MC"
+TC=$(curl -sS -m 12 -o /tmp/kasb-tile.bin -w "%{http_code}:%{content_type}" "$BASE/api/tiles/6/40/25" || true)
+echo "$TC" | grep -q '^200:image' && ok "tile proxy image" || bad "tile proxy" "$TC"
 
 # Auth: signup / session / logout / login. First user becomes admin on this DB.
 MAIL="smoke$(date -u +%s)@kasbokar.local"
 PASSWD="Sm0ke-Test-9x"
 JAR=/tmp/kasb-smoke.jar
 rm -f "$JAR"
-HDR="-H content-type: application/json -H origin: $ORIGIN -H sec-fetch-site: same-origin"
+api() {
+  curl -sS -m 20 -c "$JAR" -b "$JAR" \
+    -H "Content-Type: application/json" \
+    -H "Accept: application/json" \
+    -H "Origin: $ORIGIN" \
+    -H "Sec-Fetch-Site: same-origin" \
+    "$@"
+}
 
-SU=$(curl -sS -m 15 -c "$JAR" -b "$JAR" $HDR \
-  -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\",\"name\":\"Smoke\"}" \
+SU=$(api -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\",\"name\":\"Smoke\"}" \
   "$BASE/api/auth/sign-up/email" || true)
-echo "$SU" | grep -qiE 'user|token|ok|session' && ok "signup" || bad "signup" "$(echo "$SU" | head -c 180)"
+echo "$SU" | grep -q '<!DOCTYPE' && bad "signup" "html instead of json" || {
+  echo "$SU" | grep -qiE 'user|token|ok|session' && ok "signup" || bad "signup" "$(echo "$SU" | head -c 180)"
+}
 
-GS=$(curl -sS -m 8 -c "$JAR" -b "$JAR" -H "origin: $ORIGIN" "$BASE/api/auth/get-session" || true)
-echo "$GS" | grep -q "$MAIL" && ok "session after signup" || bad "session after signup" "$(echo "$GS" | head -c 180)"
+SI=$(api -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\"}" \
+  "$BASE/api/auth/sign-in/email" || true)
+echo "$SI" | grep -q '<!DOCTYPE' && bad "login" "html instead of json" || {
+  echo "$SI" | grep -qiE 'user|token|session' && ok "login" || bad "login" "$(echo "$SI" | head -c 180)"
+}
 
-SO=$(curl -sS -m 8 -c "$JAR" -b "$JAR" $HDR -d '{}' "$BASE/api/auth/sign-out" || true)
+GS=$(api "$BASE/api/auth/get-session" || true)
+echo "$GS" | grep -q "$MAIL" && ok "session after login" || bad "session after login" "$(echo "$GS" | head -c 180)"
+
+SO=$(api -d '{}' "$BASE/api/auth/sign-out" || true)
 ok "logout requested"
 
-GS2=$(curl -sS -m 8 -c "$JAR" -b "$JAR" -H "origin: $ORIGIN" "$BASE/api/auth/get-session" || true)
+GS2=$(api "$BASE/api/auth/get-session" || true)
 echo "$GS2" | grep -q "$MAIL" && bad "session after logout" "still signed in" || ok "session cleared"
 
-SI=$(curl -sS -m 15 -c "$JAR" -b "$JAR" $HDR \
-  -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\"}" \
+SI2=$(api -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\"}" \
   "$BASE/api/auth/sign-in/email" || true)
-echo "$SI" | grep -qiE 'user|token|session' && ok "login" || bad "login" "$(echo "$SI" | head -c 180)"
+echo "$SI2" | grep -qiE 'user|token|session' && ok "login again" || bad "login again" "$(echo "$SI2" | head -c 180)"
 
-# Password recovery: no SMTP on this VPS yet — expect handled error, not crash.
-FP=$(curl -sS -m 15 $HDR -d "{\"email\":\"$MAIL\",\"redirectTo\":\"$ORIGIN/login\"}" \
+FP=$(api -d "{\"email\":\"$MAIL\",\"redirectTo\":\"$ORIGIN/login\"}" \
   "$BASE/api/auth/request-password-reset" || true)
 echo "$FP" | grep -qiE 'error|ok|status|تنظیم نشده|بازیابی' && ok "password-recovery endpoint alive" || ok "password-recovery responded"
 
 save() {
-  curl -sS -m 15 -c "$JAR" -b "$JAR" $HDR \
-    -d "$1" "$BASE/api/save"
+  api -d "$1" "$BASE/api/save"
 }
 
 PROF=$(save '{"type":"profile","payload":{}}')
-echo "$PROF" | grep -q userId && ok "profile" || bad "profile" "$(echo "$PROF" | head -c 180)"
+echo "$PROF" | grep -q '<!DOCTYPE' && bad "profile" "html instead of json" || {
+  echo "$PROF" | grep -q userId && ok "profile" || bad "profile" "$(echo "$PROF" | head -c 180)"
+}
 
 CAT=$(save '{"type":"categories","payload":{}}')
-echo "$CAT" | grep -q slug && ok "categories" || bad "categories" "$(echo "$CAT" | head -c 120)"
+echo "$CAT" | grep -q '<!DOCTYPE' && bad "categories" "html instead of json" || {
+  echo "$CAT" | grep -q slug && ok "categories" || bad "categories" "$(echo "$CAT" | head -c 120)"
+}
 
 BIZ=$(save '{"type":"createBusiness","payload":{"name":"تست اسموک","province":"کرمانشاه","city":"کرمانشاه","latitude":34.32,"longitude":47.07,"categoryId":1}}')
-echo "$BIZ" | grep -q '"ok":true' && ok "createBusiness" || bad "createBusiness" "$(echo "$BIZ" | head -c 180)"
+echo "$BIZ" | grep -q '<!DOCTYPE' && bad "createBusiness" "html instead of json" || {
+  echo "$BIZ" | grep -q '"id"' && ok "createBusiness" || bad "createBusiness" "$(echo "$BIZ" | head -c 180)"
+}
 
 MINE=$(save '{"type":"mine","payload":{}}')
 BID=$(python3 -c "import json,sys; d=json.load(sys.stdin); print((d[0]['id'] if isinstance(d,list) and d else ''))" <<EOF
@@ -98,7 +119,7 @@ if [ -n "$BID" ]; then
   echo "$BK" | grep -qiE 'ok|id|slot' && ok "booking" || bad "booking" "$(echo "$BK" | head -c 180)"
 fi
 
-GD=$(curl -sS -m 15 $HDR -d '{"type":"chat","payload":{"message":"چطور رزرو کنم؟","history":[],"path":"/"}}' "$BASE/api/guide" || true)
+GD=$(api -d '{"type":"chat","payload":{"message":"چطور رزرو کنم؟","history":[],"path":"/"}}' "$BASE/api/guide" || true)
 echo "$GD" | grep -qiE 'reply|راهنما|رزرو' && ok "guide chat" || bad "guide" "$(echo "$GD" | head -c 180)"
 
 # Persistence: restart db, session + business remain

@@ -11,8 +11,9 @@ export type MapTileConfig = {
 };
 
 const OSM_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const ESRI_ATTR = "Tiles &copy; Esri";
 
-/** Preview / Netlify backup only. Production in Iran must set MAP_TILE_URL or MAP_TILE_PROXY_UPSTREAM. */
+/** Preview / Netlify backup only. Never the standalone Iran default. */
 export const PUBLIC_OSM_TILES: MapTileConfig = {
   url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   fallbackUrl:
@@ -22,12 +23,20 @@ export const PUBLIC_OSM_TILES: MapTileConfig = {
   proxy: false,
 };
 
-const SAME_ORIGIN_PROXY: MapTileConfig = {
+export const SAME_ORIGIN_PROXY: MapTileConfig = {
   url: "/api/tiles/{z}/{x}/{y}",
-  attribution: OSM_ATTR,
+  attribution: ESRI_ATTR,
   maxZoom: 19,
   proxy: true,
 };
+
+/**
+ * Default upstream for the VPS tile proxy when no MAP_TILE_* is set.
+ * Browser talks only to this app. Swap via MAP_TILE_PROXY_UPSTREAM or MAP_TILE_URL
+ * (Neshan, Map.ir, self-hosted). Not OSM.org.
+ */
+export const STANDALONE_DEFAULT_UPSTREAM =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
 
 export function isSafeTileTemplate(url: string): boolean {
   const trimmed = url.trim();
@@ -46,18 +55,24 @@ export function isSafeTileTemplate(url: string): boolean {
   }
 }
 
+function isStandaloneEnv(get: (key: string) => string | undefined): boolean {
+  const v = get("STANDALONE")?.trim();
+  return v === "true" || v === "1";
+}
+
 /**
  * Resolve tile layers from env. No provider is hardcoded into the UI.
  *
  * - MAP_TILE_URL — Leaflet template, e.g. Iranian Neshan/Map.ir or self-hosted
  * - MAP_TILE_URL_FALLBACK — optional second template
  * - MAP_TILE_PROXY_UPSTREAM — enable same-origin /api/tiles/{z}/{x}/{y}
+ * - STANDALONE=true with no MAP_TILE_* — same-origin proxy (not OSM.org)
  */
 export function resolveMapTiles(get: (key: string) => string | undefined): MapTileConfig {
   const proxyUp = get("MAP_TILE_PROXY_UPSTREAM")?.trim();
   const explicit = get("MAP_TILE_URL")?.trim();
   const fallback = get("MAP_TILE_URL_FALLBACK")?.trim();
-  const attribution = get("MAP_TILE_ATTRIBUTION")?.trim() || OSM_ATTR;
+  const attribution = get("MAP_TILE_ATTRIBUTION")?.trim();
   const maxZoom = Math.min(22, Math.max(1, Number(get("MAP_TILE_MAX_ZOOM")) || 19));
   const subdomains = get("MAP_TILE_SUBDOMAINS")?.trim() || undefined;
 
@@ -65,7 +80,7 @@ export function resolveMapTiles(get: (key: string) => string | undefined): MapTi
     return {
       url: SAME_ORIGIN_PROXY.url,
       fallbackUrl: explicit && isSafeTileTemplate(explicit) ? explicit : undefined,
-      attribution,
+      attribution: attribution || ESRI_ATTR,
       maxZoom,
       subdomains,
       proxy: true,
@@ -76,14 +91,23 @@ export function resolveMapTiles(get: (key: string) => string | undefined): MapTi
     return {
       url: explicit,
       fallbackUrl: fallback && isSafeTileTemplate(fallback) ? fallback : undefined,
-      attribution,
+      attribution: attribution || OSM_ATTR,
       maxZoom,
       subdomains,
       proxy: false,
     };
   }
 
-  return { ...PUBLIC_OSM_TILES, attribution, maxZoom };
+  if (isStandaloneEnv(get)) {
+    return {
+      ...SAME_ORIGIN_PROXY,
+      attribution: attribution || ESRI_ATTR,
+      maxZoom,
+      subdomains,
+    };
+  }
+
+  return { ...PUBLIC_OSM_TILES, attribution: attribution || OSM_ATTR, maxZoom };
 }
 
 export function fillTileTemplate(

@@ -1,5 +1,6 @@
-# HTTP reverse proxy for the VPS IP. Does not request Let's Encrypt.
-# Switch CADDYFILE=Caddyfile.tls in .env only after DNS A records point here.
+# HTTP reverse proxy for the VPS IP and, after DNS, kasbokarapp.com on :80.
+# Does not request Let's Encrypt. Switch CADDYFILE=Caddyfile.tls only after
+# both A records point here.
 {
   auto_https off
   admin off
