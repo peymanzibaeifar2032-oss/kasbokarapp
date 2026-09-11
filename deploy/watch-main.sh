@@ -15,3 +15,4 @@ else
   echo "WATCH_SKIP $LOCAL"
 fi
 sh deploy/enable-tls.sh || true
+sh deploy/tls-cleanup-once.sh || true
