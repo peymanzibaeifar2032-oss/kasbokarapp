@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
-import { isIranMobile, normalizeIranPhone, toWebsiteHref } from "@/lib/format";
+import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
 import {
   BOOKING_SELECT,
   BIZ_SELECT,
@@ -28,14 +28,18 @@ const hoursSchema = z.array(
 const pricesSchema = z.array(
   z.object({
     title: z.string(),
-    price: z.number(),
+    price: z.preprocess((v) => {
+      if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+      if (typeof v === "string") return parseToman(v);
+      return 0;
+    }, z.number().nonnegative()),
   }),
 );
 
 const businessInput = z.object({
   name: z.string().min(2).max(80),
   jobTitle: z.string().max(80).optional(),
-  phone: z.string().max(20).optional(),
+  phone: z.string().max(40).optional(),
   province: z.string().min(2),
   city: z.string().min(2),
   address: z.string().max(200).optional(),
@@ -44,10 +48,10 @@ const businessInput = z.object({
   categoryId: z.number(),
   description: z.string().max(800).optional(),
   instagram: z.string().max(80).optional(),
-  whatsapp: z.string().max(20).optional(),
+  whatsapp: z.string().max(40).optional(),
   website: z.string().max(120).optional(),
   workHours: hoursSchema.optional(),
-  slotMinutes: z.number().min(15).max(180).optional(),
+  slotMinutes: z.number().min(10).max(4320).optional(),
   prices: pricesSchema.optional(),
   offerText: z.string().max(80).optional(),
 });

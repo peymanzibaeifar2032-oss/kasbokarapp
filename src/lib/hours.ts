@@ -64,13 +64,16 @@ export function todayHoursLabel(hours: WorkHour[], date = new Date()) {
 export type SlotOption = { iso: string; label: string; dayKey: string; dayLabel: string };
 
 export function buildSlots(business: Pick<Business, "workHours" | "slotMinutes">, busyIso: string[] = [], days = 7) {
-  const duration = business.slotMinutes || 60;
+  const duration = Math.max(10, business.slotMinutes || 60);
   const busy = new Set(busyIso.map((s) => new Date(s).getTime()));
   const out: SlotOption[] = [];
   const clock = tehranClock();
   const map = new Map(business.workHours.map((h) => [h.day, h]));
+  const longJob = duration >= 12 * 60;
+  const daySpan = longJob ? Math.max(1, Math.round(duration / (24 * 60))) : 1;
+  const windowDays = longJob ? Math.max(days, daySpan * 5) : days;
 
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < windowDays; i++) {
     const base = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + i));
     const y = base.getUTCFullYear();
     const m = base.getUTCMonth() + 1;
@@ -84,6 +87,19 @@ export function buildSlots(business: Pick<Business, "workHours" | "slotMinutes">
     if (closeM <= openM) closeM += 24 * 60;
     const dayKey = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     const dayLabel = `${name} · ${y}/${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
+
+    if (longJob) {
+      if (i % daySpan !== 0) continue;
+      const hh = Math.floor((openM % (24 * 60)) / 60);
+      const mm = openM % 60;
+      const iso = tehranLocalToIso(y, m, day, hh, mm);
+      const ms = new Date(iso).getTime();
+      if (ms < Date.now() + 20 * 60000) continue;
+      if (busy.has(ms)) continue;
+      out.push({ iso, label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`, dayKey, dayLabel });
+      continue;
+    }
+
     for (let t = openM; t + duration <= closeM; t += duration) {
       const hh = Math.floor((t % (24 * 60)) / 60);
       const mm = t % 60;

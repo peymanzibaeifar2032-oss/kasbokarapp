@@ -24,7 +24,9 @@ function Account() {
 
   useEffect(() => {
     if (!user) return;
-    void saveAction<Booking[]>("myBookings").then(setItems);
+    void saveAction<Booking[]>("myBookings")
+      .then(setItems)
+      .catch(() => setItems([]));
   }, [user]);
 
   useEffect(() => {

@@ -5,7 +5,25 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { DEFAULT_HOURS, KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
 import { friendlyError, saveAction } from "@/lib/save";
+import { parseToman } from "@/lib/format";
 import type { Business, Category, PriceItem, WorkHour } from "@/lib/types";
+
+const SLOT_OPTIONS: { minutes: number; label: string }[] = [
+  { minutes: 10, label: "۱۰ دقیقه — کافه و خدمات سریع" },
+  { minutes: 15, label: "۱۵ دقیقه" },
+  { minutes: 20, label: "۲۰ دقیقه" },
+  { minutes: 30, label: "۳۰ دقیقه" },
+  { minutes: 45, label: "۴۵ دقیقه" },
+  { minutes: 60, label: "۱ ساعت" },
+  { minutes: 90, label: "۱٫۵ ساعت" },
+  { minutes: 120, label: "۲ ساعت" },
+  { minutes: 180, label: "۳ ساعت" },
+  { minutes: 240, label: "۴ ساعت" },
+  { minutes: 480, label: "۸ ساعت — یک روز کاری" },
+  { minutes: 1440, label: "۱ روز" },
+  { minutes: 2880, label: "۲ روز" },
+  { minutes: 4320, label: "۳ روز — تعمیرات و پروژه" },
+];
 
 export function BusinessForm({
   categories,
@@ -149,9 +167,13 @@ export function BusinessForm({
             />
             <Input
               placeholder="تومان"
-              value={p.price || ""}
+              inputMode="numeric"
+              dir="ltr"
+              value={p.price ? String(p.price) : ""}
               onChange={(e) =>
-                setPrices((rows) => rows.map((r, j) => (j === i ? { ...r, price: Number(e.target.value) || 0 } : r)))
+                setPrices((rows) =>
+                  rows.map((r, j) => (j === i ? { ...r, price: parseToman(e.target.value) } : r)),
+                )
               }
             />
             <Button
@@ -171,9 +193,9 @@ export function BusinessForm({
 
         <p className="pt-2 text-sm font-medium">فاصله نوبت‌ها</p>
         <NativeSelect value={slotMinutes} onChange={(e) => setSlotMinutes(Number(e.target.value))}>
-          {[20, 30, 45, 60, 90].map((n) => (
-            <option key={n} value={n}>
-              هر {new Intl.NumberFormat("fa-IR").format(n)} دقیقه
+          {SLOT_OPTIONS.map((opt) => (
+            <option key={opt.minutes} value={opt.minutes}>
+              {opt.label}
             </option>
           ))}
         </NativeSelect>

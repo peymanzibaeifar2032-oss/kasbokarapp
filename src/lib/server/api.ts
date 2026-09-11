@@ -297,7 +297,7 @@ const businessInput = z.object({
   whatsapp: z.string().max(20).optional(),
   website: z.string().max(120).optional(),
   workHours: hoursSchema.optional(),
-  slotMinutes: z.number().min(15).max(180).optional(),
+  slotMinutes: z.number().min(10).max(4320).optional(),
   prices: pricesSchema.optional(),
   offerText: z.string().max(80).optional(),
 });

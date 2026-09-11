@@ -1,29 +1,29 @@
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 
-const FALLBACK_MESSAGE = "An unexpected error occurred. Try reloading the page.";
-
 function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (typeof error === "string" && error) return error;
-  return FALLBACK_MESSAGE;
+  const s = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(s)) {
+    return "ارتباط با سرور برقرار نشد. صفحه را دوباره باز کنید.";
+  }
+  return s.trim() || "یک مشکل پیش آمد. صفحه را دوباره باز کنید.";
 }
 
 export function AppErrorComponent({ error }: ErrorComponentProps) {
   return (
-    <main
-      className={
-        "flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center " +
-        "bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-50"
-      }
-    >
-      <span className="text-red-500" aria-hidden="true">
+    <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-bg px-6 text-center text-fg">
+      <span className="text-danger" aria-hidden="true">
         <TriangleAlert className="size-10" strokeWidth={2} />
       </span>
-      <h1 className="text-lg font-semibold">Something went wrong</h1>
-      <p className="max-w-md text-sm break-words text-zinc-500 dark:text-zinc-400">
-        {errorMessage(error)}
-      </p>
+      <h1 className="text-lg font-semibold">صفحه الان باز نشد</h1>
+      <p className="max-w-md text-sm break-words text-muted">{errorMessage(error)}</p>
+      <button
+        type="button"
+        className="mt-2 h-11 rounded-full bg-primary px-5 text-sm text-primary-fg"
+        onClick={() => window.location.reload()}
+      >
+        تلاش دوباره
+      </button>
     </main>
   );
 }

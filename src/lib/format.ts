@@ -4,6 +4,13 @@ export function toEnDigits(raw: string) {
     .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
 }
 
+export function parseToman(raw: string) {
+  const d = toEnDigits(raw).replace(/[^\d]/g, "");
+  if (!d) return 0;
+  const n = Number(d);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function formatToman(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "توافقی";
   return `${new Intl.NumberFormat("fa-IR").format(value)} تومان`;
