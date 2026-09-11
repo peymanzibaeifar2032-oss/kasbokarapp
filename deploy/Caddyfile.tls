@@ -1,5 +1,7 @@
-# File-based TLS. Certs come from DNS-01 (Let's Encrypt cannot HTTP-01
-# an Iran-access VPS). HTTP IP stays up. Domain HTTP redirects to HTTPS.
+# File-based TLS from CSR-split DNS-01. auto_https is off on purpose:
+# Let's Encrypt HTTP-01 from Iran is unreliable, and Caddy reload does not
+# re-read replaced PEM files (container recreate is required).
+# Renew before notAfter with deploy/tls-activate-next.sh; keys stay on the VPS.
 {
   email {$CADDY_EMAIL}
   auto_https off

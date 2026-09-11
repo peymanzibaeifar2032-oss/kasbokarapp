@@ -57,6 +57,29 @@ http_ok() {
   curl -sS -m 8 -H "Host: $HOST" "http://127.0.0.1/api/health" 2>/dev/null | grep -q '"ok":true'
 }
 
+file_cert_valid() {
+  crt=$APP_DIR/certs/fullchain.pem
+  key=$APP_DIR/certs/privkey.pem
+  [ -s "$crt" ] && [ -s "$key" ] || return 1
+  openssl x509 -in "$crt" -noout -checkend 86400 >/dev/null 2>&1
+}
+
+cert_report() {
+  crt=$APP_DIR/certs/fullchain.pem
+  [ -s "$crt" ] || { echo "TLS_CERT_ABSENT"; return 0; }
+  openssl x509 -in "$crt" -noout -serial -enddate -fingerprint -sha256 2>/dev/null || true
+  end=$(openssl x509 -in "$crt" -noout -enddate 2>/dev/null | sed 's/notAfter=//')
+  end_epoch=$(date -d "$end" +%s 2>/dev/null || echo 0)
+  now=$(date -u +%s)
+  if [ "$end_epoch" -gt 0 ]; then
+    days=$(( (end_epoch - now) / 86400 ))
+    echo "TLS_DAYS_LEFT $days"
+    if [ "$days" -le 30 ]; then
+      echo "TLS_RENEW_SOON file-based cert; Caddy auto_https is off"
+    fi
+  fi
+}
+
 APEX=$(resolve "$HOST" || true)
 WWW=$(resolve "www.$HOST" || true)
 if [ "$APEX" != "$IP" ] || [ "$WWW" != "$IP" ]; then
@@ -66,6 +89,13 @@ fi
 
 if https_ok; then
   echo "TLS_OK https://$HOST"
+  cert_report
+  exit 0
+fi
+
+if file_cert_valid; then
+  echo "TLS_NO_DOWNGRADE valid file certs present; not switching to HTTP"
+  cert_report
   exit 0
 fi
 
@@ -75,6 +105,11 @@ acme_reachable() {
 }
 LE_CODE=$(acme_reachable https://acme-v02.api.letsencrypt.org/directory)
 if [ "$LE_CODE" != "200" ]; then
+  if file_cert_valid; then
+    echo "TLS_NO_DOWNGRADE letsencrypt HTTP $LE_CODE but file certs are valid"
+    cert_report
+    exit 0
+  fi
   echo "TLS_BLOCKED letsencrypt HTTP $LE_CODE — staying on HTTP"
   mkdir -p deploy/acme-www
   patch_env Caddyfile "http://$IP"
@@ -99,11 +134,11 @@ while [ "$i" -lt 30 ]; do
   sleep 4
 done
 
-echo "TLS_PENDING — revert to HTTP so the domain keeps working"
-patch_env Caddyfile "http://$IP"
-docker compose --profile with-db --profile tls up -d --remove-orphans
-docker compose --profile with-db --profile tls logs --tail 20 caddy 2>/dev/null | grep -E 'acme|certificate|error|tls' | tail -12 || true
-if http_ok; then
-  echo "HTTP_OK http://$HOST and http://$IP"
+echo "TLS_PENDING — no valid file cert; not forcing HTTP if HTTPS was expected"
+if file_cert_valid; then
+  echo "TLS_NO_DOWNGRADE"
+  cert_report
+  exit 0
 fi
+echo "TLS_NO_FILE_CERT — leaving current Caddyfile unchanged"
 exit 0
