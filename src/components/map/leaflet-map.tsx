@@ -20,6 +20,94 @@ type Props = {
   className?: string;
 };
 
+function Recenter({
+  center,
+  zoom,
+  viewKey,
+}: {
+  center: { lat: number; lng: number };
+  zoom: number;
+  viewKey: number;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView([center.lat, center.lng], zoom, { animate: false });
+    map.invalidateSize();
+  }, [map, viewKey]);
+  useEffect(() => {
+    const t = window.setTimeout(() => map.invalidateSize(), 120);
+    return () => window.clearTimeout(t);
+  }, [map]);
+  return null;
+}
+
+function MapEvents({
+  pickMode,
+  onPick,
+  onCenterChange,
+}: {
+  pickMode?: boolean;
+  onPick?: (lat: number, lng: number) => void;
+  onCenterChange?: (lat: number, lng: number) => void;
+}) {
+  useMapEvents({
+    click(e) {
+      if (pickMode) onPick?.(e.latlng.lat, e.latlng.lng);
+    },
+    moveend(e) {
+      const c = e.target.getCenter();
+      onCenterChange?.(c.lat, c.lng);
+    },
+  });
+  return null;
+}
+
+function Tiles() {
+  const [cfg, setCfg] = useState<MapTileConfig | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const switched = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/map-config", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: MapTileConfig | null) => {
+        if (!alive) return;
+        const next = j?.url ? j : SAME_ORIGIN_PROXY;
+        setCfg(next);
+        setUrl(next.url);
+        switched.current = false;
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCfg(SAME_ORIGIN_PROXY);
+        setUrl(SAME_ORIGIN_PROXY.url);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!cfg || !url) return null;
+
+  return (
+    <TileLayer
+      attribution={cfg.attribution}
+      url={url}
+      subdomains={cfg.subdomains || "abc"}
+      updateWhenZooming={false}
+      maxZoom={cfg.maxZoom}
+      eventHandlers={{
+        tileerror: () => {
+          if (switched.current || !cfg.fallbackUrl) return;
+          switched.current = true;
+          setUrl(cfg.fallbackUrl);
+        },
+      }}
+    />
+  );
+}
+
 export function LeafletMap({
   businesses,
   center,
@@ -55,73 +143,6 @@ export function LeafletMap({
     [],
   );
 
-  function Recenter() {
-    const map = useMap();
-    useEffect(() => {
-      map.setView([center.lat, center.lng], zoom, { animate: false });
-    }, [map, viewKey]);
-    return null;
-  }
-
-  function MapEvents() {
-    const map = useMapEvents({
-      click(e) {
-        if (pickMode) onPick?.(e.latlng.lat, e.latlng.lng);
-      },
-      moveend() {
-        const c = map.getCenter();
-        onCenterChange?.(c.lat, c.lng);
-      },
-    });
-    return null;
-  }
-
-  function Tiles() {
-    const [cfg, setCfg] = useState<MapTileConfig | null>(null);
-    const [url, setUrl] = useState<string | null>(null);
-    const switched = useRef(false);
-
-    useEffect(() => {
-      let alive = true;
-      void fetch("/api/map-config", { cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j: MapTileConfig | null) => {
-          if (!alive) return;
-          const next = j?.url ? j : SAME_ORIGIN_PROXY;
-          setCfg(next);
-          setUrl(next.url);
-          switched.current = false;
-        })
-        .catch(() => {
-          if (!alive) return;
-          setCfg(SAME_ORIGIN_PROXY);
-          setUrl(SAME_ORIGIN_PROXY.url);
-        });
-      return () => {
-        alive = false;
-      };
-    }, []);
-
-    if (!cfg || !url) return null;
-
-    return (
-      <TileLayer
-        attribution={cfg.attribution}
-        url={url}
-        subdomains={cfg.subdomains || "abc"}
-        updateWhenZooming={false}
-        maxZoom={cfg.maxZoom}
-        eventHandlers={{
-          tileerror: () => {
-            if (switched.current || !cfg.fallbackUrl) return;
-            switched.current = true;
-            setUrl(cfg.fallbackUrl);
-          },
-        }}
-      />
-    );
-  }
-
   return (
     <div dir="ltr" className={className ?? "h-full min-h-72 overflow-hidden rounded-xl border border-border"}>
       <MapContainer
@@ -129,12 +150,13 @@ export function LeafletMap({
         zoom={zoom}
         className="h-full min-h-72 w-full"
         scrollWheelZoom
-        zoomAnimation
+        zoomAnimation={false}
         markerZoomAnimation={false}
+        fadeAnimation={false}
       >
         <Tiles />
-        <Recenter />
-        <MapEvents />
+        <Recenter center={center} zoom={zoom} viewKey={viewKey} />
+        <MapEvents pickMode={pickMode} onPick={onPick} onCenterChange={onCenterChange} />
         {businesses.map((b) => (
           <Marker
             key={b.id}

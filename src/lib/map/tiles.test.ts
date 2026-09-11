@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { fillTileTemplate, isSafeTileTemplate, resolveMapTiles } from "./tiles.ts";
+import {
+  fillTileTemplate,
+  isSafeTileTemplate,
+  resolveMapTiles,
+  STANDALONE_UPSTREAM_CANDIDATES,
+} from "./tiles.ts";
 
 describe("map tiles", () => {
   it("rejects javascript and missing templates", () => {
@@ -40,6 +45,13 @@ describe("map tiles", () => {
     assert.equal(cfg.proxy, true);
     assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}");
     assert.doesNotMatch(cfg.url, /openstreetmap\.org/);
+  });
+
+  it("standalone fallback candidates never include osm.org", () => {
+    for (const u of STANDALONE_UPSTREAM_CANDIDATES) {
+      assert.doesNotMatch(u, /openstreetmap\.org/);
+      assert.equal(isSafeTileTemplate(u), true);
+    }
   });
 
   it("fills z/x/y", () => {

@@ -23,9 +23,7 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useFavorites } from "@/lib/favorites";
 import {
-  bookingIcs,
   copyText,
-  downloadTextFile,
   formatFaDate,
   formatToman,
   googleMapsLink,
@@ -559,18 +557,7 @@ function BookingPanel({
       } catch {
         /* ignore */
       }
-      downloadTextFile(
-        `nobat-${biz.id}.ics`,
-        bookingIcs({
-          title: `نوبت ${biz.name}`,
-          startIso: activeSlot,
-          minutes: biz.slotMinutes,
-          location: [biz.address, biz.city].filter(Boolean).join("، "),
-          description: service,
-        }),
-        "text/calendar;charset=utf-8",
-      );
-      toast.success("درخواست نوبت ثبت شد و فایل تقویم دانلود شد.");
+      toast.success("درخواست نوبت ثبت شد. از «حساب من» می‌توانید به تقویم اضافه کنید.");
       onBooked(activeSlot);
       setNote("");
     } catch (err) {

@@ -38,6 +38,13 @@ export const SAME_ORIGIN_PROXY: MapTileConfig = {
 export const STANDALONE_DEFAULT_UPSTREAM =
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}";
 
+/** Tried in order by the VPS proxy until one returns an image. Not OSM.org. */
+export const STANDALONE_UPSTREAM_CANDIDATES = [
+  STANDALONE_DEFAULT_UPSTREAM,
+  "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png",
+  "https://tile.openstreetmap.de/{z}/{x}/{y}.png",
+] as const;
+
 export function isSafeTileTemplate(url: string): boolean {
   const trimmed = url.trim();
   if (!trimmed) return false;
