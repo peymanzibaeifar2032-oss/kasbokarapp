@@ -82,12 +82,18 @@ echo "$PROF" | grep -q '<!DOCTYPE' && bad "profile" "html instead of json" || {
   echo "$PROF" | grep -q userId && ok "profile" || bad "profile" "$(echo "$PROF" | head -c 180)"
 }
 
+UPFA=$(save '{"type":"updateProfile","payload":{"displayName":"اسموک تست","phone":"۰۹۱۲۰۰۰۰۰۰۱"}}')
+echo "$UPFA" | grep -q '09120000001' && ok "profile phone persian" || bad "profile phone persian" "$(echo "$UPFA" | head -c 180)"
+
+UPEN=$(save '{"type":"updateProfile","payload":{"displayName":"اسموک تست","phone":"09120000002"}}')
+echo "$UPEN" | grep -q '09120000002' && ok "profile phone english" || bad "profile phone english" "$(echo "$UPEN" | head -c 180)"
+
 CAT=$(save '{"type":"categories","payload":{}}')
 echo "$CAT" | grep -q '<!DOCTYPE' && bad "categories" "html instead of json" || {
   echo "$CAT" | grep -q slug && ok "categories" || bad "categories" "$(echo "$CAT" | head -c 120)"
 }
 
-BIZ=$(save '{"type":"createBusiness","payload":{"name":"تست اسموک","province":"کرمانشاه","city":"کرمانشاه","latitude":34.32,"longitude":47.07,"categoryId":1}}')
+BIZ=$(save '{"type":"createBusiness","payload":{"name":"تست اسموک","province":"کرمانشاه","city":"کرمانشاه","latitude":34.32,"longitude":47.07,"categoryId":1,"slotMinutes":10,"phone":"۰۹۱۲۱۱۱۱۱۱۱","prices":[{"title":"خدمت تست","price":"۶۰۰۰۰۰"}]}}')
 echo "$BIZ" | grep -q '<!DOCTYPE' && bad "createBusiness" "html instead of json" || {
   echo "$BIZ" | grep -q '"id"' && ok "createBusiness" || bad "createBusiness" "$(echo "$BIZ" | head -c 180)"
 }
@@ -98,6 +104,8 @@ $MINE
 EOF
 )
 [ -n "$BID" ] && ok "mine id" || bad "mine" "$(echo "$MINE" | head -c 180)"
+echo "$MINE" | grep -q '600000' && ok "persian price stored" || bad "persian price" "$(echo "$MINE" | head -c 180)"
+echo "$MINE" | grep -q '"slotMinutes":10' && ok "slotMinutes 10" || bad "slotMinutes" "$(echo "$MINE" | head -c 180)"
 
 if [ -n "$BID" ]; then
   DEC=$(save "{\"type\":\"adminDecide\",\"payload\":{\"id\":\"$BID\",\"decision\":\"approved\"}}")

@@ -16,7 +16,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: node --experimental-strip-types --test src/lib/guide/guide.test.ts src/lib/map/tiles.test.ts src/lib/server/visibility.test.ts
+      - run: node --experimental-strip-types --test src/lib/guide/guide.test.ts src/lib/map/tiles.test.ts src/lib/server/visibility.test.ts src/lib/format.phone.test.ts
       - run: npm run build
         env:
           NODE_ENV: production

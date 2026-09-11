@@ -1,16 +1,20 @@
 name: deploy-vps
 
-# GitHub main is source of truth. When VPS secrets exist, each push to main
-# pulls and rebuilds on the server. Without secrets the job no-ops so Netlify
-# backup and CI are unaffected. DNS is not changed here.
+# GitHub main is source of truth. CI must pass first.
+# VPS also polls main every 2 minutes (kasbokar-watch.timer) because
+# GitHub-hosted runners often cannot SSH into Iranian IPs.
+# Secrets never logged. DNS is not changed.
 
 on:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Check VPS secrets
@@ -20,7 +24,7 @@ jobs:
         run: |
           if [ -z "$VPS_HOST" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "VPS_HOST is not set — skip (configure after the server exists)."
+            echo "VPS_HOST unset — VPS timer still pulls GitHub main."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -33,12 +37,11 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script_stop: true
+          command_timeout: 30m
           script: |
             set -eu
             APP_DIR="${{ secrets.VPS_APP_DIR }}"
             if [ -z "$APP_DIR" ]; then APP_DIR=/opt/kasbokarapp; fi
             export APP_DIR
             cd "$APP_DIR"
-            export GIT_SSH_COMMAND='ssh -i /root/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
-            sh deploy/update.sh
-            docker compose --profile with-db --profile tls ps
+            sh deploy/release.sh

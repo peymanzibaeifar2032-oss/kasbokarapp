@@ -1,0 +1,14 @@
+[Unit]
+Description=KasbokarApp pull GitHub main and safe-release
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kasbokarapp
+ExecStart=/bin/sh /opt/kasbokarapp/deploy/watch-main.sh
+Nice=10
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target
