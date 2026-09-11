@@ -14,6 +14,26 @@ installed=0
 success=0
 BAK=""
 
+restart_caddy() {
+  echo "CADDY_RESTART"
+  "${COMPOSE[@]}" up -d --force-recreate --no-deps caddy
+  i=0
+  while [ "$i" -lt 30 ]; do
+    i=$((i + 1))
+    if echo | openssl s_client -connect 127.0.0.1:443 -servername kasbokarapp.com 2>/dev/null | grep -q 'BEGIN CERTIFICATE'; then
+      echo "CADDY_UP"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "CADDY_UP_TIMEOUT"
+  return 1
+}
+
+served_fp() {
+  echo | openssl s_client -connect 127.0.0.1:443 -servername "$1" 2>/dev/null | openssl x509 -noout -fingerprint -sha256 -serial -ext subjectAltName
+}
+
 restore_timer() {
   systemctl start kasbokar-watch.timer >/dev/null 2>&1 || true
   echo "TIMER_RESTORED"
@@ -31,12 +51,11 @@ restore_live() {
   chmod 600 "$LIVE/privkey.pem"
   if "${COMPOSE[@]}" exec -T caddy caddy validate --config /etc/caddy/Caddyfile; then
     echo "ROLLBACK_VALIDATE_OK"
-    "${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || \
-      "${COMPOSE[@]}" up -d caddy >/dev/null 2>&1 || true
-    echo "ROLLBACK_RELOAD_OK"
+    restart_caddy || "${COMPOSE[@]}" up -d caddy || true
+    echo "ROLLBACK_RESTART_OK"
   else
     echo "ROLLBACK_VALIDATE_FAIL compose_up"
-    "${COMPOSE[@]}" up -d caddy >/dev/null 2>&1 || true
+    "${COMPOSE[@]}" up -d --force-recreate --no-deps caddy || true
   fi
 }
 
@@ -123,11 +142,34 @@ if ! "${COMPOSE[@]}" exec -T caddy caddy validate --config /etc/caddy/Caddyfile;
 fi
 echo "VALIDATE_OK"
 
-if ! "${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
-  echo "RELOAD_RETRY compose up"
-  "${COMPOSE[@]}" up -d caddy
+if ! restart_caddy; then
+  echo "RESTART_FAIL"
+  restore_live
+  installed=0
+  echo "ROLLED_BACK"
+  exit 1
 fi
-echo "RELOAD_OK"
+echo "RESTART_OK"
+
+active=$(served_fp kasbokarapp.com)
+echo "$active"
+if ! echo "$active" | grep -q "$EXPECT_FP"; then
+  echo "ACTIVE_FINGERPRINT_FAIL"
+  restore_live
+  installed=0
+  echo "ROLLED_BACK"
+  exit 1
+fi
+www=$(served_fp www.kasbokarapp.com)
+echo "$www"
+if ! echo "$www" | grep -q "$EXPECT_FP"; then
+  echo "WWW_FINGERPRINT_FAIL"
+  restore_live
+  installed=0
+  echo "ROLLED_BACK"
+  exit 1
+fi
+echo "ACTIVE_FINGERPRINT $EXPECT_FP"
 
 ok=0
 i=0
@@ -147,17 +189,6 @@ if [ "$ok" != 1 ]; then
 fi
 echo "HEALTH_OK kasbokarapp.com"
 echo "HEALTH_OK www.kasbokarapp.com"
-
-active=$(echo | openssl s_client -connect 127.0.0.1:443 -servername kasbokarapp.com 2>/dev/null | openssl x509 -noout -fingerprint -sha256 -serial -ext subjectAltName)
-echo "$active"
-if ! echo "$active" | grep -q "$EXPECT_FP"; then
-  echo "ACTIVE_FINGERPRINT_FAIL"
-  restore_live
-  installed=0
-  echo "ROLLED_BACK"
-  exit 1
-fi
-echo "ACTIVE_FINGERPRINT $EXPECT_FP"
 success=1
 echo "TLS_ROTATE_OK $STAMP"
 echo "BACKUP_DIR $BAK"
