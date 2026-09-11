@@ -14,5 +14,6 @@
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
     Permissions-Policy "camera=(), microphone=(), payment=(), geolocation=(self)"
+    Cache-Control "no-store"
   }
 }
