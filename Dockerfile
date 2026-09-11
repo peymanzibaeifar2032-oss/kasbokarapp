@@ -10,6 +10,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NITRO_PRESET=node-server
 ENV NODE_ENV=production
+ENV PATH="/app/node_modules/.bin:$PATH"
 # Schema is applied at container start, not at image build (no DB here).
 RUN node scripts/with-app-env.mjs vite build
 
