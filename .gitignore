@@ -22,6 +22,9 @@ tmp
 playwright-report
 test-results
 backups
+certs/*.pem
+certs/*.key
+certs/*.crt
 
 .project_id
 .node_modules.lock

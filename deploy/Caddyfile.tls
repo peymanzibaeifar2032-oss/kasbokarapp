@@ -1,15 +1,14 @@
-# Automatic HTTPS for the domain. Do NOT also bind http://kasbokarapp.com
-# to reverse_proxy — that steals /.well-known/acme-challenge and certs never issue.
-# Raw IP stays HTTP so http://185.204.197.211 keeps working during cutover.
+# File-based TLS. Certs come from DNS-01 (Let's Encrypt cannot HTTP-01
+# an Iran-access VPS). HTTP IP stays up. Domain HTTP redirects to HTTPS.
 {
   email {$CADDY_EMAIL}
+  auto_https off
 }
 
-{$SITE_HOST}, www.{$SITE_HOST} {
+http://185.204.197.211 {
   encode gzip zstd
   reverse_proxy web:8080
   header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
@@ -18,10 +17,16 @@
   }
 }
 
-http://185.204.197.211 {
+http://{$SITE_HOST}, http://www.{$SITE_HOST} {
+  redir https://{$SITE_HOST}{uri} permanent
+}
+
+{$SITE_HOST}:443, www.{$SITE_HOST}:443 {
+  tls /certs/fullchain.pem /certs/privkey.pem
   encode gzip zstd
   reverse_proxy web:8080
   header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
