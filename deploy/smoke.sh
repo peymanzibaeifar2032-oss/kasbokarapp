@@ -53,9 +53,9 @@ SI=$(curl -sS -m 15 -c "$JAR" -b "$JAR" $HDR \
 echo "$SI" | grep -qiE 'user|token|session' && ok "login" || bad "login" "$(echo "$SI" | head -c 180)"
 
 # Password recovery: no SMTP on this VPS yet — expect handled error, not crash.
-FP=$(curl -sS -m 15 $HDR -d "{\"email\":\"$MAIL\",\"redirectTo\":\"$ORIGIN/reset\"}" \
-  "$BASE/api/auth/forget-password" || true)
-echo "$FP" | grep -qiE 'error|ok|status|mail' && ok "password-recovery endpoint alive" || ok "password-recovery responded"
+FP=$(curl -sS -m 15 $HDR -d "{\"email\":\"$MAIL\",\"redirectTo\":\"$ORIGIN/login\"}" \
+  "$BASE/api/auth/request-password-reset" || true)
+echo "$FP" | grep -qiE 'error|ok|status|تنظیم نشده|بازیابی' && ok "password-recovery endpoint alive" || ok "password-recovery responded"
 
 save() {
   curl -sS -m 15 -c "$JAR" -b "$JAR" $HDR \
