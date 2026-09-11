@@ -1,13 +1,15 @@
-# After DNS points here: HTTP stays up while Let's Encrypt issues certs.
-# Do not force-redirect www until certificates exist.
+# Automatic HTTPS for the domain. Do NOT also bind http://kasbokarapp.com
+# to reverse_proxy — that steals /.well-known/acme-challenge and certs never issue.
+# Raw IP stays HTTP so http://185.204.197.211 keeps working during cutover.
 {
   email {$CADDY_EMAIL}
 }
 
-http://{$SITE_HOST}, http://www.{$SITE_HOST}, http://185.204.197.211 {
+{$SITE_HOST}, www.{$SITE_HOST} {
   encode gzip zstd
   reverse_proxy web:8080
   header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
@@ -16,11 +18,10 @@ http://{$SITE_HOST}, http://www.{$SITE_HOST}, http://185.204.197.211 {
   }
 }
 
-{$SITE_HOST}, www.{$SITE_HOST} {
+http://185.204.197.211 {
   encode gzip zstd
   reverse_proxy web:8080
   header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"

@@ -1,6 +1,6 @@
 #!/bin/sh
 # When DNS already points here, switch Caddy to TLS and SITE_URL to https.
-# Idempotent. Does not print .env. DNS is never changed here.
+# Idempotent. Does not print .env. Does not restart Caddy every watch tick.
 set -eu
 APP_DIR=${APP_DIR:-/opt/kasbokarapp}
 IP=185.204.197.211
@@ -16,6 +16,23 @@ WWW=$(resolve "www.$HOST" || true)
 if [ "$APEX" != "$IP" ] || [ "$WWW" != "$IP" ]; then
   echo "TLS_WAIT apex=${APEX:-none} www=${WWW:-none} want=$IP"
   exit 0
+fi
+
+https_ok() {
+  curl -sS -m 10 --resolve "$HOST:443:127.0.0.1" "https://$HOST/api/health" 2>/dev/null | grep -q '"ok":true'
+}
+
+if https_ok; then
+  echo "TLS_OK https://$HOST"
+  exit 0
+fi
+
+NEED_UP=0
+if ! grep -q '^CADDYFILE=Caddyfile.tls$' .env 2>/dev/null; then
+  NEED_UP=1
+fi
+if ! docker compose --profile with-db --profile tls ps -q caddy 2>/dev/null | grep -q .; then
+  NEED_UP=1
 fi
 
 python3 - <<'PY'
@@ -51,15 +68,23 @@ p.chmod(0o600)
 print("env_tls_patched")
 PY
 
-docker compose --profile with-db --profile tls up -d --remove-orphans >/dev/null
+if [ "$NEED_UP" = "1" ]; then
+  docker compose --profile with-db --profile tls up -d --remove-orphans
+else
+  docker compose --profile with-db --profile tls exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || \
+    docker compose --profile with-db --profile tls up -d caddy
+fi
+
 i=0
-while [ "$i" -lt 30 ]; do
+while [ "$i" -lt 45 ]; do
   i=$((i + 1))
-  if curl -sS -m 8 --resolve "$HOST:443:127.0.0.1" "https://$HOST/api/health" 2>/dev/null | grep -q '"ok":true'; then
+  if https_ok; then
     echo "TLS_OK https://$HOST"
     exit 0
   fi
   sleep 4
 done
+
 echo "TLS_PENDING cert or health not ready yet"
+docker compose --profile with-db --profile tls logs --tail 40 caddy 2>/dev/null | grep -E 'acme|certificate|error|tls|challenge' | tail -20 || true
 exit 0
