@@ -101,6 +101,18 @@ function extraSiteOrigins(): string[] {
     .map((s) => s.trim())
     .filter(Boolean);
   const out = new Set<string>();
+  if (isStandalone()) {
+    for (const o of [
+      "http://185.204.197.211",
+      "http://185.204.197.211:8080",
+      "https://kasbokarapp.com",
+      "http://kasbokarapp.com",
+      "https://www.kasbokarapp.com",
+      "http://www.kasbokarapp.com",
+    ]) {
+      out.add(o);
+    }
+  }
   for (const raw of [...listed, ...extra]) {
     try {
       const u = new URL(raw);

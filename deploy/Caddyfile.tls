@@ -1,5 +1,5 @@
-# Enable only after kasbokarapp.com and www A records point at this VPS.
-# Set CADDYFILE=Caddyfile.tls then: docker compose --profile with-db --profile tls up -d
+# Automatic HTTPS after A records for kasbokarapp.com and www point at this VPS.
+# Keep raw IP on HTTP so the current origin still works during cutover.
 {
   email {$CADDY_EMAIL}
 }
@@ -16,6 +16,17 @@ www.{$SITE_HOST} {
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
-    Permissions-Policy "camera=(), microphone=(), payment=()"
+    Permissions-Policy "camera=(), microphone=(), payment=(), geolocation=(self)"
+  }
+}
+
+http://185.204.197.211 {
+  encode gzip zstd
+  reverse_proxy web:8080
+  header {
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    X-Frame-Options "SAMEORIGIN"
+    Permissions-Policy "camera=(), microphone=(), payment=(), geolocation=(self)"
   }
 }

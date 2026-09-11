@@ -13,6 +13,6 @@
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
-    Permissions-Policy "camera=(), microphone=(), payment=()"
+    Permissions-Policy "camera=(), microphone=(), payment=(), geolocation=(self)"
   }
 }
