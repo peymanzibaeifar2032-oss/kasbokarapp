@@ -1,18 +1,13 @@
-# Automatic HTTPS after A records for kasbokarapp.com and www point at this VPS.
-# Keep raw IP on HTTP so the current origin still works during cutover.
+# After DNS points here: HTTP stays up while Let's Encrypt issues certs.
+# Do not force-redirect www until certificates exist.
 {
   email {$CADDY_EMAIL}
 }
 
-www.{$SITE_HOST} {
-  redir https://{$SITE_HOST}{uri} permanent
-}
-
-{$SITE_HOST} {
+http://{$SITE_HOST}, http://www.{$SITE_HOST}, http://185.204.197.211 {
   encode gzip zstd
   reverse_proxy web:8080
   header {
-    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
@@ -21,10 +16,11 @@ www.{$SITE_HOST} {
   }
 }
 
-http://185.204.197.211 {
+{$SITE_HOST}, www.{$SITE_HOST} {
   encode gzip zstd
   reverse_proxy web:8080
   header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     X-Frame-Options "SAMEORIGIN"
