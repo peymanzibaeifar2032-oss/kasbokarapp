@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily TLS expiry check for KasbokarApp
+
+[Timer]
+OnBootSec=5min
+OnCalendar=*-*-* 06:00:00
+Persistent=true
+AccuracySec=1h
+Unit=kasbokar-tls-monitor.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=KasbokarApp TLS expiry monitor
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/kasbokarapp
+ExecStart=/bin/sh /opt/kasbokarapp/deploy/tls-monitor.sh
+Nice=10
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target
