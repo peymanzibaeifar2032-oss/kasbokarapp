@@ -35,7 +35,7 @@ echo "$old_serial" | grep -q "$LIVE_EXPECT_SERIAL" && { echo "STOP_WOULD_REVOKE_
 
 python3 - "$BAK/fullchain.pem" "$BAK/privkey.pem" <<'PY'
 from __future__ import annotations
-import base64, json, sys, urllib.request
+import base64, json, sys, urllib.request, urllib.error
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -48,10 +48,23 @@ if b"PRIVATE KEY" in cert_pem.split(b"-----END CERTIFICATE-----")[0]:
 key = serialization.load_pem_private_key(open(key_path, "rb").read(), password=None)
 cert = x509.load_pem_x509_certificate(cert_pem)
 der = cert.public_bytes(serialization.Encoding.DER)
-serial = format(cert.serial_number, "X")
-if serial != "0534683C20B8888A21D29D7A0FEBE665E9A0":
-    print("STOP_PYTHON_SERIAL", serial)
+
+def serial_hex(n: int) -> str:
+    h = format(n, "X")
+    if len(h) % 2:
+        h = "0" + h
+    return h
+
+OLD_SERIAL_INT = int("0534683C20B8888A21D29D7A0FEBE665E9A0", 16)
+LIVE_SERIAL_INT = int("055D352DBC35556738B9A84FAFECB2E579CF", 16)
+if cert.serial_number != OLD_SERIAL_INT:
+    print("STOP_PYTHON_SERIAL", serial_hex(cert.serial_number))
     sys.exit(1)
+if cert.serial_number == LIVE_SERIAL_INT:
+    print("STOP_WOULD_REVOKE_LIVE")
+    sys.exit(1)
+serial = serial_hex(cert.serial_number)
+print("REVOKE_TARGET", serial)
 
 def b64u(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
