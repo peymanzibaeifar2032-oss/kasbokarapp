@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { env } from "@/lib/env.server";
-import { fillTileTemplate, isSafeTileTemplate } from "@/lib/map/tiles";
+import { fillTileTemplate, isSafeTileTemplate, STANDALONE_DEFAULT_UPSTREAM } from "@/lib/map/tiles";
 
 const UA = "KasbokarApp/1.0 (https://kasbokarapp.com; tile-proxy)";
 
@@ -21,7 +21,11 @@ export const Route = createFileRoute("/api/tiles/$")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const upstream = env("MAP_TILE_PROXY_UPSTREAM");
+        const upstream =
+          env("MAP_TILE_PROXY_UPSTREAM")?.trim() ||
+          (env("STANDALONE") === "true" || env("STANDALONE") === "1"
+            ? env("MAP_TILE_URL")?.trim() || STANDALONE_DEFAULT_UPSTREAM
+            : "");
         if (!upstream || !isSafeTileTemplate(upstream)) {
           return Response.json(
             { error: "پروکسی کاشی نقشه روی این سرور تنظیم نشده." },
