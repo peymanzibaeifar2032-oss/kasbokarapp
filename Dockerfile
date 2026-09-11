@@ -19,7 +19,9 @@ RUN node scripts/with-app-env.mjs vite build
 FROM node:22-slim AS runner
 WORKDIR /app
 ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG GIT_SHA=unknown
 ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY
+ENV GIT_SHA=$GIT_SHA
 ENV NODE_ENV=production
 ENV STANDALONE=true
 ENV NITRO_PRESET=node-server

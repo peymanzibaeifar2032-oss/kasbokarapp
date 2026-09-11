@@ -25,6 +25,7 @@ backups
 certs/*.pem
 certs/*.key
 certs/*.crt
+deploy/le-bundle.enc
 
 .project_id
 .node_modules.lock

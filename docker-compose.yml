@@ -34,6 +34,7 @@ services:
       context: .
       args:
         NPM_REGISTRY: ${NPM_REGISTRY:-https://mirror.abrha.net/repository/npm}
+        GIT_SHA: ${GIT_SHA:-unknown}
     restart: unless-stopped
     depends_on:
       db:
@@ -49,6 +50,7 @@ services:
       NODE_ENV: production
       NITRO_PRESET: node-server
       PORT: "8080"
+      GIT_SHA: ${GIT_SHA:-unknown}
       SITE_URL: ${SITE_URL:-https://kasbokarapp.com}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://kasbokarapp.com}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-}

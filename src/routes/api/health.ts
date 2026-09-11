@@ -10,12 +10,14 @@ export const Route = createFileRoute("/api/health")({
           const { postgresUrl } = await import("@/lib/env.server");
           const sql = await getSql();
           await sql.query("select 1 as ok");
+          const sha = (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim();
           return Response.json(
             {
               ok: true,
               app: "kasbokar",
               db: postgresUrl() ? (isStandalone() ? "postgres" : "neon") : "pglite",
               standalone: isStandalone(),
+              ...(sha ? { sha } : {}),
             },
             { headers: { "Cache-Control": "no-store" } },
           );

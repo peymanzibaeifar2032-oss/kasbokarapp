@@ -59,6 +59,7 @@ $COMPOSE exec -T db sh -c 'pg_dump -Fc -f /backups/pre-deploy-$(date -u +%Y%m%dT
 
 git reset --hard "$NEW_SHA"
 chmod +x deploy/*.sh 2>/dev/null || true
+export GIT_SHA="$NEW_SHA"
 
 $COMPOSE build web || fail "build"
 $COMPOSE up -d --remove-orphans || fail "up"
@@ -69,6 +70,7 @@ DBCHK=$($COMPOSE exec -T db psql -U kasbokar -d kasbokar -Atc "select 1" 2>/dev/
 [ "$DBCHK" = "1" ] || fail "database"
 
 SMOKE_BASE=http://127.0.0.1:8080 sh deploy/smoke.sh || fail "smoke"
+sh deploy/phase0-cleanup.sh || echo "INFO  phase0 cleanup skipped"
 
 docker image prune -f >/dev/null 2>&1 || true
 echo "DEPLOY_OK $NEW_SHA"

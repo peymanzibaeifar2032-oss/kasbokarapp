@@ -20,6 +20,7 @@ echo "=== smoke $BASE origin=$ORIGIN ==="
 H=$(curl -sS -m 8 "$BASE/api/health" || true)
 echo "$H" | grep -q '"ok":true' && echo "$H" | grep -q '"standalone":true' && ok "health standalone" || bad "health" "$H"
 echo "$H" | grep -q '"db":"postgres"' && ok "health db=postgres" || bad "health db label" "$H"
+echo "$H" | grep -q '"sha"' && ok "health sha" || bad "health sha" "$H"
 
 curl -sS -m 8 -o /tmp/home.html -w "%{http_code}" "$BASE/" | grep -q 200 && grep -q "کسب" /tmp/home.html && ok "home html" || bad "home html" "not 200"
 grep -qiE 'openai\.com|chatgpt\.com|signin-with-chatgpt' /tmp/home.html && bad "home openai remnant" "found" || ok "home no openai/chatgpt"
