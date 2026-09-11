@@ -121,6 +121,7 @@ services:
       CADDY_EMAIL: ${CADDY_EMAIL:-ops@kasbokarapp.com}
     volumes:
       - ./deploy/${CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
+      - ./deploy/acme-www:/acme-www:ro
       - caddy_data:/data
       - caddy_config:/config
     logging: *default-logging
