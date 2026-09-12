@@ -12,6 +12,7 @@ import { guideRequest, type GuideBugListItem } from "@/lib/guide/client";
 import { formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import type { Business, Profile } from "@/lib/types";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({ component: Admin });
@@ -95,7 +96,12 @@ function Admin() {
                       </p>
                       {b.phone ? <p className="text-sm">{b.phone}</p> : null}
                     </div>
-                    <Badge tone={vis.tone}>{vis.text}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge tone={vis.tone}>{vis.text}</Badge>
+                      {b.verificationLevel === "basic" ? (
+                        <Badge tone="muted">{t("verifiedBasic")}</Badge>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button asChild size="sm" variant="outline">

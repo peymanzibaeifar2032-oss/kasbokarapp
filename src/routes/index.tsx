@@ -30,6 +30,8 @@ import { useFavorites } from "@/lib/favorites";
 import { KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
 import { haversineKm } from "@/lib/format";
 import { hasSlotToday, isOpenNow } from "@/lib/hours";
+import { t } from "@/lib/i18n";
+import { parseSearchQuery } from "@/lib/search/parse-query";
 import { listBusinesses, listCategories } from "@/lib/server/api";
 import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -85,7 +87,7 @@ function Home() {
   const [onlyFav, setOnlyFav] = useState(false);
   const [hasOffer, setHasOffer] = useState(false);
   const [todaySlot, setTodaySlot] = useState(false);
-  const [sort, setSort] = useState<"rating" | "distance" | "new">("rating");
+  const [sort, setSort] = useState<"relevance" | "distance" | "new">("relevance");
   const [maxKm, setMaxKm] = useState(0);
   const [geoMsg, setGeoMsg] = useState<string | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
@@ -121,6 +123,14 @@ function Home() {
   }, [q]);
 
   useEffect(() => {
+    const parsed = parseSearchQuery(debouncedQ);
+    if (parsed.openNow) setOpenNow(true);
+    if (parsed.categoryId) setCategoryId(parsed.categoryId);
+    if (parsed.province) setProvince(parsed.province);
+    if (parsed.city) setCity(parsed.city);
+  }, [debouncedQ]);
+
+  useEffect(() => {
     if (skipFirstFetch.current) {
       skipFirstFetch.current = false;
       return;
@@ -133,6 +143,10 @@ function Home() {
         categoryId,
         province: province || undefined,
         city: city || undefined,
+        originLat: userPos?.lat,
+        originLng: userPos?.lng,
+        openNow,
+        sort,
       },
     })
       .then((rows) => {
@@ -144,7 +158,7 @@ function Home() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, categoryId, province, city]);
+  }, [debouncedQ, categoryId, province, city, userPos, openNow, sort]);
 
   useEffect(() => {
     const p = PROVINCES.find((x) => x.name === province);
@@ -176,11 +190,6 @@ function Home() {
       );
     } else if (sort === "new") {
       next.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-    } else {
-      next.sort((a, b) => {
-        const score = (x: Business) => (x.ratingAvg * x.ratingCount + 4.2 * 2) / (x.ratingCount + 2);
-        return score(b) - score(a) || b.ratingCount - a.ratingCount;
-      });
     }
     return next;
   }, [items, openNow, hasOffer, todaySlot, onlyFav, sort, refPos, favs, maxKm]);
@@ -504,7 +513,7 @@ function Home() {
             }}
             className="w-auto min-w-40"
           >
-            <option value="rating">بهترین امتیاز</option>
+            <option value="relevance">{t("sortRelevance")}</option>
             <option value="distance">نزدیک‌ترین</option>
             <option value="new">تازه‌ترین</option>
           </NativeSelect>
@@ -524,7 +533,14 @@ function Home() {
           {loading ? [0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-surface" />) : null}
           {!loading && filtered.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
-              هنوز کسب‌وکاری با این فیلتر نیست. فیلتر را کم کنید یا محل خود را روی نقشه اضافه کنید.
+              <p>{t("zeroResults")}</p>
+              <ul className="mt-3 space-y-1 text-right">
+                {openNow ? <li>{t("zeroHintOpen")}</li> : null}
+                {maxKm > 0 ? <li>{t("zeroHintDistance")}</li> : null}
+                {categoryId ? <li>{t("zeroHintCategory")}</li> : null}
+                {debouncedQ ? <li>{t("zeroHintSpelling")}</li> : null}
+                {!openNow && maxKm <= 0 && !categoryId && !debouncedQ ? <li>{t("zeroHintGeneric")}</li> : null}
+              </ul>
             </div>
           ) : null}
           {filtered.map((b) => (

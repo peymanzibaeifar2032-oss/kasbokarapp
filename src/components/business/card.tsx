@@ -2,11 +2,11 @@ import { Link } from "@tanstack/react-router";
 import { Heart, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Stars } from "@/components/business/stars";
-import { formatKm, formatToman } from "@/lib/format";
+import { formatFaDateTime, formatKm, formatToman } from "@/lib/format";
 import { isOpenNow, nextAvailable, todayHoursLabel } from "@/lib/hours";
+import { t } from "@/lib/i18n";
 import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { formatFaDateTime } from "@/lib/format";
 
 export function visibilityLabel(v: Business["visibility"]) {
   if (v === "trial") return { text: "آزمایشی", tone: "primary" as const };
@@ -55,7 +55,12 @@ export function BusinessCard({
               <h3 className="mt-1 text-base font-semibold">{business.name}</h3>
               {business.jobTitle ? <p className="mt-0.5 text-sm text-muted">{business.jobTitle}</p> : null}
             </div>
-            <Badge tone={open ? "accent" : "muted"}>{open ? "باز است" : "بسته"}</Badge>
+            <div className="flex flex-col items-end gap-1">
+              <Badge tone={open ? "accent" : "muted"}>{open ? "باز است" : "بسته"}</Badge>
+              {business.verificationLevel === "basic" ? (
+                <Badge tone="muted">{t("verifiedBasic")}</Badge>
+              ) : null}
+            </div>
           </div>
           <div className="mt-2">
             <Stars value={business.ratingAvg} count={business.ratingCount} />

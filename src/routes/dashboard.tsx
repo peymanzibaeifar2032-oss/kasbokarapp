@@ -12,6 +12,8 @@ import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatFaDate, formatFaDateTime, toWhatsAppLink } from "@/lib/format";
 import { profileCompleteness } from "@/lib/hours";
+import { t, type MessageKey } from "@/lib/i18n";
+import type { CompletenessField } from "@/lib/search/completeness";
 import { friendlyError, saveAction } from "@/lib/save";
 import type { Booking, Business, Category, OwnerStats, Profile } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -215,6 +217,17 @@ function MineList({
       {items.map((b) => {
         const vis = visibilityLabel(b.visibility);
         const complete = profileCompleteness(b);
+        const completeLabel: Record<CompletenessField, MessageKey> = {
+          name: "completeName",
+          category: "completeCategory",
+          phone: "completePhone",
+          place: "completePlace",
+          address: "completeAddress",
+          coords: "completeCoords",
+          hours: "completeHours",
+          prices: "completePrices",
+          description: "completeDescription",
+        };
         return (
           <article key={b.id} className="rounded-2xl border border-border bg-surface p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -231,14 +244,17 @@ function MineList({
             </div>
             <div className="mt-3">
               <div className="flex justify-between text-xs text-muted">
-                <span>کامل بودن صفحه</span>
+                <span>{t("completeLabel")}</span>
                 <span>{new Intl.NumberFormat("fa-IR").format(complete.score)}٪</span>
               </div>
               <div className="mt-1 h-2 overflow-hidden rounded-full bg-bg">
                 <div className="h-full bg-accent" style={{ width: `${complete.score}%` }} />
               </div>
-              {complete.score < 100 ? (
-                <p className="mt-2 text-xs text-muted">تلفن، آدرس، معرفی، ساعت و حداقل یک خدمت را کامل کنید تا بهتر دیده شوید.</p>
+              {complete.missing.length ? (
+                <p className="mt-2 text-xs text-muted">
+                  {t("completeHint")}{" "}
+                  {complete.missing.map((k) => t(completeLabel[k])).join("، ")}
+                </p>
               ) : null}
             </div>
             <p className="mt-3 text-sm text-muted">

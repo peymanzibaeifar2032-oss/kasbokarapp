@@ -14,7 +14,9 @@ describe("i18n foundation", () => {
     assert.equal(t("navMap"), "نقشه");
     assert.equal(t("booking"), "رزرو");
     assert.equal(t("favorites"), "ذخیره‌شده‌ها");
-    assert.doesNotMatch(t("waitlist"), /waitlist/i);
+    assert.equal(t("zeroResults"), "کسب‌وکاری با این جست‌وجو پیدا نشد.");
+    assert.equal(t("completePhone"), "شماره تماس");
+    assert.equal(t("zeroHintGeneric"), "فیلترها را کمتر کنید یا عبارت دیگری بنویسید");
   });
 
   it("english catalog falls back to Persian until translations exist", () => {
