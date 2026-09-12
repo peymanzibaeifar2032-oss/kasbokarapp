@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { foldFaKeepJoiner, normalizeFa } from "./normalize.ts";
-import { parseSearchQuery } from "./parse-query.ts";
+import { matchSimpleCategoryQuery, parseSearchQuery } from "./parse-query.ts";
 
 describe("NL parser", () => {
   it("maps a full Persian sentence to filters", () => {
@@ -152,5 +152,15 @@ describe("NL parser", () => {
     const k = parseSearchQuery("تاتو کرمان");
     assert.equal(k.city, "کرمان");
     assert.equal(k.province, "کرمان");
+  });
+
+  it("simple category match is only the whole keyword, not a long sentence", () => {
+    assert.equal(matchSimpleCategoryQuery("تاتو")?.id, 1);
+    assert.equal(matchSimpleCategoryQuery("مکانیک")?.id, 4);
+    assert.equal(matchSimpleCategoryQuery("کافه")?.id, 8);
+    assert.equal(matchSimpleCategoryQuery("وکیل")?.id, 12);
+    assert.equal(matchSimpleCategoryQuery("آرایشگاه زنانه")?.id, 1);
+    assert.equal(matchSimpleCategoryQuery("تاتو در کرمانشاه که امروز وقت خالی دارد"), undefined);
+    assert.equal(matchSimpleCategoryQuery("ماه‌رخ"), undefined);
   });
 });

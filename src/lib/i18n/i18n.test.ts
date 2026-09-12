@@ -17,7 +17,8 @@ describe("i18n foundation", () => {
     assert.equal(t("zeroResults"), "کسب‌وکاری با این جست‌وجو پیدا نشد.");
     assert.equal(t("completePhone"), "شماره تماس");
     assert.equal(t("zeroHintGeneric"), "فیلترها را کمتر کنید یا عبارت دیگری بنویسید");
-    assert.equal(t("searchPlaceholder"), "چی می‌خوای؟ مثلاً تاتو در کرمانشاه که الان باز است");
+    assert.equal(t("searchPlaceholder"), "دنبال چه کسب‌وکاری می‌گردی؟");
+    assert.equal(t("searchExamples"), "مثلاً تاتو، آرایشگاه، مکانیک، وکیل، کافه");
     assert.equal(t("intentWhen"), "کی");
     assert.equal(t("intentOpenNow"), "الان باز است");
     assert.equal(t("intentFreeToday"), "وقت آزاد امروز");

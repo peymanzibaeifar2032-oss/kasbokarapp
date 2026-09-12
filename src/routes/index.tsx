@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Coffee,
   Dumbbell,
@@ -31,10 +31,8 @@ import { KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
 import { haversineKm } from "@/lib/format";
 import { isOpenNow } from "@/lib/hours";
 import { t } from "@/lib/i18n";
-import { applySearchIntent, looksLikeWhenText, type IntentChip } from "@/lib/search/apply-intent";
-import { parseSearchQuery, queryHasTodayAvailability } from "@/lib/search/parse-query";
 import { listBusinesses, listCategories } from "@/lib/server/api";
-import type { Business, Category } from "@/lib/types";
+import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PLACE_KEY = "kasb:place";
@@ -43,7 +41,7 @@ export const Route = createFileRoute("/")({
   loader: async () => {
     const [categories, items] = await Promise.all([
       listCategories(),
-      listBusinesses({ data: { province: "کرمانشاه", city: "کرمانشاه" } }),
+      listBusinesses({ data: { simple: true, province: "کرمانشاه", city: "کرمانشاه" } }),
     ]);
     return { categories, items };
   },
@@ -95,27 +93,9 @@ function Home() {
   const [addMode, setAddMode] = useState(false);
   const [picked, setPicked] = useState<{ lat: number; lng: number } | null>(null);
   const [viewKey, setViewKey] = useState(0);
-  const [nearMeCityFallback, setNearMeCityFallback] = useState(false);
   const skipFirstFetch = useRef(true);
   const userPlace = useRef({ province: "کرمانشاه", city: "کرمانشاه" });
-  const manualOpenNow = useRef(false);
-  const manualTodaySlot = useRef(false);
-  const hadOpenFromQuery = useRef(false);
-  const hadFreeFromQuery = useRef(false);
-  const hadCategoryFromQuery = useRef(false);
-  const hadCityFromQuery = useRef(false);
   const cities = useMemo(() => PROVINCES.find((p) => p.name === province)?.cities ?? [], [province]);
-  const parsedQ = useMemo(() => parseSearchQuery(debouncedQ), [debouncedQ]);
-  const intent = useMemo(() => {
-    const base = applySearchIntent({
-      parsed: parsedQ,
-      defaultCity: city,
-      defaultProvince: province,
-      origin: userPos,
-      cityFallback: nearMeCityFallback,
-    });
-    return refineChipsFromRawQuery(base, parsedQ, debouncedQ);
-  }, [parsedQ, city, province, userPos, nearMeCityFallback, debouncedQ]);
 
   useEffect(() => {
     try {
@@ -136,7 +116,6 @@ function Home() {
   }, []);
 
   useEffect(() => {
-    if (hadCityFromQuery.current) return;
     try {
       localStorage.setItem(PLACE_KEY, JSON.stringify({ province, city }));
       userPlace.current = { province, city };
@@ -151,33 +130,6 @@ function Home() {
   }, [q]);
 
   useEffect(() => {
-    const parsed = parsedQ;
-    if (parsed.categoryId) setCategoryId(parsed.categoryId);
-    else if (hadCategoryFromQuery.current) setCategoryId(undefined);
-    hadCategoryFromQuery.current = Boolean(parsed.categoryId);
-
-    if (parsed.openNow) setOpenNow(true);
-    else if (hadOpenFromQuery.current) setOpenNow(manualOpenNow.current);
-    hadOpenFromQuery.current = parsed.openNow;
-
-    if (parsed.freeToday) setTodaySlot(true);
-    else if (hadFreeFromQuery.current) setTodaySlot(manualTodaySlot.current);
-    hadFreeFromQuery.current = parsed.freeToday;
-
-    if (parsed.city) {
-      setCity(parsed.city);
-      if (parsed.province) setProvince(parsed.province);
-    } else if (hadCityFromQuery.current) {
-      setCity(userPlace.current.city);
-      setProvince(userPlace.current.province);
-    }
-    hadCityFromQuery.current = Boolean(parsed.city);
-
-    if (!parsed.nearMe) setNearMeCityFallback(false);
-    if (parsed.nearMe && userPos) setSort("distance");
-  }, [parsedQ, userPos]);
-
-  useEffect(() => {
     if (skipFirstFetch.current) {
       skipFirstFetch.current = false;
       return;
@@ -186,15 +138,16 @@ function Home() {
     setLoading(true);
     void listBusinesses({
       data: {
+        simple: true,
         q: debouncedQ,
-        categoryId: categoryId ?? intent.categoryId,
-        province: intent.province || undefined,
-        city: intent.city || undefined,
+        categoryId,
+        province,
+        city: city || undefined,
         originLat: userPos?.lat,
         originLng: userPos?.lng,
-        openNow: openNow || intent.openNow,
-        freeToday: todaySlot || intent.freeToday,
-        sort: intent.sortDistance ? "distance" : sort,
+        openNow,
+        freeToday: todaySlot,
+        sort: sort === "distance" && !userPos ? "relevance" : sort,
       },
     })
       .then((rows) => {
@@ -206,7 +159,7 @@ function Home() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, categoryId, intent, userPos, openNow, todaySlot, sort]);
+  }, [debouncedQ, categoryId, province, city, userPos, openNow, todaySlot, sort]);
 
   useEffect(() => {
     const p = PROVINCES.find((x) => x.name === province);
@@ -218,32 +171,30 @@ function Home() {
     }
   }, [province, city]);
 
-  const refPos = userPos ?? mapCenter;
-
   const filtered = useMemo(() => {
     let rows = items;
-    if (openNow || intent.openNow) rows = rows.filter((b) => isOpenNow(b.workHours));
+    if (openNow) rows = rows.filter((b) => isOpenNow(b.workHours));
     if (hasOffer) rows = rows.filter((b) => Boolean(b.offerText));
     if (onlyFav) rows = rows.filter((b) => favs.has(b.id));
-    if (maxKm > 0) {
-      rows = rows.filter((b) => haversineKm(refPos, { lat: b.latitude, lng: b.longitude }) <= maxKm);
+    if (maxKm > 0 && userPos) {
+      rows = rows.filter((b) => haversineKm(userPos, { lat: b.latitude, lng: b.longitude }) <= maxKm);
     }
     const next = [...rows];
-    if (sort === "distance") {
+    if (sort === "distance" && userPos) {
       next.sort(
         (a, b) =>
-          haversineKm(refPos, { lat: a.latitude, lng: a.longitude }) -
-          haversineKm(refPos, { lat: b.latitude, lng: b.longitude }),
+          haversineKm(userPos, { lat: a.latitude, lng: a.longitude }) -
+          haversineKm(userPos, { lat: b.latitude, lng: b.longitude }),
       );
     } else if (sort === "new") {
       next.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     }
     return next;
-  }, [items, openNow, intent.openNow, hasOffer, onlyFav, sort, refPos, favs, maxKm]);
+  }, [items, openNow, hasOffer, onlyFav, sort, userPos, favs, maxKm]);
 
   const selected = filtered.find((b) => b.id === selectedId) ?? null;
 
-  function locate(fromNearMe = false) {
+  function locate() {
     setGeoBusy(true);
     setGeoMsg(null);
 
@@ -251,7 +202,6 @@ function Home() {
       setGeoBusy(false);
       const msg = "در این نمایش توکار، موقعیت گوشی در دسترس نیست. پین را روی نقشه بگذارید.";
       setGeoMsg(msg);
-      if (fromNearMe) setNearMeCityFallback(true);
       toast.error(msg);
       return;
     }
@@ -261,7 +211,6 @@ function Home() {
       const msg =
         "موقعیت دقیق گوشی فقط بعد از اتصال دامنه و HTTPS کار می‌کند. فعلاً شهر را انتخاب کنید یا پین را روی نقشه جابه‌جا کنید.";
       setGeoMsg(msg);
-      if (fromNearMe) setNearMeCityFallback(true);
       toast.message(msg);
       return;
     }
@@ -270,7 +219,6 @@ function Home() {
       setGeoBusy(false);
       const msg = "این مرورگر موقعیت مکانی ندارد.";
       setGeoMsg(msg);
-      if (fromNearMe) setNearMeCityFallback(true);
       toast.error(msg);
       return;
     }
@@ -284,7 +232,6 @@ function Home() {
         setZoom(15);
         setViewKey((k) => k + 1);
         setSort("distance");
-        setNearMeCityFallback(false);
         setGeoMsg(null);
         setGeoBusy(false);
         toast.success("موقعیت شما روی نقشه آمد.");
@@ -296,7 +243,6 @@ function Home() {
         if (err?.code === 2) msg = "GPS در دسترس نیست. شهر را از فهرست انتخاب کنید.";
         if (err?.code === 3) msg = "زمان موقعیت تمام شد. دوباره بزنید.";
         setGeoMsg(msg);
-        if (fromNearMe) setNearMeCityFallback(true);
         toast.error(msg);
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 },
@@ -347,114 +293,68 @@ function Home() {
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("searchPlaceholder")}
             className="pr-11"
+            autoComplete="off"
+            enterKeyHint="search"
           />
         </label>
-        {intent.chips.length ? (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {intent.chips.map((chip) => (
-              <span
-                key={`${chip.key}:${chip.value}`}
-                className="inline-flex h-8 max-w-full items-center gap-1 rounded-full border border-border bg-bg px-2.5 text-xs"
-              >
-                <span className="text-muted">{intentChipLabel(chip.key)}</span>
-                <span className="truncate font-medium">{intentChipValue(chip, categories)}</span>
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {intent.needsLocation ? (
-          <div className="mt-3 rounded-xl border border-accent/20 bg-accent/10 px-3 py-3 text-sm text-accent">
-            <p>{t("nearMeAsk")}</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button type="button" size="sm" onClick={() => locate(true)} disabled={geoBusy}>
-                {geoBusy ? "در حال یافتن…" : t("nearMeUse")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="bg-surface"
-                onClick={() => {
-                  setNearMeCityFallback(true);
-                  setBannerOn(true);
-                }}
-              >
-                {t("nearMePickCity")}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <NativeSelect
-            value={province}
-            onChange={(e) => {
-              const next = e.target.value;
-              const loc = PROVINCES.find((p) => p.name === next);
-              const nextCity = loc?.cities[0] ?? "";
-              userPlace.current = { province: next, city: nextCity };
-              setProvince(next);
-              setCity(nextCity);
-              setBannerOn(true);
-              if (parsedQ.nearMe) setNearMeCityFallback(true);
+        <p className="mt-2 text-xs text-muted">{t("searchExamples")}</p>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          <FilterChip
+            active={sort === "distance" && Boolean(userPos)}
+            onClick={() => {
+              if (userPos && sort === "distance") setSort("relevance");
+              else locate();
             }}
-            aria-label="استان"
-          >
-            {PROVINCES.map((p) => (
-              <option key={p.name} value={p.name}>
-                {p.name}
-              </option>
-            ))}
-          </NativeSelect>
-          <NativeSelect
-            value={categoryId ? String(categoryId) : ""}
-            onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
-            aria-label="دسته"
-          >
-            <option value="">همه دسته‌ها</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </NativeSelect>
+            label={geoBusy ? "در حال یافتن…" : t("filterNearest")}
+          />
+          <FilterChip active={openNow} onClick={() => setOpenNow((v) => !v)} label="باز است" />
+          <FilterChip active={todaySlot} onClick={() => setTodaySlot((v) => !v)} label={t("availableToday")} />
+          <FilterChip
+            active={sort === "new"}
+            onClick={() => setSort((s) => (s === "new" ? "relevance" : "new"))}
+            label={t("filterNewest")}
+          />
         </div>
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <Button type="button" variant={sort === "distance" ? "default" : "outline"} onClick={() => locate(false)} disabled={geoBusy}>
-            <LocateFixed className="size-4" />
-            {geoBusy ? "در حال یافتن…" : "نزدیک‌تر"}
-          </Button>
-          <NativeSelect
-            value={String(maxKm)}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setMaxKm(v);
-              if (v > 0) setSort("distance");
-            }}
-            aria-label="فاصله"
-          >
-            <option value="0">هر فاصله‌ای</option>
-            <option value="1">تا ۱ کیلومتر</option>
-            <option value="3">تا ۳ کیلومتر</option>
-            <option value="5">تا ۵ کیلومتر</option>
-            <option value="10">تا ۱۰ کیلومتر</option>
-          </NativeSelect>
-          <NativeSelect
-            value={city}
-            onChange={(e) => {
-              const next = e.target.value;
-              userPlace.current = { ...userPlace.current, city: next };
-              setCity(next);
-              if (parsedQ.nearMe) setNearMeCityFallback(true);
-            }}
-            aria-label="شهرستان"
-          >
-            <option value="">شهرستان‌ها</option>
-            {cities.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </NativeSelect>
+        <div className="mt-3">
+          <p className="mb-1.5 text-xs text-muted">{t("placeLabel")}</p>
+          <div className="grid grid-cols-2 gap-2">
+            <NativeSelect
+              value={province}
+              onChange={(e) => {
+                const next = e.target.value;
+                const loc = PROVINCES.find((p) => p.name === next);
+                const nextCity = loc?.cities[0] ?? "";
+                userPlace.current = { province: next, city: nextCity };
+                setProvince(next);
+                setCity(nextCity);
+                setBannerOn(true);
+              }}
+              aria-label="استان"
+            >
+              {PROVINCES.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </NativeSelect>
+            <NativeSelect
+              value={city}
+              onChange={(e) => {
+                const next = e.target.value;
+                userPlace.current = { ...userPlace.current, city: next };
+                setCity(next);
+                setBannerOn(true);
+              }}
+              aria-label="شهر"
+            >
+              <option value="">همه شهرها</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
         </div>
       </section>
 
@@ -495,7 +395,7 @@ function Home() {
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <strong>{loading ? "در حال دریافت…" : `${toFa(filtered.length)} کسب‌وکار`}</strong>
-          <p className="text-sm text-muted">متناسب با فیلترهای شما</p>
+          <p className="text-sm text-muted">{city ? `در ${city}` : province}</p>
         </div>
         <Button type="button" variant={addMode ? "default" : "outline"} onClick={startAddMode}>
           <Plus className="size-4" />
@@ -503,7 +403,51 @@ function Home() {
         </Button>
       </div>
 
-      <section id="map-pick" className="mt-4">
+      <section className="mt-4">
+        {selected ? (
+          <div className="mb-3">
+            <BusinessCard
+              business={selected}
+              compact
+              saved={favs.has(selected.id)}
+              onToggleSave={favs.toggle}
+              distanceKm={userPos ? haversineKm(userPos, { lat: selected.latitude, lng: selected.longitude }) : undefined}
+            />
+          </div>
+        ) : null}
+        <div className="grid gap-3">
+          {loading ? [0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-surface" />) : null}
+          {!loading && filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
+              <p>{t("zeroResults")}</p>
+              <ul className="mt-3 space-y-1 text-right">
+                {openNow ? <li>{t("zeroHintOpen")}</li> : null}
+                {todaySlot ? <li>{t("zeroHintFree")}</li> : null}
+                {categoryId ? <li>{t("zeroHintCategory")}</li> : null}
+                {debouncedQ ? <li>{t("zeroHintSpelling")}</li> : null}
+                {sort === "distance" && !userPos ? <li>{t("zeroHintNearMe")}</li> : null}
+                {!openNow && !todaySlot && !categoryId && !debouncedQ ? <li>{t("zeroHintGeneric")}</li> : null}
+              </ul>
+            </div>
+          ) : null}
+          {filtered.map((b) => (
+            <div
+              key={b.id}
+              onMouseEnter={() => setSelectedId(b.id)}
+              className={cn(selectedId === b.id && "ring-2 ring-accent/30 rounded-xl")}
+            >
+              <BusinessCard
+                business={b}
+                distanceKm={userPos ? haversineKm(userPos, { lat: b.latitude, lng: b.longitude }) : undefined}
+                saved={favs.has(b.id)}
+                onToggleSave={favs.toggle}
+              />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="map-pick" className="mt-5">
         <div className="relative isolate h-[min(62dvh,480px)] overflow-hidden rounded-2xl border border-border">
           <div className="absolute inset-0 z-0">
             <BusinessMap
@@ -570,7 +514,7 @@ function Home() {
             ) : (
               <span />
             )}
-            <Button type="button" variant="outline" size="sm" className="bg-surface" onClick={() => locate(false)} disabled={geoBusy}>
+            <Button type="button" variant="outline" size="sm" className="bg-surface" onClick={() => locate()} disabled={geoBusy}>
               <LocateFixed className="size-4" />
               موقعیت من
             </Button>
@@ -597,93 +541,6 @@ function Home() {
           </div>
         ) : null}
       </section>
-
-      <section className="mt-5">
-        <div className="mb-3 flex flex-wrap gap-2">
-          <FilterChip
-            active={openNow || intent.openNow}
-            onClick={() => {
-              if (intent.openNow) return;
-              setOpenNow((v) => {
-                const next = !v;
-                manualOpenNow.current = next;
-                return next;
-              });
-            }}
-            label="باز است"
-          />
-          <FilterChip
-            active={todaySlot || intent.freeToday}
-            onClick={() => {
-              if (intent.freeToday) return;
-              setTodaySlot((v) => {
-                const next = !v;
-                manualTodaySlot.current = next;
-                return next;
-              });
-            }}
-            label={t("chipTodaySlot")}
-          />
-          <FilterChip active={hasOffer} onClick={() => setHasOffer((v) => !v)} label="پیشنهاد ویژه" />
-          <FilterChip active={onlyFav} onClick={() => setOnlyFav((v) => !v)} label="ذخیره‌شده‌ها" />
-          <NativeSelect
-            value={sort}
-            onChange={(e) => {
-              const v = e.target.value as typeof sort;
-              setSort(v);
-            }}
-            className="w-auto min-w-40"
-          >
-            <option value="relevance">{t("sortRelevance")}</option>
-            <option value="distance">نزدیک‌ترین</option>
-            <option value="new">تازه‌ترین</option>
-          </NativeSelect>
-        </div>
-        {selected ? (
-          <div className="mb-3">
-            <BusinessCard
-              business={selected}
-              compact
-              saved={favs.has(selected.id)}
-              onToggleSave={favs.toggle}
-              distanceKm={haversineKm(refPos, { lat: selected.latitude, lng: selected.longitude })}
-            />
-          </div>
-        ) : null}
-        <div className="grid gap-3">
-          {loading ? [0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-xl bg-surface" />) : null}
-          {!loading && filtered.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
-              <p>{t("zeroResults")}</p>
-              <ul className="mt-3 space-y-1 text-right">
-                {openNow || intent.openNow ? <li>{t("zeroHintOpen")}</li> : null}
-                {todaySlot || intent.freeToday ? <li>{t("zeroHintFree")}</li> : null}
-                {maxKm > 0 ? <li>{t("zeroHintDistance")}</li> : null}
-                {categoryId ? <li>{t("zeroHintCategory")}</li> : null}
-                {debouncedQ ? <li>{t("zeroHintSpelling")}</li> : null}
-                {intent.needsLocation ? <li>{t("zeroHintNearMe")}</li> : null}
-                {!openNow && !intent.openNow && maxKm <= 0 && !categoryId && !debouncedQ ? (
-                  <li>{t("zeroHintGeneric")}</li>
-                ) : null}
-              </ul>
-            </div>
-          ) : null}
-          {filtered.map((b) => (
-            <div
-              key={b.id}
-              onMouseEnter={() => setSelectedId(b.id)}
-              className={cn(selectedId === b.id && "ring-2 ring-accent/30 rounded-xl")}
-            >
-              <BusinessCard
-                business={b}
-                distanceKm={haversineKm(refPos, { lat: b.latitude, lng: b.longitude })}
-                saved={favs.has(b.id)}
-                onToggleSave={favs.toggle}
-              />
-            </div>
-          ))}
-        </div>
-      </section>
     </Shell>
   );
 }
@@ -694,7 +551,7 @@ function FilterChip({ label, active, onClick }: { label: string; active?: boolea
       type="button"
       onClick={onClick}
       className={cn(
-        "h-11 rounded-full border px-4 text-sm",
+        "h-11 shrink-0 rounded-full border px-4 text-sm whitespace-nowrap",
         active ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface",
       )}
     >
@@ -727,46 +584,6 @@ function CatChip({
       <span className="line-clamp-2 px-1 text-xs leading-4">{label}</span>
     </button>
   );
-}
-
-function intentChipLabel(key: IntentChip["key"]) {
-  if (key === "what") return t("intentWhat");
-  if (key === "where") return t("intentWhere");
-  return t("intentWhen");
-}
-
-function intentChipValue(chip: IntentChip, categories: Category[]) {
-  if (chip.value === "nearMe") return t("intentNearMe");
-  if (chip.value === "openNow") return t("intentOpenNow");
-  if (chip.value === "freeToday") return t("intentFreeToday");
-  if (/^\d+$/.test(chip.value)) {
-    return categories.find((c) => String(c.id) === chip.value)?.name ?? chip.value;
-  }
-  return chip.value;
-}
-
-/** Category/city come from the parser; leftover time words never become WHAT. WHEN is re-read from the raw sentence. */
-function refineChipsFromRawQuery(
-  intent: ReturnType<typeof applySearchIntent>,
-  parsed: ReturnType<typeof parseSearchQuery>,
-  raw: string,
-) {
-  const whatValue = looksLikeWhenText(intent.chips.find((c) => c.key === "what")?.value)
-    ? parsed.categoryTerm || (parsed.categoryId ? String(parsed.categoryId) : "")
-    : intent.chips.find((c) => c.key === "what")?.value || parsed.categoryTerm || "";
-  const chips: IntentChip[] = [];
-  if (whatValue) chips.push({ key: "what", value: whatValue });
-  const where = intent.chips.find((c) => c.key === "where");
-  if (where) chips.push(where);
-  if (intent.openNow) chips.push({ key: "when", value: "openNow" });
-  if (intent.freeToday || queryHasTodayAvailability(raw) || queryHasTodayAvailability(parsed.original)) {
-    chips.push({ key: "when", value: "freeToday" });
-  }
-  return {
-    ...intent,
-    freeToday: Boolean(intent.freeToday || queryHasTodayAvailability(raw) || queryHasTodayAvailability(parsed.original)),
-    chips,
-  };
 }
 
 function toFa(n: number) {

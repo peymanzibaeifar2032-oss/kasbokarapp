@@ -96,6 +96,24 @@ export function isIntentDebrisText(raw: string | undefined | null): boolean {
   return tokens.length > 0 && tokens.every((tok) => INTENT_DEBRIS.has(tok));
 }
 
+/**
+ * Home simple search: the whole query is a category alias (e.g. «تاتو»).
+ * Longer sentences are not rewritten here — that stays in parseSearchQuery.
+ */
+export function matchSimpleCategoryQuery(raw: string | undefined | null): { id: number; term: string } | undefined {
+  const content = tokenizeFa(raw ?? "").filter((tok) => !STOP.has(tok));
+  if (!content.length) return undefined;
+  const scored = CATEGORY_ALIASES.flatMap((c) => c.terms.map((term) => ({ id: c.id, term, n: tokenizeFa(term) })))
+    .filter((x) => x.n.length > 0)
+    .sort((a, b) => b.n.length - a.n.length || b.term.length - a.term.length);
+  for (const c of scored) {
+    if (c.n.length === content.length && c.n.every((tok, i) => tok === content[i])) {
+      return { id: c.id, term: c.term };
+    }
+  }
+  return undefined;
+}
+
 /** True when leftover text is only a time/availability phrase. */
 export function hasWhenResidue(raw: string | undefined | null): boolean {
   const n = normalizeFa(raw ?? "");
