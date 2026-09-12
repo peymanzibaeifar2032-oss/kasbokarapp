@@ -111,6 +111,13 @@ function Account() {
                         bookingIcs({
                           title: `نوبت ${b.businessName}`,
                           startIso: typeof b.slotStart === "string" ? b.slotStart : new Date(b.slotStart).toISOString(),
+                          minutes:
+                            b.slotEnd
+                              ? Math.max(
+                                  10,
+                                  Math.round((new Date(b.slotEnd).getTime() - new Date(b.slotStart).getTime()) / 60000),
+                                )
+                              : 60,
                           location: b.businessName,
                           description: b.serviceTitle ?? "",
                         }),

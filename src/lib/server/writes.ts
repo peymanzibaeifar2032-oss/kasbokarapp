@@ -3,10 +3,12 @@ import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
 import { env } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
-import { shouldGrantBootstrapAdmin, isUniqueViolation } from "@/lib/server/admin-bootstrap";
+import { shouldGrantBootstrapAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
+import { buildSlots, serviceDurationMinutes, type BusyInterval } from "@/lib/hours";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
+  ACTIVE_OCCUPANCY_SQL,
   BOOKING_SELECT,
   BIZ_SELECT,
   VISIBLE_SQL,
@@ -37,6 +39,7 @@ const pricesSchema = z.array(
       if (typeof v === "string") return parseToman(v);
       return 0;
     }, z.number().nonnegative()),
+    minutes: z.number().int().min(10).max(4320).optional(),
   }),
 );
 
@@ -168,7 +171,18 @@ async function performReply(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
-async function performCreateBooking(userId: string, raw: unknown) {
+function parseJsonField<T>(value: T | string | null | undefined, fallback: T): T {
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return (value ?? fallback) as T;
+}
+
+export async function performCreateBooking(userId: string, raw: unknown) {
   const data = z
     .object({
       businessId: z.string(),
@@ -186,20 +200,33 @@ async function performCreateBooking(userId: string, raw: unknown) {
     throw new Error("این ساعت قابل رزرو نیست.");
   }
   const sql = await getSql();
-  const visible = await sql.query(`select id from businesses b where b.id = $1 and ${VISIBLE_SQL}`, [data.businessId]);
-  if (!visible[0]) throw new Error("این کسب‌وکار الان نوبت نمی‌پذیرد.");
-  const clash = await sql.query(
-    `select id from bookings
-     where business_id = $1 and slot_start = $2 and status in ('requested','confirmed')
-       and staff_id is not distinct from $3`,
-    [data.businessId, data.slotStart, null],
+  const visible = await sql.query<{ id: string; work_hours: unknown; slot_minutes: number; prices: unknown }>(
+    `select id, work_hours, slot_minutes, prices from businesses b where b.id = $1 and ${VISIBLE_SQL}`,
+    [data.businessId],
   );
-  if (clash[0]) throw new Error("این نوبت تازه گرفته شد. ساعت دیگری انتخاب کنید.");
+  if (!visible[0]) throw new Error("این کسب‌وکار الان نوبت نمی‌پذیرد.");
+  const row = visible[0];
+  const workHours = parseJsonField(row.work_hours as never, [] as WorkHour[]);
+  const prices = parseJsonField(row.prices as never, [] as PriceItem[]);
+  const slotMinutes = Number(row.slot_minutes) || 60;
+  const duration = serviceDurationMinutes(prices, data.serviceTitle, slotMinutes);
+  const slotEnd = new Date(start.getTime() + duration.minutes * 60000).toISOString();
+  const occ = await sql.query<{ slot_start: string; slot_end: string }>(
+    `select slot_start, slot_end from bookings
+     where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL}
+       and slot_end > now() and slot_start < $2::timestamptz`,
+    [data.businessId, slotEnd],
+  );
+  const busy: BusyInterval[] = occ.map((r) => ({ start: r.slot_start, end: r.slot_end }));
+  const allowed = buildSlots({ workHours, slotMinutes }, busy, 7, new Date(), duration.minutes);
+  if (!allowed.some((s) => Math.abs(new Date(s.iso).getTime() - start.getTime()) < 1000)) {
+    throw new Error("این ساعت قابل رزرو نیست.");
+  }
   const id = crypto.randomUUID();
   try {
     await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, note, status, service_title, party_size)
-       values ($1,$2,$3,$4,$5,$6,$7,'requested',$8,$9)`,
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, note, status, service_title, party_size)
+       values ($1,$2,$3,$4,$5,$6,$7,'booking',$8,'requested',$9,$10)`,
       [
         id,
         data.businessId,
@@ -207,16 +234,17 @@ async function performCreateBooking(userId: string, raw: unknown) {
         data.customerName.trim(),
         normalizeIranPhone(data.customerPhone),
         data.slotStart,
+        slotEnd,
         data.note?.trim() || null,
         data.serviceTitle?.trim() || null,
         data.partySize ?? 1,
       ],
     );
   } catch (err) {
-    if (isUniqueViolation(err)) throw new Error("این نوبت تازه گرفته شد. ساعت دیگری انتخاب کنید.");
+    if (isOccupancyConflict(err)) throw new Error("این نوبت تازه گرفته شد. ساعت دیگری انتخاب کنید.");
     throw err;
   }
-  return { id, slotStart: data.slotStart };
+  return { id, slotStart: data.slotStart, slotEnd };
 }
 
 async function performBookingStatus(userId: string, raw: unknown) {
@@ -227,19 +255,68 @@ async function performBookingStatus(userId: string, raw: unknown) {
     })
     .parse(raw);
   const sql = await getSql();
-  await sql.query(
-    `update bookings k
-     set status = $3
-     from businesses b
-     where k.id = $1 and k.business_id = b.id
-       and (b.owner_id = $2 or k.customer_id = $2)
-       and (
-         b.owner_id = $2
-         or ($3 = 'cancelled' and k.customer_id = $2)
-       )`,
-    [data.id, userId, data.status],
+  const rows = await sql.query<{ kind: string; owner_id: string; customer_id: string | null }>(
+    `select k.kind, b.owner_id, k.customer_id
+     from bookings k
+     join businesses b on b.id = k.business_id
+     where k.id = $1`,
+    [data.id],
   );
+  const row = rows[0];
+  if (!row) throw new Error("رزرو پیدا نشد.");
+  const kind = row.kind === "block" ? "block" : "booking";
+  const isOwner = row.owner_id === userId;
+  const isCustomer = Boolean(row.customer_id && row.customer_id === userId);
+  if (kind === "block") {
+    if (!isOwner || data.status !== "cancelled") {
+      throw new Error("بازهٔ بسته فقط توسط صاحب کسب‌وکار قابل برداشتن است.");
+    }
+  } else if (isOwner) {
+    /* owner may set any booking status */
+  } else if (isCustomer) {
+    if (data.status !== "cancelled") throw new Error("فقط می‌توانید رزرو خود را لغو کنید.");
+  } else {
+    throw new Error("دسترسی ندارید.");
+  }
+  await sql.query(`update bookings set status = $2 where id = $1`, [data.id, data.status]);
   return { ok: true as const };
+}
+
+async function performCreateBlock(userId: string, raw: unknown) {
+  const data = z
+    .object({
+      businessId: z.string(),
+      slotStart: z.string(),
+      slotEnd: z.string(),
+      note: z.string().max(300).optional(),
+    })
+    .parse(raw);
+  const start = new Date(data.slotStart);
+  const end = new Date(data.slotEnd);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end.getTime() - start.getTime() < 10 * 60000) {
+    throw new Error("بازهٔ بستن باید حداقل ۱۰ دقیقه باشد.");
+  }
+  if (end.getTime() - start.getTime() > 24 * 3600 * 1000) {
+    throw new Error("هر بستن حداکثر یک شبانه‌روز است.");
+  }
+  const sql = await getSql();
+  const owned = await sql.query<{ id: string }>(
+    `select id from businesses where id = $1 and owner_id = $2`,
+    [data.businessId, userId],
+  );
+  if (!owned[0]) throw new Error("فقط صاحب کسب‌وکار می‌تواند بازه ببندد.");
+  const id = crypto.randomUUID();
+  try {
+    await sql.query(
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, note, status, service_title, party_size)
+       values ($1,$2,null,null,null,$3,$4,'block',$5,'confirmed',null,1)`,
+      [id, data.businessId, data.slotStart, data.slotEnd, data.note?.trim() || null],
+    );
+  } catch (err) {
+    if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت یا بستن دیگری تداخل دارد.");
+    throw err;
+  }
+  return { id, slotStart: data.slotStart, slotEnd: data.slotEnd, kind: "block" as const };
 }
 
 async function performCreateBusiness(userId: string, raw: unknown) {
@@ -423,10 +500,10 @@ async function performOwnerStats(userId: string): Promise<OwnerStats> {
     rating_avg: number | string | null;
   }>(
     `select
-       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'requested') as requested,
-       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'confirmed') as confirmed,
-       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'done') as done,
-       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'cancelled') as cancelled,
+       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'requested') as requested,
+       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'confirmed') as confirmed,
+       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'done') as done,
+       (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'cancelled') as cancelled,
        (select count(*) from reviews r join businesses b2 on b2.id = r.business_id where b2.owner_id = $1) as reviews,
        (select avg(r.rating) from reviews r join businesses b2 on b2.id = r.business_id where b2.owner_id = $1) as rating_avg`,
     [userId],
@@ -448,7 +525,7 @@ async function performMyBookings(userId: string) {
     `select ${BOOKING_SELECT}
      from bookings k
      join businesses b on b.id = k.business_id
-     where k.customer_id = $1
+     where k.customer_id = $1 and k.kind = 'booking'
      order by k.slot_start desc`,
     [userId],
   );
@@ -510,12 +587,13 @@ async function performReviews(raw: unknown) {
 async function performBusy(raw: unknown) {
   const data = z.object({ businessId: z.string() }).parse(raw);
   const sql = await getSql();
-  const rows = await sql.query<{ slot_start: string }>(
-    `select slot_start from bookings
-     where business_id = $1 and status in ('requested','confirmed') and slot_start > now()`,
+  const rows = await sql.query<{ slot_start: string; slot_end: string }>(
+    `select slot_start, slot_end from bookings
+     where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL}
+       and slot_end > now()`,
     [data.businessId],
   );
-  return rows.map((r) => r.slot_start);
+  return rows.map((r) => ({ start: r.slot_start, end: r.slot_end }));
 }
 
 
@@ -558,6 +636,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performReply(userId, payload);
     case "booking":
       return performCreateBooking(userId, payload);
+    case "blockInterval":
+      return performCreateBlock(userId, payload);
     case "bookingStatus":
       return performBookingStatus(userId, payload);
     case "createBusiness":

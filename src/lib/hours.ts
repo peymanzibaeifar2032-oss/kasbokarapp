@@ -1,4 +1,4 @@
-import type { Business, WorkHour } from "@/lib/types";
+import type { Business, PriceItem, WorkHour } from "@/lib/types";
 
 export const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"] as const;
 
@@ -25,6 +25,20 @@ export function tehranClock(date = new Date()): TehranClock {
 
 export function tehranLocalToIso(y: number, m: number, day: number, hh: number, mm: number) {
   return new Date(Date.UTC(y, m - 1, day, hh, mm) - TEHRAN_OFFSET_MS).toISOString();
+}
+
+export function tehranDayKey(date = new Date()) {
+  const clock = tehranClock(date);
+  return `${clock.y}-${String(clock.m).padStart(2, "0")}-${String(clock.day).padStart(2, "0")}`;
+}
+
+/** Inclusive civil-day start (00:00) through exclusive next-day start, Tehran. */
+export function tehranDayBounds(date = new Date(), days = 1) {
+  const clock = tehranClock(date);
+  const start = tehranLocalToIso(clock.y, clock.m, clock.day, 0, 0);
+  const endDate = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + Math.max(1, days)));
+  const end = tehranLocalToIso(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, endDate.getUTCDate(), 0, 0);
+  return { start, end };
 }
 
 function minutesOf(hhmm: string) {
@@ -61,17 +75,68 @@ export function todayHoursLabel(hours: WorkHour[], date = new Date()) {
   return `امروز ${row.open} تا ${close}`;
 }
 
-export type SlotOption = { iso: string; label: string; dayKey: string; dayLabel: string };
+export type BusyInterval = { start: string; end: string };
+export type BusyInput = string | BusyInterval;
 
-export function buildSlots(business: Pick<Business, "workHours" | "slotMinutes">, busyIso: string[] = [], days = 7) {
-  const duration = Math.max(10, business.slotMinutes || 60);
-  const busy = new Set(busyIso.map((s) => new Date(s).getTime()));
+export type SlotOption = { iso: string; endIso: string; label: string; dayKey: string; dayLabel: string };
+
+/** Half-open [start, end). */
+export function intervalsOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number) {
+  return aStart < bEnd && bStart < aEnd;
+}
+
+export function serviceDurationMinutes(
+  prices: PriceItem[] | undefined,
+  serviceTitle: string | null | undefined,
+  slotMinutes: number,
+): { minutes: number; known: boolean } {
+  const fallback = Math.max(10, slotMinutes || 60);
+  if (!serviceTitle) return { minutes: fallback, known: false };
+  const item = (prices ?? []).find((p) => p.title === serviceTitle);
+  if (item && typeof item.minutes === "number" && Number.isFinite(item.minutes) && item.minutes >= 10) {
+    return { minutes: Math.max(10, Math.min(4320, Math.round(item.minutes))), known: true };
+  }
+  return { minutes: fallback, known: false };
+}
+
+function toBusyRanges(busy: BusyInput[], fallbackDurationMs: number): { start: number; end: number }[] {
+  const out: { start: number; end: number }[] = [];
+  for (const item of busy) {
+    if (typeof item === "string") {
+      const start = new Date(item).getTime();
+      if (!Number.isFinite(start)) continue;
+      out.push({ start, end: start + fallbackDurationMs });
+      continue;
+    }
+    const start = new Date(item.start).getTime();
+    const end = new Date(item.end).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    out.push({ start, end });
+  }
+  return out;
+}
+
+function conflicts(start: number, end: number, ranges: { start: number; end: number }[]) {
+  return ranges.some((r) => intervalsOverlap(start, end, r.start, r.end));
+}
+
+export function buildSlots(
+  business: Pick<Business, "workHours" | "slotMinutes">,
+  busy: BusyInput[] = [],
+  days = 7,
+  now: Date = new Date(),
+  durationMinutes?: number,
+) {
+  const duration = Math.max(10, durationMinutes ?? (business.slotMinutes || 60));
+  const durationMs = duration * 60000;
+  const ranges = toBusyRanges(busy, durationMs);
   const out: SlotOption[] = [];
-  const clock = tehranClock();
+  const clock = tehranClock(now);
   const map = new Map(business.workHours.map((h) => [h.day, h]));
   const longJob = duration >= 12 * 60;
   const daySpan = longJob ? Math.max(1, Math.round(duration / (24 * 60))) : 1;
   const windowDays = longJob ? Math.max(days, daySpan * 5) : days;
+  const minStart = now.getTime() + 20 * 60000;
 
   for (let i = 0; i < windowDays; i++) {
     const base = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + i));
@@ -94,9 +159,16 @@ export function buildSlots(business: Pick<Business, "workHours" | "slotMinutes">
       const mm = openM % 60;
       const iso = tehranLocalToIso(y, m, day, hh, mm);
       const ms = new Date(iso).getTime();
-      if (ms < Date.now() + 20 * 60000) continue;
-      if (busy.has(ms)) continue;
-      out.push({ iso, label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`, dayKey, dayLabel });
+      if (ms < minStart) continue;
+      const endMs = ms + durationMs;
+      if (conflicts(ms, endMs, ranges)) continue;
+      out.push({
+        iso,
+        endIso: new Date(endMs).toISOString(),
+        label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
+        dayKey,
+        dayLabel,
+      });
       continue;
     }
 
@@ -105,10 +177,12 @@ export function buildSlots(business: Pick<Business, "workHours" | "slotMinutes">
       const mm = t % 60;
       const iso = tehranLocalToIso(y, m, day, hh, mm);
       const ms = new Date(iso).getTime();
-      if (ms < Date.now() + 20 * 60000) continue;
-      if (busy.has(ms)) continue;
+      if (ms < minStart) continue;
+      const endMs = ms + durationMs;
+      if (conflicts(ms, endMs, ranges)) continue;
       out.push({
         iso,
+        endIso: new Date(endMs).toISOString(),
         label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
         dayKey,
         dayLabel,
@@ -118,14 +192,28 @@ export function buildSlots(business: Pick<Business, "workHours" | "slotMinutes">
   return out;
 }
 
-export function hasSlotToday(business: Pick<Business, "workHours" | "slotMinutes">, busyIso: string[] = []) {
-  const clock = tehranClock();
-  const key = `${clock.y}-${String(clock.m).padStart(2, "0")}-${String(clock.day).padStart(2, "0")}`;
-  return buildSlots(business, busyIso, 1).some((s) => s.dayKey === key);
+export function hasFreeToday(
+  business: Pick<Business, "workHours" | "slotMinutes">,
+  busy: BusyInput[] = [],
+  now: Date = new Date(),
+  durationMinutes?: number,
+) {
+  const key = tehranDayKey(now);
+  return buildSlots(business, busy, 1, now, durationMinutes).some((s) => s.dayKey === key);
 }
 
-export function nextAvailable(business: Pick<Business, "workHours" | "slotMinutes">, busyIso: string[] = []) {
-  return buildSlots(business, busyIso, 10)[0] ?? null;
+/** @deprecated Use hasFreeToday with real occupancy. Kept as a thin wrapper. */
+export function hasSlotToday(business: Pick<Business, "workHours" | "slotMinutes">, busy: BusyInput[] = []) {
+  return hasFreeToday(business, busy);
+}
+
+export function nextAvailable(
+  business: Pick<Business, "workHours" | "slotMinutes">,
+  busy: BusyInput[] = [],
+  now: Date = new Date(),
+  durationMinutes?: number,
+) {
+  return buildSlots(business, busy, 10, now, durationMinutes)[0] ?? null;
 }
 
 export { profileCompleteness } from "./search/completeness.ts";

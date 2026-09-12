@@ -8,6 +8,8 @@ export type WorkHour = {
 export type PriceItem = {
   title: string;
   price: number;
+  /** Real service duration in minutes. Absent = unknown; slotMinutes is only a fallback quantum. */
+  minutes?: number;
 };
 
 export type Category = {
@@ -51,16 +53,22 @@ export type Business = {
   subscriptionEndsAt: string | null;
   visibility: "pending" | "trial" | "subscribed" | "expired" | "rejected";
   createdAt: string;
+  hasFreeToday?: boolean;
+  nextFreeIso?: string | null;
 };
+
+export type BookingKind = "booking" | "block";
 
 export type Booking = {
   id: string;
   businessId: string;
   businessName: string;
-  customerId: string;
+  customerId: string | null;
   customerName: string | null;
   customerPhone: string | null;
   slotStart: string;
+  slotEnd: string | null;
+  kind: BookingKind;
   note: string | null;
   serviceTitle: string | null;
   partySize: number;
@@ -101,4 +109,9 @@ export type CityRank = {
   total: number;
   city: string;
   categoryName: string;
+};
+
+export type BusyInterval = {
+  start: string;
+  end: string;
 };

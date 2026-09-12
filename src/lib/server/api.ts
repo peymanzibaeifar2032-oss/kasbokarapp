@@ -4,13 +4,15 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSessionUser } from "@/lib/auth/verify.server";
 import { getSql } from "@/lib/db";
 import { DEFAULT_HOURS } from "@/lib/data/catalog";
-import { isIranMobile, toWebsiteHref } from "@/lib/format";
-import { isOpenNow } from "@/lib/hours";
+import { toWebsiteHref } from "@/lib/format";
+import { hasFreeToday, isOpenNow, nextAvailable } from "@/lib/hours";
 import { logSearch } from "@/lib/search/log-search";
 import { foldFaKeepJoiner } from "@/lib/search/normalize";
 import { parseSearchQuery } from "@/lib/search/parse-query";
 import { sortByRelevance } from "@/lib/search/ranking";
+import { performCreateBooking } from "@/lib/server/writes";
 import {
+  ACTIVE_OCCUPANCY_SQL,
   BOOKING_SELECT,
   BIZ_SELECT,
   BIZ_SELECT_JOINED,
@@ -24,7 +26,7 @@ import {
   type BizRow,
   type ReviewRow,
 } from "@/lib/server/db-map";
-import type { CityRank, OwnerStats, PriceItem, Profile, WorkHour } from "@/lib/types";
+import type { BusyInterval, CityRank, OwnerStats, PriceItem, Profile, WorkHour } from "@/lib/types";
 
 const hoursSchema = z.array(
   z.object({
@@ -39,6 +41,7 @@ const pricesSchema = z.array(
   z.object({
     title: z.string(),
     price: z.number(),
+    minutes: z.number().int().min(10).max(4320).optional(),
   }),
 );
 
@@ -64,6 +67,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
       originLat: z.number().optional(),
       originLng: z.number().optional(),
       openNow: z.boolean().optional(),
+      freeToday: z.boolean().optional(),
       sort: z.enum(["relevance", "distance", "new"]).optional(),
     }),
   )
@@ -85,6 +89,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
         ? null
         : (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
     const wantOpen = Boolean(data.openNow || parsed.openNow);
+    const wantFree = Boolean(data.freeToday || parsed.freeToday);
     const remainderRaw =
       parsed.mode === "fallback" ? foldFaKeepJoiner(parsed.original) : parsed.remainder;
     const remainder = remainderRaw.replace(/[%_]/g, "").trim();
@@ -114,6 +119,36 @@ export const listBusinesses = createServerFn({ method: "GET" })
       openNow: isOpenNow(b.workHours),
     }));
     if (wantOpen) items = items.filter((b) => b.openNow);
+
+    const ids = items.map((b) => b.id);
+    const occByBiz = new Map<string, BusyInterval[]>();
+    if (ids.length) {
+      const occ = await sql.query<{ business_id: string; slot_start: string; slot_end: string }>(
+        `select business_id, slot_start, slot_end from bookings
+         where business_id = any($1::text[])
+           and ${ACTIVE_OCCUPANCY_SQL}
+           and slot_end > now()
+           and slot_start < now() + interval '8 days'`,
+        [ids],
+      );
+      for (const row of occ) {
+        const list = occByBiz.get(row.business_id) ?? [];
+        list.push({ start: row.slot_start, end: row.slot_end });
+        occByBiz.set(row.business_id, list);
+      }
+    }
+    const now = new Date();
+    items = items.map((b) => {
+      const busy = occByBiz.get(b.id) ?? [];
+      const next = nextAvailable(b, busy, now);
+      return {
+        ...b,
+        hasFreeToday: hasFreeToday(b, busy, now),
+        nextFreeIso: next?.iso ?? null,
+      };
+    });
+    if (wantFree) items = items.filter((b) => b.hasFreeToday);
+
     const sort = data.sort ?? "relevance";
     if (sort === "new") {
       items.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt) || a.id.localeCompare(b.id));
@@ -134,6 +169,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
       categoryId,
       city: Boolean(city),
       openNow: wantOpen,
+      freeToday: wantFree,
       nearMe: parsed.nearMe && Boolean(origin),
       remainder: Boolean(remainder),
     });
@@ -175,12 +211,12 @@ export const listBusySlots = createServerFn({ method: "GET" })
   .validator(z.object({ businessId: z.string() }))
   .handler(async ({ data }) => {
     const sql = await getSql();
-    const rows = await sql.query<{ slot_start: string }>(
-      `select slot_start from bookings
-       where business_id = $1 and status in ('requested','confirmed') and slot_start > now()`,
+    const rows = await sql.query<{ slot_start: string; slot_end: string }>(
+      `select slot_start, slot_end from bookings
+       where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL} and slot_end > now()`,
       [data.businessId],
     );
-    return rows.map((r) => r.slot_start);
+    return rows.map((r) => ({ start: r.slot_start, end: r.slot_end }));
   });
 
 export const upsertReview = createServerFn({ method: "POST" })
@@ -487,10 +523,10 @@ export const ownerStats = createServerFn({ method: "GET" })
       rating_avg: number | string | null;
     }>(
       `select
-         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'requested') as requested,
-         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'confirmed') as confirmed,
-         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'done') as done,
-         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.status = 'cancelled') as cancelled,
+         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'requested') as requested,
+         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'confirmed') as confirmed,
+         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'done') as done,
+         (select count(*) from bookings k join businesses b on b.id = k.business_id where b.owner_id = $1 and k.kind = 'booking' and k.status = 'cancelled') as cancelled,
          (select count(*) from reviews r join businesses b2 on b2.id = r.business_id where b2.owner_id = $1) as reviews,
          (select avg(r.rating) from reviews r join businesses b2 on b2.id = r.business_id where b2.owner_id = $1) as rating_avg`,
       [context.userId],
@@ -536,42 +572,7 @@ export const createBooking = createServerFn({ method: "POST" })
       partySize: z.number().int().min(1).max(20).optional(),
     }),
   )
-  .handler(async ({ context, data }) => {
-    if (!isIranMobile(data.customerPhone)) throw new Error("شماره موبایل معتبر وارد کنید.");
-    const start = new Date(data.slotStart);
-    if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 10 * 60000) {
-      throw new Error("این ساعت قابل رزرو نیست.");
-    }
-    const sql = await getSql();
-    const visible = await sql.query(
-      `select id from businesses b where b.id = $1 and ${VISIBLE_SQL}`,
-      [data.businessId],
-    );
-    if (!visible[0]) throw new Error("این کسب‌وکار الان نوبت نمی‌پذیرد.");
-    const clash = await sql.query(
-      `select id from bookings
-       where business_id = $1 and slot_start = $2 and status in ('requested','confirmed')`,
-      [data.businessId, data.slotStart],
-    );
-    if (clash[0]) throw new Error("این نوبت تازه گرفته شد. ساعت دیگری انتخاب کنید.");
-    const id = crypto.randomUUID();
-    await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, note, status, service_title, party_size)
-       values ($1,$2,$3,$4,$5,$6,$7,'requested',$8,$9)`,
-      [
-        id,
-        data.businessId,
-        context.userId,
-        data.customerName.trim(),
-        data.customerPhone.trim(),
-        data.slotStart,
-        data.note?.trim() || null,
-        data.serviceTitle?.trim() || null,
-        data.partySize ?? 1,
-      ],
-    );
-    return { id };
-  });
+  .handler(async ({ context, data }) => performCreateBooking(context.userId, data));
 
 export const myBookings = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -581,7 +582,7 @@ export const myBookings = createServerFn({ method: "GET" })
       `select ${BOOKING_SELECT}
        from bookings k
        join businesses b on b.id = k.business_id
-       where k.customer_id = $1
+       where k.customer_id = $1 and k.kind = 'booking'
        order by k.slot_start desc`,
       [context.userId],
     );
@@ -613,18 +614,30 @@ export const updateBookingStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    await sql.query(
-      `update bookings k
-       set status = $3
-       from businesses b
-       where k.id = $1 and k.business_id = b.id
-         and (b.owner_id = $2 or k.customer_id = $2)
-         and (
-           b.owner_id = $2
-           or ($3 = 'cancelled' and k.customer_id = $2)
-         )`,
-      [data.id, context.userId, data.status],
+    const rows = await sql.query<{ kind: string; owner_id: string; customer_id: string | null }>(
+      `select k.kind, b.owner_id, k.customer_id
+       from bookings k
+       join businesses b on b.id = k.business_id
+       where k.id = $1`,
+      [data.id],
     );
+    const row = rows[0];
+    if (!row) throw new Error("رزرو پیدا نشد.");
+    const kind = row.kind === "block" ? "block" : "booking";
+    const isOwner = row.owner_id === context.userId;
+    const isCustomer = Boolean(row.customer_id && row.customer_id === context.userId);
+    if (kind === "block") {
+      if (!isOwner || data.status !== "cancelled") {
+        throw new Error("بازهٔ بسته فقط توسط صاحب کسب‌وکار قابل برداشتن است.");
+      }
+    } else if (isOwner) {
+      /* ok */
+    } else if (isCustomer) {
+      if (data.status !== "cancelled") throw new Error("فقط می‌توانید رزرو خود را لغو کنید.");
+    } else {
+      throw new Error("دسترسی ندارید.");
+    }
+    await sql.query(`update bookings set status = $2 where id = $1`, [data.id, data.status]);
     return { ok: true };
   });
 

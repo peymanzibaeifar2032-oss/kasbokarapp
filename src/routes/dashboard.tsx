@@ -7,11 +7,11 @@ import { Stars } from "@/components/business/stars";
 import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, NativeSelect } from "@/components/ui/input";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatFaDate, formatFaDateTime, toWhatsAppLink } from "@/lib/format";
-import { profileCompleteness } from "@/lib/hours";
+import { profileCompleteness, tehranLocalToIso } from "@/lib/hours";
 import { t, type MessageKey } from "@/lib/i18n";
 import type { CompletenessField } from "@/lib/search/completeness";
 import { friendlyError, saveAction } from "@/lib/save";
@@ -157,7 +157,11 @@ function Dashboard() {
         />
       ) : null}
       {!editing && tab === "bookings" ? (
-        <OwnerBookings items={bookings} onChange={() => void saveAction<Booking[]>("ownerBookings").then(setBookings)} />
+        <OwnerBookings
+          items={bookings}
+          businesses={mine}
+          onChange={() => void saveAction<Booking[]>("ownerBookings").then(setBookings)}
+        />
       ) : null}
       {!editing && tab === "me" && profile ? (
         <ProfileForm
@@ -326,33 +330,48 @@ function ownerWaText(b: Booking) {
   return `سلام ${b.customerName ?? ""}، از حضور شما در «${b.businessName}» ممنونیم.`;
 }
 
-function OwnerBookings({ items, onChange }: { items: Booking[]; onChange: () => void }) {
+function OwnerBookings({
+  items,
+  businesses,
+  onChange,
+}: {
+  items: Booking[];
+  businesses: Business[];
+  onChange: () => void;
+}) {
   const ordered = [...items].sort((a, b) => {
     const rank = { requested: 0, confirmed: 1, done: 2, cancelled: 3 };
     return rank[a.status] - rank[b.status] || +new Date(a.slotStart) - +new Date(b.slotStart);
   });
-  if (!items.length) {
-    return <p className="mt-6 text-sm text-muted">هنوز رزروی برای کسب‌وکارهای شما نیامده است.</p>;
-  }
   return (
     <div className="mt-6 grid gap-3">
+      {businesses.length ? <BlockForm businesses={businesses} onChange={onChange} /> : null}
+      {!items.length ? <p className="text-sm text-muted">هنوز رزروی برای کسب‌وکارهای شما نیامده است.</p> : null}
       {ordered.map((b) => {
-        const wa = toWhatsAppLink(b.customerPhone, ownerWaText(b));
+        const isBlock = b.kind === "block";
+        const wa = isBlock ? null : toWhatsAppLink(b.customerPhone, ownerWaText(b));
         return (
           <article key={b.id} className="rounded-2xl border border-border bg-surface p-4">
             <div className="flex justify-between gap-3">
               <div>
-                <strong>{b.customerName}</strong>
+                {isBlock ? (
+                  <strong>{t("blockLabel")}</strong>
+                ) : (
+                  <strong>{b.customerName}</strong>
+                )}
                 <p className="text-sm text-muted">{b.businessName}</p>
                 {b.serviceTitle ? <p className="text-sm">{b.serviceTitle}</p> : null}
-                {b.partySize > 1 ? (
+                {!isBlock && b.partySize > 1 ? (
                   <p className="text-sm text-muted">{new Intl.NumberFormat("fa-IR").format(b.partySize)} نفر</p>
                 ) : null}
               </div>
-              <Badge>{statusFa(b.status)}</Badge>
+              <Badge>{isBlock ? t("blockLabel") : statusFa(b.status)}</Badge>
             </div>
-            <p className="mt-2 text-sm">{formatFaDateTime(b.slotStart)}</p>
-            {b.customerPhone ? (
+            <p className="mt-2 text-sm">
+              {formatFaDateTime(b.slotStart)}
+              {b.slotEnd ? ` – ${formatFaDateTime(b.slotEnd)}` : ""}
+            </p>
+            {!isBlock && b.customerPhone ? (
               <div className="mt-1 flex flex-wrap gap-3 text-sm">
                 <a href={`tel:${b.customerPhone}`} className="text-accent">
                   {b.customerPhone}
@@ -366,17 +385,17 @@ function OwnerBookings({ items, onChange }: { items: Booking[]; onChange: () => 
             ) : null}
             {b.note ? <p className="mt-2 text-sm text-muted">{b.note}</p> : null}
             <div className="mt-3 flex flex-wrap gap-2">
-              {b.status === "requested" ? (
+              {!isBlock && b.status === "requested" ? (
                 <Button size="sm" onClick={() => void decide(b.id, "confirmed", onChange)}>
                   تأیید
                 </Button>
               ) : null}
               {b.status !== "cancelled" && b.status !== "done" ? (
                 <Button size="sm" variant="outline" onClick={() => void decide(b.id, "cancelled", onChange)}>
-                  لغو
+                  {isBlock ? "برداشتن بستن" : "لغو"}
                 </Button>
               ) : null}
-              {b.status === "confirmed" ? (
+              {!isBlock && b.status === "confirmed" ? (
                 <Button size="sm" variant="accent" onClick={() => void decide(b.id, "done", onChange)}>
                   انجام شد
                 </Button>
@@ -386,6 +405,72 @@ function OwnerBookings({ items, onChange }: { items: Booking[]; onChange: () => 
         );
       })}
     </div>
+  );
+}
+
+function BlockForm({ businesses, onChange }: { businesses: Business[]; onChange: () => void }) {
+  const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
+  const [day, setDay] = useState("");
+  const [start, setStart] = useState("12:00");
+  const [end, setEnd] = useState("13:00");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!businessId && businesses[0]) setBusinessId(businesses[0].id);
+  }, [businesses, businessId]);
+
+  return (
+    <article className="rounded-2xl border border-dashed border-border bg-surface p-4">
+      <h3 className="font-semibold">{t("blockInterval")}</h3>
+      <p className="mt-1 text-sm text-muted">{t("blockHint")}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)} aria-label="کسب‌وکار">
+          {businesses.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </NativeSelect>
+        <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+        <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} dir="ltr" />
+        <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} dir="ltr" />
+      </div>
+      <Input className="mt-2" value={note} onChange={(e) => setNote(e.target.value)} placeholder="توضیح اختیاری" />
+      <Button
+        className="mt-3"
+        disabled={busy}
+        onClick={() => {
+          if (!businessId || !day || !start || !end) {
+            toast.error("تاریخ و ساعت شروع و پایان را بنویسید.");
+            return;
+          }
+          const [ys, ms, ds] = day.split("-").map(Number);
+          const [sh, sm] = start.split(":").map(Number);
+          const [eh, em] = end.split(":").map(Number);
+          if (![ys, ms, ds, sh, sm, eh, em].every((n) => Number.isFinite(n))) {
+            toast.error("تاریخ یا ساعت نامعتبر است.");
+            return;
+          }
+          setBusy(true);
+          void saveAction("blockInterval", {
+            businessId,
+            slotStart: tehranLocalToIso(ys, ms, ds, sh, sm),
+            slotEnd: tehranLocalToIso(ys, ms, ds, eh, em),
+            note: note.trim() || undefined,
+          })
+            .then(() => {
+              toast.success("بازه بسته شد.");
+              setNote("");
+              onChange();
+            })
+            .catch((err) => toast.error(friendlyError(err)))
+            .finally(() => setBusy(false));
+        }}
+      >
+        {t("blockSubmit")}
+      </Button>
+    </article>
   );
 }
 

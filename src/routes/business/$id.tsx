@@ -33,7 +33,7 @@ import {
   toWebsiteHref,
   toWhatsAppLink,
 } from "@/lib/format";
-import { buildSlots, isOpenNow, todayHoursLabel } from "@/lib/hours";
+import { buildSlots, isOpenNow, serviceDurationMinutes, todayHoursLabel } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import {
   getBusiness,
@@ -42,7 +42,7 @@ import {
   listReviews,
   listSimilar,
 } from "@/lib/server/api";
-import type { Business, Profile, Review } from "@/lib/types";
+import type { BusyInterval, Business, Profile, Review } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/business/$id")({
@@ -238,8 +238,8 @@ function BusinessPage() {
               busy={busy}
               canBook={canBook}
               nextPath={nextPath}
-              onBooked={(iso) => {
-                setBusy((cur) => (cur.includes(iso) ? cur : [...cur, iso]));
+              onBooked={(slot) => {
+                setBusy((cur) => (cur.some((x) => x.start === slot.start) ? cur : [...cur, slot]));
               }}
             />
           </div>
@@ -415,15 +415,30 @@ function BookingPanel({
   onBooked,
 }: {
   biz: Business;
-  busy: string[];
+  busy: BusyInterval[];
   canBook: boolean;
   nextPath: string;
-  onBooked: (iso: string) => void;
+  onBooked: (slot: BusyInterval) => void;
 }) {
   const { user, isPending } = useCurrentUserState();
   const ready = useClientReady();
   const navigate = useNavigate();
-  const slots = useMemo(() => buildSlots(biz, busy, 7), [biz, busy]);
+  const [dayKey, setDayKey] = useState("");
+  const [slot, setSlot] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [note, setNote] = useState("");
+  const [service, setService] = useState(biz.prices[0]?.title || biz.jobTitle || "");
+  const [party, setParty] = useState(1);
+  const [busySubmit, setBusySubmit] = useState(false);
+  const duration = useMemo(
+    () => serviceDurationMinutes(biz.prices, service, biz.slotMinutes),
+    [biz.prices, biz.slotMinutes, service],
+  );
+  const slots = useMemo(
+    () => buildSlots(biz, busy, 7, new Date(), duration.minutes),
+    [biz, busy, duration.minutes],
+  );
   const groups = useMemo(() => {
     const map = new Map<string, typeof slots>();
     for (const s of slots) {
@@ -437,17 +452,9 @@ function BookingPanel({
       items,
     }));
   }, [slots]);
-  const [dayKey, setDayKey] = useState("");
   const activeDay = dayKey || groups[0]?.key || "";
   const daySlots = groups.find((g) => g.key === activeDay)?.items ?? [];
-  const [slot, setSlot] = useState("");
   const activeSlot = slot && daySlots.some((s) => s.iso === slot) ? slot : "";
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [note, setNote] = useState("");
-  const [service, setService] = useState(biz.prices[0]?.title || biz.jobTitle || "");
-  const [party, setParty] = useState(1);
-  const [busySubmit, setBusySubmit] = useState(false);
   const services = useMemo(() => {
     const titles = biz.prices.map((p) => p.title);
     const extra: { title: string; price: number | null }[] = [];
@@ -558,7 +565,8 @@ function BookingPanel({
         /* ignore */
       }
       toast.success("درخواست نوبت ثبت شد. از «حساب من» می‌توانید به تقویم اضافه کنید.");
-      onBooked(activeSlot);
+      const booked = slots.find((s) => s.iso === activeSlot);
+      onBooked({ start: activeSlot, end: booked?.endIso ?? activeSlot });
       setNote("");
     } catch (err) {
       toast.error(friendlyError(err));
@@ -573,7 +581,7 @@ function BookingPanel({
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
       <h2 className="text-lg font-semibold">رزرو وقت از {biz.jobTitle || biz.name}</h2>
-      <p className="mt-1 text-sm text-muted">فقط زمان‌های آزاد نمایش داده می‌شوند. کسب‌وکار درخواست را تأیید یا رد می‌کند.</p>
+      <p className="mt-1 text-sm text-muted">فقط زمان‌هایی که در تقویم واقعاً آزادند نشان داده می‌شوند. کسب‌وکار درخواست را تأیید یا رد می‌کند.</p>
       <div className="mt-4 space-y-3">
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">نام و نام خانوادگی</span>

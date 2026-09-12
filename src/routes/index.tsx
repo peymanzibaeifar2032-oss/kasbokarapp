@@ -29,7 +29,7 @@ import { NativeSelect } from "@/components/ui/input";
 import { useFavorites } from "@/lib/favorites";
 import { KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
 import { haversineKm } from "@/lib/format";
-import { hasSlotToday, isOpenNow } from "@/lib/hours";
+import { isOpenNow } from "@/lib/hours";
 import { t } from "@/lib/i18n";
 import { applySearchIntent, type IntentChip } from "@/lib/search/apply-intent";
 import { parseSearchQuery } from "@/lib/search/parse-query";
@@ -99,7 +99,9 @@ function Home() {
   const skipFirstFetch = useRef(true);
   const userPlace = useRef({ province: "کرمانشاه", city: "کرمانشاه" });
   const manualOpenNow = useRef(false);
+  const manualTodaySlot = useRef(false);
   const hadOpenFromQuery = useRef(false);
+  const hadFreeFromQuery = useRef(false);
   const hadCategoryFromQuery = useRef(false);
   const hadCityFromQuery = useRef(false);
   const cities = useMemo(() => PROVINCES.find((p) => p.name === province)?.cities ?? [], [province]);
@@ -159,6 +161,10 @@ function Home() {
     else if (hadOpenFromQuery.current) setOpenNow(manualOpenNow.current);
     hadOpenFromQuery.current = parsed.openNow;
 
+    if (parsed.freeToday) setTodaySlot(true);
+    else if (hadFreeFromQuery.current) setTodaySlot(manualTodaySlot.current);
+    hadFreeFromQuery.current = parsed.freeToday;
+
     if (parsed.city) {
       setCity(parsed.city);
       if (parsed.province) setProvince(parsed.province);
@@ -188,6 +194,7 @@ function Home() {
         originLat: userPos?.lat,
         originLng: userPos?.lng,
         openNow: openNow || intent.openNow,
+        freeToday: todaySlot || intent.freeToday,
         sort: intent.sortDistance ? "distance" : sort,
       },
     })
@@ -200,7 +207,7 @@ function Home() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, categoryId, intent, userPos, openNow, sort]);
+  }, [debouncedQ, categoryId, intent, userPos, openNow, todaySlot, sort]);
 
   useEffect(() => {
     const p = PROVINCES.find((x) => x.name === province);
@@ -218,7 +225,7 @@ function Home() {
     let rows = items;
     if (openNow || intent.openNow) rows = rows.filter((b) => isOpenNow(b.workHours));
     if (hasOffer) rows = rows.filter((b) => Boolean(b.offerText));
-    if (todaySlot) rows = rows.filter((b) => hasSlotToday(b));
+    if (todaySlot || intent.freeToday) rows = rows.filter((b) => b.hasFreeToday === true);
     if (onlyFav) rows = rows.filter((b) => favs.has(b.id));
     if (maxKm > 0) {
       rows = rows.filter((b) => haversineKm(refPos, { lat: b.latitude, lng: b.longitude }) <= maxKm);
@@ -234,7 +241,7 @@ function Home() {
       next.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     }
     return next;
-  }, [items, openNow, intent.openNow, hasOffer, todaySlot, onlyFav, sort, refPos, favs, maxKm]);
+  }, [items, openNow, intent.openNow, intent.freeToday, hasOffer, todaySlot, onlyFav, sort, refPos, favs, maxKm]);
 
   const selected = filtered.find((b) => b.id === selectedId) ?? null;
 
@@ -348,7 +355,7 @@ function Home() {
           <div className="mt-2 flex flex-wrap gap-1.5">
             {intent.chips.map((chip) => (
               <span
-                key={chip.key}
+                key={`${chip.key}:${chip.value}`}
                 className="inline-flex h-8 max-w-full items-center gap-1 rounded-full border border-border bg-bg px-2.5 text-xs"
               >
                 <span className="text-muted">{intentChipLabel(chip.key)}</span>
@@ -607,7 +614,18 @@ function Home() {
             }}
             label="باز است"
           />
-          <FilterChip active={todaySlot} onClick={() => setTodaySlot((v) => !v)} label="نوبت امروز" />
+          <FilterChip
+            active={todaySlot || intent.freeToday}
+            onClick={() => {
+              if (intent.freeToday) return;
+              setTodaySlot((v) => {
+                const next = !v;
+                manualTodaySlot.current = next;
+                return next;
+              });
+            }}
+            label={t("chipTodaySlot")}
+          />
           <FilterChip active={hasOffer} onClick={() => setHasOffer((v) => !v)} label="پیشنهاد ویژه" />
           <FilterChip active={onlyFav} onClick={() => setOnlyFav((v) => !v)} label="ذخیره‌شده‌ها" />
           <NativeSelect
@@ -641,6 +659,7 @@ function Home() {
               <p>{t("zeroResults")}</p>
               <ul className="mt-3 space-y-1 text-right">
                 {openNow || intent.openNow ? <li>{t("zeroHintOpen")}</li> : null}
+                {todaySlot || intent.freeToday ? <li>{t("zeroHintFree")}</li> : null}
                 {maxKm > 0 ? <li>{t("zeroHintDistance")}</li> : null}
                 {categoryId ? <li>{t("zeroHintCategory")}</li> : null}
                 {debouncedQ ? <li>{t("zeroHintSpelling")}</li> : null}
@@ -721,6 +740,7 @@ function intentChipLabel(key: IntentChip["key"]) {
 function intentChipValue(chip: IntentChip, categories: Category[]) {
   if (chip.value === "nearMe") return t("intentNearMe");
   if (chip.value === "openNow") return t("intentOpenNow");
+  if (chip.value === "freeToday") return t("intentFreeToday");
   if (/^\d+$/.test(chip.value)) {
     return categories.find((c) => String(c.id) === chip.value)?.name ?? chip.value;
   }

@@ -11,6 +11,7 @@ describe("NL parser", () => {
     assert.equal(p.categoryTerm, "آرایشگاه");
     assert.equal(p.city, "کرمانشاه");
     assert.equal(p.openNow, true);
+    assert.equal(p.freeToday, false);
     assert.equal(p.remainder.includes("است"), false);
     assert.equal(p.confidence, "high");
   });
@@ -24,18 +25,25 @@ describe("NL parser", () => {
     assert.equal(c.categoryId, 8);
     assert.equal(c.nearMe, true);
     assert.equal(c.openNow, true);
+    assert.equal(c.freeToday, false);
     const n = parseSearchQuery("تاتو نزدیک من");
     assert.equal(n.categoryId, 1);
     assert.equal(n.nearMe, true);
   });
 
-  it("does not treat booking-availability phrases as open-now", () => {
+  it("treats availability phrases as freeToday, never as open-now", () => {
     const p = parseSearchQuery("تاتو نزدیک من که امروز وقت خالی دارد");
     assert.equal(p.openNow, false);
+    assert.equal(p.freeToday, true);
     assert.equal(p.nearMe, true);
     assert.equal(p.categoryId, 1);
     const s = parseSearchQuery("آرایشگاه نوبت امروز");
     assert.equal(s.openNow, false);
+    assert.equal(s.freeToday, true);
+    const both = parseSearchQuery("کافه که الان باز است و امروز وقت خالی دارد");
+    assert.equal(both.openNow, true);
+    assert.equal(both.freeToday, true);
+    assert.equal(both.categoryId, 8);
   });
 
   it("normalizes Arabic yeh/kaf and Persian digits", () => {
@@ -49,6 +57,7 @@ describe("NL parser", () => {
     assert.equal(p.mode, "fallback");
     assert.equal(p.original, "ماه‌رخ");
     assert.equal(foldFaKeepJoiner(p.original), p.original);
+    assert.equal(p.freeToday, false);
   });
 
   it("keeps the original query even after extracting filters", () => {
@@ -61,6 +70,7 @@ describe("NL parser", () => {
   it("does not treat بازار as open-now or ری inside شیرینی as a city", () => {
     const b = parseSearchQuery("بازار کرمانشاه");
     assert.equal(b.openNow, false);
+    assert.equal(b.freeToday, false);
     assert.equal(b.city, "کرمانشاه");
     const s = parseSearchQuery("شیرینی");
     assert.equal(s.categoryId, 8);

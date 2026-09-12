@@ -15,3 +15,13 @@ export function isUniqueViolation(err: unknown): boolean {
   const rec = err as { code?: string; message?: string };
   return rec.code === "23505" || /unique|duplicate key/i.test(rec.message || "");
 }
+
+export function isExclusionViolation(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const rec = err as { code?: string; message?: string };
+  return rec.code === "23P01" || /exclusion constraint|booking overlap|conflicting key value/i.test(rec.message || "");
+}
+
+export function isOccupancyConflict(err: unknown): boolean {
+  return isUniqueViolation(err) || isExclusionViolation(err);
+}

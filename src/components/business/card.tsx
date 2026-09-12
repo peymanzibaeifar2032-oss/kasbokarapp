@@ -3,7 +3,7 @@ import { Heart, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Stars } from "@/components/business/stars";
 import { formatFaDateTime, formatKm, formatToman } from "@/lib/format";
-import { isOpenNow, nextAvailable, todayHoursLabel } from "@/lib/hours";
+import { isOpenNow, todayHoursLabel } from "@/lib/hours";
 import { t } from "@/lib/i18n";
 import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -40,7 +40,7 @@ export function BusinessCard({
 }) {
   const open = isOpenNow(business.workHours);
   const price = business.prices[0];
-  const next = nextAvailable(business);
+  const nextIso = business.nextFreeIso ?? null;
   return (
     <article
       id={`biz-${business.id}`}
@@ -79,7 +79,11 @@ export function BusinessCard({
               {formatToman(price.price)} · {price.title}
             </p>
           ) : null}
-          {next ? <p className="mt-1 text-xs text-muted">نزدیک‌ترین نوبت: {formatFaDateTime(next.iso)}</p> : null}
+          {nextIso ? (
+            <p className="mt-1 text-xs text-muted">
+              {t("nextFree")}: {formatFaDateTime(nextIso)}
+            </p>
+          ) : null}
         </div>
       </Link>
       {onToggleSave ? (

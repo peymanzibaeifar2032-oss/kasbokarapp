@@ -16,6 +16,7 @@ describe("applySearchIntent", () => {
     assert.equal(intent.province, "کرمانشاه");
     assert.equal(intent.categoryId, 1);
     assert.equal(intent.openNow, false);
+    assert.equal(intent.freeToday, false);
     assert.equal(intent.needsLocation, false);
     assert.deepEqual(
       intent.chips.map((c) => c.key),
@@ -26,14 +27,16 @@ describe("applySearchIntent", () => {
     assert.equal(intent.chips.some((c) => c.key === "when"), false);
   });
 
-  it("shows when only for real open-now, never for availability phrases", () => {
+  it("shows when for open-now and separately for free-today", () => {
     const open = applySearchIntent({
       parsed: parseSearchQuery("آرایشگاه در کرمانشاه که الان باز است"),
       defaultCity: "کرمانشاه",
       defaultProvince: "کرمانشاه",
     });
     assert.equal(open.openNow, true);
-    assert.equal(open.chips.find((c) => c.key === "when")?.value, "openNow");
+    assert.equal(open.freeToday, false);
+    assert.equal(open.chips.find((c) => c.value === "openNow")?.key, "when");
+    assert.equal(open.chips.some((c) => c.value === "freeToday"), false);
     assert.equal(open.city, "کرمانشاه");
 
     const slot = applySearchIntent({
@@ -42,7 +45,8 @@ describe("applySearchIntent", () => {
       defaultProvince: "کرمانشاه",
     });
     assert.equal(slot.openNow, false);
-    assert.equal(slot.chips.some((c) => c.key === "when"), false);
+    assert.equal(slot.freeToday, true);
+    assert.equal(slot.chips.find((c) => c.key === "when")?.value, "freeToday");
     assert.equal(slot.needsLocation, true);
   });
 
@@ -95,5 +99,6 @@ describe("applySearchIntent", () => {
     assert.deepEqual(intent.chips, []);
     assert.equal(intent.needsLocation, false);
     assert.equal(intent.openNow, false);
+    assert.equal(intent.freeToday, false);
   });
 });

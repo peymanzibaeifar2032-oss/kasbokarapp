@@ -13,7 +13,7 @@ export type ApplyIntentInput = {
 
 export type IntentChip = {
   key: "what" | "where" | "when";
-  /** Token `nearMe` / `openNow`, or a concrete Persian value. */
+  /** Token `nearMe` / `openNow` / `freeToday`, or a concrete Persian value. */
   value: string;
 };
 
@@ -22,6 +22,7 @@ export type AppliedIntent = {
   city: string | null;
   province: string | null;
   openNow: boolean;
+  freeToday: boolean;
   needsLocation: boolean;
   sortDistance: boolean;
   omitDefaultPlace: boolean;
@@ -41,7 +42,8 @@ function placeOrNull(raw: string | null | undefined): string | null {
  * Map a parsed query onto list filters and visible intent chips.
  * Chips are omitted unless the value is actually known:
  * - where/nearMe only after a real origin
- * - when only for work-hours openNow — never booking availability
+ * - when/openNow only for work-hours
+ * - when/freeToday only when the parser saw a real availability phrase
  */
 export function applySearchIntent(input: ApplyIntentInput): AppliedIntent {
   const { parsed, origin, cityFallback } = input;
@@ -71,12 +73,14 @@ export function applySearchIntent(input: ApplyIntentInput): AppliedIntent {
   else if (parsed.nearMe && pinned) chips.push({ key: "where", value: "nearMe" });
 
   if (parsed.openNow) chips.push({ key: "when", value: "openNow" });
+  if (parsed.freeToday) chips.push({ key: "when", value: "freeToday" });
 
   return {
     categoryId: parsed.categoryId,
     city,
     province,
     openNow: parsed.openNow,
+    freeToday: parsed.freeToday,
     needsLocation,
     sortDistance: Boolean(parsed.nearMe && pinned),
     omitDefaultPlace,

@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isUniqueViolation, shouldGrantBootstrapAdmin } from "./admin-bootstrap.ts";
+import {
+  isExclusionViolation,
+  isOccupancyConflict,
+  isUniqueViolation,
+  shouldGrantBootstrapAdmin,
+} from "./admin-bootstrap.ts";
 
 describe("admin bootstrap", () => {
   it("never grants admin when env is empty", () => {
@@ -25,5 +30,16 @@ describe("unique violation", () => {
     assert.equal(isUniqueViolation({ code: "23505" }), true);
     assert.equal(isUniqueViolation({ message: "duplicate key value" }), true);
     assert.equal(isUniqueViolation({ code: "23503" }), false);
+  });
+});
+
+describe("occupancy conflict", () => {
+  it("detects exclusion 23P01 separately from unique", () => {
+    assert.equal(isExclusionViolation({ code: "23P01" }), true);
+    assert.equal(isExclusionViolation({ message: "booking overlap" }), true);
+    assert.equal(isExclusionViolation({ code: "23505" }), false);
+    assert.equal(isOccupancyConflict({ code: "23P01" }), true);
+    assert.equal(isOccupancyConflict({ code: "23505" }), true);
+    assert.equal(isOccupancyConflict({ code: "23503" }), false);
   });
 });

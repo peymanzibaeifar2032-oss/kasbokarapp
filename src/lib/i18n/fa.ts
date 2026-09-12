@@ -41,6 +41,7 @@ export const faIR = {
   completeDescription: "توضیح کوتاه",
   zeroResults: "کسب‌وکاری با این جست‌وجو پیدا نشد.",
   zeroHintOpen: "فیلتر «باز است» را بردارید",
+  zeroHintFree: "فیلتر «نوبت امروز» را بردارید",
   zeroHintDistance: "فاصله را بیشتر کنید",
   zeroHintCategory: "دسته را به «همه» برگردانید",
   zeroHintSpelling: "املای عبارت را بررسی کنید",
@@ -52,10 +53,19 @@ export const faIR = {
   intentWhere: "کجا",
   intentWhen: "کی",
   intentOpenNow: "الان باز است",
+  intentFreeToday: "وقت آزاد امروز",
   intentNearMe: "نزدیک من",
   nearMeAsk: "برای دیدن نتایج نزدیک، موقعیت را بدهید. تا قبل از اجازه، نزدیک شما حساب نمی‌شود.",
   nearMeUse: "استفاده از موقعیت",
   nearMePickCity: "انتخاب شهر",
+  blockInterval: "بستن بازه",
+  blockHint: "این بازه در تقویم بسته می‌شود. مشتری آن را به‌عنوان رزرو نمی‌بیند.",
+  blockSubmit: "بستن این ساعت‌ها",
+  blockLabel: "بسته",
+  bookingConflict: "این نوبت تازه گرفته شد. ساعت دیگری انتخاب کنید.",
+  blockConflict: "این بازه با نوبت یا بستن دیگری تداخل دارد.",
+  nextFree: "نزدیک‌ترین نوبت آزاد",
+  chipTodaySlot: "نوبت امروز",
 } as const;
 
 export type MessageKey = keyof typeof faIR;

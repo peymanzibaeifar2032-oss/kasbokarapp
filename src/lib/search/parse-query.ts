@@ -11,6 +11,8 @@ export type ParsedQuery = {
   city?: string;
   province?: string;
   openNow: boolean;
+  /** Real calendar availability for today — never implied by openNow. */
+  freeToday: boolean;
   nearMe: boolean;
   confidence: "high" | "medium" | "low";
   mode: "parsed" | "fallback" | "classic";
@@ -32,6 +34,17 @@ const CATEGORY_ALIASES: { id: number; terms: string[] }[] = [
 ];
 
 const OPEN_TERMS = ["الان بازه", "الان باز", "امروز باز", "باز است", "باز باشه", "باز باشه؟", "باز"];
+const AVAIL_TERMS = [
+  "امروز وقت خالی دارد",
+  "امروز وقت خالی داره",
+  "وقت خالی دارد",
+  "وقت خالی داره",
+  "وقت خالی",
+  "نوبت امروز",
+  "امروز نوبت دارد",
+  "امروز نوبت داره",
+  "امروز نوبت",
+];
 const NEAR_TERMS = ["نزدیک من", "نزدیکم", "اطراف من", "نزدیک"];
 const STOP = new Set(["در", "که", "با", "از", "برای", "را", "به", "یک", "این", "اون", "من", "امروز", "الان", "است"]);
 
@@ -68,6 +81,7 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
       normalized: "",
       remainder: "",
       openNow: false,
+      freeToday: false,
       nearMe: false,
       confidence: "low",
       mode: "classic",
@@ -79,8 +93,14 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
   let city: string | undefined;
   let province: string | undefined;
   let openNow = false;
+  let freeToday = false;
   let nearMe = false;
 
+  const avail = eatLongest(work, AVAIL_TERMS);
+  if (avail.hit) {
+    freeToday = true;
+    work = avail.rest;
+  }
   const open = eatLongest(work, OPEN_TERMS);
   if (open.hit) {
     openNow = true;
@@ -125,7 +145,7 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
     .join(" ");
 
   const structured = Boolean(categoryId || city);
-  const extras = openNow || nearMe;
+  const extras = openNow || nearMe || freeToday;
   let confidence: ParsedQuery["confidence"] = "low";
   let mode: ParsedQuery["mode"] = "fallback";
   if (structured) {
@@ -147,6 +167,7 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
     city,
     province,
     openNow,
+    freeToday,
     nearMe,
     confidence,
     mode,

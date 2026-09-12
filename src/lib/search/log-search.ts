@@ -6,6 +6,7 @@ export type SearchLog = {
   categoryId?: number;
   city?: boolean;
   openNow?: boolean;
+  freeToday?: boolean;
   nearMe?: boolean;
   remainder?: boolean;
 };
@@ -22,6 +23,7 @@ export function logSearch(event: SearchLog) {
       category: Boolean(event.categoryId),
       city: Boolean(event.city),
       openNow: Boolean(event.openNow),
+      freeToday: Boolean(event.freeToday),
       nearMe: Boolean(event.nearMe),
       remainder: Boolean(event.remainder),
     }),

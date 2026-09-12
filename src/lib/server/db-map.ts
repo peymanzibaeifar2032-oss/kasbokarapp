@@ -1,4 +1,4 @@
-import type { Booking, Business, Category, PriceItem, Review, WorkHour } from "@/lib/types";
+import type { Booking, BookingKind, Business, Category, PriceItem, Review, WorkHour } from "@/lib/types";
 
 export type BizRow = {
   id: string;
@@ -113,10 +113,12 @@ export type BookingRow = {
   id: string;
   business_id: string;
   business_name: string;
-  customer_id: string;
+  customer_id: string | null;
   customer_name: string | null;
   customer_phone: string | null;
   slot_start: string;
+  slot_end?: string | null;
+  kind?: string | null;
   note: string | null;
   service_title: string | null;
   party_size: number | string | null;
@@ -125,6 +127,7 @@ export type BookingRow = {
 };
 
 export function mapBooking(row: BookingRow): Booking {
+  const kind: BookingKind = row.kind === "block" ? "block" : "booking";
   return {
     id: row.id,
     businessId: row.business_id,
@@ -133,6 +136,8 @@ export function mapBooking(row: BookingRow): Booking {
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
     slotStart: row.slot_start,
+    slotEnd: row.slot_end ?? null,
+    kind,
     note: row.note,
     serviceTitle: row.service_title ?? null,
     partySize: Number(row.party_size) || 1,
@@ -212,5 +217,11 @@ export const VISIBLE_SQL = `
 
 export const BOOKING_SELECT = `
   k.id, k.business_id, b.name as business_name, k.customer_id, k.customer_name,
-  k.customer_phone, k.slot_start, k.note, k.service_title, k.party_size, k.status, k.created_at
+  k.customer_phone, k.slot_start, k.slot_end, k.kind, k.note, k.service_title, k.party_size, k.status, k.created_at
+`;
+
+export const ACTIVE_OCCUPANCY_SQL = `
+  status in ('requested','confirmed')
+  and kind in ('booking','block')
+  and slot_end is not null
 `;

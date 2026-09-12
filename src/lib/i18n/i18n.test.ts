@@ -20,7 +20,9 @@ describe("i18n foundation", () => {
     assert.equal(t("searchPlaceholder"), "چی می‌خوای؟ مثلاً تاتو در کرمانشاه که الان باز است");
     assert.equal(t("intentWhen"), "کی");
     assert.equal(t("intentOpenNow"), "الان باز است");
+    assert.equal(t("intentFreeToday"), "وقت آزاد امروز");
     assert.equal(t("nearMeUse"), "استفاده از موقعیت");
+    assert.equal(t("blockInterval"), "بستن بازه");
   });
 
   it("english catalog falls back to Persian until translations exist", () => {
