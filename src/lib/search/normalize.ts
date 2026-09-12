@@ -10,6 +10,15 @@ export function normalizeFa(raw: string): string {
     .trim();
 }
 
+/** Fold digits and Arabic letters but keep ZWNJ so names like ماه‌رخ still match. */
+export function foldFaKeepJoiner(raw: string): string {
+  return toEnDigits(raw)
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[^\S\n]+/g, " ")
+    .trim();
+}
+
 export function tokenizeFa(raw: string): string[] {
   const n = normalizeFa(raw).replace(/[؟?!,.،؛:()«»"'٪%]/g, " ");
   if (!n.trim()) return [];

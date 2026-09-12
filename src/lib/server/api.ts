@@ -7,6 +7,7 @@ import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { isIranMobile, toWebsiteHref } from "@/lib/format";
 import { isOpenNow } from "@/lib/hours";
 import { logSearch } from "@/lib/search/log-search";
+import { foldFaKeepJoiner } from "@/lib/search/normalize";
 import { parseSearchQuery } from "@/lib/search/parse-query";
 import { sortByRelevance } from "@/lib/search/ranking";
 import {
@@ -74,7 +75,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
     const city = (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
     const wantOpen = Boolean(data.openNow || parsed.openNow);
     const remainderRaw =
-      parsed.mode === "fallback" ? parsed.normalized : parsed.remainder;
+      parsed.mode === "fallback" ? foldFaKeepJoiner(parsed.original) : parsed.remainder;
     const remainder = remainderRaw.replace(/[%_]/g, "").trim();
     const like = remainder ? `%${remainder}%` : null;
     const origin =

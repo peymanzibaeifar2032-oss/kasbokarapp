@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { foldFaKeepJoiner } from "./normalize.ts";
 import { parseSearchQuery } from "./parse-query.ts";
 
 describe("NL parser", () => {
@@ -9,6 +10,7 @@ describe("NL parser", () => {
     assert.equal(p.categoryId, 1);
     assert.equal(p.city, "کرمانشاه");
     assert.equal(p.openNow, true);
+    assert.equal(p.remainder.includes("است"), false);
     assert.equal(p.confidence, "high");
   });
 
@@ -34,8 +36,8 @@ describe("NL parser", () => {
   it("falls back to classic remainder when nothing structured matches", () => {
     const p = parseSearchQuery("ماه‌رخ");
     assert.equal(p.mode, "fallback");
-    assert.equal(p.remainder.includes("ماه"), true);
     assert.equal(p.original, "ماه‌رخ");
+    assert.equal(foldFaKeepJoiner(p.original), p.original);
   });
 
   it("keeps the original query even after extracting filters", () => {

@@ -31,7 +31,7 @@ const CATEGORY_ALIASES: { id: number; terms: string[] }[] = [
 
 const OPEN_TERMS = ["الان بازه", "الان باز", "امروز باز", "باز است", "باز باشه", "باز باشه؟", "باز"];
 const NEAR_TERMS = ["نزدیک من", "نزدیکم", "اطراف من", "نزدیک"];
-const STOP = new Set(["در", "که", "با", "از", "برای", "را", "به", "یک", "این", "اون", "من", "امروز", "الان"]);
+const STOP = new Set(["در", "که", "با", "از", "برای", "را", "به", "یک", "این", "اون", "من", "امروز", "الان", "است"]);
 
 function indexOfSeq(hay: string[], needle: string[]): number {
   if (!needle.length) return -1;
