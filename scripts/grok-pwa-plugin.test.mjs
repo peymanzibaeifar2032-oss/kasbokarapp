@@ -394,6 +394,20 @@ test("is idempotent", () => {
   assert.equal(once, twice);
 });
 
+test("injects kasb-sha boot when buildSha is provided", () => {
+  const sha = "157124f314ccb4f674e67c98f486c0343c7c9253";
+  const out = injectGrokPwaHead("<html><head></head></html>", { buildSha: sha });
+  assert.match(out, new RegExp(`name="kasb-sha" content="${sha}"`));
+  assert.match(out, /fetch\('\/api\/health'/);
+  const twice = injectGrokPwaHead(out, { buildSha: sha });
+  assert.equal(out.split("kasb-sha").length - 1, twice.split("kasb-sha").length - 1);
+});
+
+test("skips kasb-sha without an explicit buildSha", () => {
+  const out = injectGrokPwaHead("<html><head></head></html>", { appName: "Demo" });
+  assert.doesNotMatch(out, /name="kasb-sha"/);
+});
+
 test("uses the app name in the injected title tag", () => {
   const out = injectGrokPwaHead("<html><head></head></html>", { appName: "Wild Race" });
   assert.match(out, /apple-mobile-web-app-title" content="Wild Race"/);

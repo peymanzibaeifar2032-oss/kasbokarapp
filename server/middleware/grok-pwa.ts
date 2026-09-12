@@ -40,6 +40,7 @@ function injectHeadStreaming(response: Response, host: string): Response {
   const injector = createHeadInjector({
     host,
     site: grokOgIdentity.site,
+    buildSha: (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim(),
   });
   const transformed = response.body!.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
@@ -53,6 +54,8 @@ function injectHeadStreaming(response: Response, host: string): Response {
   );
   const headers = new Headers(response.headers);
   headers.delete("content-length");
+  headers.set("cache-control", "no-store");
+  headers.set("pragma", "no-cache");
   return new Response(transformed, {
     status: response.status,
     statusText: response.statusText,
