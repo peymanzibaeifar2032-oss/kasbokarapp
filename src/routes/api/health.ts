@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { isStandalone } from "@/lib/env.server";
+import { HOME_SEARCH_VERSION } from "@/lib/search/home-search";
 
 export const Route = createFileRoute("/api/health")({
   server: {
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/api/health")({
               app: "kasbokar",
               db: postgresUrl() ? (isStandalone() ? "postgres" : "neon") : "pglite",
               standalone: isStandalone(),
+              homeSearchVersion: HOME_SEARCH_VERSION,
               ...(sha ? { sha } : {}),
             },
             { headers: { "Cache-Control": "no-store" } },

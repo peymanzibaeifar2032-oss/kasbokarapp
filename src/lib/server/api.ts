@@ -7,9 +7,8 @@ import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { toWebsiteHref } from "@/lib/format";
 import { hasFreeToday, isOpenNow, nextAvailable } from "@/lib/hours";
 import { logSearch } from "@/lib/search/log-search";
-import { foldFaKeepJoiner } from "@/lib/search/normalize";
-import { parseSearchQuery, hasWhenResidue, isIntentDebrisText } from "@/lib/search/parse-query";
-import { filterRelevant, isSearchQuery } from "@/lib/search/simple-search";
+import { applyHomeSearchEligibility, resolveExplicitCategoryId } from "@/lib/search/home-search";
+import { isSearchQuery } from "@/lib/search/simple-search";
 import { sortByRelevance } from "@/lib/search/ranking";
 import { performCreateBooking } from "@/lib/server/writes";
 import {
@@ -70,51 +69,33 @@ export const listBusinesses = createServerFn({ method: "POST" })
       openNow: z.coerce.boolean().optional(),
       freeToday: z.coerce.boolean().optional(),
       sort: z.enum(["relevance", "distance", "new"]).optional(),
-      /** Home simple search: do not apply sentence intent (چی/کجا/کی). */
+      /** Home simple search. Typing must never flip this. */
       simple: z.coerce.boolean().optional(),
+      explicitCategory: z.coerce.boolean().optional(),
       locationMode: z.enum(["city", "me"]).optional(),
     }),
   )
   .handler(async ({ data }) => {
     const sql = await getSql();
-    const simple = data.simple !== false;
-    const aroundMe = simple && data.locationMode === "me";
-    const parsed = simple ? parseSearchQuery("") : parseSearchQuery(data.q);
+    const aroundMe = data.locationMode === "me";
     const origin =
       Number.isFinite(data.originLat) && Number.isFinite(data.originLng)
         ? { lat: data.originLat as number, lng: data.originLng as number }
         : null;
-    const nearMeActive = !simple && parsed.nearMe && Boolean(origin);
-    const categoryId = simple ? data.categoryId : (data.categoryId ?? parsed.categoryId);
+    const categoryId = resolveExplicitCategoryId({
+      q: data.q,
+      categoryId: data.categoryId,
+      explicitCategory: data.explicitCategory,
+    });
     const province = aroundMe
       ? null
-      : simple
-        ? (data.province && data.province.length > 0 ? data.province : null)
-        : nearMeActive && !parsed.city
-          ? null
-          : (data.province && data.province.length > 0 ? data.province : parsed.province) ?? null;
-    const city = aroundMe
-      ? null
-      : simple
-        ? (data.city && data.city.length > 0 ? data.city : null)
-        : nearMeActive && !parsed.city
-          ? null
-          : (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
-    const wantOpen = Boolean(data.openNow || (!simple && parsed.openNow));
-    const foldedQ = foldFaKeepJoiner(data.q ?? "").replace(/[%_]/g, "").trim();
-    const remainderRaw = simple
-      ? ""
-      : parsed.mode === "fallback"
-        ? foldFaKeepJoiner(parsed.original)
-        : parsed.remainder;
-    const remainderClean = remainderRaw.replace(/[%_]/g, "").trim();
-    const remainder =
-      simple || !(isIntentDebrisText(remainderClean) || hasWhenResidue(remainderClean))
-        ? remainderClean
-        : "";
-    const wantFree = Boolean(data.freeToday || (!simple && parsed.freeToday));
-    const like = simple ? null : remainder ? `%${remainder}%` : null;
-    const searching = simple && isSearchQuery(data.q);
+      : data.province && data.province.length > 0
+        ? data.province
+        : null;
+    const city = aroundMe ? null : data.city && data.city.length > 0 ? data.city : null;
+    const wantOpen = Boolean(data.openNow);
+    const wantFree = Boolean(data.freeToday);
+    const searching = isSearchQuery(data.q);
 
     const rows = await sql.query<BizRow>(
       `select ${BIZ_SELECT_JOINED}
@@ -124,18 +105,11 @@ export const listBusinesses = createServerFn({ method: "POST" })
        where ${VISIBLE_SQL}
          and ($1::text is null or b.category_id = $1::int)
          and ($2::text is null or $2 = '' or b.province = $2)
-         and (
-           $3::text is null
-           or b.name ilike $3
-           or b.job_title ilike $3
-           or c.name ilike $3
-         )
-         and ($4::text is null or $4 = '' or b.city = $4)
+         and ($3::text is null or $3 = '' or b.city = $3)
        order by b.id asc`,
       [
         categoryId != null ? String(categoryId) : null,
         province,
-        like,
         city,
       ],
     );
@@ -174,7 +148,11 @@ export const listBusinesses = createServerFn({ method: "POST" })
       };
     });
     if (wantFree) items = items.filter((b) => b.hasFreeToday);
-    if (searching) items = filterRelevant(items, data.q ?? "");
+    items = applyHomeSearchEligibility(items, {
+      q: data.q,
+      categoryId: data.categoryId,
+      explicitCategory: data.explicitCategory,
+    });
 
     const sort = data.sort ?? "relevance";
     if (sort === "new") {
@@ -190,15 +168,15 @@ export const listBusinesses = createServerFn({ method: "POST" })
     }
 
     logSearch({
-      mode: simple ? "classic" : data.q?.trim() ? parsed.mode : "classic",
+      mode: "classic",
       zero: items.length === 0,
       count: items.length,
       categoryId,
       city: Boolean(city),
       openNow: wantOpen,
       freeToday: wantFree,
-      nearMe: simple ? aroundMe && Boolean(origin) : parsed.nearMe && Boolean(origin),
-      remainder: Boolean(simple ? foldedQ : remainder),
+      nearMe: aroundMe && Boolean(origin),
+      remainder: searching,
     });
 
     return items;

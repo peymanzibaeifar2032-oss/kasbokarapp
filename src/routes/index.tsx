@@ -144,6 +144,7 @@ function Home() {
         simple: true,
         q: debouncedQ,
         categoryId,
+        explicitCategory: categoryId != null,
         province: locationMode === "me" ? undefined : province,
         city: locationMode === "me" ? undefined : city || undefined,
         locationMode,
@@ -300,7 +301,7 @@ function Home() {
         </p>
       </section>
 
-      <section className="mt-5 rounded-2xl border border-border bg-surface p-4">
+      <section className="mt-5 rounded-2xl border border-border bg-surface p-4" data-home-search-version="simple-search-v3">
         <label className="relative block">
           <Search className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-muted" />
           <Input

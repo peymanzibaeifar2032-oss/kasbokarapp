@@ -16,6 +16,7 @@ describe("Home simple search contract", () => {
 
   it("does not set category from the typed query", () => {
     assert.equal(/setCategoryId\(\s*parsed/.test(src), false);
-    assert.equal(src.includes("setCategoryId(c.id)"), true);
+    assert.equal(src.includes("explicitCategory: categoryId != null"), true);
+    assert.equal(src.includes("data-home-search-version"), true);
   });
 });
