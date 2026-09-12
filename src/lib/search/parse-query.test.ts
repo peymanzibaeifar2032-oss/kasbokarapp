@@ -88,6 +88,7 @@ describe("NL parser", () => {
     const rows: [string, { cat?: number; term?: string; city?: string; open?: boolean; free?: boolean; near?: boolean }][] = [
       ["تاتو در کرمانشاه که امروز وقت خالی دارد", { cat: 1, term: "تاتو", city: "کرمانشاه", open: false, free: true }],
       ["مکانیک در کرمانشاه که امروز وقت خالی دارد", { cat: 4, term: "مکانیک", city: "کرمانشاه", open: false, free: true }],
+      ["مکانیک در کرمانشاه وقت خالی دارد", { cat: 4, term: "مکانیک", city: "کرمانشاه", open: false, free: false }],
       ["آرایشگاه زنانه کرمانشاه که الان باز است", { cat: 1, term: "آرایشگاه زنانه", city: "کرمانشاه", open: true, free: false }],
       ["کافه نزدیک من", { cat: 8, term: "کافه", near: true, open: false, free: false }],
       ["وکیل در کرمانشاه", { cat: 12, term: "وکیل", city: "کرمانشاه", open: false, free: false }],
@@ -100,9 +101,8 @@ describe("NL parser", () => {
       assert.equal(p.openNow, exp.open ?? false, q);
       assert.equal(p.freeToday, exp.free ?? false, q);
       assert.equal(p.nearMe, exp.near ?? false, q);
+      assert.equal(p.remainder, "", q);
       assert.equal(p.remainder.includes("وقت"), false, q);
-      assert.equal(p.remainder.includes("خالی"), false, q);
-      assert.equal(p.remainder.includes("باز"), false, q);
     }
   });
 

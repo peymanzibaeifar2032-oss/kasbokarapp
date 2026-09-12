@@ -68,6 +68,18 @@ describe("applySearchIntent", () => {
     assert.equal(intent.chips.some((c) => c.value.includes("وقت")), false);
   });
 
+  it("never lets leftover availability become WHAT when a category is known", () => {
+    const dirty = parseSearchQuery("مکانیک در کرمانشاه");
+    dirty.remainder = "وقت خالی دارد";
+    const intent = applySearchIntent({
+      parsed: dirty,
+      defaultCity: "کرمانشاه",
+      defaultProvince: "کرمانشاه",
+    });
+    assert.equal(intent.chips.find((c) => c.key === "what")?.value, "مکانیک");
+    assert.equal(intent.chips.some((c) => String(c.value).includes("وقت")), false);
+  });
+
   it("decomposes the production examples into independent چی/کجا/کی chips", () => {
     const kermanshah = { defaultCity: "کرمانشاه", defaultProvince: "کرمانشاه" };
     const tattoo = applySearchIntent({

@@ -1,4 +1,4 @@
-import { isIntentDebrisText, type ParsedQuery } from "./parse-query.ts";
+import { hasWhenResidue, isIntentDebrisText, type ParsedQuery } from "./parse-query.ts";
 
 export type GeoOrigin = { lat: number; lng: number };
 
@@ -38,9 +38,15 @@ function placeOrNull(raw: string | null | undefined): string | null {
   return v.length ? v : null;
 }
 
-function whatValue(parsed: ParsedQuery): string {
-  const remainder = isIntentDebrisText(parsed.remainder) ? "" : (parsed.remainder || "").trim();
-  return (remainder || parsed.categoryTerm || "").trim();
+/**
+ * WHAT is the requested service/category. Leftover time/place words never win.
+ * Named remainder (e.g. ماه‌رخ) is used only when no category alias matched.
+ */
+export function whatChipValue(parsed: ParsedQuery): string {
+  if (parsed.categoryTerm) return parsed.categoryTerm.trim();
+  const rem = (parsed.remainder || "").trim();
+  if (!rem || isIntentDebrisText(rem) || hasWhenResidue(rem)) return "";
+  return rem;
 }
 
 /**
@@ -71,7 +77,7 @@ export function applySearchIntent(input: ApplyIntentInput): AppliedIntent {
   }
 
   const chips: IntentChip[] = [];
-  const what = whatValue(parsed);
+  const what = whatChipValue(parsed);
   if (what) chips.push({ key: "what", value: what });
   else if (parsed.categoryId) chips.push({ key: "what", value: String(parsed.categoryId) });
 
