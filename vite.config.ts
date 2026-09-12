@@ -223,6 +223,9 @@ const isNetlifyBuild =
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see
 // AGENTS.md § "First scaffold".
 export default defineConfig(({ command, isPreview }) => ({
+  define: {
+    __KASB_SHA__: JSON.stringify(process.env.GIT_SHA || process.env.BUILD_SHA || ""),
+  },
   server: {
     host: "0.0.0.0",
     port: 8080,

@@ -1,4 +1,9 @@
-import { hasWhenResidue, isIntentDebrisText, type ParsedQuery } from "./parse-query.ts";
+import {
+  hasWhenResidue,
+  isIntentDebrisText,
+  queryHasTodayAvailability,
+  type ParsedQuery,
+} from "./parse-query.ts";
 
 export type GeoOrigin = { lat: number; lng: number };
 
@@ -43,10 +48,18 @@ function placeOrNull(raw: string | null | undefined): string | null {
  * Named remainder (e.g. ماه‌رخ) is used only when no category alias matched.
  */
 export function whatChipValue(parsed: ParsedQuery): string {
-  if (parsed.categoryTerm) return parsed.categoryTerm.trim();
+  const term = (parsed.categoryTerm || "").trim();
+  if (term) return term;
   const rem = (parsed.remainder || "").trim();
   if (!rem || isIntentDebrisText(rem) || hasWhenResidue(rem)) return "";
   return rem;
+}
+
+/** Leftover availability/time text must never be shown as WHAT. */
+export function looksLikeWhenText(raw: string | undefined | null): boolean {
+  const t = (raw ?? "").trim();
+  if (!t) return false;
+  return isIntentDebrisText(t) || hasWhenResidue(t);
 }
 
 /**
@@ -77,22 +90,25 @@ export function applySearchIntent(input: ApplyIntentInput): AppliedIntent {
   }
 
   const chips: IntentChip[] = [];
-  const what = whatChipValue(parsed);
+  let what = whatChipValue(parsed);
+  if (looksLikeWhenText(what)) what = (parsed.categoryTerm || "").trim();
   if (what) chips.push({ key: "what", value: what });
   else if (parsed.categoryId) chips.push({ key: "what", value: String(parsed.categoryId) });
 
   if (parsed.city) chips.push({ key: "where", value: parsed.city });
   else if (parsed.nearMe && pinned) chips.push({ key: "where", value: "nearMe" });
 
-  if (parsed.openNow) chips.push({ key: "when", value: "openNow" });
-  if (parsed.freeToday) chips.push({ key: "when", value: "freeToday" });
+  const openNow = parsed.openNow;
+  const freeToday = Boolean(parsed.freeToday) || queryHasTodayAvailability(parsed.original);
+  if (openNow) chips.push({ key: "when", value: "openNow" });
+  if (freeToday) chips.push({ key: "when", value: "freeToday" });
 
   return {
     categoryId: parsed.categoryId,
     city,
     province,
-    openNow: parsed.openNow,
-    freeToday: parsed.freeToday,
+    openNow,
+    freeToday,
     needsLocation,
     sortDistance: Boolean(parsed.nearMe && pinned),
     omitDefaultPlace,

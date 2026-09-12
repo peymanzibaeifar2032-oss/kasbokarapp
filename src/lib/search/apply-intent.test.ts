@@ -80,6 +80,26 @@ describe("applySearchIntent", () => {
     assert.equal(intent.chips.some((c) => String(c.value).includes("وقت")), false);
   });
 
+  it("recovers WHAT/WHEN from original text even if freeToday was not parsed", () => {
+    const stale = parseSearchQuery("مکانیک در کرمانشاه");
+    stale.original = "مکانیک در کرمانشاه که امروز وقت خالی دارد";
+    stale.remainder = "وقت خالی دارد";
+    stale.categoryTerm = "مکانیک";
+    stale.categoryId = 4;
+    stale.city = "کرمانشاه";
+    stale.freeToday = false;
+    stale.openNow = false;
+    const intent = applySearchIntent({
+      parsed: stale,
+      defaultCity: "کرمانشاه",
+      defaultProvince: "کرمانشاه",
+    });
+    assert.equal(intent.chips.find((c) => c.key === "what")?.value, "مکانیک");
+    assert.equal(intent.chips.find((c) => c.key === "when")?.value, "freeToday");
+    assert.equal(intent.freeToday, true);
+    assert.equal(intent.openNow, false);
+  });
+
   it("decomposes the production examples into independent چی/کجا/کی chips", () => {
     const kermanshah = { defaultCity: "کرمانشاه", defaultProvince: "کرمانشاه" };
     const tattoo = applySearchIntent({

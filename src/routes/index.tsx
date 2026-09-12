@@ -31,8 +31,8 @@ import { KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
 import { haversineKm } from "@/lib/format";
 import { isOpenNow } from "@/lib/hours";
 import { t } from "@/lib/i18n";
-import { applySearchIntent, type IntentChip } from "@/lib/search/apply-intent";
-import { parseSearchQuery } from "@/lib/search/parse-query";
+import { applySearchIntent, looksLikeWhenText, type IntentChip } from "@/lib/search/apply-intent";
+import { parseSearchQuery, queryHasTodayAvailability } from "@/lib/search/parse-query";
 import { listBusinesses, listCategories } from "@/lib/server/api";
 import type { Business, Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -106,17 +106,16 @@ function Home() {
   const hadCityFromQuery = useRef(false);
   const cities = useMemo(() => PROVINCES.find((p) => p.name === province)?.cities ?? [], [province]);
   const parsedQ = useMemo(() => parseSearchQuery(debouncedQ), [debouncedQ]);
-  const intent = useMemo(
-    () =>
-      applySearchIntent({
-        parsed: parsedQ,
-        defaultCity: city,
-        defaultProvince: province,
-        origin: userPos,
-        cityFallback: nearMeCityFallback,
-      }),
-    [parsedQ, city, province, userPos, nearMeCityFallback],
-  );
+  const intent = useMemo(() => {
+    const base = applySearchIntent({
+      parsed: parsedQ,
+      defaultCity: city,
+      defaultProvince: province,
+      origin: userPos,
+      cityFallback: nearMeCityFallback,
+    });
+    return refineChipsFromRawQuery(base, parsedQ, debouncedQ);
+  }, [parsedQ, city, province, userPos, nearMeCityFallback, debouncedQ]);
 
   useEffect(() => {
     try {
@@ -744,6 +743,30 @@ function intentChipValue(chip: IntentChip, categories: Category[]) {
     return categories.find((c) => String(c.id) === chip.value)?.name ?? chip.value;
   }
   return chip.value;
+}
+
+/** Category/city come from the parser; leftover time words never become WHAT. WHEN is re-read from the raw sentence. */
+function refineChipsFromRawQuery(
+  intent: ReturnType<typeof applySearchIntent>,
+  parsed: ReturnType<typeof parseSearchQuery>,
+  raw: string,
+) {
+  const whatValue = looksLikeWhenText(intent.chips.find((c) => c.key === "what")?.value)
+    ? parsed.categoryTerm || (parsed.categoryId ? String(parsed.categoryId) : "")
+    : intent.chips.find((c) => c.key === "what")?.value || parsed.categoryTerm || "";
+  const chips: IntentChip[] = [];
+  if (whatValue) chips.push({ key: "what", value: whatValue });
+  const where = intent.chips.find((c) => c.key === "where");
+  if (where) chips.push(where);
+  if (intent.openNow) chips.push({ key: "when", value: "openNow" });
+  if (intent.freeToday || queryHasTodayAvailability(raw) || queryHasTodayAvailability(parsed.original)) {
+    chips.push({ key: "when", value: "freeToday" });
+  }
+  return {
+    ...intent,
+    freeToday: Boolean(intent.freeToday || queryHasTodayAvailability(raw) || queryHasTodayAvailability(parsed.original)),
+    chips,
+  };
 }
 
 function toFa(n: number) {

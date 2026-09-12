@@ -74,10 +74,16 @@ function eatLongest(haystack: string, phrases: string[]): { hit: string | null; 
 
 function peelRegex(work: string, re: RegExp): { hit: boolean; rest: string } {
   const n = normalizeFa(work);
-  const copy = new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`);
-  if (!copy.test(n)) return { hit: false, rest: work };
-  const rest = normalizeFa(n.replace(new RegExp(re.source, "g"), " "));
-  return { hit: rest !== n, rest };
+  const next = normalizeFa(n.replace(new RegExp(re.source, "g"), " "));
+  return { hit: next !== n, rest: next };
+}
+
+/** True only when امروز and a real availability word are both present. */
+export function queryHasTodayAvailability(raw: string | undefined | null): boolean {
+  const tokens = tokenizeFa(raw ?? "");
+  const hasToday = tokens.includes("امروز");
+  const hasAvail = tokens.some((tok) => tok === "وقت" || tok === "نوبت" || tok === "خالی" || tok === "آزاد" || tok === "ازاد");
+  return hasToday && hasAvail;
 }
 
 function contentTokens(raw: string): string[] {
@@ -201,6 +207,7 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
   work = lastOpenNear.rest;
 
   const remainder = contentTokens(work).join(" ");
+  if (!freeToday && queryHasTodayAvailability(original)) freeToday = true;
 
   const structured = Boolean(categoryId || city);
   const extras = openNow || nearMe || freeToday;

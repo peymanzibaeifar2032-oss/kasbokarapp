@@ -8,13 +8,15 @@ RUN sed -i "s#https://registry.npmjs.org#${NPM_REGISTRY}#g" package-lock.json &&
 
 FROM node:22-slim AS build
 WORKDIR /app
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NITRO_PRESET=node-server
 ENV NODE_ENV=production
 ENV PATH="/app/node_modules/.bin:$PATH"
 # Schema is applied at container start, not at image build (no DB here).
-RUN node scripts/with-app-env.mjs vite build
+RUN rm -rf node_modules/.vite node_modules/.tmp && node scripts/with-app-env.mjs vite build
 
 FROM node:22-slim AS runner
 WORKDIR /app

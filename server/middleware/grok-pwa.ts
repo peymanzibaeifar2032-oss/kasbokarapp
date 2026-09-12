@@ -40,7 +40,6 @@ function injectHeadStreaming(response: Response, host: string): Response {
   const injector = createHeadInjector({
     host,
     site: grokOgIdentity.site,
-    buildSha: (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim(),
   });
   const transformed = response.body!.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
@@ -54,8 +53,6 @@ function injectHeadStreaming(response: Response, host: string): Response {
   );
   const headers = new Headers(response.headers);
   headers.delete("content-length");
-  headers.set("cache-control", "no-store");
-  headers.set("pragma", "no-cache");
   return new Response(transformed, {
     status: response.status,
     statusText: response.statusText,
@@ -102,13 +99,18 @@ export default async function grokPwaMiddleware(
   if (!isDocumentPath(path)) return next();
 
   const result = await next();
-  if (
-    result instanceof Response &&
-    result.body &&
-    String(result.headers.get("content-type") ?? "").includes("text/html") &&
-    !result.headers.get("content-encoding")
-  ) {
+  if (!(result instanceof Response) || !result.body) return result;
+  const isHtml = String(result.headers.get("content-type") ?? "").includes("text/html");
+  if (!isHtml) return result;
+  if (!result.headers.get("content-encoding")) {
     return injectHeadStreaming(result, requestHost(event));
   }
-  return result;
+  const headers = new Headers(result.headers);
+  headers.set("cache-control", "no-store");
+  headers.set("pragma", "no-cache");
+  return new Response(result.body, {
+    status: result.status,
+    statusText: result.statusText,
+    headers,
+  });
 }
