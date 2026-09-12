@@ -7,6 +7,10 @@ import type { Business } from "../types.ts";
 export const RATING_PRIOR_MEAN = 4.2;
 export const RATING_PRIOR_N = 8;
 
+/**
+ * Review signal uses every row in `reviews`. Phase 2 has no verified-visit
+ * flag — do not invent one. Ranking never bypasses VISIBLE_SQL.
+ */
 export function bayesianRating(avg: number, count: number): number {
   const n = Math.max(0, count);
   const a = Number.isFinite(avg) ? avg : 0;
@@ -142,7 +146,10 @@ export function sortByRelevance<T extends Parameters<typeof toRankInput>[0]>(
 }
 
 /** Meaningful events that may bump ranking_fresh_at. Not every profile save. */
-export function shouldBumpRankingFresh(before: { categoryId: number; priceCount: number }, after: { categoryId: number; priceCount: number }) {
+export function shouldBumpRankingFresh(
+  before: { categoryId: number; priceCount: number },
+  after: { categoryId: number; priceCount: number },
+) {
   if (before.categoryId !== after.categoryId) return true;
   if (before.priceCount === 0 && after.priceCount > 0) return true;
   return false;

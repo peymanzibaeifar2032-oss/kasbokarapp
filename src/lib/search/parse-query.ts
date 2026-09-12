@@ -33,14 +33,26 @@ const OPEN_TERMS = ["الان بازه", "الان باز", "امروز باز",
 const NEAR_TERMS = ["نزدیک من", "نزدیکم", "اطراف من", "نزدیک"];
 const STOP = new Set(["در", "که", "با", "از", "برای", "را", "به", "یک", "این", "اون", "من", "امروز", "الان"]);
 
+function indexOfSeq(hay: string[], needle: string[]): number {
+  if (!needle.length) return -1;
+  for (let i = 0; i <= hay.length - needle.length; i++) {
+    if (needle.every((t, j) => hay[i + j] === t)) return i;
+  }
+  return -1;
+}
+
+/** Token-boundary phrase eat. "باز" must not match inside "بازار". */
 function eatLongest(haystack: string, phrases: string[]): { hit: string | null; rest: string } {
-  const sorted = [...phrases].sort((a, b) => b.length - a.length);
-  for (const p of sorted) {
-    const n = normalizeFa(p);
-    const idx = haystack.indexOf(n);
+  const tokens = tokenizeFa(haystack);
+  const scored = phrases
+    .map((p) => ({ p, n: tokenizeFa(p) }))
+    .filter((x) => x.n.length > 0)
+    .sort((a, b) => b.n.length - a.n.length || b.p.length - a.p.length);
+  for (const { n } of scored) {
+    const idx = indexOfSeq(tokens, n);
     if (idx >= 0) {
-      const rest = normalizeFa(`${haystack.slice(0, idx)} ${haystack.slice(idx + n.length)}`);
-      return { hit: n, rest };
+      const rest = [...tokens.slice(0, idx), ...tokens.slice(idx + n.length)].join(" ");
+      return { hit: n.join(" "), rest: normalizeFa(rest) };
     }
   }
   return { hit: null, rest: haystack };
@@ -78,13 +90,12 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
   }
 
   const catPhrases = CATEGORY_ALIASES.flatMap((c) => c.terms.map((term) => ({ id: c.id, term })));
-  catPhrases.sort((a, b) => b.term.length - a.term.length);
+  catPhrases.sort((a, b) => tokenizeFa(b.term).length - tokenizeFa(a.term).length || b.term.length - a.term.length);
   for (const c of catPhrases) {
-    const n = normalizeFa(c.term);
-    const idx = work.indexOf(n);
-    if (idx >= 0) {
+    const eaten = eatLongest(work, [c.term]);
+    if (eaten.hit) {
       categoryId = c.id;
-      work = normalizeFa(`${work.slice(0, idx)} ${work.slice(idx + n.length)}`);
+      work = eaten.rest;
       break;
     }
   }
@@ -94,14 +105,13 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
     places.push({ city: p.name, province: p.name });
     for (const c of p.cities) places.push({ city: c, province: p.name });
   }
-  places.sort((a, b) => b.city.length - a.city.length);
+  places.sort((a, b) => tokenizeFa(b.city).join("").length - tokenizeFa(a.city).join("").length);
   for (const p of places) {
-    const n = normalizeFa(p.city);
-    const idx = work.indexOf(n);
-    if (idx >= 0) {
+    const eaten = eatLongest(work, [p.city]);
+    if (eaten.hit) {
       city = p.city;
       province = p.province;
-      work = normalizeFa(`${work.slice(0, idx)} ${work.slice(idx + n.length)}`);
+      work = eaten.rest;
       break;
     }
   }

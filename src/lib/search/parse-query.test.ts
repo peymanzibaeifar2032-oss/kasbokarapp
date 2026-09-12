@@ -44,4 +44,22 @@ describe("NL parser", () => {
     assert.equal(p.categoryId, 1);
     assert.equal(p.city, "کرمانشاه");
   });
+
+  it("does not treat بازار as open-now or ری inside شیرینی as a city", () => {
+    const b = parseSearchQuery("بازار کرمانشاه");
+    assert.equal(b.openNow, false);
+    assert.equal(b.city, "کرمانشاه");
+    const s = parseSearchQuery("شیرینی");
+    assert.equal(s.categoryId, 8);
+    assert.notEqual(s.city, "ری");
+  });
+
+  it("does not collapse کرمانشاه into کرمان", () => {
+    const p = parseSearchQuery("تاتو کرمانشاه");
+    assert.equal(p.city, "کرمانشاه");
+    assert.equal(p.province, "کرمانشاه");
+    const k = parseSearchQuery("تاتو کرمان");
+    assert.equal(k.city, "کرمان");
+    assert.equal(k.province, "کرمان");
+  });
 });

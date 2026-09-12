@@ -47,4 +47,18 @@ describe("ranking", () => {
     assert.ok(open.total > closed.total);
     assert.equal(closed.total > 0, true);
   });
+
+  it("applies distance only when origin is present", () => {
+    const none = rankBreakdown(biz({ id: "a" }));
+    assert.equal(none.distance, 0);
+    const origin = { lat: 34.32, lng: 47.07 };
+    const near = rankBreakdown(biz({ id: "n", latitude: 34.32, longitude: 47.07 }), { origin });
+    const far = rankBreakdown(biz({ id: "f", latitude: 35.7, longitude: 51.4 }), { origin });
+    assert.ok(near.distance > far.distance);
+  });
+
+  it("does not let completeness zero a closed unverified listing", () => {
+    const sparse = rankBreakdown(biz({ id: "s", completenessScore: 0, openNow: false }));
+    assert.ok(sparse.total > 0);
+  });
 });

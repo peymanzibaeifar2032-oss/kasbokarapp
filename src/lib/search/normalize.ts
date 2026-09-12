@@ -11,7 +11,7 @@ export function normalizeFa(raw: string): string {
 }
 
 export function tokenizeFa(raw: string): string[] {
-  const n = normalizeFa(raw);
-  if (!n) return [];
-  return n.split(" ").filter(Boolean);
+  const n = normalizeFa(raw).replace(/[؟?!,.،؛:()«»"'٪%]/g, " ");
+  if (!n.trim()) return [];
+  return n.split(/\s+/).filter(Boolean);
 }
