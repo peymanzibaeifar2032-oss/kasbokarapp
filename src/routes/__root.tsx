@@ -44,6 +44,11 @@ export const Route = createRootRoute({
     <html lang="fa" dir="rtl" className="antialiased" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});}if(window.caches){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}}catch(e){}})();`,
+          }}
+        />
       </head>
       <body>
         <PreviewHostBridge />

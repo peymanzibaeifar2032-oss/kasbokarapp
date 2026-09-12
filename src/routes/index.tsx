@@ -32,6 +32,7 @@ import { haversineKm } from "@/lib/format";
 import { isOpenNow } from "@/lib/hours";
 import { t } from "@/lib/i18n";
 import { friendlyError } from "@/lib/save";
+import { filterRelevant } from "@/lib/search/simple-search";
 import { listBusinesses, listCategories } from "@/lib/server/api";
 import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -180,7 +181,7 @@ function Home() {
   }, [province, city]);
 
   const filtered = useMemo(() => {
-    let rows = items;
+    let rows = filterRelevant(items, debouncedQ);
     if (openNow) rows = rows.filter((b) => isOpenNow(b.workHours));
     if (hasOffer) rows = rows.filter((b) => Boolean(b.offerText));
     if (onlyFav) rows = rows.filter((b) => favs.has(b.id));
@@ -198,7 +199,7 @@ function Home() {
       next.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     }
     return next;
-  }, [items, openNow, hasOffer, onlyFav, sort, userPos, favs, maxKm]);
+  }, [items, debouncedQ, openNow, hasOffer, onlyFav, sort, userPos, favs, maxKm]);
 
   const selected = filtered.find((b) => b.id === selectedId) ?? null;
 
