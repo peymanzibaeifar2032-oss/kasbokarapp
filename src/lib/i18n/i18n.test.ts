@@ -17,6 +17,10 @@ describe("i18n foundation", () => {
     assert.equal(t("zeroResults"), "کسب‌وکاری با این جست‌وجو پیدا نشد.");
     assert.equal(t("completePhone"), "شماره تماس");
     assert.equal(t("zeroHintGeneric"), "فیلترها را کمتر کنید یا عبارت دیگری بنویسید");
+    assert.equal(t("searchPlaceholder"), "چی می‌خوای؟ مثلاً تاتو در کرمانشاه که الان باز است");
+    assert.equal(t("intentWhen"), "کی");
+    assert.equal(t("intentOpenNow"), "الان باز است");
+    assert.equal(t("nearMeUse"), "استفاده از موقعیت");
   });
 
   it("english catalog falls back to Persian until translations exist", () => {

@@ -45,7 +45,17 @@ export const faIR = {
   zeroHintCategory: "دسته را به «همه» برگردانید",
   zeroHintSpelling: "املای عبارت را بررسی کنید",
   zeroHintGeneric: "فیلترها را کمتر کنید یا عبارت دیگری بنویسید",
+  zeroHintNearMe: "شهر را انتخاب کنید یا موقعیت را اجازه بدهید",
   sortRelevance: "پیشنهاد مناسب",
+  searchPlaceholder: "چی می‌خوای؟ مثلاً تاتو در کرمانشاه که الان باز است",
+  intentWhat: "چی",
+  intentWhere: "کجا",
+  intentWhen: "کی",
+  intentOpenNow: "الان باز است",
+  intentNearMe: "نزدیک من",
+  nearMeAsk: "برای دیدن نتایج نزدیک، موقعیت را بدهید. تا قبل از اجازه، نزدیک شما حساب نمی‌شود.",
+  nearMeUse: "استفاده از موقعیت",
+  nearMePickCity: "انتخاب شهر",
 } as const;
 
 export type MessageKey = keyof typeof faIR;

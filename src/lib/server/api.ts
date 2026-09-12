@@ -70,18 +70,25 @@ export const listBusinesses = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const sql = await getSql();
     const parsed = parseSearchQuery(data.q);
+    const origin =
+      Number.isFinite(data.originLat) && Number.isFinite(data.originLng)
+        ? { lat: data.originLat as number, lng: data.originLng as number }
+        : null;
+    const nearMeActive = parsed.nearMe && Boolean(origin);
     const categoryId = data.categoryId ?? parsed.categoryId;
-    const province = (data.province && data.province.length > 0 ? data.province : parsed.province) ?? null;
-    const city = (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
+    const province =
+      nearMeActive && !parsed.city
+        ? null
+        : (data.province && data.province.length > 0 ? data.province : parsed.province) ?? null;
+    const city =
+      nearMeActive && !parsed.city
+        ? null
+        : (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
     const wantOpen = Boolean(data.openNow || parsed.openNow);
     const remainderRaw =
       parsed.mode === "fallback" ? foldFaKeepJoiner(parsed.original) : parsed.remainder;
     const remainder = remainderRaw.replace(/[%_]/g, "").trim();
     const like = remainder ? `%${remainder}%` : null;
-    const origin =
-      Number.isFinite(data.originLat) && Number.isFinite(data.originLng)
-        ? { lat: data.originLat as number, lng: data.originLng as number }
-        : null;
 
     const rows = await sql.query<BizRow>(
       `select ${BIZ_SELECT_JOINED}

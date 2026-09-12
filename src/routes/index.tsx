@@ -31,9 +31,10 @@ import { KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
 import { haversineKm } from "@/lib/format";
 import { hasSlotToday, isOpenNow } from "@/lib/hours";
 import { t } from "@/lib/i18n";
+import { applySearchIntent, type IntentChip } from "@/lib/search/apply-intent";
 import { parseSearchQuery } from "@/lib/search/parse-query";
 import { listBusinesses, listCategories } from "@/lib/server/api";
-import type { Business } from "@/lib/types";
+import type { Business, Category } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const PLACE_KEY = "kasb:place";
@@ -94,41 +95,82 @@ function Home() {
   const [addMode, setAddMode] = useState(false);
   const [picked, setPicked] = useState<{ lat: number; lng: number } | null>(null);
   const [viewKey, setViewKey] = useState(0);
+  const [nearMeCityFallback, setNearMeCityFallback] = useState(false);
   const skipFirstFetch = useRef(true);
+  const userPlace = useRef({ province: "کرمانشاه", city: "کرمانشاه" });
+  const manualOpenNow = useRef(false);
+  const hadOpenFromQuery = useRef(false);
+  const hadCategoryFromQuery = useRef(false);
+  const hadCityFromQuery = useRef(false);
   const cities = useMemo(() => PROVINCES.find((p) => p.name === province)?.cities ?? [], [province]);
+  const parsedQ = useMemo(() => parseSearchQuery(debouncedQ), [debouncedQ]);
+  const intent = useMemo(
+    () =>
+      applySearchIntent({
+        parsed: parsedQ,
+        defaultCity: city,
+        defaultProvince: province,
+        origin: userPos,
+        cityFallback: nearMeCityFallback,
+      }),
+    [parsedQ, city, province, userPos, nearMeCityFallback],
+  );
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PLACE_KEY);
       if (!raw) return;
       const saved = JSON.parse(raw) as { province?: string; city?: string };
-      if (saved.province) setProvince(saved.province);
-      if (saved.city) setCity(saved.city);
+      if (saved.province) {
+        setProvince(saved.province);
+        userPlace.current.province = saved.province;
+      }
+      if (saved.city) {
+        setCity(saved.city);
+        userPlace.current.city = saved.city;
+      }
     } catch {
       /* ignore */
     }
   }, []);
 
   useEffect(() => {
+    if (hadCityFromQuery.current) return;
     try {
       localStorage.setItem(PLACE_KEY, JSON.stringify({ province, city }));
+      userPlace.current = { province, city };
     } catch {
       /* ignore */
     }
   }, [province, city]);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedQ(q), 280);
-    return () => window.clearTimeout(t);
+    const tmr = window.setTimeout(() => setDebouncedQ(q), 280);
+    return () => window.clearTimeout(tmr);
   }, [q]);
 
   useEffect(() => {
-    const parsed = parseSearchQuery(debouncedQ);
-    if (parsed.openNow) setOpenNow(true);
+    const parsed = parsedQ;
     if (parsed.categoryId) setCategoryId(parsed.categoryId);
-    if (parsed.province) setProvince(parsed.province);
-    if (parsed.city) setCity(parsed.city);
-  }, [debouncedQ]);
+    else if (hadCategoryFromQuery.current) setCategoryId(undefined);
+    hadCategoryFromQuery.current = Boolean(parsed.categoryId);
+
+    if (parsed.openNow) setOpenNow(true);
+    else if (hadOpenFromQuery.current) setOpenNow(manualOpenNow.current);
+    hadOpenFromQuery.current = parsed.openNow;
+
+    if (parsed.city) {
+      setCity(parsed.city);
+      if (parsed.province) setProvince(parsed.province);
+    } else if (hadCityFromQuery.current) {
+      setCity(userPlace.current.city);
+      setProvince(userPlace.current.province);
+    }
+    hadCityFromQuery.current = Boolean(parsed.city);
+
+    if (!parsed.nearMe) setNearMeCityFallback(false);
+    if (parsed.nearMe && userPos) setSort("distance");
+  }, [parsedQ, userPos]);
 
   useEffect(() => {
     if (skipFirstFetch.current) {
@@ -140,13 +182,13 @@ function Home() {
     void listBusinesses({
       data: {
         q: debouncedQ,
-        categoryId,
-        province: province || undefined,
-        city: city || undefined,
+        categoryId: categoryId ?? intent.categoryId,
+        province: intent.province || undefined,
+        city: intent.city || undefined,
         originLat: userPos?.lat,
         originLng: userPos?.lng,
-        openNow,
-        sort,
+        openNow: openNow || intent.openNow,
+        sort: intent.sortDistance ? "distance" : sort,
       },
     })
       .then((rows) => {
@@ -158,7 +200,7 @@ function Home() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, categoryId, province, city, userPos, openNow, sort]);
+  }, [debouncedQ, categoryId, intent, userPos, openNow, sort]);
 
   useEffect(() => {
     const p = PROVINCES.find((x) => x.name === province);
@@ -174,7 +216,7 @@ function Home() {
 
   const filtered = useMemo(() => {
     let rows = items;
-    if (openNow) rows = rows.filter((b) => isOpenNow(b.workHours));
+    if (openNow || intent.openNow) rows = rows.filter((b) => isOpenNow(b.workHours));
     if (hasOffer) rows = rows.filter((b) => Boolean(b.offerText));
     if (todaySlot) rows = rows.filter((b) => hasSlotToday(b));
     if (onlyFav) rows = rows.filter((b) => favs.has(b.id));
@@ -192,11 +234,11 @@ function Home() {
       next.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     }
     return next;
-  }, [items, openNow, hasOffer, todaySlot, onlyFav, sort, refPos, favs, maxKm]);
+  }, [items, openNow, intent.openNow, hasOffer, todaySlot, onlyFav, sort, refPos, favs, maxKm]);
 
   const selected = filtered.find((b) => b.id === selectedId) ?? null;
 
-  function locate() {
+  function locate(fromNearMe = false) {
     setGeoBusy(true);
     setGeoMsg(null);
 
@@ -204,6 +246,7 @@ function Home() {
       setGeoBusy(false);
       const msg = "در این نمایش توکار، موقعیت گوشی در دسترس نیست. پین را روی نقشه بگذارید.";
       setGeoMsg(msg);
+      if (fromNearMe) setNearMeCityFallback(true);
       toast.error(msg);
       return;
     }
@@ -213,6 +256,7 @@ function Home() {
       const msg =
         "موقعیت دقیق گوشی فقط بعد از اتصال دامنه و HTTPS کار می‌کند. فعلاً شهر را انتخاب کنید یا پین را روی نقشه جابه‌جا کنید.";
       setGeoMsg(msg);
+      if (fromNearMe) setNearMeCityFallback(true);
       toast.message(msg);
       return;
     }
@@ -221,6 +265,7 @@ function Home() {
       setGeoBusy(false);
       const msg = "این مرورگر موقعیت مکانی ندارد.";
       setGeoMsg(msg);
+      if (fromNearMe) setNearMeCityFallback(true);
       toast.error(msg);
       return;
     }
@@ -234,6 +279,7 @@ function Home() {
         setZoom(15);
         setViewKey((k) => k + 1);
         setSort("distance");
+        setNearMeCityFallback(false);
         setGeoMsg(null);
         setGeoBusy(false);
         toast.success("موقعیت شما روی نقشه آمد.");
@@ -241,10 +287,11 @@ function Home() {
       (err) => {
         setGeoBusy(false);
         let msg = "موقعیت گرفته نشد. دوباره بزنید.";
-        if (err?.code === 1) msg = "اجازهٔ موقعیت رد شد. از تنظیمات مرورگر برای این سایت اجازه بدهید.";
-        if (err?.code === 2) msg = "GPS در دسترس نیست. مکان را روی نقشه انتخاب کنید.";
+        if (err?.code === 1) msg = "اجازهٔ موقعیت رد شد. شهر را از فهرست انتخاب کنید.";
+        if (err?.code === 2) msg = "GPS در دسترس نیست. شهر را از فهرست انتخاب کنید.";
         if (err?.code === 3) msg = "زمان موقعیت تمام شد. دوباره بزنید.";
         setGeoMsg(msg);
+        if (fromNearMe) setNearMeCityFallback(true);
         toast.error(msg);
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 },
@@ -293,19 +340,57 @@ function Home() {
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="نام کسب‌وکار یا خدمت را بنویسید…"
+            placeholder={t("searchPlaceholder")}
             className="pr-11"
           />
         </label>
+        {intent.chips.length ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {intent.chips.map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex h-8 max-w-full items-center gap-1 rounded-full border border-border bg-bg px-2.5 text-xs"
+              >
+                <span className="text-muted">{intentChipLabel(chip.key)}</span>
+                <span className="truncate font-medium">{intentChipValue(chip, categories)}</span>
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {intent.needsLocation ? (
+          <div className="mt-3 rounded-xl border border-accent/20 bg-accent/10 px-3 py-3 text-sm text-accent">
+            <p>{t("nearMeAsk")}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button type="button" size="sm" onClick={() => locate(true)} disabled={geoBusy}>
+                {geoBusy ? "در حال یافتن…" : t("nearMeUse")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="bg-surface"
+                onClick={() => {
+                  setNearMeCityFallback(true);
+                  setBannerOn(true);
+                }}
+              >
+                {t("nearMePickCity")}
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <NativeSelect
             value={province}
             onChange={(e) => {
               const next = e.target.value;
-              setProvince(next);
               const loc = PROVINCES.find((p) => p.name === next);
-              setCity(loc?.cities[0] ?? "");
+              const nextCity = loc?.cities[0] ?? "";
+              userPlace.current = { province: next, city: nextCity };
+              setProvince(next);
+              setCity(nextCity);
               setBannerOn(true);
+              if (parsedQ.nearMe) setNearMeCityFallback(true);
             }}
             aria-label="استان"
           >
@@ -329,7 +414,7 @@ function Home() {
           </NativeSelect>
         </div>
         <div className="mt-2 grid grid-cols-3 gap-2">
-          <Button type="button" variant={sort === "distance" ? "default" : "outline"} onClick={locate} disabled={geoBusy}>
+          <Button type="button" variant={sort === "distance" ? "default" : "outline"} onClick={() => locate(false)} disabled={geoBusy}>
             <LocateFixed className="size-4" />
             {geoBusy ? "در حال یافتن…" : "نزدیک‌تر"}
           </Button>
@@ -348,7 +433,16 @@ function Home() {
             <option value="5">تا ۵ کیلومتر</option>
             <option value="10">تا ۱۰ کیلومتر</option>
           </NativeSelect>
-          <NativeSelect value={city} onChange={(e) => setCity(e.target.value)} aria-label="شهرستان">
+          <NativeSelect
+            value={city}
+            onChange={(e) => {
+              const next = e.target.value;
+              userPlace.current = { ...userPlace.current, city: next };
+              setCity(next);
+              if (parsedQ.nearMe) setNearMeCityFallback(true);
+            }}
+            aria-label="شهرستان"
+          >
             <option value="">شهرستان‌ها</option>
             {cities.map((c) => (
               <option key={c} value={c}>
@@ -471,7 +565,7 @@ function Home() {
             ) : (
               <span />
             )}
-            <Button type="button" variant="outline" size="sm" className="bg-surface" onClick={locate} disabled={geoBusy}>
+            <Button type="button" variant="outline" size="sm" className="bg-surface" onClick={() => locate(false)} disabled={geoBusy}>
               <LocateFixed className="size-4" />
               موقعیت من
             </Button>
@@ -501,7 +595,18 @@ function Home() {
 
       <section className="mt-5">
         <div className="mb-3 flex flex-wrap gap-2">
-          <FilterChip active={openNow} onClick={() => setOpenNow((v) => !v)} label="باز است" />
+          <FilterChip
+            active={openNow || intent.openNow}
+            onClick={() => {
+              if (intent.openNow) return;
+              setOpenNow((v) => {
+                const next = !v;
+                manualOpenNow.current = next;
+                return next;
+              });
+            }}
+            label="باز است"
+          />
           <FilterChip active={todaySlot} onClick={() => setTodaySlot((v) => !v)} label="نوبت امروز" />
           <FilterChip active={hasOffer} onClick={() => setHasOffer((v) => !v)} label="پیشنهاد ویژه" />
           <FilterChip active={onlyFav} onClick={() => setOnlyFav((v) => !v)} label="ذخیره‌شده‌ها" />
@@ -535,11 +640,14 @@ function Home() {
             <div className="rounded-xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
               <p>{t("zeroResults")}</p>
               <ul className="mt-3 space-y-1 text-right">
-                {openNow ? <li>{t("zeroHintOpen")}</li> : null}
+                {openNow || intent.openNow ? <li>{t("zeroHintOpen")}</li> : null}
                 {maxKm > 0 ? <li>{t("zeroHintDistance")}</li> : null}
                 {categoryId ? <li>{t("zeroHintCategory")}</li> : null}
                 {debouncedQ ? <li>{t("zeroHintSpelling")}</li> : null}
-                {!openNow && maxKm <= 0 && !categoryId && !debouncedQ ? <li>{t("zeroHintGeneric")}</li> : null}
+                {intent.needsLocation ? <li>{t("zeroHintNearMe")}</li> : null}
+                {!openNow && !intent.openNow && maxKm <= 0 && !categoryId && !debouncedQ ? (
+                  <li>{t("zeroHintGeneric")}</li>
+                ) : null}
               </ul>
             </div>
           ) : null}
@@ -602,6 +710,21 @@ function CatChip({
       <span className="line-clamp-2 px-1 text-xs leading-4">{label}</span>
     </button>
   );
+}
+
+function intentChipLabel(key: IntentChip["key"]) {
+  if (key === "what") return t("intentWhat");
+  if (key === "where") return t("intentWhere");
+  return t("intentWhen");
+}
+
+function intentChipValue(chip: IntentChip, categories: Category[]) {
+  if (chip.value === "nearMe") return t("intentNearMe");
+  if (chip.value === "openNow") return t("intentOpenNow");
+  if (/^\d+$/.test(chip.value)) {
+    return categories.find((c) => String(c.id) === chip.value)?.name ?? chip.value;
+  }
+  return chip.value;
 }
 
 function toFa(n: number) {

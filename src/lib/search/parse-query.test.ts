@@ -8,6 +8,7 @@ describe("NL parser", () => {
     const p = parseSearchQuery("آرایشگاه در کرمانشاه که امروز باز است");
     assert.equal(p.mode, "parsed");
     assert.equal(p.categoryId, 1);
+    assert.equal(p.categoryTerm, "آرایشگاه");
     assert.equal(p.city, "کرمانشاه");
     assert.equal(p.openNow, true);
     assert.equal(p.remainder.includes("است"), false);
@@ -17,6 +18,7 @@ describe("NL parser", () => {
   it("parses tattoo and cafe near-me queries", () => {
     const t = parseSearchQuery("تاتو در کرمانشاه");
     assert.equal(t.categoryId, 1);
+    assert.equal(t.categoryTerm, "تاتو");
     assert.equal(t.city, "کرمانشاه");
     const c = parseSearchQuery("کافه نزدیک من که الان بازه");
     assert.equal(c.categoryId, 8);
@@ -25,6 +27,15 @@ describe("NL parser", () => {
     const n = parseSearchQuery("تاتو نزدیک من");
     assert.equal(n.categoryId, 1);
     assert.equal(n.nearMe, true);
+  });
+
+  it("does not treat booking-availability phrases as open-now", () => {
+    const p = parseSearchQuery("تاتو نزدیک من که امروز وقت خالی دارد");
+    assert.equal(p.openNow, false);
+    assert.equal(p.nearMe, true);
+    assert.equal(p.categoryId, 1);
+    const s = parseSearchQuery("آرایشگاه نوبت امروز");
+    assert.equal(s.openNow, false);
   });
 
   it("normalizes Arabic yeh/kaf and Persian digits", () => {

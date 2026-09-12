@@ -6,6 +6,8 @@ export type ParsedQuery = {
   normalized: string;
   remainder: string;
   categoryId?: number;
+  /** Alias that matched, e.g. تاتو — used for the چی chip. */
+  categoryTerm?: string;
   city?: string;
   province?: string;
   openNow: boolean;
@@ -48,11 +50,11 @@ function eatLongest(haystack: string, phrases: string[]): { hit: string | null; 
     .map((p) => ({ p, n: tokenizeFa(p) }))
     .filter((x) => x.n.length > 0)
     .sort((a, b) => b.n.length - a.n.length || b.p.length - a.p.length);
-  for (const { n } of scored) {
+  for (const { n, p } of scored) {
     const idx = indexOfSeq(tokens, n);
     if (idx >= 0) {
       const rest = [...tokens.slice(0, idx), ...tokens.slice(idx + n.length)].join(" ");
-      return { hit: n.join(" "), rest: normalizeFa(rest) };
+      return { hit: p, rest: normalizeFa(rest) };
     }
   }
   return { hit: null, rest: haystack };
@@ -73,6 +75,7 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
   }
   let work = normalizeFa(original);
   let categoryId: number | undefined;
+  let categoryTerm: string | undefined;
   let city: string | undefined;
   let province: string | undefined;
   let openNow = false;
@@ -95,6 +98,7 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
     const eaten = eatLongest(work, [c.term]);
     if (eaten.hit) {
       categoryId = c.id;
+      categoryTerm = c.term;
       work = eaten.rest;
       break;
     }
@@ -139,6 +143,7 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
     normalized: normalizeFa(original),
     remainder,
     categoryId,
+    categoryTerm,
     city,
     province,
     openNow,
