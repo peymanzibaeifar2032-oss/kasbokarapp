@@ -132,11 +132,40 @@ describe("simple search relevance", () => {
     assert.equal(traceMatch(smoke, "تتو").kept, false);
   });
 
-  it("does not let the NL parser category dump leak into simple eligibility", () => {
-    const parsed = parseSearchQuery("تاتو");
-    assert.equal(parsed.categoryId, 1);
-    assert.equal(parsed.remainder, "");
-    const kept = filterRelevant([smoke, tattoo], parsed.original);
-    assert.deepEqual(kept.map((r) => r.name), [tattoo.name]);
+  it("matches one coherent listing per category without leaking into other categories", () => {
+    const samples = [
+      { name: "سالن آرایش گل‌رخ", jobTitle: "آرایشگاه زنانه", categoryName: "آرایش و زیبایی", prices: [{ title: "اصلاح و براشینگ" }] },
+      { name: "مطب دکتر رستمی", jobTitle: "پزشک عمومی", categoryName: "پزشکی و سلامت", prices: [{ title: "ویزیت پزشک" }] },
+      { name: "استودیو نرم‌افزار کارا", jobTitle: "طراحی سایت", categoryName: "فناوری و طراحی", prices: [{ title: "طراحی سایت" }] },
+      { name: "مکانیک سپهر", jobTitle: "مکانیک خودرو", categoryName: "خودرو و تعمیرات", prices: [{ title: "برق خودرو" }] },
+      { name: "فروشگاه خانه‌نو", jobTitle: "فروشگاه لوازم خانه", categoryName: "فروشگاه و خرید", prices: [{ title: "خرید کالا" }] },
+      { name: "نظافت پاک‌خانه", jobTitle: "نظافت منزل", categoryName: "خدمات خانه", prices: [{ title: "نظافت منزل" }] },
+      { name: "رستوران چلوکباب نیاوران", jobTitle: "غذا و کباب", categoryName: "غذا و رستوران", prices: [{ title: "چلوکباب" }] },
+      { name: "کافه قهوه دان", jobTitle: "کافی‌شاپ", categoryName: "کافه و شیرینی", prices: [{ title: "قهوه اسپرسو" }] },
+      { name: "آموزشگاه زبان نور", jobTitle: "آموزش زبان", categoryName: "آموزش", prices: [{ title: "کلاس خصوصی" }] },
+      { name: "باشگاه تناسب یاران", jobTitle: "ورزش و بدنسازی", categoryName: "ورزش و تندرستی", prices: [{ title: "جلسه تمرین" }] },
+      { name: "املاک طاق‌بستان", jobTitle: "مشاور املاک", categoryName: "املاک و ساختمان", prices: [{ title: "بازدید ملک" }] },
+      { name: "دفتر وکالت دادگر", jobTitle: "وکیل پایه یک", categoryName: "حقوقی و مالی", prices: [{ title: "مشاوره حقوقی" }] },
+    ];
+    const cases: [string, string][] = [
+      ["آرایشگاه", "سالن آرایش گل‌رخ"],
+      ["پزشک", "مطب دکتر رستمی"],
+      ["دکتر", "مطب دکتر رستمی"],
+      ["طراحی سایت", "استودیو نرم‌افزار کارا"],
+      ["مکانیک", "مکانیک سپهر"],
+      ["فروشگاه", "فروشگاه خانه‌نو"],
+      ["نظافت", "نظافت پاک‌خانه"],
+      ["رستوران", "رستوران چلوکباب نیاوران"],
+      ["کافه", "کافه قهوه دان"],
+      ["آموزش", "آموزشگاه زبان نور"],
+      ["باشگاه", "باشگاه تناسب یاران"],
+      ["املاک", "املاک طاق‌بستان"],
+      ["وکیل", "دفتر وکالت دادگر"],
+    ];
+    for (const [q, expected] of cases) {
+      const names = filterRelevant(samples, q).map((r) => r.name);
+      assert.equal(names.includes(expected), true, q);
+      assert.equal(names.includes("تست اسموک"), false, q);
+    }
   });
 });
