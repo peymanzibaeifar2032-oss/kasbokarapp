@@ -20,6 +20,7 @@ import { Route as ApiGuideRouteImport } from './routes/api/guide'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
+import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiTilesSplatRouteImport } from './routes/api/tiles/$'
@@ -79,6 +80,11 @@ const ApiSaveRoute = ApiSaveRouteImport.update({
   path: '/api/save',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSearchTraceRoute = ApiSearchTraceRouteImport.update({
+  id: '/api/search-trace',
+  path: '/api/search-trace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
+  '/api/search-trace': typeof ApiSearchTraceRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
+  '/api/search-trace': typeof ApiSearchTraceRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
+  '/api/search-trace': typeof ApiSearchTraceRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/map-config'
     | '/api/save'
+    | '/api/search-trace'
     | '/business/$id'
     | '/api/auth/$'
     | '/api/tiles/$'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/map-config'
     | '/api/save'
+    | '/api/search-trace'
     | '/business/$id'
     | '/api/auth/$'
     | '/api/tiles/$'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/map-config'
     | '/api/save'
+    | '/api/search-trace'
     | '/business/$id'
     | '/api/auth/$'
     | '/api/tiles/$'
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMapConfigRoute: typeof ApiMapConfigRoute
   ApiSaveRoute: typeof ApiSaveRoute
+  ApiSearchTraceRoute: typeof ApiSearchTraceRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiTilesSplatRoute: typeof ApiTilesSplatRoute
@@ -291,6 +304,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSaveRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/search-trace': {
+      id: '/api/search-trace'
+      path: '/api/search-trace'
+      fullPath: '/api/search-trace'
+      preLoaderRoute: typeof ApiSearchTraceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/business/$id': {
       id: '/business/$id'
       path: '/business/$id'
@@ -327,6 +347,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ApiMapConfigRoute: ApiMapConfigRoute,
   ApiSaveRoute: ApiSaveRoute,
+  ApiSearchTraceRoute: ApiSearchTraceRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiTilesSplatRoute: ApiTilesSplatRoute,
