@@ -77,7 +77,7 @@ export const listBusinesses = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const sql = await getSql();
-    const simple = data.simple === true;
+    const simple = data.simple !== false;
     const aroundMe = simple && data.locationMode === "me";
     const parsed = simple ? parseSearchQuery("") : parseSearchQuery(data.q);
     const origin =

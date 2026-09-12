@@ -26,61 +26,104 @@ export type SearchableListing = {
   prices?: { title: string }[];
 };
 
+export type MatchTrace = {
+  score: number;
+  terms: string[];
+  name: boolean;
+  jobTitle: boolean;
+  service: boolean;
+  category: boolean;
+  description: boolean;
+  kept: boolean;
+};
+
+function fold(raw: string): string {
+  return normalizeFa(raw).toLowerCase();
+}
+
 export function expandSearchTerms(raw: string | undefined | null): string[] {
-  const original = normalizeFa(raw ?? "");
+  const original = fold(raw ?? "");
   if (!original) return [];
-  const tokens = tokenizeFa(original);
+  const tokens = tokenizeFa(original).map((t) => t.toLowerCase());
   const seed = new Set<string>([original, ...tokens].filter((t) => t.length >= 2));
   const out = new Set<string>(seed);
   for (const group of SYNONYM_GROUPS) {
-    const folded = group.map((g) => normalizeFa(g));
-    const hit = [...seed].some((s) => folded.some((g) => g === s || s === g));
-    if (hit) for (const g of folded) if (g.length >= 2) out.add(g);
+    const folded = group.map((g) => fold(g)).filter((g) => g.length >= 2);
+    if ([...seed].some((s) => folded.includes(s))) {
+      for (const g of folded) out.add(g);
+    }
   }
   return [...out];
 }
 
 function haystackHas(hay: string, term: string): boolean {
-  const h = normalizeFa(hay);
-  const t = normalizeFa(term);
+  const h = fold(hay);
+  const t = fold(term);
   return Boolean(h && t && t.length >= 2 && h.includes(t));
 }
 
 function categoryTokenHit(categoryName: string, terms: string[]): boolean {
-  const tokens = tokenizeFa(categoryName);
-  return terms.some((term) => tokens.includes(normalizeFa(term)));
+  const tokens = tokenizeFa(categoryName).map((t) => t.toLowerCase());
+  return terms.some((term) => tokens.includes(fold(term)));
 }
 
 function descriptionHit(description: string, terms: string[]): boolean {
-  const tokens = new Set(tokenizeFa(description));
-  return terms.some((term) => tokens.has(normalizeFa(term)));
+  const tokens = new Set(tokenizeFa(description).map((t) => t.toLowerCase()));
+  return terms.some((term) => tokens.has(fold(term)));
+}
+
+export function traceMatch(row: SearchableListing, rawQuery: string): MatchTrace {
+  const terms = expandSearchTerms(rawQuery);
+  const empty = {
+    score: 0,
+    terms,
+    name: false,
+    jobTitle: false,
+    service: false,
+    category: false,
+    description: false,
+    kept: false,
+  };
+  if (!terms.length) return empty;
+  const name = terms.some((t) => haystackHas(row.name, t));
+  const jobHay = row.jobTitle;
+  const job = Boolean(jobHay && terms.some((t) => haystackHas(jobHay, t)));
+  const service = (row.prices ?? []).some((p) => terms.some((t) => haystackHas(p.title, t)));
+  const category = Boolean(row.categoryName && categoryTokenHit(row.categoryName, terms));
+  const description = Boolean(row.description && descriptionHit(row.description, terms));
+  let score = 0;
+  if (name) score = Math.max(score, STRONG);
+  if (job) score = Math.max(score, JOB);
+  if (service) score = Math.max(score, SERVICE);
+  if (category) score = Math.max(score, CATEGORY_TOKEN);
+  if (description) score = Math.max(score, DESC);
+  return {
+    score,
+    terms,
+    name,
+    jobTitle: job,
+    service,
+    category,
+    description,
+    kept: name || job || service,
+  };
 }
 
 export function scoreListing(row: SearchableListing, rawQuery: string): number {
-  const terms = expandSearchTerms(rawQuery);
-  if (!terms.length) return 0;
-  let best = 0;
-  if (terms.some((t) => haystackHas(row.name, t))) best = Math.max(best, STRONG);
-  const job = row.jobTitle;
-  if (job && terms.some((t) => haystackHas(job, t))) best = Math.max(best, JOB);
-  const services = row.prices ?? [];
-  if (services.some((p) => terms.some((t) => haystackHas(p.title, t)))) best = Math.max(best, SERVICE);
-  if (row.categoryName && categoryTokenHit(row.categoryName, terms)) best = Math.max(best, CATEGORY_TOKEN);
-  const desc = row.description;
-  if (desc && descriptionHit(desc, terms)) best = Math.max(best, DESC);
-  return best;
+  const tr = traceMatch(row, rawQuery);
+  return tr.kept ? tr.score : 0;
 }
 
 export function isSearchQuery(raw: string | undefined | null): boolean {
-  return normalizeFa(raw ?? "").length > 0;
+  return fold(raw ?? "").length > 0;
 }
 
 /** Non-empty query: keep only listings with a strong name/job/service match. */
 export function filterRelevant<T extends SearchableListing>(rows: T[], rawQuery: string): T[] {
   if (!isSearchQuery(rawQuery)) return rows;
   const scored = rows
-    .map((row) => ({ row, score: scoreListing(row, rawQuery) }))
-    .filter((x) => x.score >= MIN_KEEP_SCORE);
-  scored.sort((a, b) => b.score - a.score);
+    .map((row) => ({ row, tr: traceMatch(row, rawQuery) }))
+    .filter((x) => x.tr.kept);
+  scored.sort((a, b) => b.tr.score - a.tr.score);
   return scored.map((x) => x.row);
 }

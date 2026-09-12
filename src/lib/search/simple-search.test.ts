@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { expandSearchTerms, filterRelevant, scoreListing } from "./simple-search.ts";
+import { parseSearchQuery } from "./parse-query.ts";
+import { expandSearchTerms, filterRelevant, scoreListing, traceMatch } from "./simple-search.ts";
 
 const cafe = {
   name: "کافه نون و نمک",
@@ -18,10 +19,10 @@ const doctor = {
 };
 const tattoo = {
   name: "آتلیه نقش",
-  jobTitle: "تاتو",
+  jobTitle: "تاتو و طراحی بدن",
   categoryName: "آرایش و زیبایی",
   description: "طرح اختصاصی",
-  prices: [{ title: "تاتو ظریف" }],
+  prices: [{ title: "مشاوره طرح" }],
 };
 const salon = {
   name: "سالن ماه‌رخ",
@@ -32,7 +33,7 @@ const salon = {
 };
 const mechanic = {
   name: "تعمیرگاه راه‌نو",
-  jobTitle: "مکانیک",
+  jobTitle: "مکانیک و برق خودرو",
   categoryName: "خودرو و تعمیرات",
   prices: [{ title: "تعویض روغن" }],
 };
@@ -41,6 +42,19 @@ const lawyer = {
   jobTitle: "وکیل",
   categoryName: "حقوقی و مالی",
   prices: [{ title: "مشاوره" }],
+};
+const smoke = {
+  name: "تست اسموک",
+  jobTitle: null as string | null,
+  categoryName: "آرایش و زیبایی",
+  description: null as string | null,
+  prices: [{ title: "خدمت تست" }],
+};
+const tattooBody = {
+  name: "تاتو بدن",
+  jobTitle: "تاتو بدن",
+  categoryName: "آرایش و زیبایی",
+  prices: [{ title: "تاتو بدن" }],
 };
 
 describe("simple search relevance", () => {
@@ -64,12 +78,13 @@ describe("simple search relevance", () => {
   it("keeps mechanic / lawyer / cafe by text, not unrelated listings", () => {
     const all = [cafe, doctor, tattoo, salon, mechanic, lawyer];
     assert.deepEqual(filterRelevant(all, "مکانیک").map((r) => r.name), [mechanic.name]);
+    assert.deepEqual(filterRelevant(all, "برق خودرو").map((r) => r.name), [mechanic.name]);
     assert.deepEqual(filterRelevant(all, "وکیل").map((r) => r.name), [lawyer.name]);
     assert.deepEqual(filterRelevant(all, "کافه").map((r) => r.name), [cafe.name]);
   });
 
   it("returns zero rows when nothing relevant matches", () => {
-    const all = [cafe, doctor, tattoo, salon, mechanic, lawyer];
+    const all = [cafe, doctor, tattoo, salon, mechanic, lawyer, smoke];
     assert.equal(filterRelevant(all, "xyzzy_no_match").length, 0);
   });
 
@@ -89,5 +104,39 @@ describe("simple search relevance", () => {
     };
     assert.equal(filterRelevant([onlyCategory], "پزشک").length, 0);
     assert.equal(filterRelevant([onlyCategory], "دکتر").length, 0);
+  });
+
+  it("excludes a same-category listing whose name/job/service is unrelated (production smoke false-positive)", () => {
+    const A = { name: "استودیو", jobTitle: "تاتو بدن", categoryName: "آرایش و زیبایی", prices: [{ title: "مشاوره" }] };
+    const B = { name: "سالن تست", jobTitle: "خدمت تست", categoryName: "آرایش و زیبایی", prices: [{ title: "خدمت تست" }] };
+    for (const q of ["تاتو", "تتو", "tattoo", "Tattoo"]) {
+      const names = filterRelevant([A, B, smoke], q).map((r) => r.name);
+      assert.deepEqual(names, [A.name], q);
+      const smokeTrace = traceMatch(smoke, q);
+      assert.equal(smokeTrace.name, false, q);
+      assert.equal(smokeTrace.jobTitle, false, q);
+      assert.equal(smokeTrace.service, false, q);
+      assert.equal(smokeTrace.kept, false, q);
+    }
+  });
+
+  it("treats تتو / تاتو / tattoo as one concept on name/job/service", () => {
+    const termsTatoo = expandSearchTerms("تتو");
+    assert.equal(termsTatoo.includes("تاتو"), true);
+    assert.equal(termsTatoo.includes("tattoo"), true);
+    const rows = [tattoo, tattooBody, smoke, salon];
+    assert.deepEqual(filterRelevant(rows, "تاتو").map((r) => r.name).sort(), [tattoo.name, tattooBody.name].sort());
+    assert.deepEqual(filterRelevant(rows, "تتو").map((r) => r.name).sort(), [tattoo.name, tattooBody.name].sort());
+    assert.deepEqual(filterRelevant(rows, "tattoo").map((r) => r.name).sort(), [tattoo.name, tattooBody.name].sort());
+    assert.equal(traceMatch(tattoo, "تتو").jobTitle, true);
+    assert.equal(traceMatch(smoke, "تتو").kept, false);
+  });
+
+  it("does not let the NL parser category dump leak into simple eligibility", () => {
+    const parsed = parseSearchQuery("تاتو");
+    assert.equal(parsed.categoryId, 1);
+    assert.equal(parsed.remainder, "");
+    const kept = filterRelevant([smoke, tattoo], parsed.original);
+    assert.deepEqual(kept.map((r) => r.name), [tattoo.name]);
   });
 });
