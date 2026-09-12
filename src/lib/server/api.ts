@@ -5,9 +5,15 @@ import { getSessionUser } from "@/lib/auth/verify.server";
 import { getSql } from "@/lib/db";
 import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { isIranMobile, toWebsiteHref } from "@/lib/format";
+import { isOpenNow } from "@/lib/hours";
+import { logSearch } from "@/lib/search/log-search";
+import { parseSearchQuery } from "@/lib/search/parse-query";
+import { sortByRelevance } from "@/lib/search/ranking";
 import {
   BOOKING_SELECT,
   BIZ_SELECT,
+  BIZ_SELECT_JOINED,
+  REVIEWS_AGG_JOIN,
   VISIBLE_SQL,
   mapBooking,
   mapBusiness,
@@ -54,30 +60,77 @@ export const listBusinesses = createServerFn({ method: "GET" })
       categoryId: z.number().optional(),
       province: z.string().optional(),
       city: z.string().optional(),
+      originLat: z.number().optional(),
+      originLng: z.number().optional(),
+      openNow: z.boolean().optional(),
+      sort: z.enum(["relevance", "distance", "new"]).optional(),
     }),
   )
   .handler(async ({ data }) => {
     const sql = await getSql();
-    const q = data.q?.trim() ?? "";
-    const like = q ? `%${q}%` : null;
+    const parsed = parseSearchQuery(data.q);
+    const categoryId = data.categoryId ?? parsed.categoryId;
+    const province = (data.province && data.province.length > 0 ? data.province : parsed.province) ?? null;
+    const city = (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
+    const wantOpen = Boolean(data.openNow || parsed.openNow);
+    const remainderRaw =
+      parsed.mode === "fallback" ? parsed.normalized : parsed.remainder;
+    const remainder = remainderRaw.replace(/[%_]/g, "").trim();
+    const like = remainder ? `%${remainder}%` : null;
+    const origin =
+      Number.isFinite(data.originLat) && Number.isFinite(data.originLng)
+        ? { lat: data.originLat as number, lng: data.originLng as number }
+        : null;
+
     const rows = await sql.query<BizRow>(
-      `select ${BIZ_SELECT}
+      `select ${BIZ_SELECT_JOINED}
        from businesses b
        join categories c on c.id = b.category_id
+       ${REVIEWS_AGG_JOIN}
        where ${VISIBLE_SQL}
          and ($1::text is null or b.category_id = $1::int)
          and ($2::text is null or $2 = '' or b.province = $2)
          and ($3::text is null or b.name ilike $3 or b.job_title ilike $3 or b.city ilike $3 or c.name ilike $3 or b.address ilike $3)
          and ($4::text is null or $4 = '' or b.city = $4)
-       order by coalesce((select avg(r.rating) from reviews r where r.business_id = b.id), 0) desc, b.created_at desc`,
+       order by b.id asc`,
       [
-        data.categoryId != null ? String(data.categoryId) : null,
-        data.province ?? null,
+        categoryId != null ? String(categoryId) : null,
+        province,
         like,
-        data.city ?? null,
+        city,
       ],
     );
-    return rows.map(mapBusiness);
+
+    let items = rows.map(mapBusiness).map((b) => ({
+      ...b,
+      openNow: isOpenNow(b.workHours),
+    }));
+    if (wantOpen) items = items.filter((b) => b.openNow);
+    const sort = data.sort ?? "relevance";
+    if (sort === "new") {
+      items.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt) || a.id.localeCompare(b.id));
+    } else if (sort === "distance" && origin) {
+      items.sort((a, b) => {
+        const da = (a.latitude - origin.lat) ** 2 + (a.longitude - origin.lng) ** 2;
+        const db = (b.latitude - origin.lat) ** 2 + (b.longitude - origin.lng) ** 2;
+        return da - db || a.id.localeCompare(b.id);
+      });
+    } else {
+      items = sortByRelevance(items, { origin });
+    }
+
+    logSearch({
+      mode: data.q?.trim() ? parsed.mode : "classic",
+      zero: items.length === 0,
+      count: items.length,
+      categoryId,
+      city: Boolean(city),
+      openNow: wantOpen,
+      nearMe: parsed.nearMe && Boolean(origin),
+      remainder: Boolean(remainder),
+    });
+
+    return items;
   });
 
 export const getBusiness = createServerFn({ method: "GET" })
