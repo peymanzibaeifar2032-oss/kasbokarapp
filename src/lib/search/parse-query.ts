@@ -37,16 +37,23 @@ const OPEN_TERMS = ["الان بازه", "الان باز", "امروز باز",
 const AVAIL_TERMS = [
   "امروز وقت خالی دارد",
   "امروز وقت خالی داره",
-  "وقت خالی دارد",
-  "وقت خالی داره",
-  "وقت خالی",
-  "نوبت امروز",
+  "امروز وقت آزاد دارد",
+  "امروز وقت آزاد داره",
   "امروز نوبت دارد",
   "امروز نوبت داره",
+  "وقت خالی دارد",
+  "وقت خالی داره",
+  "وقت آزاد دارد",
+  "وقت آزاد داره",
+  "وقت خالی",
+  "وقت آزاد",
+  "نوبت امروز",
   "امروز نوبت",
 ];
 const NEAR_TERMS = ["نزدیک من", "نزدیکم", "اطراف من", "نزدیک"];
-const STOP = new Set(["در", "که", "با", "از", "برای", "را", "به", "یک", "این", "اون", "من", "امروز", "الان", "است"]);
+const STOP = new Set(["در", "که", "با", "از", "برای", "را", "به", "یک", "این", "اون", "من", "امروز", "الان", "است", "و"]);
+/** Leftover tokens from availability phrases — never a business-name remainder. */
+const AVAIL_DEBRIS = new Set(["وقت", "خالی", "آزاد", "نوبت", "دارد", "داره"]);
 
 function indexOfSeq(hay: string[], needle: string[]): number {
   if (!needle.length) return -1;
@@ -73,6 +80,23 @@ function eatLongest(haystack: string, phrases: string[]): { hit: string | null; 
   return { hit: null, rest: haystack };
 }
 
+export function isAvailDebrisText(raw: string | undefined | null): boolean {
+  const tokens = tokenizeFa(raw ?? "").filter((tok) => !STOP.has(tok));
+  return tokens.length > 0 && tokens.every((tok) => AVAIL_DEBRIS.has(tok));
+}
+
+function eatAvailability(work: string): { hit: boolean; rest: string } {
+  const eaten = eatLongest(work, AVAIL_TERMS);
+  if (eaten.hit) return { hit: true, rest: eaten.rest };
+  if (isAvailDebrisText(work)) {
+    const rest = tokenizeFa(work)
+      .filter((tok) => !AVAIL_DEBRIS.has(tok))
+      .join(" ");
+    return { hit: true, rest: normalizeFa(rest) };
+  }
+  return { hit: false, rest: work };
+}
+
 export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
   const original = (raw ?? "").trim();
   if (!original) {
@@ -96,10 +120,10 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
   let freeToday = false;
   let nearMe = false;
 
-  const avail = eatLongest(work, AVAIL_TERMS);
-  if (avail.hit) {
+  const availFirst = eatAvailability(work);
+  if (availFirst.hit) {
     freeToday = true;
-    work = avail.rest;
+    work = availFirst.rest;
   }
   const open = eatLongest(work, OPEN_TERMS);
   if (open.hit) {
@@ -140,8 +164,14 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
     }
   }
 
+  const availLast = eatAvailability(work);
+  if (availLast.hit) {
+    freeToday = true;
+    work = availLast.rest;
+  }
+
   const remainder = tokenizeFa(work)
-    .filter((tok) => !STOP.has(tok))
+    .filter((tok) => !STOP.has(tok) && !AVAIL_DEBRIS.has(tok))
     .join(" ");
 
   const structured = Boolean(categoryId || city);

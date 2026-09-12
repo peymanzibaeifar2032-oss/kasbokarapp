@@ -1,4 +1,4 @@
-import type { ParsedQuery } from "./parse-query.ts";
+import { isAvailDebrisText, type ParsedQuery } from "./parse-query.ts";
 
 export type GeoOrigin = { lat: number; lng: number };
 
@@ -44,6 +44,7 @@ function placeOrNull(raw: string | null | undefined): string | null {
  * - where/nearMe only after a real origin
  * - when/openNow only for work-hours
  * - when/freeToday only when the parser saw a real availability phrase
+ * - what never shows leftover «وقت خالی دارد» debris
  */
 export function applySearchIntent(input: ApplyIntentInput): AppliedIntent {
   const { parsed, origin, cityFallback } = input;
@@ -65,7 +66,8 @@ export function applySearchIntent(input: ApplyIntentInput): AppliedIntent {
   }
 
   const chips: IntentChip[] = [];
-  const what = (parsed.remainder || parsed.categoryTerm || "").trim();
+  const remainder = isAvailDebrisText(parsed.remainder) ? "" : (parsed.remainder || "").trim();
+  const what = (remainder || parsed.categoryTerm || "").trim();
   if (what) chips.push({ key: "what", value: what });
   else if (parsed.categoryId) chips.push({ key: "what", value: String(parsed.categoryId) });
 

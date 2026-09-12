@@ -225,7 +225,6 @@ function Home() {
     let rows = items;
     if (openNow || intent.openNow) rows = rows.filter((b) => isOpenNow(b.workHours));
     if (hasOffer) rows = rows.filter((b) => Boolean(b.offerText));
-    if (todaySlot || intent.freeToday) rows = rows.filter((b) => b.hasFreeToday === true);
     if (onlyFav) rows = rows.filter((b) => favs.has(b.id));
     if (maxKm > 0) {
       rows = rows.filter((b) => haversineKm(refPos, { lat: b.latitude, lng: b.longitude }) <= maxKm);
@@ -241,7 +240,7 @@ function Home() {
       next.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
     }
     return next;
-  }, [items, openNow, intent.openNow, intent.freeToday, hasOffer, todaySlot, onlyFav, sort, refPos, favs, maxKm]);
+  }, [items, openNow, intent.openNow, hasOffer, onlyFav, sort, refPos, favs, maxKm]);
 
   const selected = filtered.find((b) => b.id === selectedId) ?? null;
 

@@ -37,6 +37,7 @@ describe("NL parser", () => {
     assert.equal(p.freeToday, true);
     assert.equal(p.nearMe, true);
     assert.equal(p.categoryId, 1);
+    assert.equal(p.remainder, "");
     const s = parseSearchQuery("آرایشگاه نوبت امروز");
     assert.equal(s.openNow, false);
     assert.equal(s.freeToday, true);
@@ -44,6 +45,33 @@ describe("NL parser", () => {
     assert.equal(both.openNow, true);
     assert.equal(both.freeToday, true);
     assert.equal(both.categoryId, 8);
+  });
+
+  it("parses the production query تاتو در کرمانشاه که امروز وقت خالی دارد", () => {
+    const p = parseSearchQuery("تاتو در کرمانشاه که امروز وقت خالی دارد");
+    assert.equal(p.categoryId, 1);
+    assert.equal(p.categoryTerm, "تاتو");
+    assert.equal(p.city, "کرمانشاه");
+    assert.equal(p.province, "کرمانشاه");
+    assert.equal(p.openNow, false);
+    assert.equal(p.freeToday, true);
+    assert.equal(p.nearMe, false);
+    assert.equal(p.remainder, "");
+    assert.equal(p.remainder.includes("وقت"), false);
+    assert.equal(p.mode, "parsed");
+  });
+
+  it("also eats وقت آزاد / نوبت دارد and never leaves them as remainder", () => {
+    const a = parseSearchQuery("تاتو در کرمانشاه که امروز وقت آزاد دارد");
+    assert.equal(a.freeToday, true);
+    assert.equal(a.openNow, false);
+    assert.equal(a.categoryTerm, "تاتو");
+    assert.equal(a.city, "کرمانشاه");
+    assert.equal(a.remainder, "");
+    const n = parseSearchQuery("تاتو در کرمانشاه که امروز نوبت دارد");
+    assert.equal(n.freeToday, true);
+    assert.equal(n.categoryTerm, "تاتو");
+    assert.equal(n.remainder, "");
   });
 
   it("normalizes Arabic yeh/kaf and Persian digits", () => {

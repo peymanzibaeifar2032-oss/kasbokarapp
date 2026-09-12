@@ -47,7 +47,25 @@ describe("applySearchIntent", () => {
     assert.equal(slot.openNow, false);
     assert.equal(slot.freeToday, true);
     assert.equal(slot.chips.find((c) => c.key === "when")?.value, "freeToday");
+    assert.equal(slot.chips.find((c) => c.key === "what")?.value, "تاتو");
     assert.equal(slot.needsLocation, true);
+  });
+
+  it("maps the production query to تاتو / کرمانشاه / وقت آزاد امروز", () => {
+    const intent = applySearchIntent({
+      parsed: parseSearchQuery("تاتو در کرمانشاه که امروز وقت خالی دارد"),
+      defaultCity: "تهران",
+      defaultProvince: "تهران",
+    });
+    assert.equal(intent.categoryId, 1);
+    assert.equal(intent.city, "کرمانشاه");
+    assert.equal(intent.openNow, false);
+    assert.equal(intent.freeToday, true);
+    assert.deepEqual(
+      intent.chips.map((c) => `${c.key}:${c.value}`),
+      ["what:تاتو", "where:کرمانشاه", "when:freeToday"],
+    );
+    assert.equal(intent.chips.some((c) => c.value.includes("وقت")), false);
   });
 
   it("does not claim near-me until an origin exists", () => {
