@@ -26,6 +26,8 @@ export type BizRow = {
   rating_avg: number | string | null;
   rating_count: number | string | null;
   approval_status: string;
+  verification_level?: string | null;
+  ranking_fresh_at?: string | null;
   is_active: boolean;
   trial_ends_at: string | null;
   subscription_ends_at: string | null;
@@ -81,6 +83,8 @@ export function mapBusiness(row: BizRow): Business {
     ratingAvg: Number(row.rating_avg) || 0,
     ratingCount: Number(row.rating_count) || 0,
     approvalStatus: row.approval_status as Business["approvalStatus"],
+    verificationLevel: (row.verification_level || "unverified") as Business["verificationLevel"],
+    rankingFreshAt: row.ranking_fresh_at ?? null,
     isActive: Boolean(row.is_active),
     trialEndsAt: row.trial_ends_at,
     subscriptionEndsAt: row.subscription_ends_at,
@@ -169,8 +173,32 @@ export const BIZ_SELECT = `
   c.icon as category_icon, b.description, b.instagram, b.whatsapp, b.website, b.work_hours,
   b.slot_minutes, b.prices, b.offer_text, b.approval_status, b.is_active, b.trial_ends_at,
   b.subscription_ends_at, b.created_at,
+  coalesce(b.verification_level, 'unverified') as verification_level,
+  b.ranking_fresh_at,
   coalesce((select avg(r.rating)::float from reviews r where r.business_id = b.id), 0) as rating_avg,
   coalesce((select count(*)::int from reviews r where r.business_id = b.id), 0) as rating_count
+`;
+
+export const BIZ_SELECT_JOINED = `
+  b.id, b.owner_id, b.name, b.job_title, b.phone, b.province, b.city, b.address,
+  b.latitude, b.longitude, b.category_id, c.name as category_name, c.slug as category_slug,
+  c.icon as category_icon, b.description, b.instagram, b.whatsapp, b.website, b.work_hours,
+  b.slot_minutes, b.prices, b.offer_text, b.approval_status, b.is_active, b.trial_ends_at,
+  b.subscription_ends_at, b.created_at,
+  coalesce(b.verification_level, 'unverified') as verification_level,
+  b.ranking_fresh_at,
+  coalesce(rev.rating_avg, 0) as rating_avg,
+  coalesce(rev.rating_count, 0) as rating_count
+`;
+
+export const REVIEWS_AGG_JOIN = `
+  left join (
+    select business_id,
+           avg(rating)::float as rating_avg,
+           count(*)::int as rating_count
+    from reviews
+    group by business_id
+  ) rev on rev.business_id = b.id
 `;
 
 export const VISIBLE_SQL = `

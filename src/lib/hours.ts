@@ -128,23 +128,4 @@ export function nextAvailable(business: Pick<Business, "workHours" | "slotMinute
   return buildSlots(business, busyIso, 10)[0] ?? null;
 }
 
-export function profileCompleteness(b: {
-  phone?: string | null;
-  address?: string | null;
-  description?: string | null;
-  instagram?: string | null;
-  whatsapp?: string | null;
-  prices?: { title: string; price: number }[];
-  workHours?: WorkHour[];
-}) {
-  const checks = [
-    Boolean(b.phone),
-    Boolean(b.address),
-    Boolean(b.description && b.description.length > 20),
-    Boolean(b.instagram || b.whatsapp),
-    Boolean(b.prices && b.prices.length > 0),
-    Boolean(b.workHours && b.workHours.some((h) => !h.closed)),
-  ];
-  const score = Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  return { score, filled: checks.filter(Boolean).length, total: checks.length };
-}
+export { profileCompleteness } from "./search/completeness.ts";

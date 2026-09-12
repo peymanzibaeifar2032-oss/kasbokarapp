@@ -7,6 +7,7 @@ function row(partial: {
   is_active?: boolean;
   trial_ends_at?: string | null;
   subscription_ends_at?: string | null;
+  verification_level?: string | null;
 }) {
   const future = new Date(Date.now() + 86400000).toISOString();
   const past = new Date(Date.now() - 86400000).toISOString();
@@ -75,4 +76,12 @@ test("paid window beats expired trial", () => {
 test("browser cannot force visibility: pending stays pending", () => {
   assert.equal(visibilityOf(row({ approval_status: "pending" })), "pending");
   assert.equal(visibilityOf(row({ is_active: false })), "pending");
+});
+
+test("verification_level is not a visibility gate", () => {
+  assert.equal(
+    visibilityOf(row({ approval_status: "pending", verification_level: "identity_verified" })),
+    "pending",
+  );
+  assert.equal(visibilityOf(row({ verification_level: "unverified" })), "trial");
 });

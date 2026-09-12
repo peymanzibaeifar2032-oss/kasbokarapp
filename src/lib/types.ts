@@ -44,6 +44,8 @@ export type Business = {
   ratingAvg: number;
   ratingCount: number;
   approvalStatus: "pending" | "approved" | "rejected";
+  verificationLevel: "unverified" | "basic" | "contact_verified" | "ownership_verified" | "identity_verified";
+  rankingFreshAt: string | null;
   isActive: boolean;
   trialEndsAt: string | null;
   subscriptionEndsAt: string | null;

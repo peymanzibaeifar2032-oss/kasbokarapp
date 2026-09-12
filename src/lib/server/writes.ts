@@ -4,6 +4,8 @@ import { getSql } from "@/lib/db";
 import { env } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, isUniqueViolation } from "@/lib/server/admin-bootstrap";
+import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
+import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
   BOOKING_SELECT,
   BIZ_SELECT,
@@ -246,13 +248,17 @@ async function performCreateBusiness(userId: string, raw: unknown) {
   const id = crypto.randomUUID();
   const hours: WorkHour[] = data.workHours?.length ? data.workHours : DEFAULT_HOURS;
   const prices: PriceItem[] = data.prices?.length ? data.prices : [];
+  const level = deriveVerificationLevel(data);
+  const evidence = level === "basic" ? { source: "listing_fields", phase: 2 } : {};
   await sql.query(
     `insert into businesses (
       id, owner_id, name, job_title, phone, province, city, address,
       latitude, longitude, category_id, description, instagram, whatsapp, website,
-      work_hours, slot_minutes, prices, offer_text, approval_status, is_active
+      work_hours, slot_minutes, prices, offer_text, approval_status, is_active,
+      verification_level, verification_evidence, ranking_fresh_at
     ) values (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18::jsonb,$19,'pending', true
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17,$18::jsonb,$19,'pending', true,
+      $20, $21::jsonb, now()
     )`,
     [
       id,
@@ -274,6 +280,8 @@ async function performCreateBusiness(userId: string, raw: unknown) {
       data.slotMinutes ?? 60,
       JSON.stringify(prices),
       data.offerText?.trim() || null,
+      level,
+      JSON.stringify(evidence),
     ],
   );
   return { id };
@@ -284,12 +292,35 @@ async function performUpdateBusiness(userId: string, raw: unknown) {
   const sql = await getSql();
   const hours: WorkHour[] = data.workHours?.length ? data.workHours : DEFAULT_HOURS;
   const prices: PriceItem[] = data.prices?.length ? data.prices : [];
+  const prev = await sql.query<{
+    verification_level: string | null;
+    category_id: number;
+    prices: PriceItem[] | string;
+  }>(`select verification_level, category_id, prices from businesses where id = $1 and owner_id = $2`, [
+    data.id,
+    userId,
+  ]);
+  if (!prev[0]) return { ok: true as const };
+  const prevPrices = typeof prev[0].prices === "string" ? JSON.parse(prev[0].prices) : prev[0].prices;
+  const bump = shouldBumpRankingFresh(
+    { categoryId: Number(prev[0].category_id), priceCount: Array.isArray(prevPrices) ? prevPrices.length : 0 },
+    { categoryId: data.categoryId, priceCount: prices.length },
+  );
+  const derived = deriveVerificationLevel(data);
+  const level = nextVerificationLevel(
+    (prev[0].verification_level as VerificationLevel) || "unverified",
+    derived,
+  );
+  const evidence = level === "basic" ? { source: "listing_fields", phase: 2 } : {};
   await sql.query(
     `update businesses set
       name = $3, job_title = $4, phone = $5, province = $6, city = $7, address = $8,
       latitude = $9, longitude = $10, category_id = $11, description = $12,
       instagram = $13, whatsapp = $14, website = $15, work_hours = $16::jsonb,
-      slot_minutes = $17, prices = $18::jsonb, offer_text = $19, updated_at = now()
+      slot_minutes = $17, prices = $18::jsonb, offer_text = $19, updated_at = now(),
+      verification_level = $20,
+      verification_evidence = case when $20 = verification_level then verification_evidence else $21::jsonb end,
+      ranking_fresh_at = case when $22 then now() else coalesce(ranking_fresh_at, created_at) end
      where id = $1 and owner_id = $2`,
     [
       data.id,
@@ -311,6 +342,9 @@ async function performUpdateBusiness(userId: string, raw: unknown) {
       data.slotMinutes ?? 60,
       JSON.stringify(prices),
       data.offerText?.trim() || null,
+      level,
+      JSON.stringify(evidence),
+      bump,
     ],
   );
   return { ok: true as const };
