@@ -8,7 +8,8 @@ import { toWebsiteHref } from "@/lib/format";
 import { hasFreeToday, isOpenNow, nextAvailable } from "@/lib/hours";
 import { logSearch } from "@/lib/search/log-search";
 import { foldFaKeepJoiner } from "@/lib/search/normalize";
-import { parseSearchQuery, hasWhenResidue, isIntentDebrisText, matchSimpleCategoryQuery } from "@/lib/search/parse-query";
+import { parseSearchQuery, hasWhenResidue, isIntentDebrisText } from "@/lib/search/parse-query";
+import { filterRelevant, isSearchQuery } from "@/lib/search/simple-search";
 import { sortByRelevance } from "@/lib/search/ranking";
 import { performCreateBooking } from "@/lib/server/writes";
 import {
@@ -57,7 +58,7 @@ export const listCategories = createServerFn({ method: "GET" }).handler(async ()
   return rows.map(mapCategory);
 });
 
-export const listBusinesses = createServerFn({ method: "GET" })
+export const listBusinesses = createServerFn({ method: "POST" })
   .validator(
     z.object({
       q: z.string().optional(),
@@ -66,16 +67,18 @@ export const listBusinesses = createServerFn({ method: "GET" })
       city: z.string().optional(),
       originLat: z.number().optional(),
       originLng: z.number().optional(),
-      openNow: z.boolean().optional(),
-      freeToday: z.boolean().optional(),
+      openNow: z.coerce.boolean().optional(),
+      freeToday: z.coerce.boolean().optional(),
       sort: z.enum(["relevance", "distance", "new"]).optional(),
       /** Home simple search: do not apply sentence intent (چی/کجا/کی). */
-      simple: z.boolean().optional(),
+      simple: z.coerce.boolean().optional(),
+      locationMode: z.enum(["city", "me"]).optional(),
     }),
   )
   .handler(async ({ data }) => {
     const sql = await getSql();
     const simple = data.simple === true;
+    const aroundMe = simple && data.locationMode === "me";
     const parsed = simple ? parseSearchQuery("") : parseSearchQuery(data.q);
     const origin =
       Number.isFinite(data.originLat) && Number.isFinite(data.originLng)
@@ -83,20 +86,24 @@ export const listBusinesses = createServerFn({ method: "GET" })
         : null;
     const nearMeActive = !simple && parsed.nearMe && Boolean(origin);
     const categoryId = simple ? data.categoryId : (data.categoryId ?? parsed.categoryId);
-    const province = simple
-      ? (data.province && data.province.length > 0 ? data.province : null)
-      : nearMeActive && !parsed.city
-        ? null
-        : (data.province && data.province.length > 0 ? data.province : parsed.province) ?? null;
-    const city = simple
-      ? (data.city && data.city.length > 0 ? data.city : null)
-      : nearMeActive && !parsed.city
-        ? null
-        : (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
+    const province = aroundMe
+      ? null
+      : simple
+        ? (data.province && data.province.length > 0 ? data.province : null)
+        : nearMeActive && !parsed.city
+          ? null
+          : (data.province && data.province.length > 0 ? data.province : parsed.province) ?? null;
+    const city = aroundMe
+      ? null
+      : simple
+        ? (data.city && data.city.length > 0 ? data.city : null)
+        : nearMeActive && !parsed.city
+          ? null
+          : (data.city && data.city.length > 0 ? data.city : parsed.city) ?? null;
     const wantOpen = Boolean(data.openNow || (!simple && parsed.openNow));
     const foldedQ = foldFaKeepJoiner(data.q ?? "").replace(/[%_]/g, "").trim();
     const remainderRaw = simple
-      ? foldedQ
+      ? ""
       : parsed.mode === "fallback"
         ? foldFaKeepJoiner(parsed.original)
         : parsed.remainder;
@@ -106,8 +113,8 @@ export const listBusinesses = createServerFn({ method: "GET" })
         ? remainderClean
         : "";
     const wantFree = Boolean(data.freeToday || (!simple && parsed.freeToday));
-    const like = remainder ? `%${remainder}%` : null;
-    const aliasId = simple ? (matchSimpleCategoryQuery(data.q)?.id ?? null) : null;
+    const like = simple ? null : remainder ? `%${remainder}%` : null;
+    const searching = simple && isSearchQuery(data.q);
 
     const rows = await sql.query<BizRow>(
       `select ${BIZ_SELECT_JOINED}
@@ -121,10 +128,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
            $3::text is null
            or b.name ilike $3
            or b.job_title ilike $3
-           or b.city ilike $3
            or c.name ilike $3
-           or b.address ilike $3
-           or ($5::int is not null and b.category_id = $5::int)
          )
          and ($4::text is null or $4 = '' or b.city = $4)
        order by b.id asc`,
@@ -133,7 +137,6 @@ export const listBusinesses = createServerFn({ method: "GET" })
         province,
         like,
         city,
-        aliasId != null ? String(aliasId) : null,
       ],
     );
 
@@ -171,6 +174,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
       };
     });
     if (wantFree) items = items.filter((b) => b.hasFreeToday);
+    if (searching) items = filterRelevant(items, data.q ?? "");
 
     const sort = data.sort ?? "relevance";
     if (sort === "new") {
@@ -181,7 +185,7 @@ export const listBusinesses = createServerFn({ method: "GET" })
         const db = (b.latitude - origin.lat) ** 2 + (b.longitude - origin.lng) ** 2;
         return da - db || a.id.localeCompare(b.id);
       });
-    } else {
+    } else if (!searching) {
       items = sortByRelevance(items, { origin });
     }
 
@@ -193,8 +197,8 @@ export const listBusinesses = createServerFn({ method: "GET" })
       city: Boolean(city),
       openNow: wantOpen,
       freeToday: wantFree,
-      nearMe: simple ? Boolean(origin && sort === "distance") : parsed.nearMe && Boolean(origin),
-      remainder: Boolean(remainder),
+      nearMe: simple ? aroundMe && Boolean(origin) : parsed.nearMe && Boolean(origin),
+      remainder: Boolean(simple ? foldedQ : remainder),
     });
 
     return items;

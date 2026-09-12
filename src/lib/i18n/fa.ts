@@ -51,6 +51,8 @@ export const faIR = {
   searchPlaceholder: "دنبال چه کسب‌وکاری می‌گردی؟",
   searchExamples: "مثلاً تاتو، آرایشگاه، مکانیک، وکیل، کافه",
   placeLabel: "شهر",
+  aroundMe: "اطراف من",
+  searchArea: "محدوده جست‌وجو",
   filterNearest: "نزدیک‌ترین",
   filterNewest: "تازه‌ترین",
   intentWhat: "چی",

@@ -31,6 +31,7 @@ import { KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
 import { haversineKm } from "@/lib/format";
 import { isOpenNow } from "@/lib/hours";
 import { t } from "@/lib/i18n";
+import { friendlyError } from "@/lib/save";
 import { listBusinesses, listCategories } from "@/lib/server/api";
 import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -93,9 +94,10 @@ function Home() {
   const [addMode, setAddMode] = useState(false);
   const [picked, setPicked] = useState<{ lat: number; lng: number } | null>(null);
   const [viewKey, setViewKey] = useState(0);
+  const [locationMode, setLocationMode] = useState<"city" | "me">("city");
   const skipFirstFetch = useRef(true);
+  const aroundMeIntent = useRef(false);
   const userPlace = useRef({ province: "کرمانشاه", city: "کرمانشاه" });
-  const cities = useMemo(() => PROVINCES.find((p) => p.name === province)?.cities ?? [], [province]);
 
   useEffect(() => {
     try {
@@ -141,8 +143,9 @@ function Home() {
         simple: true,
         q: debouncedQ,
         categoryId,
-        province,
-        city: city || undefined,
+        province: locationMode === "me" ? undefined : province,
+        city: locationMode === "me" ? undefined : city || undefined,
+        locationMode,
         originLat: userPos?.lat,
         originLng: userPos?.lng,
         openNow,
@@ -151,7 +154,12 @@ function Home() {
       },
     })
       .then((rows) => {
-        if (!cancelled) setItems(rows);
+        if (!cancelled) setItems(Array.isArray(rows) ? rows : []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        toast.error(friendlyError(err));
+        if (debouncedQ.trim()) setItems([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -159,7 +167,7 @@ function Home() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, categoryId, province, city, userPos, openNow, todaySlot, sort]);
+  }, [debouncedQ, categoryId, province, city, locationMode, userPos, openNow, todaySlot, sort]);
 
   useEffect(() => {
     const p = PROVINCES.find((x) => x.name === province);
@@ -200,6 +208,7 @@ function Home() {
 
     if (typeof window !== "undefined" && window.self !== window.top) {
       setGeoBusy(false);
+      aroundMeIntent.current = false;
       const msg = "در این نمایش توکار، موقعیت گوشی در دسترس نیست. پین را روی نقشه بگذارید.";
       setGeoMsg(msg);
       toast.error(msg);
@@ -208,6 +217,7 @@ function Home() {
 
     if (typeof window !== "undefined" && !window.isSecureContext) {
       setGeoBusy(false);
+      aroundMeIntent.current = false;
       const msg =
         "موقعیت دقیق گوشی فقط بعد از اتصال دامنه و HTTPS کار می‌کند. فعلاً شهر را انتخاب کنید یا پین را روی نقشه جابه‌جا کنید.";
       setGeoMsg(msg);
@@ -217,6 +227,7 @@ function Home() {
 
     if (!navigator.geolocation) {
       setGeoBusy(false);
+      aroundMeIntent.current = false;
       const msg = "این مرورگر موقعیت مکانی ندارد.";
       setGeoMsg(msg);
       toast.error(msg);
@@ -232,6 +243,8 @@ function Home() {
         setZoom(15);
         setViewKey((k) => k + 1);
         setSort("distance");
+        if (aroundMeIntent.current) setLocationMode("me");
+        aroundMeIntent.current = false;
         setGeoMsg(null);
         setGeoBusy(false);
         toast.success("موقعیت شما روی نقشه آمد.");
@@ -243,6 +256,7 @@ function Home() {
         if (err?.code === 2) msg = "GPS در دسترس نیست. شهر را از فهرست انتخاب کنید.";
         if (err?.code === 3) msg = "زمان موقعیت تمام شد. دوباره بزنید.";
         setGeoMsg(msg);
+        aroundMeIntent.current = false;
         toast.error(msg);
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 },
@@ -275,7 +289,7 @@ function Home() {
       <section>
         <p className="inline-flex items-center gap-1.5 text-sm text-accent">
           <MapPin className="size-4" />
-          کسب‌وکارهای اطراف شما
+          {locationMode === "me" && userPos ? t("aroundMe") : `${t("searchArea")}: ${city || province}`}
         </p>
         <h1 className="mt-2 max-w-xl text-3xl font-semibold leading-tight md:text-4xl">
           هر چیزی که نیاز دارید، همین نزدیکی است.
@@ -300,12 +314,23 @@ function Home() {
         <p className="mt-2 text-xs text-muted">{t("searchExamples")}</p>
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
           <FilterChip
+            active={locationMode === "me" && Boolean(userPos)}
+            onClick={() => {
+              aroundMeIntent.current = true;
+              locate();
+            }}
+            label={geoBusy && aroundMeIntent.current ? "در حال یافتن…" : t("aroundMe")}
+          />
+          <FilterChip
             active={sort === "distance" && Boolean(userPos)}
             onClick={() => {
               if (userPos && sort === "distance") setSort("relevance");
-              else locate();
+              else {
+                aroundMeIntent.current = false;
+                locate();
+              }
             }}
-            label={geoBusy ? "در حال یافتن…" : t("filterNearest")}
+            label={geoBusy && !aroundMeIntent.current ? "در حال یافتن…" : t("filterNearest")}
           />
           <FilterChip active={openNow} onClick={() => setOpenNow((v) => !v)} label="باز است" />
           <FilterChip active={todaySlot} onClick={() => setTodaySlot((v) => !v)} label={t("availableToday")} />
@@ -317,44 +342,29 @@ function Home() {
         </div>
         <div className="mt-3">
           <p className="mb-1.5 text-xs text-muted">{t("placeLabel")}</p>
-          <div className="grid grid-cols-2 gap-2">
-            <NativeSelect
-              value={province}
-              onChange={(e) => {
-                const next = e.target.value;
-                const loc = PROVINCES.find((p) => p.name === next);
-                const nextCity = loc?.cities[0] ?? "";
-                userPlace.current = { province: next, city: nextCity };
-                setProvince(next);
-                setCity(nextCity);
-                setBannerOn(true);
-              }}
-              aria-label="استان"
-            >
-              {PROVINCES.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </NativeSelect>
-            <NativeSelect
-              value={city}
-              onChange={(e) => {
-                const next = e.target.value;
-                userPlace.current = { ...userPlace.current, city: next };
-                setCity(next);
-                setBannerOn(true);
-              }}
-              aria-label="شهر"
-            >
-              <option value="">همه شهرها</option>
-              {cities.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
+          <NativeSelect
+            value={`${province}|||${city}`}
+            onChange={(e) => {
+              const [nextProvince, nextCity] = e.target.value.split("|||");
+              if (!nextProvince) return;
+              userPlace.current = { province: nextProvince, city: nextCity ?? "" };
+              setProvince(nextProvince);
+              setCity(nextCity ?? "");
+              setLocationMode("city");
+              setBannerOn(true);
+            }}
+            aria-label={t("placeLabel")}
+          >
+            {PROVINCES.map((p) => (
+              <optgroup key={p.name} label={p.name}>
+                {p.cities.map((c) => (
+                  <option key={`${p.name}-${c}`} value={`${p.name}|||${c}`}>
+                    {c}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </NativeSelect>
         </div>
       </section>
 
@@ -376,7 +386,7 @@ function Home() {
 
       {bannerOn && province ? (
         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-accent">
-          <p>نقشه روی {city ? `شهر ${city}` : `استان ${province}`} تنظیم شد.</p>
+          <p>{t("searchArea")}: {locationMode === "me" && userPos ? t("aroundMe") : city || province}</p>
           <button type="button" onClick={() => setBannerOn(false)} aria-label="بستن">
             ×
           </button>
@@ -395,7 +405,9 @@ function Home() {
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <strong>{loading ? "در حال دریافت…" : `${toFa(filtered.length)} کسب‌وکار`}</strong>
-          <p className="text-sm text-muted">{city ? `در ${city}` : province}</p>
+          <p className="text-sm text-muted">
+            {locationMode === "me" && userPos ? t("aroundMe") : city ? `در ${city}` : province}
+          </p>
         </div>
         <Button type="button" variant={addMode ? "default" : "outline"} onClick={startAddMode}>
           <Plus className="size-4" />
