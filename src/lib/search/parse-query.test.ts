@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { foldFaKeepJoiner } from "./normalize.ts";
+import { foldFaKeepJoiner, normalizeFa } from "./normalize.ts";
 import { parseSearchQuery } from "./parse-query.ts";
 
 describe("NL parser", () => {
@@ -72,6 +72,46 @@ describe("NL parser", () => {
     assert.equal(n.freeToday, true);
     assert.equal(n.categoryTerm, "تاتو");
     assert.equal(n.remainder, "");
+  });
+
+  it("does not invent today from a dateless وقت خالی دارد", () => {
+    const p = parseSearchQuery("مکانیک در کرمانشاه وقت خالی دارد");
+    assert.equal(p.categoryId, 4);
+    assert.equal(p.categoryTerm, "مکانیک");
+    assert.equal(p.city, "کرمانشاه");
+    assert.equal(p.freeToday, false);
+    assert.equal(p.openNow, false);
+    assert.equal(p.remainder, "");
+  });
+
+  it("decomposes long natural Persian sentences without leaking WHEN into WHAT", () => {
+    const rows: [string, { cat?: number; term?: string; city?: string; open?: boolean; free?: boolean; near?: boolean }][] = [
+      ["تاتو در کرمانشاه که امروز وقت خالی دارد", { cat: 1, term: "تاتو", city: "کرمانشاه", open: false, free: true }],
+      ["مکانیک در کرمانشاه که امروز وقت خالی دارد", { cat: 4, term: "مکانیک", city: "کرمانشاه", open: false, free: true }],
+      ["آرایشگاه زنانه کرمانشاه که الان باز است", { cat: 1, term: "آرایشگاه زنانه", city: "کرمانشاه", open: true, free: false }],
+      ["کافه نزدیک من", { cat: 8, term: "کافه", near: true, open: false, free: false }],
+      ["وکیل در کرمانشاه", { cat: 12, term: "وکیل", city: "کرمانشاه", open: false, free: false }],
+    ];
+    for (const [q, exp] of rows) {
+      const p = parseSearchQuery(q);
+      assert.equal(p.categoryId, exp.cat, q);
+      assert.equal(p.categoryTerm, exp.term, q);
+      if (exp.city) assert.equal(p.city, exp.city, q);
+      assert.equal(p.openNow, exp.open ?? false, q);
+      assert.equal(p.freeToday, exp.free ?? false, q);
+      assert.equal(p.nearMe, exp.near ?? false, q);
+      assert.equal(p.remainder.includes("وقت"), false, q);
+      assert.equal(p.remainder.includes("خالی"), false, q);
+      assert.equal(p.remainder.includes("باز"), false, q);
+    }
+  });
+
+  it("folds Android alef-maksura خالى onto خالی", () => {
+    assert.equal(normalizeFa("وقت خالى دارد"), "وقت خالی دارد");
+    const p = parseSearchQuery("تاتو در کرمانشاه که امروز وقت خالى دارد");
+    assert.equal(p.freeToday, true);
+    assert.equal(p.categoryTerm, "تاتو");
+    assert.equal(p.remainder, "");
   });
 
   it("normalizes Arabic yeh/kaf and Persian digits", () => {

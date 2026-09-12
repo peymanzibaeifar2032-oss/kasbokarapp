@@ -68,6 +68,63 @@ describe("applySearchIntent", () => {
     assert.equal(intent.chips.some((c) => c.value.includes("وقت")), false);
   });
 
+  it("decomposes the production examples into independent چی/کجا/کی chips", () => {
+    const kermanshah = { defaultCity: "کرمانشاه", defaultProvince: "کرمانشاه" };
+    const tattoo = applySearchIntent({
+      parsed: parseSearchQuery("تاتو در کرمانشاه که امروز وقت خالی دارد"),
+      ...kermanshah,
+    });
+    assert.deepEqual(
+      tattoo.chips.map((c) => `${c.key}:${c.value}`),
+      ["what:تاتو", "where:کرمانشاه", "when:freeToday"],
+    );
+
+    const mechanic = applySearchIntent({
+      parsed: parseSearchQuery("مکانیک در کرمانشاه که امروز وقت خالی دارد"),
+      ...kermanshah,
+    });
+    assert.equal(mechanic.chips.find((c) => c.key === "what")?.value, "مکانیک");
+    assert.equal(mechanic.chips.find((c) => c.key === "where")?.value, "کرمانشاه");
+    assert.equal(mechanic.chips.find((c) => c.key === "when")?.value, "freeToday");
+    assert.equal(mechanic.freeToday, true);
+    assert.equal(mechanic.openNow, false);
+
+    const dateless = applySearchIntent({
+      parsed: parseSearchQuery("مکانیک در کرمانشاه وقت خالی دارد"),
+      ...kermanshah,
+    });
+    assert.equal(dateless.chips.find((c) => c.key === "what")?.value, "مکانیک");
+    assert.equal(dateless.freeToday, false);
+    assert.equal(dateless.chips.some((c) => c.key === "when"), false);
+    assert.equal(dateless.chips.some((c) => String(c.value).includes("وقت")), false);
+
+    const salon = applySearchIntent({
+      parsed: parseSearchQuery("آرایشگاه زنانه کرمانشاه که الان باز است"),
+      ...kermanshah,
+    });
+    assert.equal(salon.chips.find((c) => c.key === "what")?.value, "آرایشگاه زنانه");
+    assert.equal(salon.chips.find((c) => c.key === "where")?.value, "کرمانشاه");
+    assert.equal(salon.chips.find((c) => c.key === "when")?.value, "openNow");
+    assert.equal(salon.freeToday, false);
+
+    const cafe = applySearchIntent({
+      parsed: parseSearchQuery("کافه نزدیک من"),
+      ...kermanshah,
+    });
+    assert.equal(cafe.chips.find((c) => c.key === "what")?.value, "کافه");
+    assert.equal(cafe.needsLocation, true);
+    assert.equal(cafe.chips.some((c) => c.key === "when"), false);
+
+    const lawyer = applySearchIntent({
+      parsed: parseSearchQuery("وکیل در کرمانشاه"),
+      ...kermanshah,
+    });
+    assert.deepEqual(
+      lawyer.chips.map((c) => `${c.key}:${c.value}`),
+      ["what:وکیل", "where:کرمانشاه"],
+    );
+  });
+
   it("does not claim near-me until an origin exists", () => {
     const waiting = applySearchIntent({
       parsed: parseSearchQuery("کافه نزدیک من"),

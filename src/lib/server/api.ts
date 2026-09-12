@@ -8,7 +8,7 @@ import { toWebsiteHref } from "@/lib/format";
 import { hasFreeToday, isOpenNow, nextAvailable } from "@/lib/hours";
 import { logSearch } from "@/lib/search/log-search";
 import { foldFaKeepJoiner } from "@/lib/search/normalize";
-import { parseSearchQuery, isAvailDebrisText } from "@/lib/search/parse-query";
+import { parseSearchQuery, isIntentDebrisText } from "@/lib/search/parse-query";
 import { sortByRelevance } from "@/lib/search/ranking";
 import { performCreateBooking } from "@/lib/server/writes";
 import {
@@ -92,9 +92,8 @@ export const listBusinesses = createServerFn({ method: "GET" })
     const remainderRaw =
       parsed.mode === "fallback" ? foldFaKeepJoiner(parsed.original) : parsed.remainder;
     const remainderClean = remainderRaw.replace(/[%_]/g, "").trim();
-    const remainderIsAvail = isAvailDebrisText(remainderClean);
-    const wantFree = Boolean(data.freeToday || parsed.freeToday || remainderIsAvail);
-    const remainder = remainderIsAvail ? "" : remainderClean;
+    const remainder = isIntentDebrisText(remainderClean) ? "" : remainderClean;
+    const wantFree = Boolean(data.freeToday || parsed.freeToday);
     const like = remainder ? `%${remainder}%` : null;
 
     const rows = await sql.query<BizRow>(

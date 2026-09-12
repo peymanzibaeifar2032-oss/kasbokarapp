@@ -34,26 +34,63 @@ const CATEGORY_ALIASES: { id: number; terms: string[] }[] = [
 ];
 
 const OPEN_TERMS = ["الان بازه", "الان باز", "امروز باز", "باز است", "باز باشه", "باز باشه؟", "باز"];
-const AVAIL_TERMS = [
+/** Requires an explicit today cue. Must be eaten before generic availability. */
+const AVAIL_TODAY_TERMS = [
   "امروز وقت خالی دارد",
   "امروز وقت خالی داره",
   "امروز وقت آزاد دارد",
   "امروز وقت آزاد داره",
   "امروز نوبت دارد",
   "امروز نوبت داره",
+  "امروز وقت خالی",
+  "امروز وقت آزاد",
+  "نوبت امروز",
+  "امروز نوبت",
+];
+/** Strip from WHAT; do not invent a today/date filter. */
+const AVAIL_GENERIC_TERMS = [
   "وقت خالی دارد",
   "وقت خالی داره",
   "وقت آزاد دارد",
   "وقت آزاد داره",
   "وقت خالی",
   "وقت آزاد",
-  "نوبت امروز",
-  "امروز نوبت",
 ];
 const NEAR_TERMS = ["نزدیک من", "نزدیکم", "اطراف من", "نزدیک"];
-const STOP = new Set(["در", "که", "با", "از", "برای", "را", "به", "یک", "این", "اون", "من", "امروز", "الان", "است", "و"]);
-/** Leftover tokens from availability phrases — never a business-name remainder. */
-const AVAIL_DEBRIS = new Set(["وقت", "خالی", "آزاد", "نوبت", "دارد", "داره"]);
+const STOP = new Set([
+  "در",
+  "که",
+  "با",
+  "از",
+  "برای",
+  "را",
+  "به",
+  "یک",
+  "این",
+  "اون",
+  "من",
+  "امروز",
+  "الان",
+  "است",
+  "و",
+  "هم",
+]);
+const INTENT_DEBRIS = new Set([
+  "وقت",
+  "خالی",
+  "آزاد",
+  "نوبت",
+  "دارد",
+  "داره",
+  "باز",
+  "بازه",
+  "باشه",
+  "نزدیک",
+  "نزدیکم",
+  "اطراف",
+  "الان",
+  "امروز",
+]);
 
 function indexOfSeq(hay: string[], needle: string[]): number {
   if (!needle.length) return -1;
@@ -80,18 +117,29 @@ function eatLongest(haystack: string, phrases: string[]): { hit: string | null; 
   return { hit: null, rest: haystack };
 }
 
-export function isAvailDebrisText(raw: string | undefined | null): boolean {
-  const tokens = tokenizeFa(raw ?? "").filter((tok) => !STOP.has(tok));
-  return tokens.length > 0 && tokens.every((tok) => AVAIL_DEBRIS.has(tok));
+function contentTokens(raw: string): string[] {
+  return tokenizeFa(raw).filter((tok) => !STOP.has(tok) && !INTENT_DEBRIS.has(tok));
 }
 
-function eatAvailability(work: string): { hit: boolean; rest: string } {
-  const eaten = eatLongest(work, AVAIL_TERMS);
+/** Leftover function words from چی/کجا/کی — never a business-name remainder. */
+export function isIntentDebrisText(raw: string | undefined | null): boolean {
+  const tokens = tokenizeFa(raw ?? "").filter((tok) => !STOP.has(tok));
+  return tokens.length > 0 && tokens.every((tok) => INTENT_DEBRIS.has(tok));
+}
+
+/** @deprecated use isIntentDebrisText */
+export function isAvailDebrisText(raw: string | undefined | null): boolean {
+  return isIntentDebrisText(raw);
+}
+
+function eatTodayAvailability(work: string): { hit: boolean; rest: string } {
+  const eaten = eatLongest(work, AVAIL_TODAY_TERMS);
   if (eaten.hit) return { hit: true, rest: eaten.rest };
-  if (isAvailDebrisText(work)) {
-    const rest = tokenizeFa(work)
-      .filter((tok) => !AVAIL_DEBRIS.has(tok))
-      .join(" ");
+  const tokens = tokenizeFa(work);
+  const hasToday = tokens.includes("امروز");
+  const hasAvail = tokens.some((tok) => ["وقت", "خالی", "آزاد", "نوبت"].includes(tok));
+  if (hasToday && hasAvail) {
+    const rest = tokens.filter((tok) => tok !== "امروز" && !INTENT_DEBRIS.has(tok)).join(" ");
     return { hit: true, rest: normalizeFa(rest) };
   }
   return { hit: false, rest: work };
@@ -120,11 +168,14 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
   let freeToday = false;
   let nearMe = false;
 
-  const availFirst = eatAvailability(work);
-  if (availFirst.hit) {
+  const todayFirst = eatTodayAvailability(work);
+  if (todayFirst.hit) {
     freeToday = true;
-    work = availFirst.rest;
+    work = todayFirst.rest;
   }
+  const genericAvail = eatLongest(work, AVAIL_GENERIC_TERMS);
+  if (genericAvail.hit) work = genericAvail.rest;
+
   const open = eatLongest(work, OPEN_TERMS);
   if (open.hit) {
     openNow = true;
@@ -164,15 +215,25 @@ export function parseSearchQuery(raw: string | undefined | null): ParsedQuery {
     }
   }
 
-  const availLast = eatAvailability(work);
-  if (availLast.hit) {
+  const todayLast = eatTodayAvailability(work);
+  if (todayLast.hit) {
     freeToday = true;
-    work = availLast.rest;
+    work = todayLast.rest;
+  }
+  const genericLast = eatLongest(work, AVAIL_GENERIC_TERMS);
+  if (genericLast.hit) work = genericLast.rest;
+  const openLast = eatLongest(work, OPEN_TERMS);
+  if (openLast.hit) {
+    openNow = true;
+    work = openLast.rest;
+  }
+  const nearLast = eatLongest(work, NEAR_TERMS);
+  if (nearLast.hit) {
+    nearMe = true;
+    work = nearLast.rest;
   }
 
-  const remainder = tokenizeFa(work)
-    .filter((tok) => !STOP.has(tok) && !AVAIL_DEBRIS.has(tok))
-    .join(" ");
+  const remainder = contentTokens(work).join(" ");
 
   const structured = Boolean(categoryId || city);
   const extras = openNow || nearMe || freeToday;
