@@ -48,6 +48,9 @@ function Account() {
   return (
     <Shell>
       <h1 className="text-2xl font-semibold">حساب من</h1>
+      <p className="mt-1 text-sm">
+        وارد شده‌اید: <strong>{user.displayName || user.primaryEmail || "حساب شما"}</strong>
+      </p>
       <p className="mt-1 text-sm text-muted">رزروها و مکان‌های ذخیره‌شده.</p>
       <div className="mt-5 flex gap-2">
         <button

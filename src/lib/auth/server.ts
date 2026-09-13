@@ -197,10 +197,19 @@ const database = databaseUrl
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
 /** Session token cookie name — also read by the live-preview popup completion page. */
+function productionCookieDomain(): string | undefined {
+  const raw = env("SITE_HOST") || env("BETTER_AUTH_URL") || env("SITE_URL") || "";
+  try {
+    const host = (raw.includes("://") ? new URL(raw).hostname : raw).replace(/^www\./, "").toLowerCase();
+    if (host === "kasbokarapp.com") return ".kasbokarapp.com";
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
 export const SESSION_TOKEN_COOKIE = isStandalone()
-  ? ((env("SITE_URL") || env("BETTER_AUTH_URL") || "").startsWith("https:")
-      ? "__Host-kasbokar.session_token"
-      : "kasbokar.session_token")
+  ? "kasbokar.session_token"
   : "__Host-grok-auth.session_token";
 
 // Built separately so the `betterAuth({...})` call stays easy to edit without
@@ -290,8 +299,9 @@ export const auth = betterAuth({
     : {}),
 
   // Preview uses `__Host-grok-auth.*` (Secure, no Domain) so sibling grok apps
-  // cannot toss a Domain cookie. Standalone VPS on HTTP cannot set `__Host-`
-  // or Secure cookies; HTTPS standalone uses `__Host-kasbokar.*`.
+  // cannot toss a Domain cookie. Standalone Production uses `kasbokar.*` with
+  // Domain=.kasbokarapp.com so www and apex share one session. `__Host-` is
+  // host-only and was logging users out when they opened www.
   advanced: isStandalone()
     ? {
         useSecureCookies: false,
@@ -299,6 +309,7 @@ export const auth = betterAuth({
           secure: (env("SITE_URL") || env("BETTER_AUTH_URL") || "").startsWith("https:"),
           sameSite: "lax" as const,
           path: "/",
+          ...(productionCookieDomain() ? { domain: productionCookieDomain() } : {}),
         },
         cookies: {
           session_token: { name: SESSION_TOKEN_COOKIE },

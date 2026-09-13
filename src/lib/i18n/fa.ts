@@ -8,7 +8,7 @@ export const faIR = {
   navBookings: "رزروها",
   navPanel: "پنل من",
   navRegister: "ثبت کسب‌وکار",
-  navSignIn: "ورود",
+  navSignIn: "ورود / ثبت‌نام",
   navMap: "نقشه",
   navCategories: "دسته‌ها",
   navCreate: "ثبت",

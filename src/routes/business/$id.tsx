@@ -423,7 +423,7 @@ function BookingPanel({
   nextPath: string;
   onBooked: (slot: BusyInterval) => void;
 }) {
-  const { user, isPending } = useCurrentUserState();
+  const { user } = useCurrentUserState();
   const ready = useClientReady();
   const navigate = useNavigate();
   const [dayKey, setDayKey] = useState("");
@@ -540,10 +540,14 @@ function BookingPanel({
       if (draft.service) setService(draft.service);
       if (draft.party) setParty(draft.party);
       if (draft.slotStart) {
-        const g = groups.find((x) => x.items.some((s) => s.iso === draft.slotStart));
-        if (g) {
-          setDayKey(g.key);
+        const match = groups.flatMap((x) => x.items).find((s) => s.iso === draft.slotStart);
+        if (match?.state === "free") {
+          setDayKey(match.dayKey);
           setSlot(draft.slotStart);
+        } else if (match) {
+          toast.error("این زمان همین الان توسط شخص دیگری رزرو شد. زمان‌های آزاد به‌روزرسانی شدند.");
+          setDayKey(match.dayKey);
+          setSlot("");
         }
       }
     } catch {
@@ -572,14 +576,6 @@ function BookingPanel({
   }
 
   async function submit() {
-    if (!name.trim() || name.trim().length < 2) {
-      toast.error("نام و نام خانوادگی را بنویسید.");
-      return;
-    }
-    if (!phone.trim()) {
-      toast.error("شماره تماس را بنویسید.");
-      return;
-    }
     if (!activeSlot) {
       toast.error("روز و ساعت آزاد را انتخاب کنید.");
       return;
@@ -593,14 +589,22 @@ function BookingPanel({
       serviceTitle: service || undefined,
       partySize: party,
     };
+    try {
+      sessionStorage.setItem("kasb:booking-draft", JSON.stringify({ ...payload, service, party }));
+    } catch {
+      /* ignore */
+    }
     if (!user) {
-      try {
-        sessionStorage.setItem("kasb:booking-draft", JSON.stringify({ ...payload, service, party }));
-      } catch {
-        /* ignore */
-      }
-      toast.message("برای ثبت نوبت با ایمیل وارد شوید. فرم ذخیره شد.");
+      toast.message("برای ثبت نهایی رزرو وارد حساب شوید. انتخاب شما ذخیره شد.");
       void navigate({ to: "/login", search: { next: nextPath } });
+      return;
+    }
+    if (!name.trim() || name.trim().length < 2) {
+      toast.error("نام و نام خانوادگی را بنویسید.");
+      return;
+    }
+    if (!phone.trim()) {
+      toast.error("شماره تماس را بنویسید.");
       return;
     }
     setBusySubmit(true);
@@ -622,7 +626,7 @@ function BookingPanel({
     }
   }
 
-  const canContinue = name.trim().length >= 2 && phone.trim().length >= 8 && Boolean(activeSlot);
+  const canContinue = Boolean(service && activeSlot);
   const weekdayHint = groups.find((g) => g.key === activeDay)?.label ?? "";
 
   return (
@@ -780,12 +784,18 @@ function BookingPanel({
             ))}
           </NativeSelect>
         </label>
-        <Button className="w-full" disabled={busySubmit || !ready || isPending || !canContinue} onClick={() => void submit()}>
+        <Button className="w-full" disabled={busySubmit || !ready || !canContinue} onClick={() => void submit()}>
           <CalendarPlus className="size-4" />
-          {busySubmit ? "در حال ثبت…" : !canContinue ? "تاریخ و ساعت را انتخاب کنید" : ready && user ? "ثبت درخواست رزرو" : "ادامه برای ثبت رزرو"}
+          {busySubmit
+            ? "در حال ثبت…"
+            : !canContinue
+              ? "تاریخ و ساعت را انتخاب کنید"
+              : user
+                ? "ثبت درخواست رزرو"
+                : "ادامه برای ثبت رزرو"}
         </Button>
         {!user ? (
-          <p className="text-center text-xs text-muted">فرم را پر کنید؛ برای ثبت نهایی با ایمیل وارد می‌شوید. گوگل لازم نیست.</p>
+          <p className="text-center text-xs text-muted">برای ثبت نهایی رزرو وارد حساب شوید. گوگل لازم نیست.</p>
         ) : null}
       </div>
     </div>

@@ -115,7 +115,7 @@ export function UserButton() {
           {label.charAt(0)}
         </span>
       )}
-      <span className="text-sm font-medium">{label}</span>
+      <span className="max-w-[42vw] truncate text-sm font-medium sm:max-w-48">{label}</span>
       {authEnabled && !gateSession && (
         <button
           type="button"

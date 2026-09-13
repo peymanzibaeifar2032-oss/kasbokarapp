@@ -67,7 +67,17 @@ export default async function grokPwaMiddleware(
   const method = (event.req.method ?? "GET").toUpperCase();
   if (method !== "GET") return next();
 
+  const host = requestHost(event).split(":")[0].toLowerCase();
   const path = event.url.pathname;
+  if (host === "www.kasbokarapp.com" && isDocumentPath(path)) {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: `https://kasbokarapp.com${event.url.pathname}${event.url.search}`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
   const urlWithQuery = path + event.url.search;
 
   if (path === "/__grok/manifest.webmanifest" || path === "/__grok/manifest.json") {
@@ -99,18 +109,13 @@ export default async function grokPwaMiddleware(
   if (!isDocumentPath(path)) return next();
 
   const result = await next();
-  if (!(result instanceof Response) || !result.body) return result;
-  const isHtml = String(result.headers.get("content-type") ?? "").includes("text/html");
-  if (!isHtml) return result;
-  if (!result.headers.get("content-encoding")) {
+  if (
+    result instanceof Response &&
+    result.body &&
+    String(result.headers.get("content-type") ?? "").includes("text/html") &&
+    !result.headers.get("content-encoding")
+  ) {
     return injectHeadStreaming(result, requestHost(event));
   }
-  const headers = new Headers(result.headers);
-  headers.set("cache-control", "no-store");
-  headers.set("pragma", "no-cache");
-  return new Response(result.body, {
-    status: result.status,
-    statusText: result.statusText,
-    headers,
-  });
+  return result;
 }
