@@ -28,6 +28,12 @@ export const Route = createFileRoute("/dashboard")({
     return {};
   },
   component: Dashboard,
+  pendingComponent: function DashboardPending() {
+    return <SignedOutPanel title="پنل کسب‌وکار" next="/dashboard" loading />;
+  },
+  errorComponent: function DashboardError() {
+    return <SignedOutPanel title="پنل کسب‌وکار" next="/dashboard" error />;
+  },
 });
 
 function Dashboard() {
