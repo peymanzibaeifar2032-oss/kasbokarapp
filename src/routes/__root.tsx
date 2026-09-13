@@ -36,7 +36,7 @@ export const Route = createRootRoute({
       { title: APP_NAME },
       { name: "description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
       { name: "theme-color", content: "#1C3D52" },
-      { name: "kasb-build", content: "nav-hard-v1" },
+      { name: "kasb-build", content: "nav-chrome-v1" },
       ...((process.env.GIT_SHA || process.env.BUILD_SHA)
         ? [{ name: "kasb-sha", content: (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim() }]
         : []),
