@@ -87,6 +87,9 @@ async function main() {
       count += 1;
     }
     console.log(count ? `[migrate] done — ${count} migration(s) applied.` : "[migrate] up to date.");
+    const { seedGeoPlacesPg } = await import("./seed-geo.mjs");
+    const geo = await seedGeoPlacesPg(client);
+    console.log(`[migrate] geo_places ${geo.seeded ? "seeded" : "ready"} count=${geo.count}`);
   } finally {
     client.release();
     await pool.end();

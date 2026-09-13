@@ -1,0 +1,13 @@
+{
+  "source": "Statistical Centre of Iran, official divisions 1402 (amar.org.ir)",
+  "counts": {
+    "province": 31,
+    "county": 482,
+    "district": 1184,
+    "city": 1659,
+    "rural_district": 2765,
+    "village": 99141
+  },
+  "total": 105262,
+  "orphans": 0
+}

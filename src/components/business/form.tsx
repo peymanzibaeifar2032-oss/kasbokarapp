@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { BusinessMap } from "@/components/map/business-map";
+import { LocationPicker, type PickedPlace } from "@/components/location/picker";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
-import { DEFAULT_HOURS, KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
+import { DEFAULT_HOURS, IRAN_CENTER } from "@/lib/data/catalog";
 import { friendlyError, saveAction } from "@/lib/save";
 import { parseToman } from "@/lib/format";
 import type { Business, Category, PriceItem, WorkHour } from "@/lib/types";
@@ -40,8 +41,20 @@ export function BusinessForm({
   const [jobTitle, setJobTitle] = useState(initial?.jobTitle ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [whatsapp, setWhatsapp] = useState(initial?.whatsapp ?? "");
-  const [province, setProvince] = useState(initial?.province ?? "کرمانشاه");
-  const [city, setCity] = useState(initial?.city ?? "کرمانشاه");
+  const [province, setProvince] = useState(initial?.province ?? "");
+  const [city, setCity] = useState(initial?.city ?? "");
+  const [place, setPlace] = useState<PickedPlace | null>(
+    initial?.province
+      ? {
+          id: "",
+          nameFa: initial.city,
+          type: "city",
+          typeFa: "شهر",
+          context: `${initial.city} — ${initial.province}`,
+          provinceName: initial.province,
+        }
+      : null,
+  );
   const [address, setAddress] = useState(initial?.address ?? "");
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? 0);
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -51,7 +64,7 @@ export function BusinessForm({
   const [picked, setPicked] = useState(
     initial
       ? { lat: initial.latitude, lng: initial.longitude }
-      : presetLocation ?? KERMANSHAH_CENTER,
+      : presetLocation ?? IRAN_CENTER,
   );
   const [prices, setPrices] = useState<PriceItem[]>(
     initial?.prices.length ? initial.prices : [{ title: "خدمت اصلی", price: 0 }],
@@ -61,8 +74,6 @@ export function BusinessForm({
   const [busy, setBusy] = useState(false);
   const [showMap, setShowMap] = useState(Boolean(initial) || Boolean(presetLocation));
 
-  const cities = useMemo(() => PROVINCES.find((p) => p.name === province)?.cities ?? [], [province]);
-
   async function submit() {
     if (name.trim().length < 2) {
       toast.error("نام کسب‌وکار را بنویسید.");
@@ -70,6 +81,10 @@ export function BusinessForm({
     }
     if (!categoryId) {
       toast.error("دسته را انتخاب کنید.");
+      return;
+    }
+    if (!province.trim() || !city.trim()) {
+      toast.error("موقعیت فعالیت را انتخاب کنید.");
       return;
     }
     setBusy(true);
@@ -125,30 +140,23 @@ export function BusinessForm({
             </option>
           ))}
         </NativeSelect>
-        <NativeSelect
-          value={province}
-          onChange={(e) => {
-            setProvince(e.target.value);
-            const loc = PROVINCES.find((p) => p.name === e.target.value);
-            if (loc) {
-              setCity(loc.cities[0] ?? "");
-              setPicked({ lat: loc.lat, lng: loc.lng });
+        <LocationPicker
+          value={place}
+          onChange={(next) => {
+            setPlace(next);
+            if (!next) {
+              setProvince("");
+              setCity("");
+              return;
+            }
+            setProvince(next.provinceName || (next.type === "province" ? next.nameFa : ""));
+            setCity(next.type === "province" ? next.nameFa : next.nameFa);
+            if (next.latitude && next.longitude) {
+              setPicked({ lat: next.latitude, lng: next.longitude });
+              setShowMap(true);
             }
           }}
-        >
-          {PROVINCES.map((p) => (
-            <option key={p.name} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </NativeSelect>
-        <NativeSelect value={city} onChange={(e) => setCity(e.target.value)}>
-          {cities.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </NativeSelect>
+        />
         <Input placeholder="آدرس دقیق" value={address} onChange={(e) => setAddress(e.target.value)} />
         <Input placeholder="اینستاگرام (بدون @)" value={instagram} onChange={(e) => setInstagram(e.target.value)} />
         <Input placeholder="وب‌سایت (اختیاری)" value={website} onChange={(e) => setWebsite(e.target.value)} />

@@ -200,10 +200,20 @@ async function createSql(): Promise<Sql> {
  * both backends — define tables there, never inline in server functions.
  */
 export function getSql(): Promise<Sql> {
-  sqlPromise ??= createSql().catch((err) => {
-    sqlPromise = null; // don't memoize failures — let the next call retry
-    throw err;
-  });
+  sqlPromise ??= createSql()
+    .then(async (sql) => {
+      try {
+        const { seedGeoPlaces } = await import("../../scripts/seed-geo.mjs");
+        await seedGeoPlaces((text: string, params: unknown[] = []) => sql.query(text, params));
+      } catch (err) {
+        console.error("[geo] seed failed", err instanceof Error ? err.message : err);
+      }
+      return sql;
+    })
+    .catch((err) => {
+      sqlPromise = null;
+      throw err;
+    });
   return sqlPromise;
 }
 

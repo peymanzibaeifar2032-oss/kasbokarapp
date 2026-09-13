@@ -16,6 +16,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ApiGeoStatsRouteImport } from './routes/api/geo-stats'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
@@ -58,6 +59,11 @@ const DownloadRoute = DownloadRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiGeoStatsRoute = ApiGeoStatsRouteImport.update({
+  id: '/api/geo-stats',
+  path: '/api/geo-stats',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGuideRoute = ApiGuideRouteImport.update({
@@ -109,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/download': typeof DownloadRoute
   '/login': typeof LoginRoute
+  '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/download': typeof DownloadRoute
   '/login': typeof LoginRoute
+  '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
@@ -144,6 +152,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/download': typeof DownloadRoute
   '/login': typeof LoginRoute
+  '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
@@ -163,6 +172,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/download'
     | '/login'
+    | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/download'
     | '/login'
+    | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/download'
     | '/login'
+    | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
@@ -215,6 +227,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   DownloadRoute: typeof DownloadRoute
   LoginRoute: typeof LoginRoute
+  ApiGeoStatsRoute: typeof ApiGeoStatsRoute
   ApiGuideRoute: typeof ApiGuideRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMapConfigRoute: typeof ApiMapConfigRoute
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/geo-stats': {
+      id: '/api/geo-stats'
+      path: '/api/geo-stats'
+      fullPath: '/api/geo-stats'
+      preLoaderRoute: typeof ApiGeoStatsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/guide': {
@@ -343,6 +363,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   DownloadRoute: DownloadRoute,
   LoginRoute: LoginRoute,
+  ApiGeoStatsRoute: ApiGeoStatsRoute,
   ApiGuideRoute: ApiGuideRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMapConfigRoute: ApiMapConfigRoute,

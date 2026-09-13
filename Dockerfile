@@ -38,10 +38,11 @@ RUN sed -i "s#https://registry.npmjs.org#${NPM_REGISTRY}#g" package-lock.json \
   && npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/migrations ./migrations
+COPY --from=build /app/data ./data
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/.grok/app-env.json ./.grok/app-env.json
 USER kasb
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=5 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 CMD ["sh", "-c", "node scripts/migrate.mjs && node .output/server/index.mjs"]

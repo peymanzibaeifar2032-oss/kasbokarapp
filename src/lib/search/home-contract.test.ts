@@ -18,5 +18,12 @@ describe("Home simple search contract", () => {
     assert.equal(/setCategoryId\(\s*parsed/.test(src), false);
     assert.equal(src.includes("explicitCategory: categoryId != null"), true);
     assert.equal(src.includes("data-home-search-version"), true);
+    assert.equal(src.includes('province: "کرمانشاه"'), false);
+    assert.equal(src.includes("KERMANSHAH_CENTER"), false);
+  });
+
+  it("uses a searchable location picker instead of a city dropdown", () => {
+    assert.equal(src.includes("LocationPicker"), true);
+    assert.equal(src.includes("pickLocation"), true);
   });
 });

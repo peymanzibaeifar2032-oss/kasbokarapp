@@ -22,12 +22,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Shell } from "@/components/layout/shell";
 import { BusinessCard } from "@/components/business/card";
+import { LocationPicker, type PickedPlace } from "@/components/location/picker";
 import { BusinessMap } from "@/components/map/business-map";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NativeSelect } from "@/components/ui/input";
 import { useFavorites } from "@/lib/favorites";
-import { KERMANSHAH_CENTER, PROVINCES } from "@/lib/data/catalog";
+import { IRAN_CENTER } from "@/lib/data/catalog";
 import { haversineKm } from "@/lib/format";
 import { isOpenNow } from "@/lib/hours";
 import { t } from "@/lib/i18n";
@@ -37,13 +37,13 @@ import { listBusinesses, listCategories } from "@/lib/server/api";
 import type { Business } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const PLACE_KEY = "kasb:place";
+const PLACE_KEY = "kasb:place:v2";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
     const [categories, items] = await Promise.all([
       listCategories(),
-      listBusinesses({ data: { simple: true, province: "کرمانشاه", city: "کرمانشاه" } }),
+      listBusinesses({ data: { simple: true } }),
     ]);
     return { categories, items };
   },
@@ -73,17 +73,18 @@ function Home() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>();
-  const [province, setProvince] = useState("کرمانشاه");
-  const [city, setCity] = useState("کرمانشاه");
-  const [bannerOn, setBannerOn] = useState(true);
+  const [province, setProvince] = useState("");
+  const [city, setCity] = useState("");
+  const [place, setPlace] = useState<PickedPlace | null>(null);
+  const [bannerOn, setBannerOn] = useState(false);
   const categories = initial.categories;
   const [items, setItems] = useState<Business[]>(initial.items);
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
-  const [center, setCenter] = useState(KERMANSHAH_CENTER);
-  const [mapCenter, setMapCenter] = useState(KERMANSHAH_CENTER);
-  const [zoom, setZoom] = useState(12);
+  const [center, setCenter] = useState(IRAN_CENTER);
+  const [mapCenter, setMapCenter] = useState(IRAN_CENTER);
+  const [zoom, setZoom] = useState(5);
   const [openNow, setOpenNow] = useState(false);
   const [onlyFav, setOnlyFav] = useState(false);
   const [hasOffer, setHasOffer] = useState(false);
@@ -98,20 +99,22 @@ function Home() {
   const [locationMode, setLocationMode] = useState<"city" | "me">("city");
   const skipFirstFetch = useRef(true);
   const aroundMeIntent = useRef(false);
-  const userPlace = useRef({ province: "کرمانشاه", city: "کرمانشاه" });
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PLACE_KEY);
       if (!raw) return;
-      const saved = JSON.parse(raw) as { province?: string; city?: string };
-      if (saved.province) {
-        setProvince(saved.province);
-        userPlace.current.province = saved.province;
-      }
-      if (saved.city) {
-        setCity(saved.city);
-        userPlace.current.city = saved.city;
+      const saved = JSON.parse(raw) as { place?: PickedPlace };
+      if (saved.place?.id) {
+        setPlace(saved.place);
+        setProvince(saved.place.provinceName || "");
+        setCity(saved.place.nameFa);
+        setBannerOn(true);
+        if (saved.place.latitude && saved.place.longitude) {
+          setCenter({ lat: saved.place.latitude, lng: saved.place.longitude });
+          setMapCenter({ lat: saved.place.latitude, lng: saved.place.longitude });
+          setZoom(saved.place.type === "province" ? 7 : 12);
+        }
       }
     } catch {
       /* ignore */
@@ -120,12 +123,12 @@ function Home() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(PLACE_KEY, JSON.stringify({ province, city }));
-      userPlace.current = { province, city };
+      if (place) localStorage.setItem(PLACE_KEY, JSON.stringify({ place }));
+      else localStorage.removeItem(PLACE_KEY);
     } catch {
       /* ignore */
     }
-  }, [province, city]);
+  }, [place]);
 
   useEffect(() => {
     const tmr = window.setTimeout(() => setDebouncedQ(q), 280);
@@ -145,8 +148,9 @@ function Home() {
         q: debouncedQ,
         categoryId,
         explicitCategory: categoryId != null,
-        province: locationMode === "me" ? undefined : province,
-        city: locationMode === "me" ? undefined : city || undefined,
+        placeId: locationMode === "me" ? undefined : place?.id,
+        province: locationMode === "me" ? undefined : undefined,
+        city: locationMode === "me" ? undefined : undefined,
         locationMode,
         originLat: userPos?.lat,
         originLng: userPos?.lng,
@@ -169,17 +173,23 @@ function Home() {
     return () => {
       cancelled = true;
     };
-  }, [debouncedQ, categoryId, province, city, locationMode, userPos, openNow, todaySlot, sort]);
+  }, [debouncedQ, categoryId, place, locationMode, userPos, openNow, todaySlot, sort]);
 
   useEffect(() => {
-    const p = PROVINCES.find((x) => x.name === province);
-    if (p) {
-      setCenter({ lat: p.lat, lng: p.lng });
-      setMapCenter({ lat: p.lat, lng: p.lng });
-      setZoom(city ? 13 : 11);
+    if (locationMode === "me" && userPos) {
+      setCenter(userPos);
+      setMapCenter(userPos);
+      setZoom(14);
+      setViewKey((k) => k + 1);
+      return;
+    }
+    if (place?.latitude && place?.longitude) {
+      setCenter({ lat: place.latitude, lng: place.longitude });
+      setMapCenter({ lat: place.latitude, lng: place.longitude });
+      setZoom(place.type === "province" ? 7 : 12);
       setViewKey((k) => k + 1);
     }
-  }, [province, city]);
+  }, [place, locationMode, userPos]);
 
   const filtered = useMemo(() => {
     let rows = filterRelevant(items, debouncedQ);
@@ -249,6 +259,7 @@ function Home() {
         aroundMeIntent.current = false;
         setGeoMsg(null);
         setGeoBusy(false);
+        setBannerOn(true);
         toast.success("موقعیت شما روی نقشه آمد.");
       },
       (err) => {
@@ -291,7 +302,7 @@ function Home() {
       <section>
         <p className="inline-flex items-center gap-1.5 text-sm text-accent">
           <MapPin className="size-4" />
-          {locationMode === "me" && userPos ? t("aroundMe") : `${t("searchArea")}: ${city || province}`}
+          {locationMode === "me" && userPos ? t("useMyLocation") : place ? `${t("searchArea")}: ${place.context}` : t("pickLocation")}
         </p>
         <h1 className="mt-2 max-w-xl text-3xl font-semibold leading-tight md:text-4xl">
           هر چیزی که نیاز دارید، همین نزدیکی است.
@@ -321,7 +332,7 @@ function Home() {
               aroundMeIntent.current = true;
               locate();
             }}
-            label={geoBusy && aroundMeIntent.current ? "در حال یافتن…" : t("aroundMe")}
+            label={geoBusy && aroundMeIntent.current ? "در حال یافتن…" : t("useMyLocation")}
           />
           <FilterChip
             active={sort === "distance" && Boolean(userPos)}
@@ -343,30 +354,22 @@ function Home() {
           />
         </div>
         <div className="mt-3">
-          <p className="mb-1.5 text-xs text-muted">{t("placeLabel")}</p>
-          <NativeSelect
-            value={`${province}|||${city}`}
-            onChange={(e) => {
-              const [nextProvince, nextCity] = e.target.value.split("|||");
-              if (!nextProvince) return;
-              userPlace.current = { province: nextProvince, city: nextCity ?? "" };
-              setProvince(nextProvince);
-              setCity(nextCity ?? "");
-              setLocationMode("city");
-              setBannerOn(true);
+          <LocationPicker
+            value={locationMode === "me" ? null : place}
+            gpsActive={locationMode === "me" && Boolean(userPos)}
+            geoBusy={geoBusy}
+            onUseGps={() => {
+              aroundMeIntent.current = true;
+              locate();
             }}
-            aria-label={t("placeLabel")}
-          >
-            {PROVINCES.map((p) => (
-              <optgroup key={p.name} label={p.name}>
-                {p.cities.map((c) => (
-                  <option key={`${p.name}-${c}`} value={`${p.name}|||${c}`}>
-                    {c}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </NativeSelect>
+            onChange={(next) => {
+              setPlace(next);
+              setLocationMode("city");
+              setProvince(next?.provinceName || "");
+              setCity(next?.nameFa || "");
+              setBannerOn(Boolean(next));
+            }}
+          />
         </div>
       </section>
 
@@ -386,9 +389,9 @@ function Home() {
         })}
       </section>
 
-      {bannerOn && province ? (
+      {bannerOn && (place || (locationMode === "me" && userPos)) ? (
         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/10 px-4 py-3 text-sm text-accent">
-          <p>{t("searchArea")}: {locationMode === "me" && userPos ? t("aroundMe") : city || province}</p>
+          <p>{t("searchArea")}: {locationMode === "me" && userPos ? t("useMyLocation") : place?.context}</p>
           <button type="button" onClick={() => setBannerOn(false)} aria-label="بستن">
             ×
           </button>
@@ -408,7 +411,7 @@ function Home() {
         <div>
           <strong>{loading ? "در حال دریافت…" : `${toFa(filtered.length)} کسب‌وکار`}</strong>
           <p className="text-sm text-muted">
-            {locationMode === "me" && userPos ? t("aroundMe") : city ? `در ${city}` : province}
+            {locationMode === "me" && userPos ? t("useMyLocation") : place ? place.context : t("pickLocation")}
           </p>
         </div>
         <Button type="button" variant={addMode ? "default" : "outline"} onClick={startAddMode}>

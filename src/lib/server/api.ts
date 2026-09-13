@@ -7,6 +7,7 @@ import { DEFAULT_HOURS } from "@/lib/data/catalog";
 import { toWebsiteHref } from "@/lib/format";
 import { hasFreeToday, isOpenNow, nextAvailable } from "@/lib/hours";
 import { logSearch } from "@/lib/search/log-search";
+import { resolvePlaceFilter, compactCityList, searchGeoPlaces } from "@/lib/geo/query";
 import { applyHomeSearchEligibility, resolveExplicitCategoryId } from "@/lib/search/home-search";
 import { isSearchQuery } from "@/lib/search/simple-search";
 import { sortByRelevance } from "@/lib/search/ranking";
@@ -73,6 +74,7 @@ export const listBusinesses = createServerFn({ method: "POST" })
       simple: z.coerce.boolean().optional(),
       explicitCategory: z.coerce.boolean().optional(),
       locationMode: z.enum(["city", "me"]).optional(),
+      placeId: z.string().optional(),
     }),
   )
   .handler(async ({ data }) => {
@@ -87,12 +89,24 @@ export const listBusinesses = createServerFn({ method: "POST" })
       categoryId: data.categoryId,
       explicitCategory: data.explicitCategory,
     });
-    const province = aroundMe
+    let province = aroundMe
       ? null
       : data.province && data.province.length > 0
         ? data.province
         : null;
-    const city = aroundMe ? null : data.city && data.city.length > 0 ? data.city : null;
+    let cities: string[] | null = aroundMe
+      ? null
+      : data.city && data.city.length > 0
+        ? [data.city]
+        : null;
+    if (!aroundMe && data.placeId) {
+      const resolved = await resolvePlaceFilter(sql, data.placeId);
+      if (resolved) {
+        province = resolved.province;
+        cities = resolved.cities;
+      }
+    }
+    const compactCities = cities ? compactCityList(cities) : null;
     const wantOpen = Boolean(data.openNow);
     const wantFree = Boolean(data.freeToday);
     const searching = isSearchQuery(data.q);
@@ -105,12 +119,17 @@ export const listBusinesses = createServerFn({ method: "POST" })
        where ${VISIBLE_SQL}
          and ($1::text is null or b.category_id = $1::int)
          and ($2::text is null or $2 = '' or b.province = $2)
-         and ($3::text is null or $3 = '' or b.city = $3)
+         and (
+           $3::text[] is null
+           or b.city = any($3)
+           or replace(replace(b.city, chr(8204), ''), ' ', '') = any($4)
+         )
        order by b.id asc`,
       [
         categoryId != null ? String(categoryId) : null,
         province,
-        city,
+        cities,
+        compactCities,
       ],
     );
 
@@ -172,7 +191,7 @@ export const listBusinesses = createServerFn({ method: "POST" })
       zero: items.length === 0,
       count: items.length,
       categoryId,
-      city: Boolean(city),
+      city: Boolean(cities?.length || province),
       openNow: wantOpen,
       freeToday: wantFree,
       nearMe: aroundMe && Boolean(origin),
@@ -180,6 +199,13 @@ export const listBusinesses = createServerFn({ method: "POST" })
     });
 
     return items;
+  });
+
+export const searchPlaces = createServerFn({ method: "GET" })
+  .validator(z.object({ q: z.string().optional() }))
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    return searchGeoPlaces(sql, data.q ?? "", 20);
   });
 
 export const getBusiness = createServerFn({ method: "GET" })
