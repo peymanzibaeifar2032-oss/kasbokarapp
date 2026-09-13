@@ -11,6 +11,7 @@ WORKDIR /app
 ARG GIT_SHA=unknown
 ENV GIT_SHA=$GIT_SHA
 COPY --from=deps /app/node_modules ./node_modules
+COPY deploy/BUILD_ID /tmp/BUILD_ID
 COPY . .
 ENV NITRO_PRESET=node-server
 ENV NODE_ENV=production

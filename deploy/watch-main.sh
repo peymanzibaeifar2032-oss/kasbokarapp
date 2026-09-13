@@ -10,7 +10,7 @@ LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
 H=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
 NEED_REBUILD=0
-echo "$H" | grep -q 'jalali-month-v1' || NEED_REBUILD=1
+echo "$H" | grep -q 'kasbokar-jalali-month-v1' || NEED_REBUILD=1
 if [ "$LOCAL" != "$REMOTE" ] || [ "$NEED_REBUILD" = "1" ]; then
   echo "WATCH_PULL $LOCAL -> $REMOTE rebuild=$NEED_REBUILD"
   FORCE_DEPLOY=$NEED_REBUILD sh deploy/release.sh

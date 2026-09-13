@@ -64,17 +64,14 @@ chmod +x deploy/*.sh 2>/dev/null || true
 export GIT_SHA="$NEW_SHA"
 printf 'GIT_SHA=%s\n' "$NEW_SHA" > .deploy-sha
 
-BUILD_FLAGS=""
-if [ "${FORCE_DEPLOY:-0}" = "1" ]; then
-  BUILD_FLAGS="--no-cache"
-fi
+BUILD_FLAGS="--no-cache"
 $COMPOSE build $BUILD_FLAGS web || fail "build"
 $COMPOSE up -d --force-recreate --remove-orphans || fail "up"
 
 wait_health || fail "health"
 LIVE=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
 echo "$LIVE" | grep -q "$NEW_SHA" || fail "health-sha-mismatch"
-echo "$LIVE" | grep -q 'jalali-month-v1' || fail "health-calendar-marker"
+echo "$LIVE" | grep -q 'kasbokar-jalali-month-v1' || fail "health-calendar-marker"
 
 DBCHK=$($COMPOSE exec -T db psql -U kasbokar -d kasbokar -Atc "select 1" 2>/dev/null | tr -d '\r' || true)
 [ "$DBCHK" = "1" ] || fail "database"
