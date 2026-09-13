@@ -23,6 +23,8 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
+import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
+import { Route as ApiPaymentsWebhookRouteImport } from './routes/api/payments/webhook'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiTilesSplatRouteImport } from './routes/api/tiles/$'
@@ -97,6 +99,16 @@ const ApiSearchTraceRoute = ApiSearchTraceRouteImport.update({
   path: '/api/search-trace',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPaymentsCallbackRoute = ApiPaymentsCallbackRouteImport.update({
+  id: '/api/payments/callback',
+  path: '/api/payments/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaymentsWebhookRoute = ApiPaymentsWebhookRouteImport.update({
+  id: '/api/payments/webhook',
+  path: '/api/payments/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
@@ -128,6 +140,8 @@ export interface FileRoutesByFullPath {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
@@ -147,6 +161,8 @@ export interface FileRoutesByTo {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
@@ -167,6 +183,8 @@ export interface FileRoutesById {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
@@ -188,6 +206,8 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/payments/callback'
+    | '/api/payments/webhook'
     | '/business/$id'
     | '/api/auth/$'
     | '/api/tiles/$'
@@ -207,6 +227,8 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/payments/callback'
+    | '/api/payments/webhook'
     | '/business/$id'
     | '/api/auth/$'
     | '/api/tiles/$'
@@ -226,6 +248,8 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/payments/callback'
+    | '/api/payments/webhook'
     | '/business/$id'
     | '/api/auth/$'
     | '/api/tiles/$'
@@ -246,6 +270,8 @@ export interface RootRouteChildren {
   ApiMapConfigRoute: typeof ApiMapConfigRoute
   ApiSaveRoute: typeof ApiSaveRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
+  ApiPaymentsCallbackRoute: typeof ApiPaymentsCallbackRoute
+  ApiPaymentsWebhookRoute: typeof ApiPaymentsWebhookRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiTilesSplatRoute: typeof ApiTilesSplatRoute
@@ -351,6 +377,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchTraceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/payments/callback': {
+      id: '/api/payments/callback'
+      path: '/api/payments/callback'
+      fullPath: '/api/payments/callback'
+      preLoaderRoute: typeof ApiPaymentsCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/payments/webhook': {
+      id: '/api/payments/webhook'
+      path: '/api/payments/webhook'
+      fullPath: '/api/payments/webhook'
+      preLoaderRoute: typeof ApiPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/business/$id': {
       id: '/business/$id'
       path: '/business/$id'
@@ -390,6 +430,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMapConfigRoute: ApiMapConfigRoute,
   ApiSaveRoute: ApiSaveRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
+  ApiPaymentsCallbackRoute: ApiPaymentsCallbackRoute,
+  ApiPaymentsWebhookRoute: ApiPaymentsWebhookRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiTilesSplatRoute: ApiTilesSplatRoute,

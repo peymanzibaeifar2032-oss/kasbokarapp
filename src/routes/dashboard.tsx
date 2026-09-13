@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BusinessForm } from "@/components/business/form";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
+import { FinancePanel } from "@/components/finance/panel";
 import { visibilityLabel } from "@/components/business/card";
 import { Stars } from "@/components/business/stars";
 import { Shell } from "@/components/layout/shell";
@@ -32,7 +33,7 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard() {
   const pin = Route.useSearch();
   const { user, isPending } = useCurrentUserState();
-  const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "me">(
+  const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "finance" | "me">(
     pin.lat != null && pin.lng != null ? "new" : "list",
   );
   const [editing, setEditing] = useState<Business | null>(null);
@@ -98,6 +99,7 @@ function Dashboard() {
             ["new", "ثبت جدید"],
             ["calendar", t("navCalendar")],
             ["bookings", "رزروها"],
+            ["finance", "مالی"],
             ["me", "حساب"],
           ] as const
         ).map(([id, label]) => (
@@ -168,6 +170,7 @@ function Dashboard() {
           onChange={() => void saveAction<Booking[]>("ownerBookings").then(setBookings)}
         />
       ) : null}
+      {!editing && tab === "finance" ? <FinancePanel action="financeMine" /> : null}
       {!editing && tab === "me" && profile ? (
         <ProfileForm
           profile={profile}

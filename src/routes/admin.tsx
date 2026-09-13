@@ -12,6 +12,7 @@ import { guideRequest, type GuideBugListItem } from "@/lib/guide/client";
 import { formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import type { Business, Profile } from "@/lib/types";
+import { FinancePanel } from "@/components/finance/panel";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +22,7 @@ function Admin() {
   const { user, isPending } = useCurrentUserState();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems] = useState<Business[]>([]);
-  const [tab, setTab] = useState<"biz" | "bugs">("biz");
+  const [tab, setTab] = useState<"biz" | "bugs" | "finance">("biz");
   const [bugs, setBugs] = useState<GuideBugListItem[]>([]);
 
   useEffect(() => {
@@ -78,8 +79,19 @@ function Admin() {
         >
           گزارش باگ
         </button>
+        <button
+          type="button"
+          className={cn(
+            "h-11 rounded-full border px-4 text-sm",
+            tab === "finance" ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface",
+          )}
+          onClick={() => setTab("finance")}
+        >
+          مالی
+        </button>
       </div>
 
+      {tab === "finance" ? <FinancePanel action="financeAdmin" /> : null}
       {tab === "biz" ? (
         <>
           <p className="mt-4 text-sm text-muted">پس از تأیید، ۷ روز نمایش رایگان شروع می‌شود.</p>

@@ -1082,6 +1082,40 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performFavorites(userId);
     case "favoriteToggle":
       return performFavoriteToggle(userId, payload);
+    case "financeMine": {
+      const { performBusinessFinance } = await import("@/lib/finance/server");
+      return performBusinessFinance(userId, false);
+    }
+    case "financeAdmin": {
+      const { performAdminFinance } = await import("@/lib/finance/server");
+      return performAdminFinance(userId);
+    }
+    case "myPayments": {
+      const { performMyPayments } = await import("@/lib/finance/server");
+      return performMyPayments(userId);
+    }
+    case "saveIban": {
+      const { performSaveIban } = await import("@/lib/finance/server");
+      return performSaveIban(userId, payload as { businessId: string; iban: string; ownerName: string });
+    }
+    case "requestSettlement": {
+      const { performRequestSettlement } = await import("@/lib/finance/server");
+      return performRequestSettlement(userId, payload as { businessId: string; amountIrr: number });
+    }
+    case "createCheckout": {
+      const { performCreateCheckout } = await import("@/lib/finance/server");
+      return performCreateCheckout(userId, payload as { bookingId: string; clientAmountIrr?: number });
+    }
+    case "financeCsv": {
+      const { performFinanceCsv } = await import("@/lib/finance/server");
+      const p = (payload ?? {}) as { businessId?: string };
+      const admin = await performEnsureProfile(userId);
+      return performFinanceCsv(userId, Boolean(admin.isAdmin), p.businessId);
+    }
+    case "providerStatus": {
+      const { financeProviderStatus } = await import("@/lib/finance/server");
+      return financeProviderStatus();
+    }
     default:
       throw new Error("درخواست نامعتبر است.");
   }
