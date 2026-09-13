@@ -29,6 +29,20 @@ test("injects before </head>", () => {
   assert.ok(out.indexOf("manifest") < out.indexOf("</head>"));
 });
 
+test("strips Grok overlay script on kasbokar production hosts", () => {
+  const withScript = injectGrokPwaHead(
+    '<html><head><script src="https://grok.com/grok-app-builder/extensions.js" defer></script></head></html>',
+    { host: "kasbokarapp.com", projectId: "abc" },
+  );
+  assert.doesNotMatch(withScript, /extensions\.js/);
+  assert.doesNotMatch(withScript, /grok-project-id/);
+  const www = injectGrokPwaHead("<html><head></head></html>", {
+    host: "www.kasbokarapp.com",
+    projectId: "abc",
+  });
+  assert.doesNotMatch(www, /extensions\.js/);
+});
+
 test("injects the extensions script without a project id", () => {
   const out = injectGrokPwaHead("<html><head></head></html>", {
     appName: "Demo",

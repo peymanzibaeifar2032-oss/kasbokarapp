@@ -36,13 +36,12 @@ function AuthSlot() {
   const { user } = useCurrentUserState();
   if (user) return <UserButton />;
   return (
-    <Link
-      to="/login"
-      search={{}}
+    <a
+      href="/login"
       className="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
     >
       {t("navSignIn")}
-    </Link>
+    </a>
   );
 }
 
@@ -132,28 +131,28 @@ export function Shell({ children }: { children: ReactNode }) {
       </footer>
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         <div className="grid grid-cols-5">
-          <Link to="/" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
+          <a href="/" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <MapPinned className="size-5" />
             {t("navMap")}
-          </Link>
+          </a>
           <a href="/#cats" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <LayoutGrid className="size-5" />
             {t("navCategories")}
           </a>
-          <Link to="/dashboard" search={{}} className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-primary">
+          <a href="/dashboard" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-primary">
             <span className="-mt-5 grid size-10 place-items-center rounded-full bg-primary text-primary-fg shadow-md">
               <Store className="size-5" />
             </span>
             {t("navCreate")}
-          </Link>
-          <Link to="/account" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
+          </a>
+          <a href="/account" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <CalendarDays className="size-5" />
             {t("navBookings")}
-          </Link>
-          <Link to="/dashboard" search={{}} className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
+          </a>
+          <a href="/dashboard" className="flex flex-col items-center gap-1 py-2.5 text-[11px] text-muted">
             <UserRound className="size-5" />
             {t("navAccount")}
-          </Link>
+          </a>
         </div>
       </nav>
     </div>

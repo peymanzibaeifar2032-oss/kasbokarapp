@@ -35,8 +35,10 @@
     font-family: var(--font-sans);
   }
   button:not(:disabled),
+  a,
   [role="button"]:not(:disabled) {
     cursor: pointer;
+    touch-action: manipulation;
   }
   h1,
   h2,

@@ -202,6 +202,15 @@ export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
 
 export const GROK_EXTENSIONS_SCRIPT_SRC = "https://grok.com/grok-app-builder/extensions.js";
 
+export function isKasbokarProductionHost(hostHeader) {
+  const host = String(hostHeader ?? "")
+    .split(",")[0]
+    .trim()
+    .split(":")[0]
+    .toLowerCase();
+  return host === "kasbokarapp.com" || host === "www.kasbokarapp.com";
+}
+
 export function readGrokProjectId() {
   const fromProcess = typeof process !== "undefined" ? process.env?.VITE_PROJECT_ID : "";
   return String(fromProcess ?? "").trim();
@@ -227,26 +236,9 @@ export function grokXCreatorHeadTags(creator = readXCreator(), creatorId = readX
   ];
 }
 
-/** Bust stale Android/PWA HTML so the client JS hash matches /api/health. */
-export function kasbBuildHeadTags(sha) {
-  const id = String(sha ?? "").trim();
-  if (!id || !/^[a-f0-9]{7,40}$/i.test(id)) return [];
-  const safe = escapeHtml(id);
-  const boot =
-    "(function(){try{var m=document.querySelector('meta[name=\"kasb-sha\"]');var built=m&&m.content;if(!built)return;" +
-    "function go(sha){if(!sha||sha===built)return;var u=new URL(location.href);if(u.searchParams.get('_kasb')===String(sha).slice(0,12))return;" +
-    "u.searchParams.set('_kasb',String(sha).slice(0,12));location.replace(u.pathname+u.search+u.hash);}" +
-    "window.addEventListener('pageshow',function(e){if(e.persisted)location.reload();});" +
-    "fetch('/api/health',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.json();}).then(function(h){go(h&&h.sha);}).catch(function(){});" +
-    "}catch(e){}})();";
-  return [
-    `<meta name="kasb-sha" content="${safe}">`,
-    `<script>${boot}</script>`,
-  ];
-}
-
 /** Platform "Created with Grok" banner — injected into every HTML document. */
-export function grokExtensionsHeadTags(projectId = readGrokProjectId()) {
+export function grokExtensionsHeadTags(projectId = readGrokProjectId(), host = "") {
+  if (isKasbokarProductionHost(host)) return [];
   const id = escapeHtml(projectId);
   const tags = [];
   if (projectId) {
@@ -437,13 +429,12 @@ export function normalizeHeadContext(ctx = {}) {
     host: ctx.host ?? "",
     cwd,
     site,
-    buildSha: String(ctx.buildSha ?? "").trim(),
   };
 }
 
 export function injectGrokPwaHead(html, ctx = {}) {
   if (typeof html !== "string") return html;
-  const { site, projectId, creator, creatorId, host, cwd, buildSha } = normalizeHeadContext(ctx);
+  const { site, projectId, creator, creatorId, host, cwd } = normalizeHeadContext(ctx);
   const documentTitle = titleFromDocument(html);
   const appName = resolveOgTitle(
     site,
@@ -466,12 +457,18 @@ export function injectGrokPwaHead(html, ctx = {}) {
     grokOgHeadTags({ host, appName, site, documentTitle, cwd }).join(""),
   );
 
-  if (!next.includes("/grok-app-builder/extensions.js")) {
-    missing.push(...grokExtensionsHeadTags(projectId));
+  if (isKasbokarProductionHost(host)) {
+    next = next
+      .replace(/<script[^>]*grok-app-builder\/extensions\.js[^>]*>\s*<\/script>/gi, "")
+      .replace(/<meta[^>]*name="grok-project-id"[^>]*>/gi, "")
+      .replace(/<meta[^>]*property="grok:app_id"[^>]*>/gi, "");
+  } else if (!next.includes("/grok-app-builder/extensions.js")) {
+    missing.push(...grokExtensionsHeadTags(projectId, host));
   } else if (projectId && !next.includes('name="grok-project-id"')) {
     missing.push(`<meta name="grok-project-id" content="${escapeHtml(projectId)}">`);
   }
   if (
+    !isKasbokarProductionHost(host) &&
     projectId &&
     !next.includes('property="grok:app_id"') &&
     !next.includes("property='grok:app_id'")
@@ -485,9 +482,6 @@ export function injectGrokPwaHead(html, ctx = {}) {
       next.includes("property='x:creator' content=");
     if (!hasCreator) missing.push(creatorTags[0]);
     if (!next.includes('property="x:creator:id"')) missing.push(creatorTags[1]);
-  }
-  if (buildSha && !next.includes('name="kasb-sha"')) {
-    missing.push(...kasbBuildHeadTags(buildSha));
   }
 
   if (missing.length === 0) return next;
@@ -520,7 +514,6 @@ export function createHeadInjector(ctx = {}) {
       host: normalized.host,
       cwd: normalized.cwd,
       site: normalized.site,
-      buildSha: normalized.buildSha,
     });
 
   return {

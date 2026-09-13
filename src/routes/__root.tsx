@@ -1,5 +1,4 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
-import { createServerFn } from "@tanstack/react-start";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
 import { GuideWidget } from "@/components/guide/widget";
@@ -8,24 +7,7 @@ import appCss from "../styles.css?url";
 
 const APP_NAME = "کسب‌وکار";
 
-const fetchSessionUser = createServerFn({ method: "GET" }).handler(async () => {
-  const { getSessionUser } = await import("@/lib/auth/verify.server");
-  const u = await getSessionUser();
-  return u ? { id: u.id, email: u.email } : null;
-});
-
 export const Route = createRootRoute({
-  beforeLoad: async () => {
-    try {
-      const u = await Promise.race([
-        fetchSessionUser(),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
-      ]);
-      return { sessionUser: u ?? null };
-    } catch {
-      return { sessionUser: null };
-    }
-  },
   errorComponent: function RootError() {
     return (
       <div dir="rtl" lang="fa" className="min-h-dvh bg-bg p-6 text-fg">
@@ -39,11 +21,11 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
       { name: "description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
       { name: "theme-color", content: "#1C3D52" },
-      { name: "kasb-build", content: "jalali-month-v1" },
+      { name: "kasb-build", content: "interactive-v1" },
       ...((process.env.GIT_SHA || process.env.BUILD_SHA)
         ? [{ name: "kasb-sha", content: (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim() }]
         : []),
