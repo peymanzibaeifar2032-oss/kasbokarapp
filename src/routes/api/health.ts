@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { isStandalone } from "@/lib/env.server";
 import { HOME_SEARCH_VERSION } from "@/lib/search/home-search";
 
+/** Production health. homeSearchVersion proves this build, not only GIT_SHA env. */
+
 export const Route = createFileRoute("/api/health")({
   server: {
     handlers: {
