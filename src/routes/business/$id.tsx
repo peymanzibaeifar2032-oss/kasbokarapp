@@ -33,7 +33,9 @@ import {
   toWebsiteHref,
   toWhatsAppLink,
 } from "@/lib/format";
-import { buildSlotGrid, isOpenNow, nextAvailable, serviceDurationMinutes, todayHoursLabel } from "@/lib/hours";
+import { buildSlotGrid, DEFAULT_BOOKING_HORIZON_DAYS, horizonDayKey, isClosedOn, jalaliDayLabel, isOpenNow, nextAvailable, serviceBuffers, serviceDurationMinutes, statusForDay, tehranDayKey, todayHoursLabel } from "@/lib/hours";
+import { gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth } from "@/lib/calendar/jalali";
+import { MonthGrid } from "@/components/calendar/month-grid";
 import { friendlyError, saveAction } from "@/lib/save";
 import { t } from "@/lib/i18n";
 import {
@@ -436,15 +438,52 @@ function BookingPanel({
     () => serviceDurationMinutes(biz.prices, service, biz.slotMinutes),
     [biz.prices, biz.slotMinutes, service],
   );
+  const buffers = useMemo(() => serviceBuffers(biz.prices, service), [biz.prices, service]);
+  const specialDays = biz.specialHours ?? [];
+  const horizon = biz.bookingHorizonDays ?? DEFAULT_BOOKING_HORIZON_DAYS;
+  const now = useMemo(() => new Date(), [biz.id, service]);
+  const todayKey = tehranDayKey(now);
+  const todayJ = gregorianToJalali(...(todayKey.split("-").map(Number) as [number, number, number]));
+  const [month, setMonth] = useState(() => ({ jy: todayJ.jy, jm: todayJ.jm }));
   const slots = useMemo(
-    () => buildSlotGrid(biz, busy, 14, new Date(), duration.minutes, { includeOccupied: true }),
-    [biz, busy, duration.minutes],
+    () =>
+      buildSlotGrid(biz, busy, horizon, now, duration.minutes, {
+        includeOccupied: true,
+        bufferBefore: buffers.before,
+        bufferAfter: buffers.after,
+        specialDays,
+      }),
+    [biz, busy, duration.minutes, buffers.before, buffers.after, specialDays, horizon, now],
   );
-  const freeSlots = useMemo(() => slots.filter((s) => s.state === "free"), [slots]);
   const nextFree = useMemo(
-    () => nextAvailable(biz, busy, new Date(), duration.minutes),
-    [biz, busy, duration.minutes],
+    () => nextAvailable(biz, busy, now, duration.minutes, { bufferBefore: buffers.before, bufferAfter: buffers.after, specialDays }),
+    [biz, busy, duration.minutes, buffers.before, buffers.after, specialDays, now],
   );
+  const horizonKey = horizonDayKey(now, horizon);
+  const monthCells = useMemo(() => {
+    return jalaliMonthGrid(month.jy, month.jm).map((cell) => {
+      const weekday = new Date(Date.UTC(cell.gy, cell.gm - 1, cell.gd)).getUTCDay();
+      const closed = isClosedOn(biz, cell.dayKey, weekday, specialDays);
+      const rows = slots.filter((s) => s.dayKey === cell.dayKey);
+      return {
+        cell,
+        status: statusForDay(cell.dayKey, rows, { todayKey, horizonKey, closed }),
+      };
+    });
+  }, [biz, month.jy, month.jm, slots, specialDays, todayKey, horizonKey]);
+  const quickDays = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { key: string; label: string }[] = [];
+    for (const s of slots) {
+      if (seen.has(s.dayKey) || s.state !== "free") continue;
+      seen.add(s.dayKey);
+      const [y, m, d] = s.dayKey.split("-").map(Number);
+      const label = s.dayKey === todayKey ? "امروز" : jalaliDayLabel(y, m, d).split("،")[0] || s.dayLabel;
+      out.push({ key: s.dayKey, label });
+      if (out.length >= 4) break;
+    }
+    return out;
+  }, [slots, todayKey]);
   const groups = useMemo(() => {
     const map = new Map<string, typeof slots>();
     for (const s of slots) {
@@ -458,9 +497,10 @@ function BookingPanel({
       items,
     }));
   }, [slots]);
-  const activeDay = dayKey || groups[0]?.key || "";
-  const daySlots = groups.find((g) => g.key === activeDay)?.items ?? [];
+  const activeDay = dayKey;
+  const daySlots = slots.filter((s) => s.dayKey === activeDay);
   const activeSlot = slot && daySlots.some((s) => s.iso === slot) ? slot : "";
+  const selectedMeta = monthCells.find((c) => c.cell.dayKey === activeDay);
   const services = useMemo(() => {
     const titles = biz.prices.map((p) => p.title);
     const extra: { title: string; price: number | null }[] = [];
@@ -477,7 +517,8 @@ function BookingPanel({
     setService(services[0]?.title || biz.jobTitle || "");
     setDayKey("");
     setSlot("");
-  }, [biz.id, services, biz.jobTitle]);
+    setMonth({ jy: todayJ.jy, jm: todayJ.jm });
+  }, [biz.id, services, biz.jobTitle, todayJ.jy, todayJ.jm]);
 
   useEffect(() => {
     try {
@@ -581,9 +622,6 @@ function BookingPanel({
     }
   }
 
-  const weekdayHint = groups.find((g) => g.key === activeDay)?.label ?? "";
-  const weekdayName = weekdayHint.split(" · ")[0] || "";
-
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
       <h2 className="text-lg font-semibold">رزرو وقت از {biz.jobTitle || biz.name}</h2>
@@ -593,7 +631,7 @@ function BookingPanel({
           {t("nextFree")}: {nextFree.dayLabel}، {nextFree.label}
         </p>
       ) : (
-        <p className="mt-2 text-sm text-muted">در این چند روز وقت آزادی نیست.</p>
+        <p className="mt-2 text-sm text-muted">در افق رزرو این صفحه وقت آزادی نیست.</p>
       )}
       <div className="mt-4 space-y-3">
         <label className="block">
@@ -606,7 +644,14 @@ function BookingPanel({
         </label>
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">خدمت</span>
-          <NativeSelect value={service} onChange={(e) => setService(e.target.value)}>
+          <NativeSelect
+            value={service}
+            onChange={(e) => {
+              setService(e.target.value);
+              setDayKey("");
+              setSlot("");
+            }}
+          >
             {services.length ? (
               services.map((p) => (
                 <option key={p.title} value={p.title}>
@@ -618,37 +663,83 @@ function BookingPanel({
             )}
           </NativeSelect>
         </label>
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium">تاریخ</span>
-          <NativeSelect
-            value={activeDay}
-            onChange={(e) => {
-              setDayKey(e.target.value);
+        <div>
+          <span className="mb-1.5 block text-sm font-medium">انتخاب تاریخ</span>
+          {quickDays.length ? (
+            <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+              {quickDays.map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  onClick={() => {
+                    setDayKey(d.key);
+                    setSlot("");
+                    const [y, m, dd] = d.key.split("-").map(Number);
+                    const j = gregorianToJalali(y, m, dd);
+                    setMonth({ jy: j.jy, jm: j.jm });
+                  }}
+                  className={cn(
+                    "h-11 shrink-0 rounded-full border px-3 text-sm",
+                    activeDay === d.key ? "border-primary bg-primary text-primary-fg" : "border-border bg-bg",
+                  )}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <p className="mb-2 text-xs text-muted">انتخاب از تقویم</p>
+          <MonthGrid
+            jy={month.jy}
+            jm={month.jm}
+            todayKey={todayKey}
+            selectedKey={activeDay}
+            cells={monthCells}
+            onPrev={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}
+            onNext={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}
+            onSelect={(cell, status) => {
+              if (status === "past" || status === "beyond" || status === "closed") return;
+              setDayKey(cell.dayKey);
               setSlot("");
             }}
-          >
-            {groups.length ? (
-              groups.map((g) => (
-                <option key={g.key} value={g.key}>
-                  {g.label}
-                </option>
-              ))
-            ) : (
-              <option value="">روز آزادی در این هفته نیست</option>
-            )}
-          </NativeSelect>
-        </label>
+          />
+          {!monthCells.some((c) => c.cell.inMonth && (c.status === "free" || c.status === "limited")) ? (
+            <p className="mt-2 text-sm text-muted">
+              در این ماه زمان آزادی ثبت نشده است.
+              <button type="button" className="mr-2 text-accent" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}>
+                ماه بعد
+              </button>
+            </p>
+          ) : null}
+        </div>
         <div>
-          <span className="mb-1.5 block text-sm font-medium">ساعت</span>
-          <NativeSelect value={activeSlot} onChange={(e) => setSlot(e.target.value)}>
-            <option value="">{weekdayName ? `انتخاب ساعت (${weekdayName})` : "انتخاب ساعت"}</option>
-            {daySlots.filter((s) => s.state === "free").map((s) => (
-              <option key={s.iso} value={s.iso}>
-                {s.label} — {t("slotFree")}
-              </option>
-            ))}
-          </NativeSelect>
-          {daySlots.length ? (
+          <span className="mb-1.5 block text-sm font-medium">
+            ساعت{activeDay ? ` · ${groups.find((g) => g.key === activeDay)?.label || selectedMeta?.cell.jd}` : ""}
+          </span>
+          {!activeDay ? (
+            <p className="text-sm text-muted">یک روز را از تقویم انتخاب کنید.</p>
+          ) : selectedMeta?.status === "closed" ? (
+            <p className="text-sm text-muted">تعطیل</p>
+          ) : selectedMeta?.status === "full" || !daySlots.some((s) => s.state === "free") ? (
+            <>
+              <p className="text-sm">این روز پر است.</p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {daySlots.map((s) => (
+                  <button
+                    key={s.iso}
+                    type="button"
+                    disabled
+                    className="h-12 cursor-not-allowed rounded-md border border-border opacity-60"
+                    aria-label={`${s.label} پر`}
+                  >
+                    <span className="block tabular-nums">{s.label}</span>
+                    <span className="block text-[11px]">{t("slotFull")}</span>
+                  </button>
+                ))}
+              </div>
+              <WaitlistButton businessId={biz.id} day={activeDay} service={service} />
+            </>
+          ) : (
             <div className="mt-2 grid grid-cols-3 gap-2">
               {daySlots.map((s) => (
                 <button
@@ -670,12 +761,7 @@ function BookingPanel({
                 </button>
               ))}
             </div>
-          ) : (
-            <p className="mt-2 text-xs text-muted">برای این روز ساعت آزادی نمانده است. روز دیگری را انتخاب کنید یا با تماس هماهنگ کنید.</p>
           )}
-          {activeDay && !daySlots.some((s) => s.state === "free") ? (
-            <WaitlistButton businessId={biz.id} day={activeDay} service={service} />
-          ) : null}
         </div>
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">توضیح کوتاه</span>

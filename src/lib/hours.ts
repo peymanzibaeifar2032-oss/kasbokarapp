@@ -1,5 +1,7 @@
 import type { Business, PriceItem, SpecialDay, WorkHour, WorkShift } from "@/lib/types";
+import { jalaliMonthGrid, type JalaliCell } from "./calendar/jalali.ts";
 
+export const DEFAULT_BOOKING_HORIZON_DAYS = 60;
 export const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"] as const;
 
 /** Iran has no DST; wall-clock is UTC+03:30. */
@@ -131,7 +133,7 @@ export type SlotOption = {
   state: "free" | "full";
 };
 
-export type DayStatus = "free" | "limited" | "full" | "closed" | "past";
+export type DayStatus = "free" | "limited" | "full" | "closed" | "past" | "beyond";
 
 export type AvailabilityOptions = {
   specialDays?: SpecialDay[];
@@ -309,6 +311,69 @@ export function dayStatuses(
     out.push({ dayKey, dayLabel, status, freeCount });
   }
   return out;
+}
+
+export function statusForDay(
+  dayKey: string,
+  rows: { dayKey: string; state: "free" | "full" }[],
+  opts: {
+    todayKey: string;
+    horizonKey: string;
+    closed: boolean;
+  },
+): DayStatus {
+  if (dayKey < opts.todayKey) return "past";
+  if (dayKey > opts.horizonKey) return "beyond";
+  const freeCount = rows.filter((s) => s.dayKey === dayKey && s.state === "free").length;
+  if (opts.closed && !freeCount) return "closed";
+  if (!freeCount) return "full";
+  if (freeCount <= 2) return "limited";
+  return "free";
+}
+
+export function horizonDayKey(now: Date, days = DEFAULT_BOOKING_HORIZON_DAYS) {
+  const clock = tehranClock(now);
+  const end = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + Math.max(0, days)));
+  return `${end.getUTCFullYear()}-${String(end.getUTCMonth() + 1).padStart(2, "0")}-${String(end.getUTCDate()).padStart(2, "0")}`;
+}
+
+export function isClosedOn(
+  business: Pick<Business, "workHours">,
+  dayKey: string,
+  weekday: number,
+  specialDays: SpecialDay[] = [],
+) {
+  const override = specialDays.find((s) => s.dayKey === dayKey);
+  if (override) return override.closed || !(override.shifts && override.shifts.length);
+  return !shiftsFor(hoursForDay(business.workHours, weekday)).length;
+}
+
+export type MonthDayState = {
+  cell: JalaliCell;
+  status: DayStatus;
+  freeCount: number;
+};
+
+export function monthDayStates(
+  business: Pick<Business, "workHours" | "slotMinutes">,
+  busy: BusyInput[],
+  jy: number,
+  jm: number,
+  now: Date,
+  durationMinutes: number | undefined,
+  options: AvailabilityOptions = {},
+  horizonDays = DEFAULT_BOOKING_HORIZON_DAYS,
+): MonthDayState[] {
+  const cells = jalaliMonthGrid(jy, jm);
+  const todayKey = tehranDayKey(now);
+  const horizonKey = horizonDayKey(now, horizonDays);
+  const grid = buildSlotGrid(business, busy, horizonDays, now, durationMinutes, { ...options, includeOccupied: true });
+  return cells.map((cell) => {
+    const closed = isClosedOn(business, cell.dayKey, new Date(Date.UTC(cell.gy, cell.gm - 1, cell.gd)).getUTCDay(), options.specialDays);
+    const rows = grid.filter((s) => s.dayKey === cell.dayKey);
+    const status = statusForDay(cell.dayKey, rows, { todayKey, horizonKey, closed });
+    return { cell, status, freeCount: rows.filter((s) => s.state === "free").length };
+  });
 }
 
 export function hasFreeToday(

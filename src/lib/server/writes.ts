@@ -4,7 +4,7 @@ import { getSql } from "@/lib/db";
 import { env } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
-import { buildSlots, serviceBuffers, serviceDurationMinutes, tehranDayKey, type BusyInterval } from "@/lib/hours";
+import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey, type BusyInterval } from "@/lib/hours";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -564,7 +564,7 @@ async function performReschedule(userId: string, raw: unknown) {
   const allowed = buildSlots(
     { workHours, slotMinutes: Number(row.slot_minutes) || 60 },
     busy,
-    14,
+    DEFAULT_BOOKING_HORIZON_DAYS,
     new Date(),
     duration.minutes,
     { specialDays, bufferBefore: Number(row.buffer_before) || 0, bufferAfter: Number(row.buffer_after) || 0 },

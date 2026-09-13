@@ -246,7 +246,24 @@ export const getBusiness = createServerFn({ method: "GET" })
        limit 1`,
       [data.id, viewer?.id || ""],
     );
-    return rows[0] ? mapBusiness(rows[0]) : null;
+    if (!rows[0]) return null;
+    const biz = mapBusiness(rows[0]);
+    const special = await sql.query<{ day: string; closed: boolean; shifts: unknown; note: string | null }>(
+      `select to_char(day, 'YYYY-MM-DD') as day, closed, shifts, note
+       from business_special_hours
+       where business_id = $1
+         and day >= (timezone('Asia/Tehran', now()))::date - 1
+         and day < (timezone('Asia/Tehran', now()))::date + 70
+       order by day`,
+      [data.id],
+    );
+    biz.specialHours = special.map((r) => ({
+      dayKey: r.day,
+      closed: Boolean(r.closed),
+      shifts: Array.isArray(r.shifts) ? (r.shifts as { open: string; close: string }[]) : [],
+      note: r.note,
+    }));
+    return biz;
   });
 
 export const listReviews = createServerFn({ method: "GET" })

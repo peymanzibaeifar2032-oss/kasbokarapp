@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { MonthGrid } from "@/components/calendar/month-grid";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
+import { gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { formatFaDateTime, toWhatsAppLink } from "@/lib/format";
-import { jalaliDayLabel, tehranClock, tehranLocalToIso } from "@/lib/hours";
+import { jalaliDayLabel, tehranClock, tehranDayKey, tehranLocalToIso, type DayStatus } from "@/lib/hours";
 import { t } from "@/lib/i18n";
 import { friendlyError, saveAction } from "@/lib/save";
 import type { Booking, Business } from "@/lib/types";
@@ -31,6 +33,10 @@ function statusFa(status: Booking["status"]) {
   return "انجام‌شده";
 }
 
+function gregKey(y: number, m: number, d: number) {
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
 export function OwnerCalendar({
   items,
   businesses,
@@ -44,27 +50,15 @@ export function OwnerCalendar({
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<Booking | null>(null);
   const clock = tehranClock(cursor);
-
-  const days = useMemo(() => {
-    const count = view === "month" ? 31 : view === "week" ? 7 : 1;
-    const startDay = view === "week" ? clock.day - ((clock.weekday + 1) % 7) : clock.day;
-    const out: { key: string; label: string; y: number; m: number; d: number }[] = [];
-    for (let i = 0; i < count; i++) {
-      const base = new Date(Date.UTC(clock.y, clock.m - 1, startDay + i));
-      const y = base.getUTCFullYear();
-      const m = base.getUTCMonth() + 1;
-      const d = base.getUTCDate();
-      if (view === "month" && m !== clock.m) continue;
-      out.push({ key: `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`, label: jalaliDayLabel(y, m, d), y, m, d });
-    }
-    return out;
-  }, [clock.day, clock.m, clock.weekday, clock.y, view]);
+  const todayKey = tehranDayKey();
+  const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
+  const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
 
   const byDay = useMemo(() => {
     const map = new Map<string, Booking[]>();
     for (const b of items) {
       const c = tehranClock(new Date(b.slotStart));
-      const key = `${c.y}-${String(c.m).padStart(2, "0")}-${String(c.day).padStart(2, "0")}`;
+      const key = gregKey(c.y, c.m, c.day);
       const arr = map.get(key) ?? [];
       arr.push(b);
       map.set(key, arr);
@@ -72,6 +66,40 @@ export function OwnerCalendar({
     for (const arr of map.values()) arr.sort((a, b) => +new Date(a.slotStart) - +new Date(b.slotStart));
     return map;
   }, [items]);
+
+  const weekDays = useMemo(() => {
+    const satOffset = (clock.weekday + 1) % 7;
+    const out: { key: string; label: string; y: number; m: number; d: number }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const base = new Date(Date.UTC(clock.y, clock.m - 1, clock.day - satOffset + i));
+      const y = base.getUTCFullYear();
+      const m = base.getUTCMonth() + 1;
+      const d = base.getUTCDate();
+      out.push({ key: gregKey(y, m, d), label: jalaliDayLabel(y, m, d), y, m, d });
+    }
+    return out;
+  }, [clock.day, clock.m, clock.weekday, clock.y]);
+
+  const monthCells = useMemo(() => {
+    return jalaliMonthGrid(month.jy, month.jm).map((cell) => {
+      const rows = byDay.get(cell.dayKey) ?? [];
+      const closed = rows.some((b) => b.kind === "block" && b.eventType === "holiday");
+      const count = rows.filter((b) => b.kind !== "block" && b.status !== "cancelled").length;
+      return {
+        cell,
+        status: (closed ? "closed" : count ? "limited" : "free") as DayStatus,
+        badge: cell.inMonth ? (closed ? "تعطیل" : count ? toFaDigits(count) : "—") : undefined,
+      };
+    });
+  }, [byDay, month.jy, month.jm]);
+
+  function jumpDay(delta: number) {
+    const next = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + delta));
+    setCursor(new Date(next.getTime() + 12 * 3600000));
+  }
+
+  const dayKey = gregKey(clock.y, clock.m, clock.day);
+  const dayRows = byDay.get(dayKey) ?? [];
 
   return (
     <div className="mt-6 space-y-4">
@@ -94,35 +122,84 @@ export function OwnerCalendar({
         </div>
       </div>
       <QuickCreate businesses={businesses} onChange={onChange} />
-      <div className={cn("grid gap-3", view === "week" ? "md:grid-cols-7" : "grid-cols-1")}>
-        {days.map((day) => {
-          const rows = byDay.get(day.key) ?? [];
-          return (
-            <section key={day.key} className="rounded-2xl border border-border bg-surface p-3">
-              <p className="text-sm font-medium">{day.label}</p>
-              {!rows.length ? <p className="mt-2 text-xs text-muted">نوبتی نیست</p> : null}
-              <ul className="mt-2 space-y-2">
-                {rows.map((b) => (
-                  <li key={b.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelected(b)}
-                      className="w-full rounded-xl border border-border px-3 py-2 text-right text-sm"
-                    >
-                      <span className="flex items-center justify-between gap-2">
-                        <strong>{eventLabel(b)}</strong>
-                        <Badge>{b.kind === "block" ? t("blockLabel") : statusFa(b.status)}</Badge>
-                      </span>
-                      <span className="mt-1 block tabular-nums text-muted">{formatFaDateTime(b.slotStart)}</span>
-                      {b.kind !== "block" ? <span className="block">{b.customerName}</span> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
-      </div>
+
+      {view === "month" ? (
+        <MonthGrid
+          jy={month.jy}
+          jm={month.jm}
+          todayKey={todayKey}
+          selectedKey={dayKey}
+          cells={monthCells}
+          onPrev={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}
+          onNext={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}
+          onSelect={(cell) => {
+            setCursor(new Date(Date.UTC(cell.gy, cell.gm - 1, cell.gd, 12)));
+            setView("day");
+          }}
+        />
+      ) : null}
+
+      {view === "week" ? (
+        <div className="-mx-1 overflow-x-auto">
+          <div className="grid min-w-[640px] grid-cols-7 gap-2 px-1">
+            {weekDays.map((day) => {
+              const rows = byDay.get(day.key) ?? [];
+              return (
+                <section key={day.key} className="min-h-40 rounded-2xl border border-border bg-surface p-2">
+                  <button type="button" className="w-full text-right text-xs font-medium" onClick={() => { setCursor(new Date(Date.UTC(day.y, day.m - 1, day.d, 12))); setView("day"); }}>
+                    {day.label.replace("،", "\n")}
+                  </button>
+                  <ul className="mt-2 space-y-1">
+                    {rows.map((b) => (
+                      <li key={b.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(b)}
+                          className="w-full rounded-lg bg-bg px-1.5 py-1 text-right text-[11px]"
+                        >
+                          <span className="block truncate">{eventLabel(b)}</span>
+                          <span className="tabular-nums text-muted">{formatFaDateTime(b.slotStart).split("،").pop()}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {view === "day" ? (
+        <section className="rounded-2xl border border-border bg-surface p-4">
+          <div className="flex items-center justify-between gap-2">
+            <button type="button" className="h-11 rounded-full border px-3 text-sm" onClick={() => jumpDay(-1)}>
+              روز قبل
+            </button>
+            <p className="text-sm font-medium">{jalaliDayLabel(clock.y, clock.m, clock.day)}</p>
+            <button type="button" className="h-11 rounded-full border px-3 text-sm" onClick={() => jumpDay(1)}>
+              روز بعد
+            </button>
+          </div>
+          {!dayRows.length ? <p className="mt-3 text-sm text-muted">نوبتی در این روز نیست</p> : null}
+          <ul className="mt-3 space-y-2">
+            {dayRows.map((b) => (
+              <li key={b.id}>
+                <button type="button" onClick={() => setSelected(b)} className="w-full rounded-xl border border-border px-3 py-2 text-right text-sm">
+                  <span className="flex items-center justify-between gap-2">
+                    <strong>{eventLabel(b)}</strong>
+                    <Badge>{b.kind === "block" ? t("blockLabel") : statusFa(b.status)}</Badge>
+                  </span>
+                  <span className="mt-1 block tabular-nums text-muted">{formatFaDateTime(b.slotStart)}</span>
+                  {b.kind !== "block" ? <span className="block">{b.customerName}</span> : null}
+                  {b.serviceTitle ? <span className="block text-xs text-muted">{b.serviceTitle}</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {selected ? <AppointmentCard booking={selected} onClose={() => setSelected(null)} onChange={onChange} /> : null}
     </div>
   );
@@ -139,9 +216,29 @@ function AppointmentCard({
 }) {
   const isBlock = booking.kind === "block";
   const wa = isBlock ? null : toWhatsAppLink(booking.customerPhone);
+  const clock = tehranClock(new Date(booking.slotStart));
+  const [day, setDay] = useState(gregKey(clock.y, clock.m, clock.day));
+  const [time, setTime] = useState(`${String(clock.hh).padStart(2, "0")}:${String(clock.mm).padStart(2, "0")}`);
+
   async function setStatus(status: Booking["status"]) {
     try {
       await saveAction("bookingStatus", { id: booking.id, status });
+      onChange();
+      onClose();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    }
+  }
+  async function reschedule() {
+    const [y, m, d] = day.split("-").map(Number);
+    const [hh, mm] = time.split(":").map(Number);
+    const start = tehranLocalToIso(y, m, d, hh, mm);
+    const dur = Math.max(10, (new Date(booking.slotEnd || booking.slotStart).getTime() - new Date(booking.slotStart).getTime()) / 60000);
+    const endClock = tehranClock(new Date(new Date(start).getTime() + dur * 60000));
+    const slotEnd = tehranLocalToIso(endClock.y, endClock.m, endClock.day, endClock.hh, endClock.mm);
+    try {
+      await saveAction("reschedule", { id: booking.id, slotStart: start, slotEnd });
+      toast.success("زمان جابه‌جا شد.");
       onChange();
       onClose();
     } catch (err) {
@@ -175,18 +272,12 @@ function AppointmentCard({
       {booking.note ? <p className="mt-2 text-sm text-muted">{booking.note}</p> : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {!isBlock && booking.status === "requested" ? (
-          <Button size="sm" onClick={() => void setStatus("confirmed")}>
-            تأیید
-          </Button>
+          <Button size="sm" onClick={() => void setStatus("confirmed")}>تأیید</Button>
         ) : null}
         {!isBlock && booking.status === "confirmed" ? (
           <>
-            <Button size="sm" variant="accent" onClick={() => void setStatus("done")}>
-              تکمیل شد
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => void setStatus("no_show")}>
-              {t("noShow")}
-            </Button>
+            <Button size="sm" variant="accent" onClick={() => void setStatus("done")}>تکمیل شد</Button>
+            <Button size="sm" variant="outline" onClick={() => void setStatus("no_show")}>{t("noShow")}</Button>
           </>
         ) : null}
         {booking.status !== "cancelled" && booking.status !== "done" && booking.status !== "no_show" ? (
@@ -195,6 +286,13 @@ function AppointmentCard({
           </Button>
         ) : null}
       </div>
+      {!isBlock && booking.status !== "cancelled" && booking.status !== "done" ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          <Button size="sm" variant="outline" onClick={() => void reschedule()}>جابه‌جایی زمان</Button>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -256,9 +354,7 @@ function QuickCreate({ businesses, onChange }: { businesses: Business[]; onChang
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
           {businesses.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
+            <option key={b.id} value={b.id}>{b.name}</option>
           ))}
         </NativeSelect>
         {mode === "block" ? (
@@ -266,19 +362,24 @@ function QuickCreate({ businesses, onChange }: { businesses: Business[]; onChang
             <option value="block">بستن</option>
             <option value="break">استراحت</option>
             <option value="personal">شخصی</option>
-            <option value="holiday">تعطیل</option>
+            <option value="holiday">تعطیلی</option>
           </NativeSelect>
-        ) : (
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام مشتری" />
-        )}
+        ) : null}
         <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
-        <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} dir="ltr" />
-        <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} dir="ltr" />
-        {mode === "manual" ? <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="موبایل اختیاری" dir="ltr" /> : null}
+        <div className="grid grid-cols-2 gap-2">
+          <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+          <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </div>
+        {mode === "manual" ? (
+          <>
+            <Input placeholder="نام مشتری" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input placeholder="موبایل" value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" />
+          </>
+        ) : null}
+        <Textarea placeholder="یادداشت" value={note} onChange={(e) => setNote(e.target.value)} />
       </div>
-      <Textarea className="mt-2" value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت اختیاری" />
       <Button className="mt-3" disabled={busy} onClick={() => void submit()}>
-        ثبت
+        {mode === "block" ? t("blockSubmit") : "ثبت نوبت دستی"}
       </Button>
     </article>
   );

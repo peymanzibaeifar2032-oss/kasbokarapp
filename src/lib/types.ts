@@ -76,6 +76,8 @@ export type Business = {
   hasFreeToday?: boolean;
   nextFreeIso?: string | null;
   nextFreeLabel?: string | null;
+  specialHours?: SpecialDay[];
+  bookingHorizonDays?: number;
 };
 
 export type BookingKind = "booking" | "block";
