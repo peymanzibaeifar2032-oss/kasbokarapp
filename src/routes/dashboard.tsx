@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { BusinessForm } from "@/components/business/form";
+import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { visibilityLabel } from "@/components/business/card";
 import { Stars } from "@/components/business/stars";
 import { Shell } from "@/components/layout/shell";
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard() {
   const pin = Route.useSearch();
   const { user, isPending } = useCurrentUserState();
-  const [tab, setTab] = useState<"list" | "new" | "bookings" | "me">(
+  const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "me">(
     pin.lat != null && pin.lng != null ? "new" : "list",
   );
   const [editing, setEditing] = useState<Business | null>(null);
@@ -95,6 +96,7 @@ function Dashboard() {
           [
             ["list", "کسب‌وکارهای من"],
             ["new", "ثبت جدید"],
+            ["calendar", t("navCalendar")],
             ["bookings", "رزروها"],
             ["me", "حساب"],
           ] as const
@@ -155,6 +157,9 @@ function Dashboard() {
             setTab("list");
           }}
         />
+      ) : null}
+      {!editing && tab === "calendar" ? (
+        <OwnerCalendar items={bookings} businesses={mine} onChange={() => void saveAction<Booking[]>("ownerBookings").then(setBookings)} />
       ) : null}
       {!editing && tab === "bookings" ? (
         <OwnerBookings
@@ -340,7 +345,7 @@ function OwnerBookings({
   onChange: () => void;
 }) {
   const ordered = [...items].sort((a, b) => {
-    const rank = { requested: 0, confirmed: 1, done: 2, cancelled: 3 };
+    const rank: Record<Booking["status"], number> = { requested: 0, confirmed: 1, done: 2, no_show: 3, cancelled: 4 };
     return rank[a.status] - rank[b.status] || +new Date(a.slotStart) - +new Date(b.slotStart);
   });
   return (
@@ -488,6 +493,7 @@ function statusFa(s: Booking["status"]) {
   if (s === "requested") return "در انتظار";
   if (s === "confirmed") return "تأییدشده";
   if (s === "cancelled") return "لغو";
+  if (s === "no_show") return t("noShow");
   return "انجام‌شده";
 }
 

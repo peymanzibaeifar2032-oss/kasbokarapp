@@ -66,85 +66,7 @@ function Account() {
         </button>
       </div>
 
-      {tab === "bookings" ? (
-        <div className="mt-6 grid gap-3">
-          {!items.length ? (
-            <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
-              هنوز رزروی ندارید.
-              <div className="mt-3">
-                <Button asChild variant="outline">
-                  <Link to="/">کشف کسب‌وکارها</Link>
-                </Button>
-              </div>
-            </div>
-          ) : null}
-          {items.map((b) => (
-            <article key={b.id} className="rounded-2xl border border-border bg-surface p-4">
-              <div className="flex justify-between gap-3">
-                <div>
-                  <Link to="/business/$id" params={{ id: b.businessId }} className="font-semibold">
-                    {b.businessName}
-                  </Link>
-                  {b.serviceTitle ? <p className="text-sm text-muted">{b.serviceTitle}</p> : null}
-                  <p className="mt-1 text-sm">{formatFaDateTime(b.slotStart)}</p>
-                  {b.partySize > 1 ? (
-                    <p className="text-sm text-muted">{new Intl.NumberFormat("fa-IR").format(b.partySize)} نفر</p>
-                  ) : null}
-                </div>
-                <Badge>{label(b.status)}</Badge>
-              </div>
-              {b.status === "done" ? (
-                <Button asChild className="mt-3" size="sm" variant="outline">
-                  <Link to="/business/$id" params={{ id: b.businessId }}>
-                    نظر بدهید
-                  </Link>
-                </Button>
-              ) : null}
-              {b.status === "requested" || b.status === "confirmed" ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      downloadTextFile(
-                        `nobat-${b.id}.ics`,
-                        bookingIcs({
-                          title: `نوبت ${b.businessName}`,
-                          startIso: typeof b.slotStart === "string" ? b.slotStart : new Date(b.slotStart).toISOString(),
-                          minutes:
-                            b.slotEnd
-                              ? Math.max(
-                                  10,
-                                  Math.round((new Date(b.slotEnd).getTime() - new Date(b.slotStart).getTime()) / 60000),
-                                )
-                              : 60,
-                          location: b.businessName,
-                          description: b.serviceTitle ?? "",
-                        }),
-                        "text/calendar;charset=utf-8",
-                      );
-                    }}
-                  >
-                    افزودن به تقویم
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      void saveAction("bookingStatus", { id: b.id, status: "cancelled" })
-                        .then(() => saveAction<Booking[]>("myBookings").then(setItems))
-                        .then(() => toast.success("رزرو لغو شد."))
-                        .catch((err) => toast.error(friendlyError(err)));
-                    }}
-                  >
-                    لغو رزرو
-                  </Button>
-                </div>
-              ) : null}
-            </article>
-          ))}
-        </div>
-      ) : (
+      {tab === "bookings" ? <MyBookings items={items} onChange={setItems} /> : (
         <div className="mt-6 grid gap-3">
           {!saved.length ? (
             <p className="text-sm text-muted">هنوز جایی ذخیره نکرده‌اید. روی قلب کارت‌ها بزنید.</p>
@@ -158,9 +80,105 @@ function Account() {
   );
 }
 
+function MyBookings({ items, onChange }: { items: Booking[]; onChange: (rows: Booking[]) => void }) {
+  const now = Date.now();
+  const future = items.filter((b) => b.status !== "cancelled" && new Date(b.slotStart).getTime() >= now);
+  const past = items.filter((b) => b.status !== "cancelled" && new Date(b.slotStart).getTime() < now);
+  const cancelled = items.filter((b) => b.status === "cancelled");
+  if (!items.length) {
+    return (
+      <div className="mt-6 rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-sm text-muted">
+        هنوز رزروی ندارید.
+        <div className="mt-3">
+          <Button asChild variant="outline">
+            <Link to="/">کشف کسب‌وکارها</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-6 space-y-6">
+      <BookingGroup title="آینده" rows={future} onChange={onChange} />
+      <BookingGroup title="گذشته" rows={past} onChange={onChange} />
+      <BookingGroup title="لغوشده" rows={cancelled} onChange={onChange} />
+    </div>
+  );
+}
+
+function BookingGroup({ title, rows, onChange }: { title: string; rows: Booking[]; onChange: (rows: Booking[]) => void }) {
+  if (!rows.length) return null;
+  return (
+    <section>
+      <h2 className="mb-2 font-semibold">{title}</h2>
+      <div className="grid gap-3">
+        {rows.map((b) => (
+          <article key={b.id} className="rounded-2xl border border-border bg-surface p-4">
+            <div className="flex justify-between gap-3">
+              <div>
+                <Link to="/business/$id" params={{ id: b.businessId }} className="font-semibold">
+                  {b.businessName}
+                </Link>
+                {b.serviceTitle ? <p className="text-sm text-muted">{b.serviceTitle}</p> : null}
+                <p className="mt-1 text-sm">{formatFaDateTime(b.slotStart)}</p>
+              </div>
+              <Badge>{label(b.status)}</Badge>
+            </div>
+            {b.status === "done" ? (
+              <Button asChild className="mt-3" size="sm" variant="outline">
+                <Link to="/business/$id" params={{ id: b.businessId }}>
+                  نظر بدهید
+                </Link>
+              </Button>
+            ) : null}
+            {b.status === "requested" || b.status === "confirmed" ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    downloadTextFile(
+                      `nobat-${b.id}.ics`,
+                      bookingIcs({
+                        title: `نوبت ${b.businessName}`,
+                        startIso: typeof b.slotStart === "string" ? b.slotStart : new Date(b.slotStart).toISOString(),
+                        minutes: b.slotEnd
+                          ? Math.max(10, Math.round((new Date(b.slotEnd).getTime() - new Date(b.slotStart).getTime()) / 60000))
+                          : 60,
+                        location: b.businessName,
+                        description: b.serviceTitle ?? "",
+                      }),
+                      "text/calendar;charset=utf-8",
+                    );
+                  }}
+                >
+                  افزودن به تقویم
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void saveAction("bookingStatus", { id: b.id, status: "cancelled" })
+                      .then(() => saveAction<Booking[]>("myBookings").then(onChange))
+                      .then(() => toast.success("رزرو لغو شد."))
+                      .catch((err) => toast.error(friendlyError(err)));
+                  }}
+                >
+                  لغو رزرو
+                </Button>
+              </div>
+            ) : null}
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function label(s: Booking["status"]) {
   if (s === "requested") return "در انتظار تأیید";
   if (s === "confirmed") return "تأیید شده";
   if (s === "cancelled") return "لغو شده";
+  if (s === "no_show") return "عدم مراجعه";
   return "انجام شده";
 }

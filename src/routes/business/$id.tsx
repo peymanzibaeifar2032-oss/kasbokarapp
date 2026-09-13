@@ -33,8 +33,9 @@ import {
   toWebsiteHref,
   toWhatsAppLink,
 } from "@/lib/format";
-import { buildSlots, isOpenNow, serviceDurationMinutes, todayHoursLabel } from "@/lib/hours";
+import { buildSlotGrid, isOpenNow, nextAvailable, serviceDurationMinutes, todayHoursLabel } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
+import { t } from "@/lib/i18n";
 import {
   getBusiness,
   getCityRank,
@@ -436,7 +437,12 @@ function BookingPanel({
     [biz.prices, biz.slotMinutes, service],
   );
   const slots = useMemo(
-    () => buildSlots(biz, busy, 7, new Date(), duration.minutes),
+    () => buildSlotGrid(biz, busy, 14, new Date(), duration.minutes, { includeOccupied: true }),
+    [biz, busy, duration.minutes],
+  );
+  const freeSlots = useMemo(() => slots.filter((s) => s.state === "free"), [slots]);
+  const nextFree = useMemo(
+    () => nextAvailable(biz, busy, new Date(), duration.minutes),
     [biz, busy, duration.minutes],
   );
   const groups = useMemo(() => {
@@ -581,7 +587,14 @@ function BookingPanel({
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
       <h2 className="text-lg font-semibold">رزرو وقت از {biz.jobTitle || biz.name}</h2>
-      <p className="mt-1 text-sm text-muted">فقط زمان‌هایی که در تقویم واقعاً آزادند نشان داده می‌شوند. کسب‌وکار درخواست را تأیید یا رد می‌کند.</p>
+      <p className="mt-1 text-sm text-muted">فقط زمان‌هایی که در تقویم واقعاً آزادند قابل انتخاب‌اند. ساعت پر، اطلاعات مشتری قبلی را نشان نمی‌دهد.</p>
+      {nextFree ? (
+        <p className="mt-2 text-sm">
+          {t("nextFree")}: {nextFree.dayLabel}، {nextFree.label}
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-muted">در این چند روز وقت آزادی نیست.</p>
+      )}
       <div className="mt-4 space-y-3">
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">نام و نام خانوادگی</span>
@@ -626,12 +639,12 @@ function BookingPanel({
           </NativeSelect>
         </label>
         <div>
-          <span className="mb-1.5 block text-sm font-medium">ساعت آزاد</span>
+          <span className="mb-1.5 block text-sm font-medium">ساعت</span>
           <NativeSelect value={activeSlot} onChange={(e) => setSlot(e.target.value)}>
             <option value="">{weekdayName ? `انتخاب ساعت (${weekdayName})` : "انتخاب ساعت"}</option>
-            {daySlots.map((s) => (
+            {daySlots.filter((s) => s.state === "free").map((s) => (
               <option key={s.iso} value={s.iso}>
-                {s.label}
+                {s.label} — {t("slotFree")}
               </option>
             ))}
           </NativeSelect>
@@ -641,19 +654,28 @@ function BookingPanel({
                 <button
                   key={s.iso}
                   type="button"
-                  onClick={() => setSlot(s.iso)}
+                  disabled={s.state === "full"}
+                  onClick={() => {
+                    if (s.state === "free") setSlot(s.iso);
+                  }}
                   className={cn(
-                    "h-11 rounded-md border text-sm tabular-nums",
+                    "h-12 rounded-md border text-sm",
+                    s.state === "full" && "cursor-not-allowed opacity-60",
                     activeSlot === s.iso ? "border-primary bg-primary text-primary-fg" : "border-border bg-bg",
                   )}
+                  aria-label={s.state === "full" ? `${s.label} پر` : `${s.label} آزاد`}
                 >
-                  {s.label}
+                  <span className="block tabular-nums">{s.label}</span>
+                  <span className="block text-[11px]">{s.state === "full" ? t("slotFull") : t("slotFree")}</span>
                 </button>
               ))}
             </div>
           ) : (
             <p className="mt-2 text-xs text-muted">برای این روز ساعت آزادی نمانده است. روز دیگری را انتخاب کنید یا با تماس هماهنگ کنید.</p>
           )}
+          {activeDay && !daySlots.some((s) => s.state === "free") ? (
+            <WaitlistButton businessId={biz.id} day={activeDay} service={service} />
+          ) : null}
         </div>
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium">توضیح کوتاه</span>
@@ -678,6 +700,32 @@ function BookingPanel({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function WaitlistButton({ businessId, day, service }: { businessId: string; day: string; service: string }) {
+  const { user } = useCurrentUserState();
+  const [done, setDone] = useState(false);
+  if (done) return <p className="mt-2 text-xs text-muted">{t("waitlistOk")}</p>;
+  return (
+    <button
+      type="button"
+      className="mt-3 text-sm text-accent"
+      onClick={() => {
+        if (!user) {
+          toast.message("برای خبر شدن با ایمیل وارد شوید.");
+          return;
+        }
+        void saveAction("waitlistJoin", { businessId, day, serviceTitle: service || undefined })
+          .then(() => {
+            setDone(true);
+            toast.success(t("waitlistOk"));
+          })
+          .catch((err) => toast.error(friendlyError(err)));
+      }}
+    >
+      {t("waitlistCta")}
+    </button>
   );
 }
 

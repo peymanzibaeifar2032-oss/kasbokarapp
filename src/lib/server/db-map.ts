@@ -124,10 +124,15 @@ export type BookingRow = {
   party_size: number | string | null;
   status: string;
   created_at: string;
+  source?: string | null;
+  event_type?: string | null;
+  buffer_before?: number | string | null;
+  buffer_after?: number | string | null;
 };
 
 export function mapBooking(row: BookingRow): Booking {
   const kind: BookingKind = row.kind === "block" ? "block" : "booking";
+  const eventType = (row.event_type || (kind === "block" ? "block" : "booking")) as Booking["eventType"];
   return {
     id: row.id,
     businessId: row.business_id,
@@ -138,6 +143,10 @@ export function mapBooking(row: BookingRow): Booking {
     slotStart: row.slot_start,
     slotEnd: row.slot_end ?? null,
     kind,
+    source: row.source === "manual" ? "manual" : "online",
+    eventType,
+    bufferBefore: Number(row.buffer_before) || 0,
+    bufferAfter: Number(row.buffer_after) || 0,
     note: row.note,
     serviceTitle: row.service_title ?? null,
     partySize: Number(row.party_size) || 1,
@@ -217,7 +226,11 @@ export const VISIBLE_SQL = `
 
 export const BOOKING_SELECT = `
   k.id, k.business_id, b.name as business_name, k.customer_id, k.customer_name,
-  k.customer_phone, k.slot_start, k.slot_end, k.kind, k.note, k.service_title, k.party_size, k.status, k.created_at
+  k.customer_phone, k.slot_start, k.slot_end, k.kind, k.note, k.service_title, k.party_size, k.status, k.created_at,
+  coalesce(k.source, 'online') as source,
+  coalesce(k.event_type, case when k.kind = 'block' then 'block' else 'booking' end) as event_type,
+  coalesce(k.buffer_before, 0) as buffer_before,
+  coalesce(k.buffer_after, 0) as buffer_after
 `;
 
 export const ACTIVE_OCCUPANCY_SQL = `
@@ -225,3 +238,10 @@ export const ACTIVE_OCCUPANCY_SQL = `
   and kind in ('booking','block')
   and slot_end is not null
 `;
+
+export const OCCUPANCY_SELECT = `
+  business_id,
+  (slot_start - make_interval(mins => coalesce(buffer_before, 0))) as slot_start,
+  (slot_end + make_interval(mins => coalesce(buffer_after, 0))) as slot_end
+`;
+

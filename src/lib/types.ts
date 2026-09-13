@@ -1,8 +1,22 @@
+export type WorkShift = {
+  open: string;
+  close: string;
+};
+
 export type WorkHour = {
   day: string;
   open: string;
   close: string;
   closed?: boolean;
+  /** Extra same-day shifts. When set, open/close is the first shift. */
+  shifts?: WorkShift[];
+};
+
+export type SpecialDay = {
+  dayKey: string;
+  closed: boolean;
+  shifts?: WorkShift[];
+  note?: string | null;
 };
 
 export type PriceItem = {
@@ -10,7 +24,13 @@ export type PriceItem = {
   price: number;
   /** Real service duration in minutes. Absent = unknown; slotMinutes is only a fallback quantum. */
   minutes?: number;
+  bufferBefore?: number;
+  bufferAfter?: number;
+  depositType?: "none" | "fixed" | "percent";
+  depositAmount?: number;
+  depositPercent?: number;
 };
+
 
 export type Category = {
   id: number;
@@ -55,9 +75,13 @@ export type Business = {
   createdAt: string;
   hasFreeToday?: boolean;
   nextFreeIso?: string | null;
+  nextFreeLabel?: string | null;
 };
 
 export type BookingKind = "booking" | "block";
+export type BookingSource = "online" | "manual";
+export type BookingEventType = "booking" | "block" | "break" | "personal" | "holiday" | "manual";
+export type BookingStatus = "requested" | "confirmed" | "cancelled" | "done" | "no_show";
 
 export type Booking = {
   id: string;
@@ -69,12 +93,28 @@ export type Booking = {
   slotStart: string;
   slotEnd: string | null;
   kind: BookingKind;
+  source: BookingSource;
+  eventType: BookingEventType;
+  bufferBefore: number;
+  bufferAfter: number;
   note: string | null;
   serviceTitle: string | null;
   partySize: number;
-  status: "requested" | "confirmed" | "cancelled" | "done";
+  status: BookingStatus;
   createdAt: string;
 };
+
+export type NotificationItem = {
+  id: string;
+  title: string;
+  body: string;
+  kind: string;
+  bookingId: string | null;
+  businessId: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
 
 export type Review = {
   id: string;

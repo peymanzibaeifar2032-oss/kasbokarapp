@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  buildSlotGrid,
   buildSlots,
+  dayStatuses,
   hasFreeToday,
   intervalsOverlap,
   isOpenNow,
+  jalaliDayLabel,
+  occupancyRange,
+  serviceBuffers,
   serviceDurationMinutes,
   tehranClock,
   tehranDayBounds,
@@ -125,5 +130,86 @@ describe("true free-today", () => {
     const slots = buildSlots(biz(), [], 1, now, 60);
     assert.equal(slots.some((s) => s.label === "18:00"), false);
     assert.equal(slots.some((s) => s.label === "17:00"), true);
+  });
+});
+
+describe("shifts, special days, buffers", () => {
+  it("supports two shifts on one day", () => {
+    const now = new Date(tehranLocalToIso(2026, 9, 12, 8, 0));
+    const split = biz({
+      workHours: [
+        {
+          day: "شنبه",
+          open: "09:00",
+          close: "13:00",
+          shifts: [
+            { open: "09:00", close: "13:00" },
+            { open: "16:00", close: "22:00" },
+          ],
+        },
+      ],
+    });
+    const slots = buildSlots(split, [], 1, now, 60);
+    assert.equal(slots.some((s) => s.label === "12:00"), true);
+    assert.equal(slots.some((s) => s.label === "13:00"), false);
+    assert.equal(slots.some((s) => s.label === "16:00"), true);
+    assert.equal(slots.some((s) => s.label === "21:00"), true);
+  });
+
+  it("special closed day overrides weekly hours", () => {
+    const now = new Date(tehranLocalToIso(2026, 9, 12, 8, 0));
+    assert.equal(hasFreeToday(biz(), [], now, 60, { specialDays: [{ dayKey: "2026-09-12", closed: true }] }), false);
+  });
+
+  it("buffer after a booking hides the next slot", () => {
+    const now = new Date(tehranLocalToIso(2026, 9, 12, 8, 0));
+    const busy: BusyInterval[] = [
+      occupancyRange(tehranLocalToIso(2026, 9, 12, 10, 0), tehranLocalToIso(2026, 9, 12, 11, 0), 0, 30),
+    ];
+    const slots = buildSlots(biz(), busy, 1, now, 60);
+    assert.equal(slots.some((s) => s.label === "10:00"), false);
+    assert.equal(slots.some((s) => s.label === "11:00"), false);
+    assert.equal(slots.some((s) => s.label === "12:00"), true);
+  });
+
+  it("occupied slots are marked full without being bookable", () => {
+    const now = new Date(tehranLocalToIso(2026, 9, 12, 8, 0));
+    const start = tehranLocalToIso(2026, 9, 12, 11, 0);
+    const grid = buildSlotGrid(
+      biz(),
+      [{ start, end: tehranLocalToIso(2026, 9, 12, 12, 0) }],
+      1,
+      now,
+      60,
+      { includeOccupied: true },
+    );
+    const taken = grid.find((s) => s.iso === start);
+    assert.equal(taken?.state, "full");
+    assert.equal(buildSlots(biz(), [{ start, end: tehranLocalToIso(2026, 9, 12, 12, 0) }], 1, now, 60).some((s) => s.iso === start), false);
+  });
+
+  it("jalali label is Persian", () => {
+    const label = jalaliDayLabel(2026, 9, 12);
+    assert.match(label, /شنبه|شهریور|۱۴۰۵/);
+  });
+
+  it("serviceBuffers stay zero when unset", () => {
+    assert.deepEqual(serviceBuffers([{ title: "ویزیت", price: 1, minutes: 20 }], "ویزیت"), { before: 0, after: 0 });
+    assert.deepEqual(serviceBuffers([{ title: "تاتو", price: 1, minutes: 180, bufferBefore: 15, bufferAfter: 30 }], "تاتو"), {
+      before: 15,
+      after: 30,
+    });
+  });
+
+  it("dayStatuses marks a fully blocked day as full", () => {
+    const now = new Date(tehranLocalToIso(2026, 9, 12, 8, 0));
+    const days = dayStatuses(
+      biz(),
+      [{ start: tehranLocalToIso(2026, 9, 12, 9, 0), end: tehranLocalToIso(2026, 9, 12, 18, 0) }],
+      1,
+      now,
+      60,
+    );
+    assert.equal(days[0].status, "full");
   });
 });

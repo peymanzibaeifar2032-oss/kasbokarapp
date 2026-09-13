@@ -1,4 +1,4 @@
-import type { Business, PriceItem, WorkHour } from "@/lib/types";
+import type { Business, PriceItem, SpecialDay, WorkHour, WorkShift } from "@/lib/types";
 
 export const WEEKDAYS_FA = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"] as const;
 
@@ -52,15 +52,59 @@ export function hoursForDay(hours: WorkHour[], weekday: number) {
   return hours.find((h) => h.day === name);
 }
 
-export function isOpenNow(hours: WorkHour[], date = new Date()) {
+export function shiftsFor(hours: WorkHour | undefined): WorkShift[] {
+  if (!hours || hours.closed) return [];
+  if (hours.shifts?.length) {
+    return hours.shifts.filter((s) => s.open && s.close);
+  }
+  if (hours.open && hours.close) return [{ open: hours.open, close: hours.close }];
+  return [];
+}
+
+export function jalaliDayLabel(y: number, m: number, day: number) {
+  const iso = tehranLocalToIso(y, m, day, 12, 0);
+  return new Date(iso).toLocaleDateString("fa-IR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Tehran",
+  });
+}
+
+export function serviceBuffers(
+  prices: PriceItem[] | undefined,
+  serviceTitle: string | null | undefined,
+): { before: number; after: number } {
+  const item = serviceTitle ? (prices ?? []).find((p) => p.title === serviceTitle) : undefined;
+  const before = Math.max(0, Math.min(180, Math.round(item?.bufferBefore ?? 0)));
+  const after = Math.max(0, Math.min(180, Math.round(item?.bufferAfter ?? 0)));
+  return { before, after };
+}
+
+export function occupancyRange(startIso: string, endIso: string, before = 0, after = 0) {
+  const start = new Date(startIso).getTime() - before * 60000;
+  const end = new Date(endIso).getTime() + after * 60000;
+  return { start: new Date(start).toISOString(), end: new Date(end).toISOString() };
+}
+
+export function isOpenNow(hours: WorkHour[], date = new Date(), special: SpecialDay[] = []) {
   const clock = tehranClock(date);
-  const row = hoursForDay(hours, clock.weekday);
-  if (!row || row.closed || !row.open || !row.close) return false;
+  const key = tehranDayKey(date);
+  const override = special.find((s) => s.dayKey === key);
+  const shifts = override
+    ? override.closed
+      ? []
+      : override.shifts ?? []
+    : shiftsFor(hoursForDay(hours, clock.weekday));
+  if (!shifts.length) return false;
   const now = clock.hh * 60 + clock.mm;
-  const open = minutesOf(row.open);
-  let close = minutesOf(row.close);
-  if (close <= open) close += 24 * 60;
-  return now >= open && now < close;
+  return shifts.some((s) => {
+    const open = minutesOf(s.open);
+    let close = minutesOf(s.close);
+    if (close <= open) close += 24 * 60;
+    return now >= open && now < close;
+  });
 }
 
 export function todayHoursLabel(hours: WorkHour[], date = new Date()) {
@@ -78,7 +122,24 @@ export function todayHoursLabel(hours: WorkHour[], date = new Date()) {
 export type BusyInterval = { start: string; end: string };
 export type BusyInput = string | BusyInterval;
 
-export type SlotOption = { iso: string; endIso: string; label: string; dayKey: string; dayLabel: string };
+export type SlotOption = {
+  iso: string;
+  endIso: string;
+  label: string;
+  dayKey: string;
+  dayLabel: string;
+  state: "free" | "full";
+};
+
+export type DayStatus = "free" | "limited" | "full" | "closed" | "past";
+
+export type AvailabilityOptions = {
+  specialDays?: SpecialDay[];
+  bufferBefore?: number;
+  bufferAfter?: number;
+  /** When true, occupied candidate times are returned as state=full. */
+  includeOccupied?: boolean;
+};
 
 /** Half-open [start, end). */
 export function intervalsOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number) {
@@ -126,17 +187,33 @@ export function buildSlots(
   days = 7,
   now: Date = new Date(),
   durationMinutes?: number,
+  options: AvailabilityOptions = {},
+) {
+  return buildSlotGrid(business, busy, days, now, durationMinutes, options).filter((s) => s.state === "free");
+}
+
+export function buildSlotGrid(
+  business: Pick<Business, "workHours" | "slotMinutes">,
+  busy: BusyInput[] = [],
+  days = 7,
+  now: Date = new Date(),
+  durationMinutes?: number,
+  options: AvailabilityOptions = {},
 ) {
   const duration = Math.max(10, durationMinutes ?? (business.slotMinutes || 60));
   const durationMs = duration * 60000;
+  const padBefore = Math.max(0, options.bufferBefore ?? 0) * 60000;
+  const padAfter = Math.max(0, options.bufferAfter ?? 0) * 60000;
   const ranges = toBusyRanges(busy, durationMs);
   const out: SlotOption[] = [];
   const clock = tehranClock(now);
   const map = new Map(business.workHours.map((h) => [h.day, h]));
+  const special = new Map((options.specialDays ?? []).map((s) => [s.dayKey, s]));
   const longJob = duration >= 12 * 60;
   const daySpan = longJob ? Math.max(1, Math.round(duration / (24 * 60))) : 1;
   const windowDays = longJob ? Math.max(days, daySpan * 5) : days;
   const minStart = now.getTime() + 20 * 60000;
+  const includeOccupied = Boolean(options.includeOccupied);
 
   for (let i = 0; i < windowDays; i++) {
     const base = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + i));
@@ -145,49 +222,91 @@ export function buildSlots(
     const day = base.getUTCDate();
     const weekday = base.getUTCDay();
     const name = WEEKDAYS_FA[weekday];
-    const hours = map.get(name);
-    if (!hours || hours.closed || !hours.open || !hours.close) continue;
-    const openM = minutesOf(hours.open);
-    let closeM = minutesOf(hours.close);
-    if (closeM <= openM) closeM += 24 * 60;
-    const dayKey = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    const dayLabel = `${name} · ${y}/${String(m).padStart(2, "0")}/${String(day).padStart(2, "0")}`;
+    const dayKeyIso = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const override = special.get(dayKeyIso);
+    const weekly = map.get(name);
+    const shifts = override ? (override.closed ? [] : override.shifts?.length ? override.shifts : []) : shiftsFor(weekly);
+    const dayLabel = jalaliDayLabel(y, m, day);
+
+    if (!shifts.length) continue;
+
+    const pushSlot = (hh: number, mm: number) => {
+      const iso = tehranLocalToIso(y, m, day, hh, mm);
+      const ms = new Date(iso).getTime();
+      if (ms < minStart) return;
+      const endMs = ms + durationMs;
+      const occStart = ms - padBefore;
+      const occEnd = endMs + padAfter;
+      const taken = conflicts(occStart, occEnd, ranges);
+      if (taken && !includeOccupied) return;
+      out.push({
+        iso,
+        endIso: new Date(endMs).toISOString(),
+        label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
+        dayKey: dayKeyIso,
+        dayLabel,
+        state: taken ? "full" : "free",
+      });
+    };
 
     if (longJob) {
       if (i % daySpan !== 0) continue;
-      const hh = Math.floor((openM % (24 * 60)) / 60);
-      const mm = openM % 60;
-      const iso = tehranLocalToIso(y, m, day, hh, mm);
-      const ms = new Date(iso).getTime();
-      if (ms < minStart) continue;
-      const endMs = ms + durationMs;
-      if (conflicts(ms, endMs, ranges)) continue;
-      out.push({
-        iso,
-        endIso: new Date(endMs).toISOString(),
-        label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
-        dayKey,
-        dayLabel,
-      });
+      const first = shifts[0];
+      const openM = minutesOf(first.open);
+      pushSlot(Math.floor((openM % (24 * 60)) / 60), openM % 60);
       continue;
     }
 
-    for (let t = openM; t + duration <= closeM; t += duration) {
-      const hh = Math.floor((t % (24 * 60)) / 60);
-      const mm = t % 60;
-      const iso = tehranLocalToIso(y, m, day, hh, mm);
-      const ms = new Date(iso).getTime();
-      if (ms < minStart) continue;
-      const endMs = ms + durationMs;
-      if (conflicts(ms, endMs, ranges)) continue;
-      out.push({
-        iso,
-        endIso: new Date(endMs).toISOString(),
-        label: `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`,
-        dayKey,
-        dayLabel,
-      });
+    for (const shift of shifts) {
+      const openM = minutesOf(shift.open);
+      let closeM = minutesOf(shift.close);
+      if (closeM <= openM) closeM += 24 * 60;
+      for (let t = openM; t + duration <= closeM; t += duration) {
+        const hh = Math.floor((t % (24 * 60)) / 60);
+        const mm = t % 60;
+        pushSlot(hh, mm);
+      }
     }
+  }
+  return out;
+}
+
+export function dayStatuses(
+  business: Pick<Business, "workHours" | "slotMinutes">,
+  busy: BusyInput[] = [],
+  days = 14,
+  now: Date = new Date(),
+  durationMinutes?: number,
+  options: AvailabilityOptions = {},
+): { dayKey: string; dayLabel: string; status: DayStatus; freeCount: number }[] {
+  const grid = buildSlotGrid(business, busy, days, now, durationMinutes, { ...options, includeOccupied: true });
+  const clock = tehranClock(now);
+  const todayKey = tehranDayKey(now);
+  const special = new Map((options.specialDays ?? []).map((s) => [s.dayKey, s]));
+  const map = new Map(business.workHours.map((h) => [h.day, h]));
+  const out: { dayKey: string; dayLabel: string; status: DayStatus; freeCount: number }[] = [];
+  for (let i = 0; i < days; i++) {
+    const base = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + i));
+    const y = base.getUTCFullYear();
+    const m = base.getUTCMonth() + 1;
+    const day = base.getUTCDate();
+    const weekday = base.getUTCDay();
+    const dayKey = `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const dayLabel = jalaliDayLabel(y, m, day);
+    if (dayKey < todayKey) {
+      out.push({ dayKey, dayLabel, status: "past", freeCount: 0 });
+      continue;
+    }
+    const override = special.get(dayKey);
+    const weekly = map.get(WEEKDAYS_FA[weekday]);
+    const closed = override ? override.closed || !(override.shifts && override.shifts.length) : !shiftsFor(weekly).length;
+    const rows = grid.filter((s) => s.dayKey === dayKey);
+    const freeCount = rows.filter((s) => s.state === "free").length;
+    let status: DayStatus = "free";
+    if (closed && !rows.length) status = "closed";
+    else if (!freeCount) status = "full";
+    else if (freeCount <= 2) status = "limited";
+    out.push({ dayKey, dayLabel, status, freeCount });
   }
   return out;
 }
@@ -197,9 +316,10 @@ export function hasFreeToday(
   busy: BusyInput[] = [],
   now: Date = new Date(),
   durationMinutes?: number,
+  options: AvailabilityOptions = {},
 ) {
   const key = tehranDayKey(now);
-  return buildSlots(business, busy, 1, now, durationMinutes).some((s) => s.dayKey === key);
+  return buildSlots(business, busy, 1, now, durationMinutes, options).some((s) => s.dayKey === key);
 }
 
 /** @deprecated Use hasFreeToday with real occupancy. Kept as a thin wrapper. */
@@ -212,8 +332,9 @@ export function nextAvailable(
   busy: BusyInput[] = [],
   now: Date = new Date(),
   durationMinutes?: number,
+  options: AvailabilityOptions = {},
 ) {
-  return buildSlots(business, busy, 10, now, durationMinutes)[0] ?? null;
+  return buildSlots(business, busy, 10, now, durationMinutes, options)[0] ?? null;
 }
 
 export { profileCompleteness } from "./search/completeness.ts";

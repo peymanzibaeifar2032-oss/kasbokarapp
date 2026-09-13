@@ -14,6 +14,7 @@ import { sortByRelevance } from "@/lib/search/ranking";
 import { performCreateBooking } from "@/lib/server/writes";
 import {
   ACTIVE_OCCUPANCY_SQL,
+  OCCUPANCY_SELECT,
   BOOKING_SELECT,
   BIZ_SELECT,
   BIZ_SELECT_JOINED,
@@ -27,7 +28,7 @@ import {
   type BizRow,
   type ReviewRow,
 } from "@/lib/server/db-map";
-import type { BusyInterval, CityRank, OwnerStats, PriceItem, Profile, WorkHour } from "@/lib/types";
+import type { BusyInterval, CityRank, OwnerStats, PriceItem, Profile, SpecialDay, WorkHour } from "@/lib/types";
 
 const hoursSchema = z.array(
   z.object({
@@ -141,13 +142,18 @@ export const listBusinesses = createServerFn({ method: "POST" })
 
     const ids = items.map((b) => b.id);
     const occByBiz = new Map<string, BusyInterval[]>();
+    const specialByBiz = new Map<string, SpecialDay[]>();
     if (ids.length) {
       const occ = await sql.query<{ business_id: string; slot_start: string; slot_end: string }>(
-        `select business_id, slot_start, slot_end from bookings
+        `select ${OCCUPANCY_SELECT} from bookings
          where business_id = any($1::text[])
            and ${ACTIVE_OCCUPANCY_SQL}
            and slot_end > now()
-           and slot_start < now() + interval '8 days'`,
+           and slot_start < now() + interval '8 days'
+         union all
+         select business_id, slot_start, slot_end from booking_holds
+         where business_id = any($1::text[])
+           and expires_at > now()`,
         [ids],
       );
       for (const row of occ) {
@@ -155,15 +161,32 @@ export const listBusinesses = createServerFn({ method: "POST" })
         list.push({ start: row.slot_start, end: row.slot_end });
         occByBiz.set(row.business_id, list);
       }
+      const special = await sql.query<{ business_id: string; day: string; closed: boolean; shifts: unknown }>(
+        `select business_id, to_char(day, 'YYYY-MM-DD') as day, closed, shifts
+         from business_special_hours
+         where business_id = any($1::text[])
+           and day >= (timezone('Asia/Tehran', now()))::date
+           and day < (timezone('Asia/Tehran', now()))::date + 14`,
+        [ids],
+      );
+      for (const row of special) {
+        const list = specialByBiz.get(row.business_id) ?? [];
+        const shifts = Array.isArray(row.shifts) ? (row.shifts as { open: string; close: string }[]) : [];
+        list.push({ dayKey: row.day, closed: Boolean(row.closed), shifts });
+        specialByBiz.set(row.business_id, list);
+      }
     }
     const now = new Date();
     items = items.map((b) => {
       const busy = occByBiz.get(b.id) ?? [];
-      const next = nextAvailable(b, busy, now);
+      const specialDays = specialByBiz.get(b.id) ?? [];
+      const opts = { specialDays };
+      const next = nextAvailable(b, busy, now, undefined, opts);
       return {
         ...b,
-        hasFreeToday: hasFreeToday(b, busy, now),
+        hasFreeToday: hasFreeToday(b, busy, now, undefined, opts),
         nextFreeIso: next?.iso ?? null,
+        nextFreeLabel: next ? `${next.dayLabel}، ${next.label}` : null,
       };
     });
     if (wantFree) items = items.filter((b) => b.hasFreeToday);
@@ -243,8 +266,13 @@ export const listBusySlots = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const sql = await getSql();
     const rows = await sql.query<{ slot_start: string; slot_end: string }>(
-      `select slot_start, slot_end from bookings
-       where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL} and slot_end > now()`,
+      `select slot_start, slot_end from (
+         select ${OCCUPANCY_SELECT} from bookings
+          where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL} and slot_end > now()
+         union all
+         select business_id, slot_start, slot_end from booking_holds
+          where business_id = $1 and expires_at > now()
+       ) x`,
       [data.businessId],
     );
     return rows.map((r) => ({ start: r.slot_start, end: r.slot_end }));

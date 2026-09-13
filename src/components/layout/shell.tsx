@@ -1,15 +1,36 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import {
-  CalendarDays,
-  LayoutGrid,
-  MapPinned,
-  Store,
-  UserRound,
-} from "lucide-react";
+import { Bell, CalendarDays, LayoutGrid, MapPinned, Store, UserRound } from "lucide-react";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { t } from "@/lib/i18n";
+import { saveAction } from "@/lib/save";
+
+function NoticeBell() {
+  const { user } = useCurrentUserState();
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    void saveAction<{ unread: number }>("notifications")
+      .then((r) => setUnread(r.unread || 0))
+      .catch(() => setUnread(0));
+  }, [user]);
+  if (!user) return null;
+  return (
+    <Link
+      to="/notifications"
+      className="relative inline-flex size-11 items-center justify-center rounded-md border border-border bg-surface"
+      aria-label={t("navNotices")}
+    >
+      <Bell className="size-5" />
+      {unread > 0 ? (
+        <span className="absolute -left-1 -top-1 min-w-4 rounded-full bg-accent px-1 text-[10px] text-accent-fg">
+          {unread > 9 ? "۹+" : new Intl.NumberFormat("fa-IR").format(unread)}
+        </span>
+      ) : null}
+    </Link>
+  );
+}
 
 function AuthSlot() {
   const { user, isPending } = useCurrentUserState();
@@ -73,9 +94,19 @@ export function Shell({ children }: { children: ReactNode }) {
               >
                 {t("navPanel")}
               </Link>
+              <Link
+                to="/dashboard"
+                search={{}}
+                className="rounded-md px-3 py-2 text-sm text-muted hover:bg-surface hover:text-fg"
+              >
+                {t("navCalendar")}
+              </Link>
             </SignedIn>
           </nav>
           <div className="flex items-center gap-2">
+            <SignedIn>
+              <NoticeBell />
+            </SignedIn>
             <SignedOut>
               <Link
                 to="/dashboard"
