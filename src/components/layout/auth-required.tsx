@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { Shell } from "@/components/layout/shell";
 
 export function SignedOutPanel({
@@ -24,6 +23,7 @@ export function SignedOutPanel({
             ? "در حال بررسی ورود…"
             : "برای مشاهده پنل وارد حساب شوید"}
       </p>
+      <p className="mt-2 text-xs text-muted">اگر این صفحه خالی ماند، یک‌بار دادهٔ سایت را پاک کنید و دوباره باز کنید.</p>
       <div className="mt-5 flex flex-wrap gap-2">
         {error && onRetry ? (
           <button
@@ -34,13 +34,12 @@ export function SignedOutPanel({
             تلاش دوباره
           </button>
         ) : null}
-        <Link
-          to="/login"
-          search={{ next }}
+        <a
+          href={`/login?next=${encodeURIComponent(next)}`}
           className="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
         >
           ورود / ثبت‌نام
-        </Link>
+        </a>
       </div>
     </Shell>
   );

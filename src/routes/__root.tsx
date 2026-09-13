@@ -17,10 +17,24 @@ const fetchSessionUser = createServerFn({ method: "GET" }).handler(async () => {
 export const Route = createRootRoute({
   beforeLoad: async () => {
     try {
-      return { sessionUser: await fetchSessionUser() };
+      const u = await Promise.race([
+        fetchSessionUser(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      return { sessionUser: u ?? null };
     } catch {
       return { sessionUser: null };
     }
+  },
+  errorComponent: function RootError() {
+    return (
+      <div dir="rtl" lang="fa" className="min-h-dvh bg-bg p-6 text-fg">
+        <p className="text-sm">بارگذاری پنل انجام نشد.</p>
+        <a href="/login?next=/dashboard" className="mt-4 inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm text-primary-fg">
+          ورود / ثبت‌نام
+        </a>
+      </div>
+    );
   },
   head: () => ({
     meta: [
