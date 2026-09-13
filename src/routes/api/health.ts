@@ -21,6 +21,7 @@ export const Route = createFileRoute("/api/health")({
               db: postgresUrl() ? (isStandalone() ? "postgres" : "neon") : "pglite",
               standalone: isStandalone(),
               homeSearchVersion: HOME_SEARCH_VERSION,
+              financeCore: "ledger-v1-vandar-disabled",
               ...(sha ? { sha } : {}),
             },
             { headers: { "Cache-Control": "no-store" } },
