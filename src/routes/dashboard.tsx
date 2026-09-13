@@ -10,7 +10,7 @@ import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
-import { RedirectToSignIn } from "@/lib/auth/gates";
+import { SignedOutPanel } from "@/components/layout/auth-required";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatFaDate, formatFaDateTime, toWhatsAppLink } from "@/lib/format";
 import { profileCompleteness, tehranLocalToIso } from "@/lib/hours";
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/dashboard")({
 
 function Dashboard() {
   const pin = Route.useSearch();
-  const { user, isPending } = useCurrentUserState();
+  const { user, isPending, sessionError, retry } = useCurrentUserState();
   const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "finance" | "me">(
     pin.lat != null && pin.lng != null ? "new" : "list",
   );
@@ -56,17 +56,18 @@ function Dashboard() {
     refresh();
   }, [user]);
 
-  if (isPending) {
-    return (
-      <Shell>
-        <div className="h-40 animate-pulse rounded-2xl bg-surface" />
-      </Shell>
-    );
-  }
   if (!user) {
     const next =
       pin.lat != null && pin.lng != null ? `/dashboard?lat=${pin.lat}&lng=${pin.lng}` : "/dashboard";
-    return <RedirectToSignIn next={next} />;
+    return (
+      <SignedOutPanel
+        title="پنل کسب‌وکار"
+        next={next}
+        error={sessionError}
+        loading={isPending}
+        onRetry={retry}
+      />
+    );
   }
 
   return (

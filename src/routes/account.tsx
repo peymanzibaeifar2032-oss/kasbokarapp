@@ -5,7 +5,7 @@ import { Shell } from "@/components/layout/shell";
 import { BusinessCard } from "@/components/business/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RedirectToSignIn } from "@/lib/auth/gates";
+import { SignedOutPanel } from "@/components/layout/auth-required";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useFavorites } from "@/lib/favorites";
 import { formatFaDateTime, bookingIcs, downloadTextFile } from "@/lib/format";
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/account")({ component: Account });
 
 function Account() {
-  const { user, isPending } = useCurrentUserState();
+  const { user, isPending, sessionError, retry } = useCurrentUserState();
   const favs = useFavorites();
   const [tab, setTab] = useState<"bookings" | "saved" | "payments">("bookings");
   const [items, setItems] = useState<Booking[]>([]);
@@ -36,14 +36,17 @@ function Account() {
     );
   }, [tab, favs.ids]);
 
-  if (isPending) {
+  if (!user) {
     return (
-      <Shell>
-        <div className="h-32 animate-pulse rounded-2xl bg-surface" />
-      </Shell>
+      <SignedOutPanel
+        title="حساب من"
+        next="/account"
+        error={sessionError}
+        loading={isPending}
+        onRetry={retry}
+      />
     );
   }
-  if (!user) return <RedirectToSignIn next="/account" />;
 
   return (
     <Shell>

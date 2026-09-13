@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Shell } from "@/components/layout/shell";
 import { Button } from "@/components/ui/button";
-import { RedirectToSignIn } from "@/lib/auth/gates";
+import { SignedOutPanel } from "@/components/layout/auth-required";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatFaDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n";
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/notifications")({
 });
 
 function NotificationsPage() {
-  const { user, isPending } = useCurrentUserState();
+  const { user, isPending, sessionError, retry } = useCurrentUserState();
   const [items, setItems] = useState<NotificationItem[]>([]);
 
   useEffect(() => {
@@ -22,14 +22,17 @@ function NotificationsPage() {
     void saveAction<{ items: NotificationItem[] }>("notifications").then((r) => setItems(r.items ?? []));
   }, [user]);
 
-  if (isPending) {
+  if (!user) {
     return (
-      <Shell>
-        <div className="h-32 animate-pulse rounded-2xl bg-surface" />
-      </Shell>
+      <SignedOutPanel
+        title={t("navNotices")}
+        next="/notifications"
+        error={sessionError}
+        loading={isPending}
+        onRetry={retry}
+      />
     );
   }
-  if (!user) return <RedirectToSignIn next="/notifications" />;
 
   return (
     <Shell>

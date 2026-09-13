@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { visibilityLabel } from "@/components/business/card";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/input";
-import { RedirectToSignIn } from "@/lib/auth/gates";
+import { SignedOutPanel } from "@/components/layout/auth-required";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { guideRequest, type GuideBugListItem } from "@/lib/guide/client";
 import { formatFaDateTime } from "@/lib/format";
@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/admin")({ component: Admin });
 
 function Admin() {
-  const { user, isPending } = useCurrentUserState();
+  const { user, isPending, sessionError, retry } = useCurrentUserState();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [items, setItems] = useState<Business[]>([]);
   const [tab, setTab] = useState<"biz" | "bugs" | "finance">("biz");
@@ -38,14 +38,7 @@ function Admin() {
     });
   }, [user]);
 
-  if (isPending) {
-    return (
-      <Shell>
-        <div className="h-32 animate-pulse rounded-2xl bg-surface" />
-      </Shell>
-    );
-  }
-  if (!user) return <RedirectToSignIn next="/admin" />;
+  if (!user) return <SignedOutPanel title="مدیریت" next="/admin" error={sessionError} loading={isPending} onRetry={retry} />;
   if (profile && !profile.isAdmin) {
     return (
       <Shell>

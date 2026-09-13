@@ -99,7 +99,12 @@ function createNeonSql(): Promise<Sql> {
     if (!connectionString) {
       throw new Error("Postgres URL missing after backend selection.");
     }
-    const pool = new Pool({ connectionString });
+    const pool = new Pool({
+      connectionString,
+      max: 8,
+      connectionTimeoutMillis: 4000,
+      idleTimeoutMillis: 20_000,
+    });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];

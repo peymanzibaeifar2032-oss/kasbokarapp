@@ -33,8 +33,7 @@ function NoticeBell() {
 }
 
 function AuthSlot() {
-  const { user, isPending } = useCurrentUserState();
-  if (isPending) return <div className="size-9 animate-pulse rounded-full bg-primary/10" />;
+  const { user } = useCurrentUserState();
   if (user) return <UserButton />;
   return (
     <Link
