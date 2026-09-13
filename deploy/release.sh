@@ -28,6 +28,8 @@ fail() {
   reason=$1
   echo "DEPLOY_FAILED $reason"
   git reset --hard "$OLD_SHA" >/dev/null 2>&1 || true
+  printf 'GIT_SHA=%s\n' "$OLD_SHA" > .deploy-sha
+  export GIT_SHA="$OLD_SHA"
   if docker image inspect kasbokarapp-web:prev >/dev/null 2>&1; then
     docker tag kasbokarapp-web:prev kasbokarapp-web:latest >/dev/null
     $COMPOSE up -d --no-build --remove-orphans >/dev/null 2>&1 || true
@@ -62,10 +64,17 @@ chmod +x deploy/*.sh 2>/dev/null || true
 export GIT_SHA="$NEW_SHA"
 printf 'GIT_SHA=%s\n' "$NEW_SHA" > .deploy-sha
 
-$COMPOSE build web || fail "build"
-$COMPOSE up -d --remove-orphans || fail "up"
+BUILD_FLAGS=""
+if [ "${FORCE_DEPLOY:-0}" = "1" ]; then
+  BUILD_FLAGS="--no-cache"
+fi
+$COMPOSE build $BUILD_FLAGS web || fail "build"
+$COMPOSE up -d --force-recreate --remove-orphans || fail "up"
 
 wait_health || fail "health"
+LIVE=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
+echo "$LIVE" | grep -q "$NEW_SHA" || fail "health-sha-mismatch"
+echo "$LIVE" | grep -q 'jalali-month-v1' || fail "health-calendar-marker"
 
 DBCHK=$($COMPOSE exec -T db psql -U kasbokar -d kasbokar -Atc "select 1" 2>/dev/null | tr -d '\r' || true)
 [ "$DBCHK" = "1" ] || fail "database"

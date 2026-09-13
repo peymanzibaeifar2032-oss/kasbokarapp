@@ -8,9 +8,12 @@ export GIT_SSH_COMMAND='ssh -i /root/.ssh/github_deploy -o IdentitiesOnly=yes -o
 git fetch origin main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
-if [ "$LOCAL" != "$REMOTE" ]; then
-  echo "WATCH_PULL $LOCAL -> $REMOTE"
-  sh deploy/release.sh
+H=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
+NEED_REBUILD=0
+echo "$H" | grep -q 'jalali-month-v1' || NEED_REBUILD=1
+if [ "$LOCAL" != "$REMOTE" ] || [ "$NEED_REBUILD" = "1" ]; then
+  echo "WATCH_PULL $LOCAL -> $REMOTE rebuild=$NEED_REBUILD"
+  FORCE_DEPLOY=$NEED_REBUILD sh deploy/release.sh
 else
   echo "WATCH_SKIP $LOCAL"
 fi
