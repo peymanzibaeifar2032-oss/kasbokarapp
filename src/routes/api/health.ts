@@ -22,6 +22,7 @@ export const Route = createFileRoute("/api/health")({
               standalone: isStandalone(),
               homeSearchVersion: HOME_SEARCH_VERSION,
               financeCore: "ledger-v1-vandar-disabled",
+              bookingCalendar: "jalali-month-v1",
               ...(sha ? { sha } : {}),
             },
             { headers: { "Cache-Control": "no-store" } },

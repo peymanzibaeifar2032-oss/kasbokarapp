@@ -622,8 +622,11 @@ function BookingPanel({
     }
   }
 
+  const canContinue = name.trim().length >= 2 && phone.trim().length >= 8 && Boolean(activeSlot);
+  const weekdayHint = groups.find((g) => g.key === activeDay)?.label ?? "";
+
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
+    <div className="rounded-2xl border border-border bg-surface p-5" data-booking-calendar="jalali-month-v1">
       <h2 className="text-lg font-semibold">رزرو وقت از {biz.jobTitle || biz.name}</h2>
       <p className="mt-1 text-sm text-muted">فقط زمان‌هایی که در تقویم واقعاً آزادند قابل انتخاب‌اند. ساعت پر، اطلاعات مشتری قبلی را نشان نمی‌دهد.</p>
       {nextFree ? (
@@ -714,7 +717,7 @@ function BookingPanel({
         </div>
         <div>
           <span className="mb-1.5 block text-sm font-medium">
-            ساعت{activeDay ? ` · ${groups.find((g) => g.key === activeDay)?.label || selectedMeta?.cell.jd}` : ""}
+            ساعت{weekdayHint ? ` · ${weekdayHint}` : ""}
           </span>
           {!activeDay ? (
             <p className="text-sm text-muted">یک روز را از تقویم انتخاب کنید.</p>
@@ -777,9 +780,9 @@ function BookingPanel({
             ))}
           </NativeSelect>
         </label>
-        <Button className="w-full" disabled={busySubmit || !ready || isPending} onClick={() => void submit()}>
+        <Button className="w-full" disabled={busySubmit || !ready || isPending || !canContinue} onClick={() => void submit()}>
           <CalendarPlus className="size-4" />
-          {busySubmit ? "در حال ثبت…" : ready && user ? "ثبت درخواست رزرو" : "ادامه برای ثبت رزرو"}
+          {busySubmit ? "در حال ثبت…" : !canContinue ? "تاریخ و ساعت را انتخاب کنید" : ready && user ? "ثبت درخواست رزرو" : "ادامه برای ثبت رزرو"}
         </Button>
         {!user ? (
           <p className="text-center text-xs text-muted">فرم را پر کنید؛ برای ثبت نهایی با ایمیل وارد می‌شوید. گوگل لازم نیست.</p>

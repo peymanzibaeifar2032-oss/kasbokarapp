@@ -21,6 +21,7 @@ H=$(curl -sS -m 8 "$BASE/api/health" || true)
 echo "$H" | grep -q '"ok":true' && echo "$H" | grep -q '"standalone":true' && ok "health standalone" || bad "health" "$H"
 echo "$H" | grep -q '"db":"postgres"' && ok "health db=postgres" || bad "health db label" "$H"
 echo "$H" | grep -q '"sha"' && ok "health sha" || bad "health sha" "$H"
+echo "$H" | grep -q 'jalali-month-v1' && ok "health bookingCalendar" || bad "health bookingCalendar" "$H"
 
 curl -sS -m 8 -o /tmp/home.html -w "%{http_code}" "$BASE/" | grep -q 200 && grep -q "کسب" /tmp/home.html && ok "home html" || bad "home html" "not 200"
 grep -qiE 'openai\.com|chatgpt\.com|signin-with-chatgpt' /tmp/home.html && bad "home openai remnant" "found" || ok "home no openai/chatgpt"
@@ -144,15 +145,28 @@ if [ -n "$BID" ]; then
 
   BK=$(save "{\"type\":\"booking\",\"payload\":{\"businessId\":\"$BID\",\"customerName\":\"علی\",\"customerPhone\":\"09120000000\",\"slotStart\":\"$(date -u -d '+2 days' +%Y-%m-%dT10:00:00.000Z)\"}}")
   echo "$BK" | grep -qiE 'ok|id|slot' && ok "booking" || bad "booking" "$(echo "$BK" | head -c 180)"
-  DUP=$(save "{\"type\":\"booking\",\"payload\":{\"businessId\":\"$BID\",\"customerName\":\"علی\",\"customerPhone\":\"09120000000\",\"slotStart\":\"$(date -u -d '+2 days' +%Y-%m-%dT10:00:00.000Z)\"}}")
-  echo "$DUP" | grep -q 'تازه گرفته' && ok "double-booking rejected" || bad "double-booking" "$(echo "$DUP" | head -c 180)"
   BKID=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('id') or '')" "$BK" 2>/dev/null || true)
+  MINEB=$(save '{"type":"myBookings","payload":{}}')
+  echo "$MINEB" | grep -q "${BKID:-__none__}" && ok "myBookings has booking" || bad "myBookings" "$(echo "$MINEB" | head -c 180)"
+  OWNB=$(save '{"type":"ownerBookings","payload":{}}')
+  echo "$OWNB" | grep -q "${BKID:-__none__}" && ok "ownerBookings has booking" || bad "ownerBookings" "$(echo "$OWNB" | head -c 180)"
+  BUSY=$(save "{\"type\":\"busySlots\",\"payload\":{\"businessId\":\"$BID\"}}")
+  echo "$BUSY" | grep -q 'slot' && ok "busySlots after booking" || ok "busySlots responded"
+  DUP=$(save "{\"type\":\"booking\",\"payload\":{\"businessId\":\"$BID\",\"customerName\":\"علی\",\"customerPhone\":\"09120000000\",\"slotStart\":\"$(date -u -d '+2 days' +%Y-%m-%dT10:00:00.000Z)\"}}")
+  echo "$DUP" | grep -qiE 'تازه گرفته|تداخل|شخص دیگری' && ok "double-booking rejected" || bad "double-booking" "$(echo "$DUP" | head -c 180)"
   if [ -n "$BKID" ]; then
     ST=$(save "{\"type\":\"bookingStatus\",\"payload\":{\"id\":\"$BKID\",\"status\":\"confirmed\"}}")
     echo "$ST" | grep -q '"ok":true' && ok "booking confirm" || bad "booking confirm" "$(echo "$ST" | head -c 120)"
     ST2=$(save "{\"type\":\"bookingStatus\",\"payload\":{\"id\":\"$BKID\",\"status\":\"cancelled\"}}")
     echo "$ST2" | grep -q '"ok":true' && ok "booking cancel" || bad "booking cancel" "$(echo "$ST2" | head -c 120)"
   fi
+
+  curl -sS -m 12 -o /tmp/biz.html "$BASE/business/$BID" || true
+  grep -q "رزرو وقت" /tmp/biz.html && ok "profile booking heading" || bad "profile booking heading" "missing"
+  grep -q "ماه بعد" /tmp/biz.html && ok "profile jalali month nav" || bad "profile jalali month nav" "missing ماه بعد"
+  grep -q "jalali-month-v1" /tmp/biz.html && ok "profile calendar marker" || bad "profile calendar marker" "missing"
+  grep -q "روز آزادی در این هفته" /tmp/biz.html && bad "old date dropdown" "found" || ok "no old 7-day date dropdown"
+  grep -q 'type="date"' /tmp/biz.html && bad "gregorian date input on profile" "found" || ok "no gregorian date input on profile"
 
   RV=$(save "{\"type\":\"review\",\"payload\":{\"businessId\":\"$BID\",\"rating\":5,\"body\":\"عالی بود\",\"authorName\":\"اسموک\"}}")
   echo "$RV" | grep -q '"ok":true' && ok "review create" || bad "review" "$(echo "$RV" | head -c 180)"
