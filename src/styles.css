@@ -40,6 +40,10 @@
     cursor: pointer;
     touch-action: manipulation;
   }
+  [data-react-aria-top-layer]:empty,
+  [data-sonner-toaster]:not(:has([data-sonner-toast])) {
+    pointer-events: none !important;
+  }
   h1,
   h2,
   h3 {

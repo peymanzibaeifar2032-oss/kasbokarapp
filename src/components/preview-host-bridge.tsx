@@ -16,6 +16,19 @@ export function PreviewHostBridge() {
   const router = useRouter();
 
   useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hostname.endsWith("kasbokarapp.com")) {
+      const kill = () => {
+        document
+          .querySelectorAll(
+            'script[src*="grok-app-builder/extensions.js"],script[src*="netlify/scripts/hud"],iframe[src*="grok-app-builder"],iframe[src*="netlify/scripts/hud"]',
+          )
+          .forEach((n) => n.remove());
+      };
+      kill();
+      const obs = new MutationObserver(kill);
+      obs.observe(document.documentElement, { childList: true, subtree: true });
+      window.setTimeout(() => obs.disconnect(), 8000);
+    }
     if (typeof navigator !== "undefined" && navigator.serviceWorker) {
       void navigator.serviceWorker.getRegistrations().then((regs) => {
         for (const reg of regs) void reg.unregister();

@@ -1,3 +1,4 @@
+import { Component, type ReactNode } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
@@ -6,6 +7,16 @@ import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import appCss from "../styles.css?url";
 
 const APP_NAME = "کسب‌وکار";
+
+class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 export const Route = createRootRoute({
   errorComponent: function RootError() {
@@ -25,7 +36,7 @@ export const Route = createRootRoute({
       { title: APP_NAME },
       { name: "description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
       { name: "theme-color", content: "#1C3D52" },
-      { name: "kasb-build", content: "interactive-v1" },
+      { name: "kasb-build", content: "interactive-v2" },
       ...((process.env.GIT_SHA || process.env.BUILD_SHA)
         ? [{ name: "kasb-sha", content: (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim() }]
         : []),
@@ -43,7 +54,7 @@ export const Route = createRootRoute({
         <HeadContent />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});}if(window.caches){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}}catch(e){}})();`,
+            __html: `(function(){try{if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});}if(window.caches){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}if(!location.hostname.endsWith("kasbokarapp.com"))return;document.querySelectorAll('script[src*="grok-app-builder/extensions.js"],script[src*="netlify/scripts/hud"]').forEach(function(n){n.remove();});}catch(e){}})();`,
           }}
         />
       </head>
@@ -51,8 +62,12 @@ export const Route = createRootRoute({
         <PreviewHostBridge />
         <AuthProvider>
           <Outlet />
-          <GuideWidget />
-          <Toaster position="bottom-center" dir="rtl" richColors />
+          <QuietBoundary>
+            <GuideWidget />
+          </QuietBoundary>
+          <QuietBoundary>
+            <Toaster position="bottom-center" dir="rtl" richColors />
+          </QuietBoundary>
         </AuthProvider>
         <Scripts />
       </body>

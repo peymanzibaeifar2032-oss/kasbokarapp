@@ -104,6 +104,20 @@ export function publicAppHost(hostHeader) {
   return host;
 }
 
+/** Real Kasbokar production — never inject Grok preview overlay chrome here. */
+export function isKasbokarProductionHost(hostHeader) {
+  const h = publicAppHost(hostHeader);
+  return h === "kasbokarapp.com" || h === "www.kasbokarapp.com";
+}
+
+export function stripGrokBuilderChrome(html) {
+  return String(html)
+    .replace(/<script\b[^>]*grok-app-builder\/extensions\.js[^>]*>\s*<\/script>/gi, "")
+    .replace(/<script\b[^>]*netlify\/scripts\/hud[^>]*>\s*<\/script>/gi, "")
+    .replace(/<meta[^>]*name=["']grok-project-id["'][^>]*>/gi, "")
+    .replace(/<meta[^>]*property=["']grok:app_id["'][^>]*>/gi, "");
+}
+
 /**
  * Published apps always use `VITE_PUBLIC_HOSTNAME` (the grok.me host the
  * deployer injects). Live preview has no such env, so fall back to the
@@ -202,15 +216,6 @@ export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
 
 export const GROK_EXTENSIONS_SCRIPT_SRC = "https://grok.com/grok-app-builder/extensions.js";
 
-export function isKasbokarProductionHost(hostHeader) {
-  const host = String(hostHeader ?? "")
-    .split(",")[0]
-    .trim()
-    .split(":")[0]
-    .toLowerCase();
-  return host === "kasbokarapp.com" || host === "www.kasbokarapp.com";
-}
-
 export function readGrokProjectId() {
   const fromProcess = typeof process !== "undefined" ? process.env?.VITE_PROJECT_ID : "";
   return String(fromProcess ?? "").trim();
@@ -237,8 +242,7 @@ export function grokXCreatorHeadTags(creator = readXCreator(), creatorId = readX
 }
 
 /** Platform "Created with Grok" banner — injected into every HTML document. */
-export function grokExtensionsHeadTags(projectId = readGrokProjectId(), host = "") {
-  if (isKasbokarProductionHost(host)) return [];
+export function grokExtensionsHeadTags(projectId = readGrokProjectId()) {
   const id = escapeHtml(projectId);
   const tags = [];
   if (projectId) {
@@ -458,12 +462,9 @@ export function injectGrokPwaHead(html, ctx = {}) {
   );
 
   if (isKasbokarProductionHost(host)) {
-    next = next
-      .replace(/<script[^>]*grok-app-builder\/extensions\.js[^>]*>\s*<\/script>/gi, "")
-      .replace(/<meta[^>]*name="grok-project-id"[^>]*>/gi, "")
-      .replace(/<meta[^>]*property="grok:app_id"[^>]*>/gi, "");
+    next = stripGrokBuilderChrome(next);
   } else if (!next.includes("/grok-app-builder/extensions.js")) {
-    missing.push(...grokExtensionsHeadTags(projectId, host));
+    missing.push(...grokExtensionsHeadTags(projectId));
   } else if (projectId && !next.includes('name="grok-project-id"')) {
     missing.push(`<meta name="grok-project-id" content="${escapeHtml(projectId)}">`);
   }
