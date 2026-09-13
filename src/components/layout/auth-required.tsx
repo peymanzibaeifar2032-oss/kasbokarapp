@@ -37,6 +37,10 @@ export function SignedOutPanel({
         <a
           href={`/login?next=${encodeURIComponent(next)}`}
           className="inline-flex h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-fg"
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+          }}
         >
           ورود / ثبت‌نام
         </a>

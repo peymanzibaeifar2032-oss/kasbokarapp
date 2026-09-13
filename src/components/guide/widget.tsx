@@ -131,7 +131,7 @@ export function GuideWidget() {
   }
 
   return (
-    <div className="pointer-events-none fixed bottom-32 end-3 z-40 w-max max-w-[calc(100vw-1.5rem)] md:bottom-6 md:end-6">
+    <div className="pointer-events-none fixed bottom-24 start-3 z-20 w-auto md:bottom-6 md:end-6 md:start-auto">
       <div className="pointer-events-auto flex flex-col items-end">
         {open ? (
           <section
