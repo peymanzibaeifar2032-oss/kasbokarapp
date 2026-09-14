@@ -1,4 +1,4 @@
-import { Component, type ReactNode } from "react";
+import { Component, useEffect, type ReactNode } from "react";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
@@ -15,6 +15,16 @@ class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean
   render() {
     return this.state.failed ? null : this.props.children;
   }
+}
+
+function CanonicalHost() {
+  useEffect(() => {
+    if (window.location.hostname !== "www.kasbokarapp.com") return;
+    window.location.replace(
+      `https://kasbokarapp.com${window.location.pathname}${window.location.search}${window.location.hash}`,
+    );
+  }, []);
+  return null;
 }
 
 export const Route = createRootRoute({
@@ -35,7 +45,7 @@ export const Route = createRootRoute({
       { title: APP_NAME },
       { name: "description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
       { name: "theme-color", content: "#1C3D52" },
-      { name: "kasb-build", content: "isolated-v1" },
+      { name: "kasb-build", content: "map-nav-v1" },
       ...((process.env.GIT_SHA || process.env.BUILD_SHA)
         ? [{ name: "kasb-sha", content: (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim() }]
         : []),
@@ -53,6 +63,7 @@ export const Route = createRootRoute({
         <HeadContent />
       </head>
       <body>
+        <CanonicalHost />
         <AuthProvider>
           <Outlet />
           <QuietBoundary>

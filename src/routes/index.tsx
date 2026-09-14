@@ -47,6 +47,24 @@ export const Route = createFileRoute("/")({
     ]);
     return { categories, items };
   },
+  errorComponent: function HomeError() {
+    return (
+      <Shell>
+        <div className="grid min-h-[50vh] place-items-center px-4 text-center">
+          <div>
+            <p className="text-lg font-semibold">صفحه الان باز نشد</p>
+            <p className="mt-1 text-sm text-muted">ارتباط با سرور برقرار نشد. صفحه را دوباره باز کنید.</p>
+            <a
+              href="/"
+              className="mt-4 inline-flex h-11 items-center rounded-full bg-primary px-5 text-sm text-primary-fg"
+            >
+              تلاش دوباره
+            </a>
+          </div>
+        </div>
+      </Shell>
+    );
+  },
   component: Home,
 });
 

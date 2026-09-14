@@ -55,7 +55,7 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh bg-bg text-fg">
       <header className="sticky top-0 z-40 border-b border-border bg-bg">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2">
-          <Link to="/" className="flex shrink-0 items-center gap-2">
+          <Link to="/" reloadDocument className="flex shrink-0 items-center gap-2">
             <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-fg">
               <Store className="size-5" />
             </span>
@@ -81,11 +81,11 @@ export function Shell({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
         <div className="grid grid-cols-5">
-          <Link to="/" className={tabClass}>
+          <Link to="/" reloadDocument className={tabClass}>
             <MapPinned className="size-5" />
             {t("navMap")}
           </Link>
-          <Link to="/" hash="cats" className={tabClass}>
+          <Link to="/" hash="cats" reloadDocument className={tabClass}>
             <LayoutGrid className="size-5" />
             {t("navCategories")}
           </Link>
