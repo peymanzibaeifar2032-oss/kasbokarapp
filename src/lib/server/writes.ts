@@ -4,7 +4,15 @@ import { getSql } from "@/lib/db";
 import { env } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
-import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey, type BusyInterval } from "@/lib/hours";
+import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey } from "@/lib/hours";
+import {
+  assignResourceAtIso,
+  eligibleResources,
+  filterOccupancy,
+  hasActiveResources,
+  type BusinessResource,
+  type OccupancyHit,
+} from "@/lib/calendar/resources";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -221,20 +229,52 @@ async function audit(
   );
 }
 
-async function loadOccupancy(sql: Sql, businessId: string, untilIso: string): Promise<BusyInterval[]> {
-  const occ = await sql.query<{ slot_start: string; slot_end: string }>(
-    `select slot_start, slot_end from (
+async function loadOccupancy(sql: Sql, businessId: string, untilIso: string): Promise<OccupancyHit[]> {
+  const occ = await sql.query<{ slot_start: string; slot_end: string; resource_id: string | null }>(
+    `select slot_start, slot_end, resource_id from (
        select (slot_start - make_interval(mins => coalesce(buffer_before, 0))) as slot_start,
-              (slot_end + make_interval(mins => coalesce(buffer_after, 0))) as slot_end
+              (slot_end + make_interval(mins => coalesce(buffer_after, 0))) as slot_end,
+              coalesce(nullif(resource_id, ''), nullif(staff_id, '')) as resource_id
          from bookings
         where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL} and slot_end > now() and slot_start < $2::timestamptz
        union all
-       select slot_start, slot_end from booking_holds
+       select slot_start, slot_end, coalesce(nullif(resource_id, ''), nullif(staff_id, ''))
+         from booking_holds
         where business_id = $1 and expires_at > now()
      ) x`,
     [businessId, untilIso],
   );
-  return occ.map((r) => ({ start: r.slot_start, end: r.slot_end }));
+  return occ.map((r) => ({ start: r.slot_start, end: r.slot_end, resourceId: r.resource_id }));
+}
+
+async function loadResources(sql: Sql, businessId: string): Promise<BusinessResource[]> {
+  const rows = await sql.query<{
+    id: string;
+    business_id: string;
+    kind: string;
+    name: string;
+    color: string | null;
+    active: boolean;
+    sort_order: number;
+    titles: string | null;
+  }>(
+    `select r.id, r.business_id, r.kind, r.name, r.color, r.active, r.sort_order,
+            (select string_agg(m.service_title, '|||') from resource_service_map m where m.resource_id = r.id) as titles
+       from business_resources r
+      where r.business_id = $1
+      order by r.sort_order, r.created_at`,
+    [businessId],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    businessId: r.business_id,
+    kind: (r.kind as BusinessResource["kind"]) || "staff",
+    name: r.name,
+    color: r.color,
+    active: Boolean(r.active),
+    sortOrder: Number(r.sort_order) || 0,
+    serviceTitles: r.titles ? r.titles.split("|||") : [],
+  }));
 }
 
 async function loadSpecialDays(sql: Sql, businessId: string) {
@@ -283,6 +323,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
       note: z.string().max(300).optional(),
       serviceTitle: z.string().max(80).optional(),
       partySize: z.number().int().min(1).max(20).optional(),
+      resourceId: z.string().max(80).optional().nullable(),
     })
     .parse(raw);
   if (!isIranMobile(data.customerPhone)) throw new Error("شماره موبایل معتبر وارد کنید.");
@@ -312,13 +353,39 @@ export async function performCreateBooking(userId: string, raw: unknown) {
   const slotEnd = new Date(start.getTime() + duration.minutes * 60000).toISOString();
   const specialDays = await loadSpecialDays(sql, data.businessId);
   const busy = await loadOccupancy(sql, data.businessId, slotEnd);
+  const resources = await loadResources(sql, data.businessId);
+  const staffed = hasActiveResources(resources);
+  const opts = { specialDays, bufferBefore: buffers.before, bufferAfter: buffers.after };
+  let resourceId: string | null = data.resourceId?.trim() || null;
+  if (staffed) {
+    const eligible = eligibleResources(resources, data.serviceTitle);
+    if (resourceId && !eligible.some((r) => r.id === resourceId)) {
+      throw new Error("این کارشناس این خدمت را انجام نمی‌دهد.");
+    }
+    if (!resourceId) {
+      resourceId = assignResourceAtIso(
+        { workHours, slotMinutes },
+        busy,
+        eligible,
+        data.slotStart,
+        14,
+        new Date(),
+        duration.minutes,
+        opts,
+        data.serviceTitle,
+      );
+      if (!resourceId) throw new Error("این ساعت قابل رزرو نیست.");
+    }
+  } else {
+    resourceId = null;
+  }
   const allowed = buildSlots(
     { workHours, slotMinutes },
-    busy,
+    filterOccupancy(busy, resourceId, staffed),
     14,
     new Date(),
     duration.minutes,
-    { specialDays, bufferBefore: buffers.before, bufferAfter: buffers.after },
+    opts,
   );
   if (!allowed.some((s) => Math.abs(new Date(s.iso).getTime() - start.getTime()) < 1000)) {
     throw new Error("این ساعت قابل رزرو نیست.");
@@ -326,8 +393,8 @@ export async function performCreateBooking(userId: string, raw: unknown) {
   const id = crypto.randomUUID();
   try {
     await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, buffer_before, buffer_after)
-       values ($1,$2,$3,$4,$5,$6,$7,'booking','online','booking',$8,'requested',$9,$10,$11,$12)`,
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, buffer_before, buffer_after, resource_id, staff_id)
+       values ($1,$2,$3,$4,$5,$6,$7,'booking','online','booking',$8,'requested',$9,$10,$11,$12,$13,$13)`,
       [
         id,
         data.businessId,
@@ -341,6 +408,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
         data.partySize ?? 1,
         buffers.before,
         buffers.after,
+        resourceId,
       ],
     );
   } catch (err) {
@@ -349,7 +417,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
     }
     throw err;
   }
-  await audit(sql, id, userId, "created", null, { slotStart: data.slotStart, slotEnd, status: "requested" });
+  await audit(sql, id, userId, "created", null, { slotStart: data.slotStart, slotEnd, status: "requested", resourceId });
   await notify(sql, userId, "رزرو ثبت شد", `درخواست نوبت شما در «${row.name}» ثبت شد.`, "booking_created", {
     bookingId: id,
     businessId: data.businessId,
@@ -358,7 +426,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
     bookingId: id,
     businessId: data.businessId,
   });
-  return { id, slotStart: data.slotStart, slotEnd };
+  return { id, slotStart: data.slotStart, slotEnd, resourceId };
 }
 
 async function performBookingStatus(userId: string, raw: unknown) {
@@ -435,6 +503,7 @@ async function performCreateBlock(userId: string, raw: unknown) {
       slotEnd: z.string(),
       note: z.string().max(300).optional(),
       eventType: z.enum(["block", "break", "personal", "holiday"]).optional(),
+      resourceId: z.string().max(80).optional().nullable(),
     })
     .parse(raw);
   const start = new Date(data.slotStart);
@@ -452,19 +521,20 @@ async function performCreateBlock(userId: string, raw: unknown) {
   );
   if (!owned[0]) throw new Error("فقط صاحب کسب‌وکار می‌تواند بازه ببندد.");
   const eventType = data.eventType ?? "block";
+  const resourceId = data.resourceId?.trim() || null;
   const id = crypto.randomUUID();
   try {
     await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size)
-       values ($1,$2,null,null,null,$3,$4,'block','manual',$5,$6,'confirmed',null,1)`,
-      [id, data.businessId, data.slotStart, data.slotEnd, eventType, data.note?.trim() || null],
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id)
+       values ($1,$2,null,null,null,$3,$4,'block','manual',$5,$6,'confirmed',null,1,$7,$7)`,
+      [id, data.businessId, data.slotStart, data.slotEnd, eventType, data.note?.trim() || null, resourceId],
     );
   } catch (err) {
     if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت یا بستن دیگری تداخل دارد.");
     throw err;
   }
-  await audit(sql, id, userId, "created", null, { eventType, slotStart: data.slotStart, slotEnd: data.slotEnd });
-  return { id, slotStart: data.slotStart, slotEnd: data.slotEnd, kind: "block" as const, eventType };
+  await audit(sql, id, userId, "created", null, { eventType, slotStart: data.slotStart, slotEnd: data.slotEnd, resourceId });
+  return { id, slotStart: data.slotStart, slotEnd: data.slotEnd, kind: "block" as const, eventType, resourceId };
 }
 
 async function performManualAppointment(userId: string, raw: unknown) {
@@ -478,6 +548,7 @@ async function performManualAppointment(userId: string, raw: unknown) {
       serviceTitle: z.string().max(80).optional(),
       note: z.string().max(300).optional(),
       durationMinutes: z.number().int().min(10).max(4320).optional(),
+      resourceId: z.string().max(80).optional().nullable(),
     })
     .parse(raw);
   const sql = await getSql();
@@ -494,10 +565,11 @@ async function performManualAppointment(userId: string, raw: unknown) {
   const slotEnd = data.slotEnd ?? new Date(start.getTime() + duration * 60000).toISOString();
   if (new Date(slotEnd).getTime() <= start.getTime()) throw new Error("پایان نوبت باید بعد از شروع باشد.");
   const id = crypto.randomUUID();
+  const resourceId = data.resourceId?.trim() || null;
   try {
     await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size)
-       values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1)`,
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id)
+       values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,$9,$9)`,
       [
         id,
         data.businessId,
@@ -507,18 +579,19 @@ async function performManualAppointment(userId: string, raw: unknown) {
         slotEnd,
         data.note?.trim() || null,
         data.serviceTitle?.trim() || null,
+        resourceId,
       ],
     );
   } catch (err) {
     if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت یا بستن دیگری تداخل دارد.");
     throw err;
   }
-  await audit(sql, id, userId, "created", null, { source: "manual", slotStart: data.slotStart, slotEnd });
-  return { id, slotStart: data.slotStart, slotEnd, source: "manual" as const };
+  await audit(sql, id, userId, "created", null, { source: "manual", slotStart: data.slotStart, slotEnd, resourceId });
+  return { id, slotStart: data.slotStart, slotEnd, source: "manual" as const, resourceId };
 }
 
 async function performReschedule(userId: string, raw: unknown) {
-  const data = z.object({ id: z.string(), slotStart: z.string(), slotEnd: z.string().optional() }).parse(raw);
+  const data = z.object({ id: z.string(), slotStart: z.string(), slotEnd: z.string().optional(), resourceId: z.string().max(80).optional().nullable() }).parse(raw);
   const sql = await getSql();
   const rows = await sql.query<{
     id: string;
@@ -535,10 +608,11 @@ async function performReschedule(userId: string, raw: unknown) {
     slot_minutes: number;
     prices: unknown;
     name: string;
+    resource_id: string | null;
   }>(
     `select k.id, b.owner_id, k.customer_id, k.business_id, k.slot_start, k.slot_end, k.service_title, k.kind,
             coalesce(k.buffer_before,0) as buffer_before, coalesce(k.buffer_after,0) as buffer_after,
-            b.work_hours, b.slot_minutes, b.prices, b.name
+            b.work_hours, b.slot_minutes, b.prices, b.name, k.resource_id
      from bookings k join businesses b on b.id = k.business_id
      where k.id = $1`,
     [data.id],
@@ -558,12 +632,15 @@ async function performReschedule(userId: string, raw: unknown) {
   const duration = serviceDurationMinutes(prices, row.service_title, Number(row.slot_minutes) || 60);
   const slotEnd = data.slotEnd ?? new Date(start.getTime() + duration.minutes * 60000).toISOString();
   const specialDays = await loadSpecialDays(sql, row.business_id);
+  const resources = await loadResources(sql, row.business_id);
+  const staffed = hasActiveResources(resources);
+  const resourceId = data.resourceId?.trim() || row.resource_id || null;
   const busy = (await loadOccupancy(sql, row.business_id, slotEnd)).filter(
     (b) => Math.abs(new Date(b.start).getTime() - new Date(row.slot_start).getTime()) > 1000,
   );
   const allowed = buildSlots(
     { workHours, slotMinutes: Number(row.slot_minutes) || 60 },
-    busy,
+    filterOccupancy(busy, resourceId, staffed),
     DEFAULT_BOOKING_HORIZON_DAYS,
     new Date(),
     duration.minutes,
@@ -573,7 +650,12 @@ async function performReschedule(userId: string, raw: unknown) {
     throw new Error("این ساعت قابل رزرو نیست.");
   }
   try {
-    await sql.query(`update bookings set slot_start = $2, slot_end = $3 where id = $1`, [data.id, data.slotStart, slotEnd]);
+    await sql.query(`update bookings set slot_start = $2, slot_end = $3, resource_id = $4, staff_id = $4 where id = $1`, [
+      data.id,
+      data.slotStart,
+      slotEnd,
+      resourceId,
+    ]);
   } catch (err) {
     if (isOccupancyConflict(err)) {
       throw new Error("این زمان همین الان توسط شخص دیگری رزرو شد. زمان‌های آزاد به‌روزرسانی شدند.");
@@ -872,6 +954,7 @@ async function performOwnerBookings(userId: string) {
     `select ${BOOKING_SELECT}
      from bookings k
      join businesses b on b.id = k.business_id
+     left join business_resources r on r.id = k.resource_id
      where b.owner_id = $1
      order by k.slot_start desc`,
     [userId],
@@ -915,6 +998,7 @@ async function performMyBookings(userId: string) {
     `select ${BOOKING_SELECT}
      from bookings k
      join businesses b on b.id = k.business_id
+     left join business_resources r on r.id = k.resource_id
      where k.customer_id = $1 and k.kind = 'booking'
      order by k.slot_start desc`,
     [userId],
@@ -977,19 +1061,63 @@ async function performReviews(raw: unknown) {
 async function performBusy(raw: unknown) {
   const data = z.object({ businessId: z.string() }).parse(raw);
   const sql = await getSql();
-  const rows = await sql.query<{ slot_start: string; slot_end: string }>(
-    `select slot_start, slot_end from (
+  const rows = await sql.query<{ slot_start: string; slot_end: string; resource_id: string | null }>(
+    `select slot_start, slot_end, resource_id from (
        select (slot_start - make_interval(mins => coalesce(buffer_before, 0))) as slot_start,
-              (slot_end + make_interval(mins => coalesce(buffer_after, 0))) as slot_end
+              (slot_end + make_interval(mins => coalesce(buffer_after, 0))) as slot_end,
+              coalesce(nullif(resource_id, ''), nullif(staff_id, '')) as resource_id
          from bookings
         where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL} and slot_end > now()
        union all
-       select slot_start, slot_end from booking_holds
+       select slot_start, slot_end, coalesce(nullif(resource_id, ''), nullif(staff_id, ''))
+         from booking_holds
         where business_id = $1 and expires_at > now()
      ) x`,
     [data.businessId],
   );
-  return rows.map((r) => ({ start: r.slot_start, end: r.slot_end }));
+  return rows.map((r) => ({ start: r.slot_start, end: r.slot_end, resourceId: r.resource_id }));
+}
+
+async function performListResources(raw: unknown) {
+  const data = z.object({ businessId: z.string() }).parse(raw);
+  const sql = await getSql();
+  return loadResources(sql, data.businessId);
+}
+
+async function performUpsertResource(userId: string, raw: unknown) {
+  const data = z
+    .object({
+      businessId: z.string(),
+      id: z.string().optional(),
+      name: z.string().trim().min(1).max(80),
+      kind: z.enum(["staff", "room", "equipment", "other"]).optional(),
+      color: z.string().max(20).optional().nullable(),
+      active: z.boolean().optional(),
+      serviceTitles: z.array(z.string().min(1).max(80)).optional(),
+    })
+    .parse(raw);
+  const sql = await getSql();
+  const owned = await sql.query(`select id from businesses where id = $1 and owner_id = $2`, [data.businessId, userId]);
+  if (!owned[0]) throw new Error("دسترسی ندارید.");
+  const id = data.id || crypto.randomUUID();
+  await sql.query(
+    `insert into business_resources (id, business_id, kind, name, color, active)
+     values ($1,$2,$3,$4,$5,coalesce($6, true))
+     on conflict (id) do update set name = excluded.name, kind = excluded.kind, color = excluded.color,
+       active = coalesce($6, business_resources.active)
+     where business_resources.business_id = $2`,
+    [id, data.businessId, data.kind ?? "staff", data.name.trim(), data.color ?? null, data.active ?? null],
+  );
+  if (data.serviceTitles) {
+    await sql.query(`delete from resource_service_map where resource_id = $1`, [id]);
+    for (const title of data.serviceTitles) {
+      await sql.query(
+        `insert into resource_service_map (resource_id, business_id, service_title) values ($1,$2,$3) on conflict do nothing`,
+        [id, data.businessId, title.trim()],
+      );
+    }
+  }
+  return { id, resources: await loadResources(sql, data.businessId) };
 }
 
 
@@ -1078,6 +1206,10 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performReviews(payload);
     case "busySlots":
       return performBusy(payload);
+    case "listResources":
+      return performListResources(payload);
+    case "upsertResource":
+      return performUpsertResource(userId, payload);
     case "favorites":
       return performFavorites(userId);
     case "favoriteToggle":

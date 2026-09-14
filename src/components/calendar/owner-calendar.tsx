@@ -10,6 +10,7 @@ import { jalaliDayLabel, tehranClock, tehranDayKey, tehranLocalToIso, type DaySt
 import { t } from "@/lib/i18n";
 import { friendlyError, saveAction } from "@/lib/save";
 import type { Booking, Business } from "@/lib/types";
+import type { BusinessResource } from "@/lib/calendar/resources";
 import { cn } from "@/lib/utils";
 
 type View = "day" | "week" | "month";
@@ -49,14 +50,27 @@ export function OwnerCalendar({
   const [view, setView] = useState<View>("day");
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<Booking | null>(null);
+  const [resourceFilter, setResourceFilter] = useState("");
+  const [resources, setResources] = useState<BusinessResource[]>([]);
   const clock = tehranClock(cursor);
   const todayKey = tehranDayKey();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
+  const businessId = businesses[0]?.id ?? "";
+
+  useEffect(() => {
+    if (!businessId) return;
+    void saveAction<BusinessResource[]>("listResources", { businessId }).then(setResources).catch(() => setResources([]));
+  }, [businessId]);
+
+  const visibleItems = useMemo(() => {
+    if (!resourceFilter) return items;
+    return items.filter((b) => !b.resourceId || b.resourceId === resourceFilter);
+  }, [items, resourceFilter]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Booking[]>();
-    for (const b of items) {
+    for (const b of visibleItems) {
       const c = tehranClock(new Date(b.slotStart));
       const key = gregKey(c.y, c.m, c.day);
       const arr = map.get(key) ?? [];
@@ -65,7 +79,7 @@ export function OwnerCalendar({
     }
     for (const arr of map.values()) arr.sort((a, b) => +new Date(a.slotStart) - +new Date(b.slotStart));
     return map;
-  }, [items]);
+  }, [visibleItems]);
 
   const weekDays = useMemo(() => {
     const satOffset = (clock.weekday + 1) % 7;
@@ -105,7 +119,15 @@ export function OwnerCalendar({
     <div className="mt-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{t("navCalendar")}</h2>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
+          {resources.length ? (
+            <NativeSelect value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)} className="h-10">
+              <option value="">{t("allResources")}</option>
+              {resources.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </NativeSelect>
+          ) : null}
           {(["day", "week", "month"] as const).map((v) => (
             <button
               key={v}
@@ -121,7 +143,8 @@ export function OwnerCalendar({
           ))}
         </div>
       </div>
-      <QuickCreate businesses={businesses} onChange={onChange} />
+      <StaffRoster businessId={businessId} resources={resources} onChange={(rows) => setResources(rows)} />
+      <QuickCreate businesses={businesses} resources={resources} onChange={onChange} />
 
       {view === "month" ? (
         <MonthGrid
@@ -191,6 +214,7 @@ export function OwnerCalendar({
                     <Badge>{b.kind === "block" ? t("blockLabel") : statusFa(b.status)}</Badge>
                   </span>
                   <span className="mt-1 block tabular-nums text-muted">{formatFaDateTime(b.slotStart)}</span>
+                  {b.resourceName ? <span className="block text-xs">{b.resourceName}</span> : null}
                   {b.kind !== "block" ? <span className="block">{b.customerName}</span> : null}
                   {b.serviceTitle ? <span className="block text-xs text-muted">{b.serviceTitle}</span> : null}
                 </button>
@@ -297,9 +321,80 @@ function AppointmentCard({
   );
 }
 
-function QuickCreate({ businesses, onChange }: { businesses: Business[]; onChange: () => void }) {
+function StaffRoster({
+  businessId,
+  resources,
+  onChange,
+}: {
+  businessId: string;
+  resources: BusinessResource[];
+  onChange: (rows: BusinessResource[]) => void;
+}) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!businessId) return null;
+  return (
+    <article className="rounded-2xl border border-border bg-surface p-4">
+      <h3 className="font-semibold">{t("staffLabel")}</h3>
+      <p className="mt-1 text-sm text-muted">{t("staffHint")}</p>
+      {resources.length ? (
+        <ul className="mt-2 space-y-1 text-sm">
+          {resources.map((r) => (
+            <li key={r.id} className="flex items-center justify-between gap-2">
+              <span>{r.name}{r.active ? "" : " (غیرفعال)"}</span>
+              <button
+                type="button"
+                className="text-xs text-muted"
+                onClick={() => {
+                  void saveAction<{ resources: BusinessResource[] }>("upsertResource", {
+                    businessId,
+                    id: r.id,
+                    name: r.name,
+                    active: !r.active,
+                  }).then((res) => onChange(res.resources));
+                }}
+              >
+                {r.active ? "توقف" : "فعال"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="mt-3 flex gap-2">
+        <Input placeholder="نام کارشناس" value={name} onChange={(e) => setName(e.target.value)} />
+        <Button
+          disabled={busy || name.trim().length < 2}
+          onClick={() => {
+            setBusy(true);
+            void saveAction<{ resources: BusinessResource[] }>("upsertResource", { businessId, name: name.trim() })
+              .then((res) => {
+                onChange(res.resources);
+                setName("");
+                toast.success("کارشناس اضافه شد.");
+              })
+              .catch((err) => toast.error(friendlyError(err)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {t("addStaff")}
+        </Button>
+      </div>
+    </article>
+  );
+}
+
+function QuickCreate({
+  businesses,
+  resources,
+  onChange,
+}: {
+  businesses: Business[];
+  resources: BusinessResource[];
+  onChange: () => void;
+}) {
   const [mode, setMode] = useState<"block" | "manual">("block");
   const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
+  const [resourceId, setResourceId] = useState("");
   const [day, setDay] = useState("");
   const [start, setStart] = useState("12:00");
   const [end, setEnd] = useState("13:00");
@@ -326,11 +421,11 @@ function QuickCreate({ businesses, onChange }: { businesses: Business[]; onChang
     setBusy(true);
     try {
       if (mode === "block") {
-        await saveAction("blockInterval", { businessId, slotStart, slotEnd, note, eventType });
+        await saveAction("blockInterval", { businessId, slotStart, slotEnd, note, eventType, resourceId: resourceId || null });
         toast.success("بازه بسته شد.");
       } else {
         if (name.trim().length < 2) throw new Error("نام مشتری را بنویسید.");
-        await saveAction("manualAppointment", { businessId, slotStart, slotEnd, customerName: name, customerPhone: phone || undefined, note });
+        await saveAction("manualAppointment", { businessId, slotStart, slotEnd, customerName: name, customerPhone: phone || undefined, note, resourceId: resourceId || null });
         toast.success("نوبت دستی ثبت شد.");
       }
       onChange();
@@ -357,6 +452,14 @@ function QuickCreate({ businesses, onChange }: { businesses: Business[]; onChang
             <option key={b.id} value={b.id}>{b.name}</option>
           ))}
         </NativeSelect>
+        {resources.length ? (
+          <NativeSelect value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
+            <option value="">همه / بدون تخصیص</option>
+            {resources.filter((r) => r.active !== false).map((r) => (
+              <option key={r.id} value={r.id}>{r.name}</option>
+            ))}
+          </NativeSelect>
+        ) : null}
         {mode === "block" ? (
           <NativeSelect value={eventType} onChange={(e) => setEventType(e.target.value as typeof eventType)}>
             <option value="block">بستن</option>

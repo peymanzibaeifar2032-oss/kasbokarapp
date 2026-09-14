@@ -121,7 +121,7 @@ export function todayHoursLabel(hours: WorkHour[], date = new Date()) {
   return `امروز ${row.open} تا ${close}`;
 }
 
-export type BusyInterval = { start: string; end: string };
+export type BusyInterval = { start: string; end: string; resourceId?: string | null };
 export type BusyInput = string | BusyInterval;
 
 export type SlotOption = {

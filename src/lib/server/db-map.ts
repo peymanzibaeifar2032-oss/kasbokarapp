@@ -128,6 +128,8 @@ export type BookingRow = {
   event_type?: string | null;
   buffer_before?: number | string | null;
   buffer_after?: number | string | null;
+  resource_id?: string | null;
+  resource_name?: string | null;
 };
 
 export function mapBooking(row: BookingRow): Booking {
@@ -152,6 +154,8 @@ export function mapBooking(row: BookingRow): Booking {
     partySize: Number(row.party_size) || 1,
     status: row.status as Booking["status"],
     createdAt: row.created_at,
+    resourceId: row.resource_id ?? null,
+    resourceName: row.resource_name ?? null,
   };
 }
 
@@ -230,7 +234,9 @@ export const BOOKING_SELECT = `
   coalesce(k.source, 'online') as source,
   coalesce(k.event_type, case when k.kind = 'block' then 'block' else 'booking' end) as event_type,
   coalesce(k.buffer_before, 0) as buffer_before,
-  coalesce(k.buffer_after, 0) as buffer_after
+  coalesce(k.buffer_after, 0) as buffer_after,
+  k.resource_id,
+  r.name as resource_name
 `;
 
 export const ACTIVE_OCCUPANCY_SQL = `
@@ -242,6 +248,7 @@ export const ACTIVE_OCCUPANCY_SQL = `
 export const OCCUPANCY_SELECT = `
   business_id,
   (slot_start - make_interval(mins => coalesce(buffer_before, 0))) as slot_start,
-  (slot_end + make_interval(mins => coalesce(buffer_after, 0))) as slot_end
+  (slot_end + make_interval(mins => coalesce(buffer_after, 0))) as slot_end,
+  coalesce(nullif(resource_id, ''), nullif(staff_id, '')) as resource_id
 `;
 

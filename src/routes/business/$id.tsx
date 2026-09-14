@@ -42,20 +42,23 @@ import {
   getBusiness,
   getCityRank,
   listBusySlots,
+  listResources,
   listReviews,
   listSimilar,
 } from "@/lib/server/api";
+import { anyStaffGrid, eligibleResources, hasActiveResources, slotsForResource, type BusinessResource } from "@/lib/calendar/resources";
 import type { BusyInterval, Business, Profile, Review } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/business/$id")({
   loader: async ({ params }) => {
-    const [biz, reviews, busy, similar, rank] = await Promise.all([
+    const [biz, reviews, busy, similar, rank, resources] = await Promise.all([
       getBusiness({ data: { id: params.id } }),
       listReviews({ data: { businessId: params.id } }),
       listBusySlots({ data: { businessId: params.id } }),
       listSimilar({ data: { id: params.id } }),
       getCityRank({ data: { id: params.id } }),
+      listResources({ data: { businessId: params.id } }).catch(() => []),
     ]);
     if (!biz) throw notFound();
     const now = new Date();
@@ -65,6 +68,7 @@ export const Route = createFileRoute("/business/$id")({
       busy,
       similar,
       rank,
+      resources,
       openNow: isOpenNow(biz.workHours, now),
       hoursLabel: todayHoursLabel(biz.workHours, now),
     };
@@ -101,7 +105,7 @@ function toFa(n: number) {
 }
 
 function BusinessPage() {
-  const { biz, reviews: initialReviews, busy: initialBusy, similar, rank, openNow, hoursLabel } =
+  const { biz, reviews: initialReviews, busy: initialBusy, similar, rank, resources, openNow, hoursLabel } =
     Route.useLoaderData();
   const { user } = useCurrentUserState();
   const favs = useFavorites();
@@ -239,10 +243,15 @@ function BusinessPage() {
             <BookingPanel
               biz={biz}
               busy={busy}
+              resources={resources as BusinessResource[]}
               canBook={canBook}
               nextPath={nextPath}
               onBooked={(slot) => {
-                setBusy((cur) => (cur.some((x) => x.start === slot.start) ? cur : [...cur, slot]));
+                setBusy((cur) =>
+                  cur.some((x) => x.start === slot.start)
+                    ? cur
+                    : [...cur, { start: slot.start, end: slot.end, resourceId: slot.resourceId ?? null }],
+                );
               }}
             />
           </div>
@@ -413,12 +422,14 @@ function ActionButtons({
 function BookingPanel({
   biz,
   busy,
+  resources,
   canBook,
   nextPath,
   onBooked,
 }: {
   biz: Business;
   busy: BusyInterval[];
+  resources: BusinessResource[];
   canBook: boolean;
   nextPath: string;
   onBooked: (slot: BusyInterval) => void;
@@ -432,6 +443,7 @@ function BookingPanel({
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [service, setService] = useState(biz.prices[0]?.title || biz.jobTitle || "");
+  const [resourceId, setResourceId] = useState("");
   const [party, setParty] = useState(1);
   const [busySubmit, setBusySubmit] = useState(false);
   const duration = useMemo(
@@ -441,20 +453,31 @@ function BookingPanel({
   const buffers = useMemo(() => serviceBuffers(biz.prices, service), [biz.prices, service]);
   const specialDays = biz.specialHours ?? [];
   const horizon = biz.bookingHorizonDays ?? DEFAULT_BOOKING_HORIZON_DAYS;
-  const now = useMemo(() => new Date(), [biz.id, service]);
+  const staffed = hasActiveResources(resources);
+  const staffOptions = useMemo(() => eligibleResources(resources, service), [resources, service]);
+  const now = useMemo(() => new Date(), [biz.id, service, resourceId]);
   const todayKey = tehranDayKey(now);
   const todayJ = gregorianToJalali(...(todayKey.split("-").map(Number) as [number, number, number]));
   const [month, setMonth] = useState(() => ({ jy: todayJ.jy, jm: todayJ.jm }));
-  const slots = useMemo(
-    () =>
-      buildSlotGrid(biz, busy, horizon, now, duration.minutes, {
-        includeOccupied: true,
+  const slots = useMemo(() => {
+    const hits = busy;
+    const opts = { includeOccupied: true, bufferBefore: buffers.before, bufferAfter: buffers.after, specialDays };
+    if (!staffed) {
+      return buildSlotGrid(biz, busy, horizon, now, duration.minutes, opts);
+    }
+    if (!resourceId) {
+      return anyStaffGrid(biz, hits, staffOptions, horizon, now, duration.minutes, {
         bufferBefore: buffers.before,
         bufferAfter: buffers.after,
         specialDays,
-      }),
-    [biz, busy, duration.minutes, buffers.before, buffers.after, specialDays, horizon, now],
-  );
+      });
+    }
+    return slotsForResource(biz, hits, resourceId, true, horizon, now, duration.minutes, {
+      bufferBefore: buffers.before,
+      bufferAfter: buffers.after,
+      specialDays,
+    }, true);
+  }, [biz, busy, duration.minutes, buffers.before, buffers.after, specialDays, horizon, now, staffed, resourceId, staffOptions]);
   const nextFree = useMemo(
     () => nextAvailable(biz, busy, now, duration.minutes, { bufferBefore: buffers.before, bufferAfter: buffers.after, specialDays }),
     [biz, busy, duration.minutes, buffers.before, buffers.after, specialDays, now],
@@ -588,6 +611,7 @@ function BookingPanel({
       note,
       serviceTitle: service || undefined,
       partySize: party,
+      resourceId: resourceId || undefined,
     };
     try {
       sessionStorage.setItem("kasb:booking-draft", JSON.stringify({ ...payload, service, party }));
@@ -670,6 +694,26 @@ function BookingPanel({
             )}
           </NativeSelect>
         </label>
+        {staffed ? (
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">{t("staffLabel")}</span>
+            <NativeSelect
+              value={resourceId}
+              onChange={(e) => {
+                setResourceId(e.target.value);
+                setDayKey("");
+                setSlot("");
+              }}
+            >
+              <option value="">{t("anyStaff")}</option>
+              {staffOptions.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+        ) : null}
         <div>
           <span className="mb-1.5 block text-sm font-medium">انتخاب تاریخ</span>
           {quickDays.length ? (

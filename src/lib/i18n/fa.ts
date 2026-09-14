@@ -88,6 +88,11 @@ export const faIR = {
   todayAgenda: "امروز",
   weekView: "هفته",
   monthView: "ماه",
+  anyStaff: "هر کدام",
+  staffLabel: "کارشناس",
+  addStaff: "افزودن کارشناس",
+  staffHint: "اگر چند نفر همزمان کار می‌کنند، هر کدام تقویم جدا دارند.",
+  allResources: "همه کارشناسان",
 } as const;
 
 export type MessageKey = keyof typeof faIR;

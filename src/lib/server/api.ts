@@ -282,17 +282,51 @@ export const listBusySlots = createServerFn({ method: "GET" })
   .validator(z.object({ businessId: z.string() }))
   .handler(async ({ data }) => {
     const sql = await getSql();
-    const rows = await sql.query<{ slot_start: string; slot_end: string }>(
-      `select slot_start, slot_end from (
+    const rows = await sql.query<{ slot_start: string; slot_end: string; resource_id: string | null }>(
+      `select slot_start, slot_end, resource_id from (
          select ${OCCUPANCY_SELECT} from bookings
           where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL} and slot_end > now()
          union all
-         select business_id, slot_start, slot_end from booking_holds
+         select business_id, slot_start, slot_end, coalesce(nullif(resource_id, ''), nullif(staff_id, ''))
+           from booking_holds
           where business_id = $1 and expires_at > now()
        ) x`,
       [data.businessId],
     );
-    return rows.map((r) => ({ start: r.slot_start, end: r.slot_end }));
+    return rows.map((r) => ({ start: r.slot_start, end: r.slot_end, resourceId: r.resource_id }));
+  });
+
+export const listResources = createServerFn({ method: "GET" })
+  .validator(z.object({ businessId: z.string() }))
+  .handler(async ({ data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<{
+      id: string;
+      business_id: string;
+      kind: string;
+      name: string;
+      color: string | null;
+      active: boolean;
+      sort_order: number;
+      titles: string | null;
+    }>(
+      `select r.id, r.business_id, r.kind, r.name, r.color, r.active, r.sort_order,
+              (select string_agg(m.service_title, '|||') from resource_service_map m where m.resource_id = r.id) as titles
+         from business_resources r
+        where r.business_id = $1 and r.active = true
+        order by r.sort_order, r.created_at`,
+      [data.businessId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      businessId: r.business_id,
+      kind: r.kind,
+      name: r.name,
+      color: r.color,
+      active: Boolean(r.active),
+      sortOrder: Number(r.sort_order) || 0,
+      serviceTitles: r.titles ? r.titles.split("|||") : [],
+    }));
   });
 
 export const upsertReview = createServerFn({ method: "POST" })
@@ -646,6 +680,7 @@ export const createBooking = createServerFn({ method: "POST" })
       note: z.string().max(300).optional(),
       serviceTitle: z.string().max(80).optional(),
       partySize: z.number().int().min(1).max(20).optional(),
+      resourceId: z.string().max(80).optional().nullable(),
     }),
   )
   .handler(async ({ context, data }) => performCreateBooking(context.userId, data));
@@ -658,6 +693,7 @@ export const myBookings = createServerFn({ method: "GET" })
       `select ${BOOKING_SELECT}
        from bookings k
        join businesses b on b.id = k.business_id
+       left join business_resources r on r.id = k.resource_id
        where k.customer_id = $1 and k.kind = 'booking'
        order by k.slot_start desc`,
       [context.userId],
@@ -673,6 +709,7 @@ export const ownerBookings = createServerFn({ method: "GET" })
       `select ${BOOKING_SELECT}
        from bookings k
        join businesses b on b.id = k.business_id
+       left join business_resources r on r.id = k.resource_id
        where b.owner_id = $1
        order by k.slot_start desc`,
       [context.userId],

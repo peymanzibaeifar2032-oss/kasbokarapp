@@ -104,6 +104,8 @@ export type Booking = {
   partySize: number;
   status: BookingStatus;
   createdAt: string;
+  resourceId?: string | null;
+  resourceName?: string | null;
 };
 
 export type NotificationItem = {
@@ -156,4 +158,5 @@ export type CityRank = {
 export type BusyInterval = {
   start: string;
   end: string;
+  resourceId?: string | null;
 };
