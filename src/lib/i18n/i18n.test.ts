@@ -25,6 +25,8 @@ describe("i18n foundation", () => {
     assert.equal(t("nearMeUse"), "استفاده از موقعیت");
     assert.equal(t("blockInterval"), "بستن بازه");
     assert.equal(t("anyStaff"), "هر کدام");
+    assert.equal(t("globalBlock"), "کل کسب‌وکار");
+    assert.equal(t("pickResource"), "منبع را انتخاب کنید");
   });
 
   it("english catalog falls back to Persian until translations exist", () => {

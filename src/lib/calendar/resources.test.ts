@@ -2,14 +2,22 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildSlots } from "../hours.ts";
 import {
+  RESOURCE_KINDS,
+  SLICE1_CAPACITY,
   anyStaffGrid,
   assignResourceAtIso,
+  effectiveSchedule,
   eligibleResources,
   filterOccupancy,
   hasActiveResources,
+  intersectSpecialDays,
+  intersectWeeklyHours,
   occupancyHitsResource,
+  persistableResourceId,
   pickResourceForSlot,
+  resolveRescheduleResource,
   resourcesConflict,
+  slotsForResource,
   unionFreeIsos,
   type BusinessResource,
   type OccupancyHit,
@@ -33,8 +41,11 @@ const HOURS = [
 
 /** Saturday 12 Sep 2026 08:00 Asia/Tehran. */
 const SAT = new Date("2026-09-12T04:30:00.000Z");
+const startA = "2026-09-12T05:30:00.000Z"; // 09:00 Tehran
+const endA = "2026-09-12T06:30:00.000Z";
+const eleven = "2026-09-12T07:30:00.000Z"; // 11:00 Tehran
 
-const staff = (id: string, titles: string[] = []): BusinessResource => ({
+const staff = (id: string, extra: Partial<BusinessResource> = {}): BusinessResource => ({
   id,
   businessId: "b1",
   kind: "staff",
@@ -42,7 +53,8 @@ const staff = (id: string, titles: string[] = []): BusinessResource => ({
   color: null,
   active: true,
   sortOrder: 0,
-  serviceTitles: titles,
+  capacity: SLICE1_CAPACITY,
+  ...extra,
 });
 
 describe("resource occupancy contract", () => {
@@ -52,15 +64,16 @@ describe("resource occupancy contract", () => {
     assert.equal(occupancyHitsResource(hit("1", "2", "A"), "B", false), true);
   });
 
-  it("NULL/wildcard occupies every resource", () => {
+  it("NULL vs R, R vs NULL, and NULL vs NULL all conflict", () => {
     assert.equal(resourcesConflict(null, "A", true), true);
     assert.equal(resourcesConflict("A", null, true), true);
+    assert.equal(resourcesConflict(null, null, true), true);
     assert.equal(resourcesConflict("", "A", true), true);
   });
 
-  it("A does not collide with B when both are assigned", () => {
-    assert.equal(resourcesConflict("A", "B", true), false);
+  it("R vs R overlap; R vs S parallel", () => {
     assert.equal(resourcesConflict("A", "A", true), true);
+    assert.equal(resourcesConflict("A", "B", true), false);
   });
 
   it("filters occupancy for one staff plus wildcards", () => {
@@ -70,6 +83,13 @@ describe("resource occupancy contract", () => {
       forA.map((h) => h.resourceId ?? "wild"),
       ["A", "wild"],
     );
+  });
+
+  it("hold occupancy uses the same wildcard matrix", () => {
+    assert.equal(resourcesConflict(null, "R", true), true);
+    assert.equal(resourcesConflict("R", null, true), true);
+    assert.equal(resourcesConflict("R", "S", true), false);
+    assert.equal(resourcesConflict("R", "R", true), true);
   });
 
   it("Any Staff is the UNION of free slots", () => {
@@ -88,26 +108,39 @@ describe("resource occupancy contract", () => {
       (id, iso) => id === "B" && iso === "t1",
     );
     assert.equal(picked, "B");
+    assert.notEqual(picked, null);
   });
 
-  it("race: two clients on the same staff conflict; A↔B do not", () => {
-    const sameStaff = resourcesConflict("A", "A", true);
-    const otherStaff = resourcesConflict("A", "B", true);
-    assert.equal(sameStaff, true);
-    assert.equal(otherStaff, false);
+  it("race retry skips a consumed resource and never writes NULL", () => {
+    const picked = pickResourceForSlot(
+      [{ id: "A" }, { id: "B" }],
+      "t1",
+      () => true,
+      ["A"],
+    );
+    assert.equal(picked, "B");
+    const none = pickResourceForSlot([{ id: "A" }, { id: "B" }], "t1", () => true, ["A", "B"]);
+    assert.equal(none, null);
+    assert.equal(persistableResourceId(true, none), null);
+    assert.equal(persistableResourceId(true, "B"), "B");
+    assert.equal(persistableResourceId(false, null), null);
   });
 
-  it("service mapping restricts eligible staff", () => {
-    const list = [staff("A", ["تاتو"]), staff("B", ["اصلاح"])];
-    assert.deepEqual(eligibleResources(list, "تاتو").map((r) => r.id), ["A"]);
-    assert.deepEqual(eligibleResources(list, "رنگ").map((r) => r.id), ["A", "B"]);
+  it("Phase 1 eligibility is all active resources", () => {
+    const list = [staff("A"), staff("B", { active: false }), staff("C")];
+    assert.deepEqual(eligibleResources(list, "تاتو").map((r) => r.id), ["A", "C"]);
+  });
+
+  it("kinds are exactly staff/chair/room/equipment and capacity is 1", () => {
+    assert.deepEqual([...RESOURCE_KINDS], ["staff", "chair", "room", "equipment"]);
+    assert.equal(SLICE1_CAPACITY, 1);
+    assert.equal(RESOURCE_KINDS.includes("other" as never), false);
+    assert.equal(RESOURCE_KINDS.includes("chair"), true);
   });
 });
 
 describe("staff-aware slots", () => {
   const biz = { workHours: HOURS, slotMinutes: 60 };
-  const startA = "2026-09-12T05:30:00.000Z"; // 09:00 Tehran
-  const endA = "2026-09-12T06:30:00.000Z";
 
   it("A occupancy does not fill B", () => {
     const hits = [hit(startA, endA, "A")];
@@ -136,9 +169,99 @@ describe("staff-aware slots", () => {
     assert.equal(row?.state, "free");
   });
 
-  it("Any Staff assignment picks free staff B", () => {
+  it("Any Staff assignment picks free staff B and never null when B is free", () => {
     const hits = [hit(startA, endA, "A")];
     const picked = assignResourceAtIso(biz, hits, [staff("A"), staff("B")], startA, 1, SAT, 60);
     assert.equal(picked, "B");
+  });
+
+  it("Any Staff retry after A is consumed picks B, then refuses NULL", () => {
+    const first = assignResourceAtIso(biz, [], [staff("A"), staff("B")], startA, 1, SAT, 60);
+    assert.equal(first, "A");
+    const afterA = assignResourceAtIso(biz, [hit(startA, endA, "A")], [staff("A"), staff("B")], startA, 1, SAT, 60);
+    assert.equal(afterA, "B");
+    const afterBoth = assignResourceAtIso(
+      biz,
+      [hit(startA, endA, "A"), hit(startA, endA, "B")],
+      [staff("A"), staff("B")],
+      startA,
+      1,
+      SAT,
+      60,
+    );
+    assert.equal(afterBoth, null);
+    assert.notEqual(afterBoth, "");
+  });
+
+  it("reschedule keeps the original resource unless a new one is chosen", () => {
+    assert.equal(resolveRescheduleResource(undefined, "A"), "A");
+    assert.equal(resolveRescheduleResource(null, "A"), "A");
+    assert.equal(resolveRescheduleResource("", "A"), "A");
+    assert.equal(resolveRescheduleResource("B", "A"), "B");
+    const original = "A";
+    const requested: string | undefined = undefined;
+    const preserved = resolveRescheduleResource(requested, original);
+    assert.equal(preserved, "A");
+  });
+});
+
+describe("resource schedule intersection", () => {
+  it("inherits business hours when the resource has no schedule", () => {
+    const hours = intersectWeeklyHours(HOURS, null);
+    assert.deepEqual(hours, HOURS);
+    const sat = hours.find((h) => h.day === "شنبه");
+    assert.equal(sat?.open, "09:00");
+  });
+
+  it("resource weekly hours narrow business hours", () => {
+    const resourceHours = [{ day: "شنبه", open: "11:00", close: "13:00" }];
+    const hours = intersectWeeklyHours(HOURS, resourceHours);
+    const sat = hours.find((h) => h.day === "شنبه");
+    assert.equal(sat?.closed, undefined);
+    assert.equal(sat?.open, "11:00");
+    assert.equal(sat?.close, "13:00");
+    const biz = { workHours: HOURS, slotMinutes: 60 };
+    const free = slotsForResource(biz, [], staff("A", { workHours: resourceHours }), true, 1, SAT, 60);
+    assert.equal(free.some((s) => s.iso === startA), false);
+    assert.equal(free.some((s) => s.iso === eleven), true);
+  });
+
+  it("resource cannot open when business weekly is closed", () => {
+    const hours = intersectWeeklyHours(HOURS, [{ day: "جمعه", open: "10:00", close: "16:00" }]);
+    const fri = hours.find((h) => h.day === "جمعه");
+    assert.equal(fri?.closed, true);
+  });
+
+  it("resource special closure removes availability", () => {
+    const special = intersectSpecialDays(HOURS, [], [{ dayKey: "2026-09-12", closed: true }]);
+    assert.equal(special[0]?.closed, true);
+    const biz = { workHours: HOURS, slotMinutes: 60 };
+    const free = slotsForResource(
+      biz,
+      [],
+      staff("A", { specialHours: [{ dayKey: "2026-09-12", closed: true }] }),
+      true,
+      1,
+      SAT,
+      60,
+    );
+    assert.equal(free.length, 0);
+  });
+
+  it("resource special hours cannot open outside closed business hours", () => {
+    const fridayClosed = intersectSpecialDays(
+      HOURS,
+      [{ dayKey: "2026-09-11", closed: true }],
+      [{ dayKey: "2026-09-11", closed: false, shifts: [{ open: "10:00", close: "16:00" }] }],
+    );
+    assert.equal(fridayClosed[0]?.closed, true);
+    assert.deepEqual(fridayClosed[0]?.shifts ?? [], []);
+  });
+
+  it("effective schedule keeps Tehran Saturday 09:00 when inherited", () => {
+    const { workHours, specialDays } = effectiveSchedule(HOURS, []);
+    const biz = { workHours, slotMinutes: 60 };
+    const free = buildSlots(biz, [], 1, SAT, 60, { specialDays });
+    assert.equal(free.some((s) => s.iso === startA), true);
   });
 });

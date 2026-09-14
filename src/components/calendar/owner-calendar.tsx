@@ -425,6 +425,9 @@ function QuickCreate({
         toast.success("بازه بسته شد.");
       } else {
         if (name.trim().length < 2) throw new Error("نام مشتری را بنویسید.");
+        if (name.trim().length < 2) throw new Error("نام مشتری را بنویسید.");
+        const staffed = resources.some((r) => r.active !== false);
+        if (staffed && !resourceId) throw new Error(t("pickResource"));
         await saveAction("manualAppointment", { businessId, slotStart, slotEnd, customerName: name, customerPhone: phone || undefined, note, resourceId: resourceId || null });
         toast.success("نوبت دستی ثبت شد.");
       }
@@ -454,7 +457,7 @@ function QuickCreate({
         </NativeSelect>
         {resources.length ? (
           <NativeSelect value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
-            <option value="">همه / بدون تخصیص</option>
+            <option value="">{mode === "block" ? t("globalBlock") : t("pickResource")}</option>
             {resources.filter((r) => r.active !== false).map((r) => (
               <option key={r.id} value={r.id}>{r.name}</option>
             ))}

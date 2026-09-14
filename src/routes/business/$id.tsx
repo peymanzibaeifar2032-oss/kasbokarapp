@@ -472,7 +472,8 @@ function BookingPanel({
         specialDays,
       });
     }
-    return slotsForResource(biz, hits, resourceId, true, horizon, now, duration.minutes, {
+    const selected = staffOptions.find((r) => r.id === resourceId);
+    return slotsForResource(biz, hits, selected ?? resourceId, true, horizon, now, duration.minutes, {
       bufferBefore: buffers.before,
       bufferAfter: buffers.after,
       specialDays,

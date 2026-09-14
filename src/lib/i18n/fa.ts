@@ -93,6 +93,8 @@ export const faIR = {
   addStaff: "افزودن کارشناس",
   staffHint: "اگر چند نفر همزمان کار می‌کنند، هر کدام تقویم جدا دارند.",
   allResources: "همه کارشناسان",
+  globalBlock: "کل کسب‌وکار",
+  pickResource: "منبع را انتخاب کنید",
 } as const;
 
 export type MessageKey = keyof typeof faIR;

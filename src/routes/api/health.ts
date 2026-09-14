@@ -16,7 +16,8 @@ const REQUIRED_TABLES = [
   "booking_holds",
   "ledger_accounts",
   "business_resources",
-  "resource_service_map",
+  "resource_work_hours",
+  "resource_special_hours",
 ] as const;
 
 function bakedSha(): { sha: string; shaSource: "image" | "env" | "missing" } {
@@ -88,7 +89,8 @@ export const Route = createFileRoute("/api/health")({
               booking_holds: tables.has("booking_holds"),
               ledger_accounts: tables.has("ledger_accounts"),
               business_resources: tables.has("business_resources"),
-              resource_service_map: tables.has("resource_service_map"),
+              resource_work_hours: tables.has("resource_work_hours"),
+              resource_special_hours: tables.has("resource_special_hours"),
               ...(sha ? { sha } : {}),
             },
             {
