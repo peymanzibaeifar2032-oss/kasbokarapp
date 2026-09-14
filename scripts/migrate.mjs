@@ -46,6 +46,9 @@ async function main() {
   try {
     entries = await readdir(migrationsDir);
   } catch {
+    if (["true", "1"].includes((process.env.STANDALONE || "").trim())) {
+      throw new Error("[migrate] STANDALONE missing migrations/ directory");
+    }
     console.log("[migrate] no migrations/ directory — nothing to do.");
     return;
   }
@@ -87,6 +90,16 @@ async function main() {
       count += 1;
     }
     console.log(count ? `[migrate] done — ${count} migration(s) applied.` : "[migrate] up to date.");
+    const required = ["0014_calendar.sql", "0015_finance.sql", "0016_resources.sql"];
+    const have = new Set(
+      (await client.query("SELECT name FROM _migrations")).rows.map((r) => r.name),
+    );
+    const present = new Set(entries.filter((name) => name.endsWith(".sql")));
+    for (const name of required) {
+      if (present.has(name) && !have.has(name)) {
+        throw new Error(`[migrate] ${name} is in the image but not recorded in _migrations`);
+      }
+    }
     const { seedGeoPlacesPg } = await import("./seed-geo.mjs");
     const geo = await seedGeoPlacesPg(client);
     console.log(`[migrate] geo_places ${geo.seeded ? "seeded" : "ready"} count=${geo.count}`);

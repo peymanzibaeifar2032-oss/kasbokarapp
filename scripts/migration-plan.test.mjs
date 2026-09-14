@@ -70,6 +70,17 @@ test("the auth schema ships outside the globbed directory", () => {
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
 });
 
+test("this workspace ships calendar/finance/resource migrations in order", () => {
+  const migrationsDir = join(projectRoot(), "migrations");
+  const pending = pendingMigrations(readdirSync(migrationsDir), []);
+  const names = pending.map((p) => p.name);
+  assert.ok(names.includes("0014_calendar.sql"));
+  assert.ok(names.includes("0015_finance.sql"));
+  assert.ok(names.includes("0016_resources.sql"));
+  assert.ok(names.indexOf("0014_calendar.sql") < names.indexOf("0015_finance.sql"));
+  assert.ok(names.indexOf("0015_finance.sql") < names.indexOf("0016_resources.sql"));
+});
+
 test("this workspace's auth schema copy is byte-identical to its source", () => {
   // An edited copy diverges silently: basename keying skips it on a database
   // that already ran the original, and applies it on a fresh PGLite preview.

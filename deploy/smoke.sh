@@ -19,9 +19,13 @@ echo "=== smoke $BASE origin=$ORIGIN ==="
 
 H=$(curl -sS -m 8 "$BASE/api/health" || true)
 echo "$H" | grep -q '"ok":true' && echo "$H" | grep -q '"standalone":true' && ok "health standalone" || bad "health" "$H"
-echo "$H" | grep -q '"db":"postgres"' && ok "health db=postgres" || bad "health db label" "$H"
+echo "$H" | grep -q '"db":"postgres+0015"' && ok "health db=postgres+0015" || bad "health db label" "$H"
 echo "$H" | grep -q '"sha"' && ok "health sha" || bad "health sha" "$H"
+echo "$H" | grep -q '"shaSource":"image"' && ok "health shaSource=image" || bad "health shaSource" "$H"
 echo "$H" | grep -q 'jalali-month-v1' && ok "health bookingCalendar" || bad "health bookingCalendar" "$H"
+echo "$H" | grep -q '"m0014":true' && ok "health m0014" || bad "health m0014" "$H"
+echo "$H" | grep -q '"m0015":true' && ok "health m0015" || bad "health m0015" "$H"
+echo "$H" | grep -q '"m0016":true' && ok "health m0016" || bad "health m0016" "$H"
 
 curl -sS -m 8 -o /tmp/home.html -w "%{http_code}" "$BASE/" | grep -q 200 && grep -q "کسب" /tmp/home.html && ok "home html" || bad "home html" "not 200"
 grep -qiE 'openai\.com|chatgpt\.com|signin-with-chatgpt' /tmp/home.html && bad "home openai remnant" "found" || ok "home no openai/chatgpt"
