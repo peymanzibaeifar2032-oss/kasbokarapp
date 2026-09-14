@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { Bell, CalendarDays, LayoutGrid, MapPinned, Store, UserRound } from "lucide-react";
 import { SignedIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -16,14 +17,10 @@ function NoticeBell() {
   }, [user]);
   if (!user) return null;
   return (
-    <a
-      href="/notifications"
+    <Link
+      to="/notifications"
       className="relative inline-flex size-11 items-center justify-center rounded-md border border-border bg-surface"
-      aria-label={t("navNotices")}
-      onClick={(e) => {
-        e.preventDefault();
-        window.location.assign("/notifications");
-      }}
+      aria-label={t("notifications")}
     >
       <Bell className="size-5" />
       {unread > 0 ? (
@@ -31,31 +28,7 @@ function NoticeBell() {
           {unread > 9 ? "۹+" : new Intl.NumberFormat("fa-IR").format(unread)}
         </span>
       ) : null}
-    </a>
-  );
-}
-
-function HardLink({
-  href,
-  className,
-  children,
-}: {
-  href: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <a
-      href={href}
-      className={className}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        window.location.assign(href);
-      }}
-    >
-      {children}
-    </a>
+    </Link>
   );
 }
 
@@ -63,39 +36,41 @@ function AuthSlot() {
   const { user } = useCurrentUserState();
   if (user) return <UserButton />;
   return (
-    <HardLink
-      href="/login"
+    <Link
+      to="/login"
       className="inline-flex h-10 shrink-0 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-fg"
     >
       {t("navSignIn")}
-    </HardLink>
+    </Link>
   );
 }
 
 const headerLink =
   "inline-flex h-10 shrink-0 items-center rounded-md px-3 text-sm text-fg hover:bg-surface";
+const tabClass =
+  "flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted";
 
 export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-bg text-fg">
       <header className="sticky top-0 z-40 border-b border-border bg-bg">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2">
-          <HardLink href="/" className="flex shrink-0 items-center gap-2">
+          <Link to="/" className="flex shrink-0 items-center gap-2">
             <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-fg">
               <Store className="size-5" />
             </span>
             <strong className="text-sm font-semibold">{t("appName")}</strong>
-          </HardLink>
+          </Link>
           <nav className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto">
-            <HardLink href="/account" className={headerLink}>
+            <Link to="/account" className={headerLink}>
               {t("navBookings")}
-            </HardLink>
-            <HardLink href="/dashboard" className={headerLink}>
+            </Link>
+            <Link to="/dashboard" search={{}} className={headerLink}>
               {t("navCreate")}
-            </HardLink>
-            <HardLink href="/dashboard" className={headerLink}>
+            </Link>
+            <Link to="/dashboard" search={{}} className={headerLink}>
               {t("navAccount")}
-            </HardLink>
+            </Link>
             <SignedIn>
               <NoticeBell />
             </SignedIn>
@@ -104,33 +79,30 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6">{children}</main>
-      <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden"
-        style={{ transform: "translateZ(0)" }}
-      >
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
         <div className="grid grid-cols-5">
-          <HardLink href="/" className="flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted">
+          <Link to="/" className={tabClass}>
             <MapPinned className="size-5" />
             {t("navMap")}
-          </HardLink>
-          <HardLink href="/#cats" className="flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted">
+          </Link>
+          <Link to="/" hash="cats" className={tabClass}>
             <LayoutGrid className="size-5" />
             {t("navCategories")}
-          </HardLink>
-          <HardLink href="/dashboard" className="flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-primary">
+          </Link>
+          <Link to="/dashboard" search={{}} className={`${tabClass} text-primary`}>
             <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-fg shadow-md">
               <Store className="size-5" />
             </span>
             {t("navCreate")}
-          </HardLink>
-          <HardLink href="/account" className="flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted">
+          </Link>
+          <Link to="/account" className={tabClass}>
             <CalendarDays className="size-5" />
             {t("navBookings")}
-          </HardLink>
-          <HardLink href="/dashboard" className="flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted">
+          </Link>
+          <Link to="/dashboard" search={{}} className={tabClass}>
             <UserRound className="size-5" />
             {t("navAccount")}
-          </HardLink>
+          </Link>
         </div>
       </nav>
     </div>

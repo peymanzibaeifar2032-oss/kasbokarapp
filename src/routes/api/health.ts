@@ -25,13 +25,13 @@ export const Route = createFileRoute("/api/health")({
           return Response.json(
             {
               ok: true,
-              app: "kasbokar-no-grok-preview-v1",
+              app: "kasbokar-isolated-v1",
               db: has0015 ? `${engine}+0015` : engine,
               standalone: isStandalone(),
               homeSearchVersion: HOME_SEARCH_VERSION,
               financeCore: "ledger-v1-vandar-disabled",
               bookingCalendar: "jalali-month-v1",
-              nav: "no-grok-preview-v1",
+              nav: "router-v1",
               vandar: vandar.mode,
               ...(sha ? { sha } : {}),
             },

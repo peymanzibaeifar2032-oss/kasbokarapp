@@ -50,6 +50,9 @@ const BEARER_KEY = "grok-auth.bearer-token";
 /** The stored preview bearer token, or null. */
 export function getBearerToken(): string | null {
   if (typeof window === "undefined") return null;
+  const host = window.location.hostname;
+  if (host === "kasbokarapp.com" || host === "www.kasbokarapp.com") return null;
+  if (!host.endsWith(".grok-sandbox.com")) return null;
   try {
     return window.sessionStorage.getItem(BEARER_KEY);
   } catch {

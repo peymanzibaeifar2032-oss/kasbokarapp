@@ -109,7 +109,6 @@ export function isGrokSandboxHost(hostHeader) {
   return h === "grok-sandbox.com" || h.endsWith(".grok-sandbox.com");
 }
 
-/** Production Kasbokar and STANDALONE deploys must never load Grok overlay/auth chrome. */
 export function shouldSkipGrokOverlay(hostHeader) {
   const stand = typeof process !== "undefined" ? String(process.env?.STANDALONE ?? "") : "";
   if (stand === "true" || stand === "1") return true;

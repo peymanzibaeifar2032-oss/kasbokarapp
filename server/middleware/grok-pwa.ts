@@ -23,6 +23,7 @@ import {
   isInstallQuery,
   renderInstallPageHtml,
   renderWebManifest,
+  shouldSkipGrokOverlay,
 } from "../../scripts/grok-pwa-shared.mjs";
 
 interface GrokPwaEvent {
@@ -67,17 +68,7 @@ export default async function grokPwaMiddleware(
   const method = (event.req.method ?? "GET").toUpperCase();
   if (method !== "GET") return next();
 
-  const host = requestHost(event).split(":")[0].toLowerCase();
   const path = event.url.pathname;
-  if (host === "www.kasbokarapp.com" && isDocumentPath(path)) {
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: `https://kasbokarapp.com${event.url.pathname}${event.url.search}`,
-        "Cache-Control": "no-store",
-      },
-    });
-  }
   const urlWithQuery = path + event.url.search;
 
   if (path === "/__grok/manifest.webmanifest" || path === "/__grok/manifest.json") {
@@ -113,7 +104,8 @@ export default async function grokPwaMiddleware(
     result instanceof Response &&
     result.body &&
     String(result.headers.get("content-type") ?? "").includes("text/html") &&
-    !result.headers.get("content-encoding")
+    !result.headers.get("content-encoding") &&
+    !shouldSkipGrokOverlay(requestHost(event))
   ) {
     return injectHeadStreaming(result, requestHost(event));
   }

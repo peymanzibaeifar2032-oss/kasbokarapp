@@ -15,6 +15,7 @@ COPY deploy/BUILD_ID /tmp/BUILD_ID
 COPY . .
 ENV NITRO_PRESET=node-server
 ENV NODE_ENV=production
+ENV STANDALONE=true
 ENV PATH="/app/node_modules/.bin:$PATH"
 # Schema is applied at container start, not at image build (no DB here).
 RUN rm -rf node_modules/.vite node_modules/.tmp && node scripts/with-app-env.mjs vite build
