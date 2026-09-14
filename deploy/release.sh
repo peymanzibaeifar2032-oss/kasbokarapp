@@ -18,13 +18,20 @@ if ! flock -n 9; then
   exit 1
 fi
 
+# 0 = code/image rollback allowed. 1 = new web may have migrated DB; fail-closed.
+DB_MAY_HAVE_CHANGED=0
+
 preserve_local() {
   dest=/var/backups/kasbokar-local/$(date -u +%Y%m%dT%H%M%SZ)
   mkdir -p "$dest"
   git status -sb > "$dest/git-status.txt" 2>/dev/null || true
   git diff > "$dest/git-diff.patch" 2>/dev/null || true
-  [ -f deploy/cleanup-category-samples.sh ] && cp -a deploy/cleanup-category-samples.sh "$dest/" || true
-  [ -f PROD_REPORT.txt ] && cp -a PROD_REPORT.txt "$dest/" || true
+  if [ -f deploy/cleanup-category-samples.sh ]; then
+    cp -a deploy/cleanup-category-samples.sh "$dest/"
+  fi
+  if [ -f PROD_REPORT.txt ]; then
+    cp -a PROD_REPORT.txt "$dest/"
+  fi
   echo "PRESERVED $dest"
 }
 
@@ -82,12 +89,23 @@ fi
 fail() {
   reason=$1
   echo "DEPLOY_FAILED $reason"
+  if [ "${DB_MAY_HAVE_CHANGED:-0}" = "1" ]; then
+    echo "FAIL_CLOSED web may have migrated the database"
+    echo "FAIL_CLOSED not restoring DB"
+    echo "FAIL_CLOSED not deploying OLD_SHA/prev image"
+    H=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
+    echo "FAIL_CLOSED health=$H"
+    echo "FAIL_CLOSED checkout=$(git rev-parse HEAD 2>/dev/null || true)"
+    echo "FAIL_CLOSED expected=$NEW_SHA"
+    echo "FAIL_CLOSED inspect manually before any restore or old-app start"
+    exit 1
+  fi
   git reset --hard "$OLD_SHA" >/dev/null 2>&1 || true
   printf 'GIT_SHA=%s\n' "$OLD_SHA" > .deploy-sha
   export GIT_SHA="$OLD_SHA"
   if docker image inspect kasbokarapp-web:prev >/dev/null 2>&1; then
     docker tag kasbokarapp-web:prev kasbokarapp-web:latest >/dev/null
-    $COMPOSE up -d --no-build --remove-orphans >/dev/null 2>&1 || true
+    $COMPOSE up -d --no-deps --no-build web >/dev/null 2>&1 || true
   fi
   exit 1
 }
@@ -106,15 +124,11 @@ wait_health() {
 echo "=== release $OLD_SHA -> $NEW_SHA image=$CURRENT_IMAGE force=${FORCE_DEPLOY:-0} ==="
 
 DUMP_NAME=pre-deploy-$(date -u +%Y%m%dT%H%M%SZ).dump
-$COMPOSE exec -T db sh -c "pg_dump -Fc -f /backups/$DUMP_NAME" >/dev/null \
-  || echo "INFO  pre-deploy backup skipped (db not ready)"
-if $COMPOSE exec -T db sh -c "test -s /backups/$DUMP_NAME" >/dev/null 2>&1; then
-  $COMPOSE exec -T db pg_restore -l "/backups/$DUMP_NAME" >/tmp/kasb-dump.list 2>/tmp/kasb-dump.err \
-    && grep -Eqi 'TABLE' /tmp/kasb-dump.list && echo "BACKUP_OK $DUMP_NAME" \
-    || echo "INFO  backup list skipped"
-else
-  echo "INFO  backup file not confirmed"
-fi
+$COMPOSE exec -T db sh -c "pg_dump -Fc -f /backups/$DUMP_NAME" || fail "backup-dump"
+$COMPOSE exec -T db sh -c "test -s /backups/$DUMP_NAME" || fail "backup-empty"
+$COMPOSE exec -T db pg_restore -l "/backups/$DUMP_NAME" >/tmp/kasb-dump.list 2>/tmp/kasb-dump.err || fail "backup-list"
+grep -Eqi 'TABLE' /tmp/kasb-dump.list || fail "backup-invalid"
+echo "BACKUP_OK $DUMP_NAME"
 
 preflight_sql || fail "preflight"
 
@@ -140,7 +154,9 @@ echo "$MIG" | grep -qx "0014_calendar.sql" || fail "image-missing-0014"
 echo "$MIG" | grep -qx "0015_finance.sql" || fail "image-missing-0015"
 echo "$MIG" | grep -qx "0016_resources.sql" || fail "image-missing-0016"
 
-$COMPOSE up -d --force-recreate --remove-orphans || fail "up"
+# New web CMD runs migrate.mjs. Do not auto-roll back code/image after this.
+DB_MAY_HAVE_CHANGED=1
+$COMPOSE up -d --no-deps --force-recreate web || fail "up"
 
 wait_health || fail "health"
 LIVE=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
