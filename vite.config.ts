@@ -8,7 +8,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 import netlify from "@netlify/vite-plugin-tanstack-start";
 // @ts-expect-error JS plugin alongside the TS vite config
-import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
+import { grokPwaPlugin, omitGrokPublicAssets } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
@@ -245,7 +245,7 @@ export default defineConfig(({ command, isPreview }) => ({
     authPopupPlugin(),
     // Dev-only /__app-env, read by scripts/check-auth-invariant.mjs.
     appEnvPlugin(),
-    // PWA head + ?install=1 tutorial page; runs before Start/Nitro.
+    // Preview-only PWA chrome. Inert when STANDALONE/production (Kasbokar).
     grokPwaPlugin(),
     tailwindcss(),
     tanstackStart(),
@@ -257,13 +257,13 @@ export default defineConfig(({ command, isPreview }) => ({
         ? [
             nitro({
               preset: process.env.NITRO_PRESET || "vercel",
-              // Auto-registers server/middleware/* (the PWA install page +
-              // manifest + head-tag middleware). Nitro v3 defaults serverDir to
-              // false, so removing this silently unwires /?install=1 on deploys.
+              // Auto-registers server/middleware/* (security headers).
+              // Grok PWA middleware is a no-op in Production.
               serverDir: "./server",
               hooks: {
                 compiled() {
                   copyPgliteAssets();
+                  omitGrokPublicAssets(process.cwd());
                 },
               },
             }),

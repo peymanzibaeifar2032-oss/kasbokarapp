@@ -1,10 +1,10 @@
 /**
- * Dev/preview (Vite) half of the platform PWA chrome: serves the ?install=1
- * tutorial and the per-app manifest, and injects missing PWA head tags into
- * app documents. The deployed-app half lives in server/middleware/grok-pwa.ts;
- * both share scripts/grok-pwa-shared.mjs.
+ * Dev/preview (Vite) half of the platform PWA chrome. Kasbokar Production
+ * (STANDALONE / NODE_ENV=production) is inert: no head injection, no install
+ * page, no /__grok/ assets in the build output. Nitro `server/middleware/grok-pwa.ts`
+ * is a no-op so `serverDir` still loads security-headers.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -16,6 +16,8 @@ import {
   renderInstallPageHtml,
   renderWebManifest,
   snapshotOgIdentity,
+  grokChromeEnabled,
+  stripGrokBuilderChrome,
 } from "./grok-pwa-shared.mjs";
 
 export const GROK_OG_IDENTITY_ID = "virtual:grok-og-identity";
@@ -151,8 +153,16 @@ function wrapHtmlResponses(middlewares, cwd) {
   });
 }
 
+export function omitGrokPublicAssets(root = process.cwd()) {
+  for (const rel of [".output/public/__grok", "dist/__grok", ".vercel/output/static/__grok"]) {
+    const dir = join(root, rel);
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 export function grokPwaPlugin() {
   let root = process.cwd();
+  const previewChrome = grokChromeEnabled();
   return {
     name: "app-builder:grok-pwa",
     configResolved(config) {
@@ -166,18 +176,21 @@ export function grokPwaPlugin() {
       return `export const grokOgIdentity = ${JSON.stringify(snapshotOgIdentity(root))};`;
     },
     transformIndexHtml(html) {
+      if (!previewChrome) return stripGrokBuilderChrome(html);
       return injectGrokPwaHead(html, {
         host: process.env.VITE_PUBLIC_HOSTNAME ?? "",
         cwd: root,
       });
     },
     configureServer(server) {
+      if (!previewChrome) return;
       // Registered directly (not in a returned post-hook) so both run BEFORE
       // TanStack Start's SSR middleware, like the auth-popup plugin.
       serveGrokPwa(server.middlewares);
       wrapHtmlResponses(server.middlewares, root);
     },
     configurePreviewServer(server) {
+      if (!previewChrome) return;
       serveGrokPwa(server.middlewares);
       // Post-hook: preview registers compression between the direct hooks and
       // the post-hooks, and the injector must wrap AFTER compression so it
@@ -185,6 +198,9 @@ export function grokPwaPlugin() {
       return () => {
         wrapHtmlResponses(server.middlewares, root);
       };
+    },
+    closeBundle() {
+      if (!previewChrome) omitGrokPublicAssets(root);
     },
   };
 }

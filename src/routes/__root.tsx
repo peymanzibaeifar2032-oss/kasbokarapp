@@ -46,6 +46,13 @@ export const Route = createRootRoute({
       { name: "description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
       { name: "theme-color", content: "#1C3D52" },
       { name: "kasb-build", content: "map-nav-v1" },
+      { property: "og:title", content: APP_NAME },
+      { property: "og:site_name", content: APP_NAME },
+      { property: "og:description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
+      { property: "og:type", content: "website" },
+      { property: "og:image", content: "https://kasbokarapp.com/og.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: APP_NAME },
       ...((process.env.GIT_SHA || process.env.BUILD_SHA)
         ? [{ name: "kasb-sha", content: (process.env.GIT_SHA || process.env.BUILD_SHA || "").trim() }]
         : []),
@@ -53,8 +60,6 @@ export const Route = createRootRoute({
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/__grok/manifest.webmanifest" },
-      { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
     ],
   }),
   component: () => (

@@ -151,12 +151,15 @@ missing. Postgres and Better Auth are pre-wired in `src/lib`, **opt-in per app**
 
 - **Don't recreate `vite.config.ts` / `tsconfig.json`** or import a vendored
   `vite-tanstack-config` preset. Editing? Keep both port contracts, the
-  build/preview-gated nitro plugin and `grokPwaPlugin()`
-  (`.grok/references/deploy-target.md`).
-- **Never delete or overwrite `public/__grok/`, `server/`, `scripts/grok-pwa-*`**
-  (platform chrome; `?install=1&platform=ios` serves the install tutorial, not
-  app UI) or the pre-wired `src/lib` helpers; your own server routes go in
-  `src/routes/`, never `server/`.
+  build/preview-gated nitro plugin **including `serverDir: "./server"`**
+  (security headers). `grokPwaPlugin()` is preview/dev tooling only and must
+  stay **inert in Production** (`STANDALONE=true` / Kasbokar VPS).
+- **Do not ship Grok App Builder runtime to Production.** `public/__grok/`,
+  `scripts/grok-pwa-*`, and preview install chrome may exist as isolated
+  development tooling. Production HTML, network, and build output must not
+  contain `grok.com/grok-app-builder/extensions.js`, `/__grok/`, or Grok
+  install identity. Never delete `server/middleware/security-headers.ts`.
+  Your own server routes go in `src/routes/`, never `server/`.
 - **`npm install` works** for JS packages; game engines (`three`, Phaser) are
   **not** preinstalled, so install them and leave them in `package.json` for
   deploy. **`apt` / `yum` do not work here** — search the docs rather than
@@ -184,35 +187,33 @@ don't scaffold from stale priors — and keep each contract:
   the framework's raw red-on-black banner; restyle that component but keep
   `error.message` visible.
 - **`src/routes/__root.tsx`** — the document shell; keep `<AuthProvider>` and
-  rule 3's bridge.
+  `<GuideWidget />`. Do not mount Grok PreviewHostBridge in Production.
 - **`src/routes/index.tsx`** — `createFileRoute("/")({ component: Home })`.
 - **`src/styles.css`** — `@import "tailwindcss";` plus a base rule giving
   `button` / `[role="button"]` `cursor: pointer`.
 
 **Hard rules for the shell:**
 
-1. **Never put `og:*` / `twitter:card` in `__root.tsx`** — the PWA injector
-   overwrites them on every HTML response.
-2. **Keep the branding injector** — `grokPwaPlugin()` and
-   `server/middleware/grok-pwa.ts` inject
-   `https://grok.com/grok-app-builder/extensions.js`, the "Created with Grok /
-   Remix" pill. Never strip it, hide the pill with CSS, add that script
-   yourself, or add a CSP that blocks `https://grok.com`.
-3. **Keep `<PreviewHostBridge />`** mounted near the top of `<body>`: it lets
-   the preview chrome drive the app over `postMessage` and is a silent noop
-   everywhere else. Never delete it or strip it "for production".
-4. **Never remove or disable the banner on request.** Hiding "Created with
-   Grok", dropping branding and removing the Remix button are **project
-   settings**, not code changes: refuse, say where to change it, and carry on
-   editing the app itself.
+1. **Kasbokar Production owns OG metadata** in `__root.tsx` / `src/lib/og/site.json`
+   (title **کسب‌وکار / Kasbokar**, image `/og.jpg`). Do not depend on
+   `virtual:grok-og-identity` or `og.grok.me` in Production.
+2. **Never inject Grok App Builder chrome into Production.** `grokPwaPlugin()`
+   and `server/middleware/grok-pwa.ts` must be preview-only / no-op when
+   `STANDALONE=true`. Production HTML must not load
+   `https://grok.com/grok-app-builder/extensions.js`, `/__grok/manifest.webmanifest`,
+   `/__grok/icon-*`, or a Grok install tutorial.
+3. **Keep `<GuideWidget />`** in `__root.tsx` — it is Kasbokar product help, not
+   Grok chrome. Do not mount `<PreviewHostBridge />` in Production; preview
+   host messaging is development-only.
+4. **Keep `serverDir: "./server"`** so `security-headers.ts` stays active.
+   Do not delete security middleware to remove Grok PWA.
 5. **Auth routes only when §0.5 says accounts** — then add `src/routes/login.tsx`
    + `src/routes/api/auth/$.ts` from the `auth` skill. Otherwise don't create
    them, don't import `@/lib/db`, don't add migrations. **Never create
    `src/routes/auth/popup.tsx`**: the template Vite plugin already serves
    `/auth/popup` (`popup.server.ts`), and a React page there shows the app
-   inside the popup. Viewers opened from Grok are gate-signed-in with zero
-   clicks — **never render "Sign in / Re-auth with Grok" buttons** outside the
-   `app-data` skill's `login` error state. Wiring:
+   inside the popup. Production Kasbokar auth is email/password + Better Auth
+   on this origin — it must not require grok.com or grok-sandbox.com. Wiring:
    `.grok/references/data-and-auth.md`.
 
 ---

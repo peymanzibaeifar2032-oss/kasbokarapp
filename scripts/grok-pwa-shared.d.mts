@@ -5,6 +5,7 @@ export declare function escapeHtml(value: unknown): string;
 export declare function appNameFromHost(hostHeader: string | null | undefined): string;
 export declare function publicAppHost(hostHeader: string | null | undefined): string;
 export declare function isGrokSandboxHost(hostHeader: string | null | undefined): boolean;
+export declare function grokChromeEnabled(): boolean;
 export declare function shouldSkipGrokOverlay(hostHeader: string | null | undefined): boolean;
 export declare function stripGrokBuilderChrome(html: string): string;
 export declare function resolvePublicHost(hostHeader: string | null | undefined): string;

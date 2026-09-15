@@ -40,6 +40,8 @@ function GoNext({ dest }: { dest: string }) {
 }
 
 function persistEmailSession(data: unknown) {
+  if (typeof window === "undefined") return;
+  if (!window.location.hostname.endsWith(".grok-sandbox.com")) return;
   if (!data || typeof data !== "object") return;
   const rec = data as Record<string, unknown>;
   const nested = rec.session && typeof rec.session === "object" ? (rec.session as Record<string, unknown>) : null;

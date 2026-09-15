@@ -31,16 +31,18 @@ test("injects before </head>", () => {
 
 test("strips Grok overlay script on kasbokar production hosts", () => {
   const withScript = injectGrokPwaHead(
-    '<html><head><script src="https://grok.com/grok-app-builder/extensions.js" defer></script></head></html>',
+    '<html><head><link rel="manifest" href="/__grok/manifest.webmanifest"><script src="https://grok.com/grok-app-builder/extensions.js" defer></script></head></html>',
     { host: "kasbokarapp.com", projectId: "abc" },
   );
   assert.doesNotMatch(withScript, /extensions\.js/);
   assert.doesNotMatch(withScript, /grok-project-id/);
+  assert.doesNotMatch(withScript, /\/__grok\//);
   const www = injectGrokPwaHead("<html><head></head></html>", {
     host: "www.kasbokarapp.com",
     projectId: "abc",
   });
   assert.doesNotMatch(www, /extensions\.js/);
+  assert.doesNotMatch(www, /\/__grok\//);
 });
 
 test("injects the extensions script without a project id", () => {
@@ -515,12 +517,17 @@ test("vite config keeps the nitro serverDir wiring", () => {
   const viteConfig = readFileSync(join(TEMPLATE_ROOT, "vite.config.ts"), "utf8");
   assert.match(viteConfig, /serverDir:\s*"\.\/server"/);
   assert.match(viteConfig, /grokPwaPlugin\(\)/);
+  assert.match(viteConfig, /security headers/);
 });
 
-test("nitro middleware and its bundled assets exist", () => {
+test("nitro grok-pwa middleware is production-inert; security headers stay", () => {
   const middleware = readFileSync(join(TEMPLATE_ROOT, "server/middleware/grok-pwa.ts"), "utf8");
-  assert.match(middleware, /install-page\.html\?raw/);
-  assert.match(middleware, /virtual:grok-og-identity/);
+  assert.doesNotMatch(middleware, /grok-app-builder\/extensions\.js/);
+  assert.doesNotMatch(middleware, /\/__grok\//);
+  assert.doesNotMatch(middleware, /install-page\.html/);
+  assert.doesNotMatch(middleware, /virtual:grok-og-identity/);
+  assert.match(middleware, /return next\(\)/);
+  readFileSync(join(TEMPLATE_ROOT, "server/middleware/security-headers.ts"));
   readFileSync(join(TEMPLATE_ROOT, "scripts/install-page.html"));
   readFileSync(join(TEMPLATE_ROOT, "public/__grok/icon-180.png"));
   readFileSync(join(TEMPLATE_ROOT, "public/__grok/install/styles.css"));

@@ -109,9 +109,18 @@ export function isGrokSandboxHost(hostHeader) {
   return h === "grok-sandbox.com" || h.endsWith(".grok-sandbox.com");
 }
 
+/** False in Kasbokar Production (STANDALONE or NODE_ENV=production). Preview/dev only. */
+export function grokChromeEnabled() {
+  const stand = typeof process !== "undefined" ? String(process.env?.STANDALONE ?? "").trim() : "";
+  if (stand === "true" || stand === "1") return false;
+  if (typeof process !== "undefined" && String(process.env?.NODE_ENV ?? "") === "production") {
+    return false;
+  }
+  return true;
+}
+
 export function shouldSkipGrokOverlay(hostHeader) {
-  const stand = typeof process !== "undefined" ? String(process.env?.STANDALONE ?? "") : "";
-  if (stand === "true" || stand === "1") return true;
+  if (!grokChromeEnabled()) return true;
   const h = publicAppHost(hostHeader);
   return h === "kasbokarapp.com" || h === "www.kasbokarapp.com";
 }
@@ -122,7 +131,9 @@ export function stripGrokBuilderChrome(html) {
     .replace(/<script\b[^>]*netlify\/scripts\/hud[^>]*>\s*<\/script>/gi, "")
     .replace(/<script\b[^>]*preview-auth[^>]*>\s*<\/script>/gi, "")
     .replace(/<meta[^>]*name=["']grok-project-id["'][^>]*>/gi, "")
-    .replace(/<meta[^>]*property=["']grok:app_id["'][^>]*>/gi, "");
+    .replace(/<meta[^>]*property=["']grok:app_id["'][^>]*>/gi, "")
+    .replace(/<link\b[^>]*href=["'][^"']*\/__grok\/[^"']*["'][^>]*>/gi, "")
+    .replace(/<link\b[^>]*rel=["']manifest["'][^>]*>/gi, (tag) => (/\/__grok\//i.test(tag) ? "" : tag));
 }
 
 /**
@@ -453,6 +464,11 @@ export function injectGrokPwaHead(html, ctx = {}) {
     host,
     documentTitle,
   );
+
+  if (shouldSkipGrokOverlay(host)) {
+    return stripGrokBuilderChrome(html);
+  }
+
   let next = stripShareMetaTags(html);
 
   const missing = grokPwaHeadTags(appName)
@@ -468,15 +484,12 @@ export function injectGrokPwaHead(html, ctx = {}) {
     grokOgHeadTags({ host, appName, site, documentTitle, cwd }).join(""),
   );
 
-  if (shouldSkipGrokOverlay(host)) {
-    next = stripGrokBuilderChrome(next);
-  } else if (!next.includes("/grok-app-builder/extensions.js")) {
+  if (!next.includes("/grok-app-builder/extensions.js")) {
     missing.push(...grokExtensionsHeadTags(projectId));
   } else if (projectId && !next.includes('name="grok-project-id"')) {
     missing.push(`<meta name="grok-project-id" content="${escapeHtml(projectId)}">`);
   }
   if (
-    !shouldSkipGrokOverlay(host) &&
     projectId &&
     !next.includes('property="grok:app_id"') &&
     !next.includes("property='grok:app_id'")
