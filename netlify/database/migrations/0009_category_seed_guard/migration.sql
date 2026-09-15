@@ -67,8 +67,15 @@ from seed s
 where c.slug = s.slug
   and not exists (select 1 from categories by_id where by_id.id = s.id);
 
-select setval(
-  pg_get_serial_sequence('categories', 'id'),
-  greatest((select coalesce(max(id), 1) from categories), 12),
-  true
-);
+do $$
+declare
+  seq_name text;
+  next_id bigint;
+begin
+  seq_name := pg_get_serial_sequence('categories', 'id');
+  if seq_name is not null then
+    select greatest(coalesce(max(id), 1), 12) into next_id from categories;
+    perform setval(seq_name, next_id, true);
+  end if;
+end
+$$;

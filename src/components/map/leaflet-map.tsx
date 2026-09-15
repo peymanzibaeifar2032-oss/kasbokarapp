@@ -67,6 +67,7 @@ function Tiles() {
   const [url, setUrl] = useState<string | null>(null);
   const switched = useRef(false);
   const offline = useRef(false);
+  const fallbackErrors = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -79,6 +80,7 @@ function Tiles() {
         setUrl(next.url);
         switched.current = false;
         offline.current = false;
+        fallbackErrors.current = 0;
       })
       .catch(() => {
         if (!alive) return;
@@ -86,6 +88,7 @@ function Tiles() {
         setUrl(SAME_ORIGIN_PROXY.url);
         switched.current = false;
         offline.current = false;
+        fallbackErrors.current = 0;
       });
     return () => {
       alive = false;
@@ -107,9 +110,12 @@ function Tiles() {
           if (url === OFFLINE_TILE_TEMPLATE) return;
           if (!switched.current && cfg.fallbackUrl) {
             switched.current = true;
+            fallbackErrors.current = 0;
             setUrl(cfg.fallbackUrl);
             return;
           }
+          fallbackErrors.current += 1;
+          if (fallbackErrors.current < 4) return;
           if (offline.current) return;
           offline.current = true;
           switched.current = false;
