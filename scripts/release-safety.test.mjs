@@ -77,9 +77,12 @@ test("phase0 and smoke always remove automated test listings", () => {
 
 test("CI production build does not run database migrations", () => {
   const ci = readFileSync(join(projectRoot(), ".github/workflows/ci.yml"), "utf8");
-  assert.match(ci, /with-app-env\.mjs vite build/);
-  assert.doesNotMatch(ci, /npm run build/);
+  const pkg = JSON.parse(readFileSync(join(projectRoot(), "package.json"), "utf8"));
+  assert.match(ci, /npm run build/);
   assert.doesNotMatch(ci, /db:migrate/);
+  assert.match(pkg.scripts.build, /vite build/);
+  assert.doesNotMatch(pkg.scripts.build, /db:migrate/);
+  assert.match(pkg.scripts["db:migrate"], /migrate\.mjs/);
 });
 
 test("manual deploy-vps fails closed when VPS secrets are missing", () => {
