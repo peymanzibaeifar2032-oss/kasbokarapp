@@ -43,7 +43,9 @@ export function parseCliArgs(argv) {
 async function main() {
   const { url, eventName, workflowRunHeadSha, currentSha } = parseCliArgs(process.argv.slice(2));
   if (!url) {
-    console.error("usage: node scripts/check-production-health.mjs <url> <expectedSha>");
+    console.error(
+      "usage: node scripts/check-production-health.mjs <url> --event-name <name> --workflow-run-head-sha <sha> --current-sha <sha>",
+    );
     process.exit(1);
   }
   const expectedSha = resolveExpectedSha({ eventName, workflowRunHeadSha, currentSha });
