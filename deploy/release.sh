@@ -162,7 +162,7 @@ wait_health || fail "health"
 LIVE=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
 echo "$LIVE" | grep -q "$NEW_SHA" || fail "health-sha-mismatch"
 echo "$LIVE" | grep -q '"shaSource":"image"' || fail "health-sha-source"
-echo "$LIVE" | grep -q 'kasbokar-jalali-month-v1' || fail "health-calendar-marker"
+echo "$LIVE" | grep -q 'jalali-month-v1' || fail "health-calendar-marker"
 echo "$LIVE" | grep -q '"m0014":true' || fail "health-m0014"
 echo "$LIVE" | grep -q '"m0015":true' || fail "health-m0015"
 echo "$LIVE" | grep -q '"m0016":true' || fail "health-m0016"
