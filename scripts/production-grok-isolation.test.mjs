@@ -38,12 +38,16 @@ test("kasbokar hosts and STANDALONE skip Grok overlay including /__grok/", () =>
   }
 });
 
-test("security-headers middleware remains; grok-pwa middleware has no Grok runtime", () => {
+test("security-headers middleware remains; grok-pwa middleware 404s /__grok/ in Production", () => {
   const pwa = readFileSync(join(ROOT, "server/middleware/grok-pwa.ts"), "utf8");
   const sec = readFileSync(join(ROOT, "server/middleware/security-headers.ts"), "utf8");
   const vite = readFileSync(join(ROOT, "vite.config.ts"), "utf8");
   assert.match(sec, /X-Content-Type-Options/);
   assert.match(vite, /serverDir:\s*"\.\/server"/);
   assert.doesNotMatch(pwa, /grok-app-builder/);
-  assert.doesNotMatch(pwa, /__grok/);
+  assert.doesNotMatch(pwa, /install-page/);
+  assert.doesNotMatch(pwa, /virtual:grok-og-identity/);
+  assert.match(pwa, /\/__grok\//);
+  assert.match(pwa, /status:\s*404/);
+  assert.match(pwa, /return next\(\)/);
 });

@@ -222,6 +222,7 @@ export const REVIEWS_AGG_JOIN = `
 export const VISIBLE_SQL = `
   b.approval_status = 'approved'
   and b.is_active = true
+  and b.name <> 'تست اسموک'
   and (
     (b.subscription_ends_at is not null and b.subscription_ends_at > now())
     or (b.trial_ends_at is not null and b.trial_ends_at > now())

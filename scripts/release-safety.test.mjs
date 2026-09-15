@@ -56,9 +56,35 @@ test("existing release hardening remains", () => {
   assert.match(src, /m0014":true/);
   assert.match(src, /m0015":true/);
   assert.match(src, /m0016":true/);
-  assert.match(src, /kasbokar-jalali-month-v1/);
+  assert.match(src, /jalali-month-v1/);
   assert.match(src, /PREFLIGHT_FAIL active_null_slot_end/);
   assert.match(src, /deploy\/smoke\.sh/);
   assert.match(src, /deploy\/verify-release\.sh/);
   assert.match(src, /kasbokar-release\.lock/);
+});
+
+test("phase0 and smoke always remove automated test listings", () => {
+  const phase0 = readFileSync(join(projectRoot(), "deploy/phase0-cleanup.sh"), "utf8");
+  const smoke = readFileSync(join(projectRoot(), "deploy/smoke.sh"), "utf8");
+  const map = readFileSync(join(projectRoot(), "src/lib/server/db-map.ts"), "utf8");
+  assert.match(phase0, /تست اسموک/);
+  assert.match(phase0, /E2E TEST - DELETE ME/);
+  assert.match(phase0, /booking_holds/);
+  assert.match(smoke, /trap cleanup_e2e EXIT/);
+  assert.match(smoke, /تست اسموک/);
+  assert.match(map, /b\.name <> 'تست اسموک'/);
+});
+
+test("CI production build does not run database migrations", () => {
+  const ci = readFileSync(join(projectRoot(), ".github/workflows/ci.yml"), "utf8");
+  assert.match(ci, /with-app-env\.mjs vite build/);
+  assert.doesNotMatch(ci, /npm run build/);
+  assert.doesNotMatch(ci, /db:migrate/);
+});
+
+test("manual deploy-vps fails closed when VPS secrets are missing", () => {
+  const wf = readFileSync(join(projectRoot(), ".github/workflows/deploy-vps.yml"), "utf8");
+  assert.match(wf, /workflow_dispatch/);
+  assert.match(wf, /Manual deploy-vps requires VPS_HOST/);
+  assert.match(wf, /exit 1/);
 });

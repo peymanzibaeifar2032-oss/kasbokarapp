@@ -523,9 +523,10 @@ test("vite config keeps the nitro serverDir wiring", () => {
 test("nitro grok-pwa middleware is production-inert; security headers stay", () => {
   const middleware = readFileSync(join(TEMPLATE_ROOT, "server/middleware/grok-pwa.ts"), "utf8");
   assert.doesNotMatch(middleware, /grok-app-builder\/extensions\.js/);
-  assert.doesNotMatch(middleware, /\/__grok\//);
   assert.doesNotMatch(middleware, /install-page\.html/);
   assert.doesNotMatch(middleware, /virtual:grok-og-identity/);
+  assert.match(middleware, /\/__grok\//);
+  assert.match(middleware, /status:\s*404/);
   assert.match(middleware, /return next\(\)/);
   readFileSync(join(TEMPLATE_ROOT, "server/middleware/security-headers.ts"));
   readFileSync(join(TEMPLATE_ROOT, "scripts/install-page.html"));

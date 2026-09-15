@@ -17,6 +17,16 @@ check() {
 
 echo "=== smoke $BASE origin=$ORIGIN ==="
 
+cleanup_e2e() {
+  docker compose --profile with-db exec -T db psql -U kasbokar -d kasbokar \
+    -c "delete from reviews where business_id in (select id from businesses where name in ('E2E TEST - DELETE ME', 'تست اسموک'));
+        delete from bookings where business_id in (select id from businesses where name in ('E2E TEST - DELETE ME', 'تست اسموک'));
+        delete from booking_holds where business_id in (select id from businesses where name in ('E2E TEST - DELETE ME', 'تست اسموک'));
+        delete from favorites where business_id in (select id from businesses where name in ('E2E TEST - DELETE ME', 'تست اسموک'));
+        delete from businesses where name in ('E2E TEST - DELETE ME', 'تست اسموک');" >/dev/null 2>&1 || true
+}
+trap cleanup_e2e EXIT
+
 H=$(curl -sS -m 8 "$BASE/api/health" || true)
 echo "$H" | grep -q '"ok":true' && echo "$H" | grep -q '"standalone":true' && ok "health standalone" || bad "health" "$H"
 echo "$H" | grep -q '"db":"postgres+0015"' && ok "health db=postgres+0015" || bad "health db label" "$H"
@@ -223,11 +233,8 @@ else
 fi
 
 # Remove E2E rows so production data stays clean.
-if [ -n "${BID:-}" ]; then
-  docker compose --profile with-db exec -T db \
-    psql -U kasbokar -d kasbokar -c "delete from reviews where business_id = '$BID'; delete from bookings where business_id = '$BID'; delete from businesses where id = '$BID' or name = 'E2E TEST - DELETE ME';" >/dev/null || true
-  ok "e2e rows deleted"
-fi
+cleanup_e2e
+ok "e2e rows deleted"
 
 echo "=== $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]
