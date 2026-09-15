@@ -28,6 +28,11 @@ async function main() {
     process.exit(1);
   }
 
+  if (!response.ok) {
+    console.error(`[prod-health] unexpected HTTP ${response.status} from ${response.url || url}`);
+    process.exit(1);
+  }
+
   const body = await response.text();
   if (!isExpectedProductionRelease(body, expectedSha)) {
     console.error(`[prod-health] unhealthy or wrong release at ${url}`);

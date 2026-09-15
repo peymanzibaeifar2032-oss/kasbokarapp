@@ -20,3 +20,10 @@ test("rejects unhealthy payloads, wrong sha, and invalid json", () => {
   );
   assert.equal(isExpectedProductionRelease("not-json", "abc123"), false);
 });
+
+test("rejects 200 payloads that are valid json but missing required fields", () => {
+  assert.equal(
+    isExpectedProductionRelease(JSON.stringify({ status: "ok", release: "abc123" }), "abc123"),
+    false,
+  );
+});
