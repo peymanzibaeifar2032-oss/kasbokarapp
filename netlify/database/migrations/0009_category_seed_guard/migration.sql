@@ -1,0 +1,81 @@
+with seed (id, name, slug, icon, sort_order) as (
+  values
+    (1, 'آرایش و زیبایی', 'beauty', 'scissors', 10),
+    (2, 'پزشکی و سلامت', 'health', 'heart-pulse', 20),
+    (3, 'فناوری و طراحی', 'tech', 'laptop', 30),
+    (4, 'خودرو و تعمیرات', 'auto', 'wrench', 40),
+    (5, 'فروشگاه و خرید', 'shop', 'shopping-bag', 50),
+    (6, 'خدمات خانه', 'home', 'house', 60),
+    (7, 'غذا و رستوران', 'food', 'utensils', 70),
+    (8, 'کافه و شیرینی', 'cafe', 'coffee', 80),
+    (9, 'آموزش', 'education', 'graduation-cap', 90),
+    (10, 'ورزش و تندرستی', 'sport', 'dumbbell', 100),
+    (11, 'املاک و ساختمان', 'estate', 'building-2', 110),
+    (12, 'حقوقی و مالی', 'legal', 'scale', 120)
+)
+insert into categories (id, name, slug, icon, sort_order)
+select s.id, s.name, s.slug, s.icon, s.sort_order
+from seed s
+where not exists (select 1 from categories c where c.id = s.id)
+  and not exists (select 1 from categories c where c.slug = s.slug)
+on conflict (id) do nothing;
+
+with seed (id, name, slug, icon, sort_order) as (
+  values
+    (1, 'آرایش و زیبایی', 'beauty', 'scissors', 10),
+    (2, 'پزشکی و سلامت', 'health', 'heart-pulse', 20),
+    (3, 'فناوری و طراحی', 'tech', 'laptop', 30),
+    (4, 'خودرو و تعمیرات', 'auto', 'wrench', 40),
+    (5, 'فروشگاه و خرید', 'shop', 'shopping-bag', 50),
+    (6, 'خدمات خانه', 'home', 'house', 60),
+    (7, 'غذا و رستوران', 'food', 'utensils', 70),
+    (8, 'کافه و شیرینی', 'cafe', 'coffee', 80),
+    (9, 'آموزش', 'education', 'graduation-cap', 90),
+    (10, 'ورزش و تندرستی', 'sport', 'dumbbell', 100),
+    (11, 'املاک و ساختمان', 'estate', 'building-2', 110),
+    (12, 'حقوقی و مالی', 'legal', 'scale', 120)
+)
+update categories c
+set
+  name = s.name,
+  icon = s.icon,
+  sort_order = s.sort_order
+from seed s
+where c.id = s.id;
+
+with seed (id, name, slug, icon, sort_order) as (
+  values
+    (1, 'آرایش و زیبایی', 'beauty', 'scissors', 10),
+    (2, 'پزشکی و سلامت', 'health', 'heart-pulse', 20),
+    (3, 'فناوری و طراحی', 'tech', 'laptop', 30),
+    (4, 'خودرو و تعمیرات', 'auto', 'wrench', 40),
+    (5, 'فروشگاه و خرید', 'shop', 'shopping-bag', 50),
+    (6, 'خدمات خانه', 'home', 'house', 60),
+    (7, 'غذا و رستوران', 'food', 'utensils', 70),
+    (8, 'کافه و شیرینی', 'cafe', 'coffee', 80),
+    (9, 'آموزش', 'education', 'graduation-cap', 90),
+    (10, 'ورزش و تندرستی', 'sport', 'dumbbell', 100),
+    (11, 'املاک و ساختمان', 'estate', 'building-2', 110),
+    (12, 'حقوقی و مالی', 'legal', 'scale', 120)
+)
+update categories c
+set
+  name = s.name,
+  icon = s.icon,
+  sort_order = s.sort_order
+from seed s
+where c.slug = s.slug
+  and not exists (select 1 from categories by_id where by_id.id = s.id);
+
+do $$
+declare
+  seq_name text;
+  next_id bigint;
+begin
+  seq_name := pg_get_serial_sequence('categories', 'id');
+  if seq_name is not null then
+    select greatest(coalesce(max(id), 1), 12) into next_id from categories;
+    perform setval(seq_name, next_id, true);
+  end if;
+end
+$$;

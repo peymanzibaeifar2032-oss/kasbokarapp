@@ -116,7 +116,13 @@ export const Route = createFileRoute("/api/tiles/$")({
             circuits.set(tpl, recordFailure(circuits.get(tpl) ?? { failures: 0, openUntil: 0 }));
           }
         }
-        return new Response(null, { status: 502, headers: { "Cache-Control": "no-store" } });
+        return new Response(null, {
+          status: 502,
+          headers: {
+            "Cache-Control": "no-store",
+            "X-Kasbokar-Tile-Fallback": "upstream-unavailable",
+          },
+        });
       },
     },
   },

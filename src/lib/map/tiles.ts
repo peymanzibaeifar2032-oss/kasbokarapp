@@ -133,3 +133,11 @@ export function fillTileTemplate(
     .replaceAll("{x}", String(x))
     .replaceAll("{y}", String(y));
 }
+
+const OFFLINE_TILE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="offline map tile">
+<rect width="256" height="256" fill="#edf1f6"/>
+<path d="M0 0H256M0 64H256M0 128H256M0 192H256M0 256H256M0 0V256M64 0V256M128 0V256M192 0V256M256 0V256" stroke="#d6dee8" stroke-width="1"/>
+<text x="128" y="126" text-anchor="middle" fill="#5f6f82" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="14">نقشه پایه در دسترس نیست</text>
+</svg>`;
+
+export const OFFLINE_TILE_TEMPLATE = `data:image/svg+xml;utf8,${encodeURIComponent(OFFLINE_TILE_SVG)}`;
