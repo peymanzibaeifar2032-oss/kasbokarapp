@@ -34,9 +34,9 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Verify production release when SSH deploy is unavailable
-        if: steps.check.outputs.skip == 'true' && github.event_name == 'workflow_run'
+        if: steps.check.outputs.skip == 'true'
         env:
-          EXPECT_SHA: ${{ github.event.workflow_run.head_sha }}
+          EXPECT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -eu
           i=0
