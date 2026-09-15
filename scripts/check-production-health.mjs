@@ -43,10 +43,15 @@ async function main() {
     console.error(`[prod-health] invalid health payload from ${url}`);
     process.exit(1);
   }
-  if (!(data.ok === true && data.sha === expectedSha)) {
+  if (data.ok !== true) {
+    const actualOk = data && "ok" in data ? String(data.ok) : "missing";
+    console.error(`[prod-health] unhealthy payload at ${url} (ok=${actualOk})`);
+    process.exit(1);
+  }
+  if (data.sha !== expectedSha) {
     const actualSha = typeof data.sha === "string" && data.sha ? data.sha : "missing";
     console.error(
-      `[prod-health] unhealthy or wrong release at ${url} (expected ${expectedSha}, got ${actualSha})`,
+      `[prod-health] stale release at ${url} (expected ${expectedSha}, got ${actualSha})`,
     );
     process.exit(1);
   }
