@@ -95,7 +95,7 @@ test("parseCliArgs reads workflow flags", () => {
 test("parseCliArgs rejects missing flag values", () => {
   assert.throws(
     () => parseCliArgs(["https://kasbokarapp.com/api/health", "--event-name"]),
-    /missing value for --event-name/,
+    /malformed flag arguments/,
   );
 });
 

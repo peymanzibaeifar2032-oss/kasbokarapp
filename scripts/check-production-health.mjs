@@ -29,18 +29,20 @@ export function parseCliArgs(argv) {
     workflowRunHeadSha: "",
     currentSha: "",
   };
+  if (rest.length % 2 !== 0) {
+    throw new Error("malformed flag arguments");
+  }
   for (let i = 0; i < rest.length; i += 2) {
     const flag = rest[i];
-    const value = rest[i + 1];
+    const value = rest[i + 1] ?? "";
     if (flag === "--event-name") {
-      if (!value || value.startsWith("--")) throw new Error("missing value for --event-name");
+      if (!value) throw new Error("missing value for --event-name");
       out.eventName = value;
     } else if (flag === "--workflow-run-head-sha") {
-      if (!value || value.startsWith("--"))
-        throw new Error("missing value for --workflow-run-head-sha");
+      if (!value) throw new Error("missing value for --workflow-run-head-sha");
       out.workflowRunHeadSha = value;
     } else if (flag === "--current-sha") {
-      if (!value || value.startsWith("--")) throw new Error("missing value for --current-sha");
+      if (!value) throw new Error("missing value for --current-sha");
       out.currentSha = value;
     } else throw new Error(`unknown flag: ${flag}`);
   }
