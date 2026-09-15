@@ -13,4 +13,8 @@ insert into categories (id, name, slug, icon, sort_order) values
   (12, 'حقوقی و مالی', 'legal', 'scale', 120)
 on conflict do nothing;
 
-select setval('categories_id_seq', greatest((select coalesce(max(id), 1) from categories), 12), true);
+select setval(
+  pg_get_serial_sequence('categories', 'id'),
+  greatest((select coalesce(max(id), 1) from categories), 12),
+  true
+);
