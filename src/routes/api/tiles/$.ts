@@ -5,6 +5,7 @@ import { REGISTERED_MAP_PROVIDERS } from "@/lib/map/providers";
 import {
   fillTileTemplate,
   isSafeTileTemplate,
+  renderOfflineTileSvg,
   STANDALONE_UPSTREAM_CANDIDATES,
 } from "@/lib/map/tiles";
 
@@ -116,7 +117,14 @@ export const Route = createFileRoute("/api/tiles/$")({
             circuits.set(tpl, recordFailure(circuits.get(tpl) ?? { failures: 0, openUntil: 0 }));
           }
         }
-        return new Response(null, { status: 502, headers: { "Cache-Control": "no-store" } });
+        return new Response(renderOfflineTileSvg(zxy.z, zxy.x, zxy.y), {
+          status: 200,
+          headers: {
+            "Content-Type": "image/svg+xml; charset=utf-8",
+            "Cache-Control": "no-store",
+            "X-Kasbokar-Tile-Fallback": "1",
+          },
+        });
       },
     },
   },
