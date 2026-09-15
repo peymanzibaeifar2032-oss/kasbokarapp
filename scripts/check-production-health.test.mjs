@@ -34,4 +34,7 @@ test("parseProductionHealth returns parsed json or null", () => {
     sha: "abc123",
   });
   assert.equal(parseProductionHealth("not-json"), null);
+  assert.equal(parseProductionHealth("true"), null);
+  assert.equal(parseProductionHealth("null"), null);
+  assert.equal(parseProductionHealth("[]"), null);
 });

@@ -9,7 +9,8 @@ export function isExpectedProductionRelease(body, expectedSha) {
 
 export function parseProductionHealth(body) {
   try {
-    return JSON.parse(body);
+    const data = JSON.parse(body);
+    return data && typeof data === "object" && !Array.isArray(data) ? data : null;
   } catch {
     return null;
   }
