@@ -96,6 +96,7 @@ function Tiles() {
 
   return (
     <TileLayer
+      key={url}
       attribution={cfg.attribution}
       url={url}
       subdomains={cfg.subdomains || "abc"}
@@ -103,6 +104,7 @@ function Tiles() {
       maxZoom={cfg.maxZoom}
       eventHandlers={{
         tileerror: () => {
+          if (url === OFFLINE_TILE_TEMPLATE) return;
           if (!switched.current && cfg.fallbackUrl) {
             switched.current = true;
             setUrl(cfg.fallbackUrl);
