@@ -110,6 +110,7 @@ function Tiles() {
           }
           if (offline.current) return;
           offline.current = true;
+          switched.current = false;
           setUrl(OFFLINE_TILE_TEMPLATE);
         },
       }}
