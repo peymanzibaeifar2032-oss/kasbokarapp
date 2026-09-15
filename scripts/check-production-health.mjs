@@ -2,6 +2,11 @@
 
 import { pathToFileURL } from "node:url";
 
+export function resolveExpectedSha({ eventName, workflowRunHeadSha, currentSha }) {
+  if (eventName === "workflow_run") return workflowRunHeadSha?.trim() || null;
+  return currentSha?.trim() || null;
+}
+
 export function isExpectedProductionRelease(body, expectedSha) {
   const data = parseProductionHealth(body);
   return data?.ok === true && data?.sha === expectedSha;
@@ -16,10 +21,34 @@ export function parseProductionHealth(body) {
   }
 }
 
+export function parseCliArgs(argv) {
+  const [url, ...rest] = argv;
+  const out = {
+    url: url ?? "",
+    eventName: "",
+    workflowRunHeadSha: "",
+    currentSha: "",
+  };
+  for (let i = 0; i < rest.length; i += 2) {
+    const flag = rest[i];
+    const value = rest[i + 1] ?? "";
+    if (flag === "--event-name") out.eventName = value;
+    else if (flag === "--workflow-run-head-sha") out.workflowRunHeadSha = value;
+    else if (flag === "--current-sha") out.currentSha = value;
+    else throw new Error(`unknown flag: ${flag}`);
+  }
+  return out;
+}
+
 async function main() {
-  const [url, expectedSha] = process.argv.slice(2);
-  if (!url || !expectedSha) {
+  const { url, eventName, workflowRunHeadSha, currentSha } = parseCliArgs(process.argv.slice(2));
+  if (!url) {
     console.error("usage: node scripts/check-production-health.mjs <url> <expectedSha>");
+    process.exit(1);
+  }
+  const expectedSha = resolveExpectedSha({ eventName, workflowRunHeadSha, currentSha });
+  if (!expectedSha) {
+    console.error(`[prod-health] could not determine expected SHA for ${eventName || "unknown"}`);
     process.exit(1);
   }
 

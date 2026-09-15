@@ -41,20 +41,16 @@ jobs:
           CURRENT_SHA: ${{ github.sha }}
         run: |
           set -eu
-          case "$EVENT_NAME" in
-            workflow_run) EXPECT_SHA="${WORKFLOW_RUN_HEAD_SHA:-}" ;;
-            *) EXPECT_SHA="${CURRENT_SHA:-}" ;;
-          esac
-          if [ -z "${EXPECT_SHA:-}" ]; then
-            echo "::error::Could not determine the expected production SHA for $EVENT_NAME."
-            exit 1
-          fi
           i=0
           while [ "$i" -lt 7 ]; do
             i=$((i + 1))
-            if node scripts/check-production-health.mjs https://kasbokarapp.com/api/health "$EXPECT_SHA"
+            if node scripts/check-production-health.mjs \
+              https://kasbokarapp.com/api/health \
+              --event-name "$EVENT_NAME" \
+              --workflow-run-head-sha "${WORKFLOW_RUN_HEAD_SHA:-}" \
+              --current-sha "${CURRENT_SHA:-}"
             then
-              echo "Production already serves ${EXPECT_SHA}; VPS timer path is healthy."
+              echo "Production already serves the expected release; VPS timer path is healthy."
               exit 0
             fi
             sleep 20
