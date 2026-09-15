@@ -92,6 +92,13 @@ test("parseCliArgs reads workflow flags", () => {
   );
 });
 
+test("parseCliArgs rejects missing flag values", () => {
+  assert.throws(
+    () => parseCliArgs(["https://kasbokarapp.com/api/health", "--event-name"]),
+    /missing value for --event-name/,
+  );
+});
+
 test("cli exits non-zero for stale releases", async () => {
   const result = spawnSync(
     process.execPath,

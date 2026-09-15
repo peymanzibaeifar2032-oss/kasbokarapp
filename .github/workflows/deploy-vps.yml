@@ -41,14 +41,15 @@ jobs:
           CURRENT_SHA: ${{ github.sha }}
         run: |
           set -eu
+          LAST_ERR=""
           i=0
           while [ "$i" -lt 7 ]; do
             i=$((i + 1))
-            if node scripts/check-production-health.mjs \
+            if LAST_ERR=$(node scripts/check-production-health.mjs \
               https://kasbokarapp.com/api/health \
               --event-name "$EVENT_NAME" \
               --workflow-run-head-sha "${WORKFLOW_RUN_HEAD_SHA:-}" \
-              --current-sha "${CURRENT_SHA:-}"
+              --current-sha "${CURRENT_SHA:-}" 2>&1)
             then
               echo "Production already serves the expected release; VPS timer path is healthy."
               exit 0
@@ -56,6 +57,9 @@ jobs:
             sleep 20
           done
           echo "::error::GitHub could not SSH to the VPS and kasbokarapp.com is not serving the expected release."
+          if [ -n "$LAST_ERR" ]; then
+            echo "::error::$LAST_ERR"
+          fi
           echo "::error::Set VPS_HOST/VPS_USER/VPS_SSH_KEY, or restore kasbokar-watch.timer plus DNS/TLS/environment on the server."
           exit 1
       - name: Deploy over SSH

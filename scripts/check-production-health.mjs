@@ -31,17 +31,31 @@ export function parseCliArgs(argv) {
   };
   for (let i = 0; i < rest.length; i += 2) {
     const flag = rest[i];
-    const value = rest[i + 1] ?? "";
-    if (flag === "--event-name") out.eventName = value;
-    else if (flag === "--workflow-run-head-sha") out.workflowRunHeadSha = value;
-    else if (flag === "--current-sha") out.currentSha = value;
-    else throw new Error(`unknown flag: ${flag}`);
+    const value = rest[i + 1];
+    if (flag === "--event-name") {
+      if (!value || value.startsWith("--")) throw new Error("missing value for --event-name");
+      out.eventName = value;
+    } else if (flag === "--workflow-run-head-sha") {
+      if (!value || value.startsWith("--"))
+        throw new Error("missing value for --workflow-run-head-sha");
+      out.workflowRunHeadSha = value;
+    } else if (flag === "--current-sha") {
+      if (!value || value.startsWith("--")) throw new Error("missing value for --current-sha");
+      out.currentSha = value;
+    } else throw new Error(`unknown flag: ${flag}`);
   }
   return out;
 }
 
 async function main() {
-  const { url, eventName, workflowRunHeadSha, currentSha } = parseCliArgs(process.argv.slice(2));
+  let args;
+  try {
+    args = parseCliArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(`[prod-health] ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+  const { url, eventName, workflowRunHeadSha, currentSha } = args;
   if (!url) {
     console.error(
       "usage: node scripts/check-production-health.mjs <url> --event-name <name> --workflow-run-head-sha <sha> --current-sha <sha>",
