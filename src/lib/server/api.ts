@@ -12,6 +12,7 @@ import { applyHomeSearchEligibility, resolveExplicitCategoryId } from "@/lib/sea
 import { isSearchQuery } from "@/lib/search/simple-search";
 import { sortByRelevance } from "@/lib/search/ranking";
 import { performCreateBooking, loadResources } from "@/lib/server/writes";
+import { ensureCategories } from "@/lib/server/categories";
 import {
   ACTIVE_OCCUPANCY_SQL,
   OCCUPANCY_SELECT,
@@ -49,13 +50,7 @@ const pricesSchema = z.array(
 
 export const listCategories = createServerFn({ method: "GET" }).handler(async () => {
   const sql = await getSql();
-  const rows = await sql.query<{
-    id: number;
-    name: string;
-    slug: string;
-    icon: string;
-    sort_order: number;
-  }>("select id, name, slug, icon, sort_order from categories order by sort_order, id");
+  const rows = await ensureCategories(sql);
   return rows.map(mapCategory);
 });
 

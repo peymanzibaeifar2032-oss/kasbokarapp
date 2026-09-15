@@ -3,7 +3,7 @@ import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } f
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Business } from "@/lib/types";
-import { SAME_ORIGIN_PROXY, type MapTileConfig } from "@/lib/map/tiles";
+import { LOCAL_FALLBACK_TILE_URL, SAME_ORIGIN_PROXY, type MapTileConfig } from "@/lib/map/tiles";
 
 type Props = {
   businesses: Business[];
@@ -66,6 +66,7 @@ function Tiles() {
   const [cfg, setCfg] = useState<MapTileConfig | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const switched = useRef(false);
+  const localFallback = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -77,11 +78,14 @@ function Tiles() {
         setCfg(next);
         setUrl(next.url);
         switched.current = false;
+        localFallback.current = false;
       })
       .catch(() => {
         if (!alive) return;
         setCfg(SAME_ORIGIN_PROXY);
         setUrl(SAME_ORIGIN_PROXY.url);
+        switched.current = false;
+        localFallback.current = false;
       });
     return () => {
       alive = false;
@@ -99,9 +103,14 @@ function Tiles() {
       maxZoom={cfg.maxZoom}
       eventHandlers={{
         tileerror: () => {
-          if (switched.current || !cfg.fallbackUrl) return;
-          switched.current = true;
-          setUrl(cfg.fallbackUrl);
+          if (!switched.current && cfg.fallbackUrl) {
+            switched.current = true;
+            setUrl(cfg.fallbackUrl);
+            return;
+          }
+          if (localFallback.current) return;
+          localFallback.current = true;
+          setUrl(LOCAL_FALLBACK_TILE_URL);
         },
       }}
     />
