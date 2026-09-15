@@ -101,7 +101,7 @@ create table if not exists booking_holds (
 
 create index if not exists booking_holds_live_idx
   on booking_holds (business_id, slot_start, slot_end)
-  where expires_at > now();
+
 
 -- Architecture only. No public URLs. No upload in this slice.
 create table if not exists appointment_attachments (
