@@ -36,9 +36,19 @@ jobs:
       - name: Verify production release when SSH deploy is unavailable
         if: steps.check.outputs.skip == 'true'
         env:
-          EXPECT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          CURRENT_SHA: ${{ github.sha }}
         run: |
           set -eu
+          case "$EVENT_NAME" in
+            workflow_run) EXPECT_SHA="${WORKFLOW_RUN_HEAD_SHA:-}" ;;
+            *) EXPECT_SHA="${CURRENT_SHA:-}" ;;
+          esac
+          if [ -z "${EXPECT_SHA:-}" ]; then
+            echo "::error::Could not determine the expected production SHA for $EVENT_NAME."
+            exit 1
+          fi
           i=0
           while [ "$i" -lt 7 ]; do
             i=$((i + 1))
