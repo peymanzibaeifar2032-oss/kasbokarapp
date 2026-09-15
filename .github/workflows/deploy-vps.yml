@@ -33,6 +33,26 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Verify production release when SSH deploy is unavailable
+        if: steps.check.outputs.skip == 'true' && github.event_name == 'workflow_run'
+        env:
+          EXPECT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -eu
+          i=0
+          while [ "$i" -lt 7 ]; do
+            i=$((i + 1))
+            BODY=$(curl -fsS --max-time 20 https://kasbokarapp.com/api/health || true)
+            if BODY="$BODY" EXPECT_SHA="$EXPECT_SHA" node -e 'const body = process.env.BODY || ""; const expect = process.env.EXPECT_SHA || ""; try { const data = JSON.parse(body); process.exit(data.ok === true && data.sha === expect ? 0 : 1); } catch { process.exit(1); }'
+            then
+              echo "Production already serves ${EXPECT_SHA}; VPS timer path is healthy."
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::GitHub could not SSH to the VPS and kasbokarapp.com is not serving the expected release."
+          echo "::error::Set VPS_HOST/VPS_USER/VPS_SSH_KEY, or restore kasbokar-watch.timer plus DNS/TLS/environment on the server."
+          exit 1
       - name: Deploy over SSH
         if: steps.check.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.2.2
