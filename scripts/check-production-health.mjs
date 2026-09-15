@@ -72,7 +72,10 @@ async function main() {
 
   let response;
   try {
-    response = await fetch(url, { redirect: "follow" });
+    response = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(15_000),
+    });
   } catch (error) {
     console.error(
       `[prod-health] request failed: ${error instanceof Error ? error.message : String(error)}`,
