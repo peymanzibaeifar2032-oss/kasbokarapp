@@ -15,6 +15,7 @@ import { performCreateBooking, loadResources } from "@/lib/server/writes";
 import {
   ACTIVE_OCCUPANCY_SQL,
   OCCUPANCY_SELECT,
+  HOLDS_OCCUPANCY_SELECT,
   BOOKING_SELECT,
   BIZ_SELECT,
   BIZ_SELECT_JOINED,
@@ -144,36 +145,44 @@ export const listBusinesses = createServerFn({ method: "POST" })
     const occByBiz = new Map<string, BusyInterval[]>();
     const specialByBiz = new Map<string, SpecialDay[]>();
     if (ids.length) {
-      const occ = await sql.query<{ business_id: string; slot_start: string; slot_end: string }>(
-        `select ${OCCUPANCY_SELECT} from bookings
-         where business_id = any($1::text[])
-           and ${ACTIVE_OCCUPANCY_SQL}
-           and slot_end > now()
-           and slot_start < now() + interval '8 days'
-         union all
-         select business_id, slot_start, slot_end from booking_holds
-         where business_id = any($1::text[])
-           and expires_at > now()`,
-        [ids],
-      );
-      for (const row of occ) {
-        const list = occByBiz.get(row.business_id) ?? [];
-        list.push({ start: row.slot_start, end: row.slot_end });
-        occByBiz.set(row.business_id, list);
+      try {
+        const occ = await sql.query<{ business_id: string; slot_start: string; slot_end: string }>(
+          `select ${OCCUPANCY_SELECT} from bookings
+           where business_id = any($1::text[])
+             and ${ACTIVE_OCCUPANCY_SQL}
+             and slot_end > now()
+             and slot_start < now() + interval '8 days'
+           union all
+           select ${HOLDS_OCCUPANCY_SELECT} from booking_holds
+           where business_id = any($1::text[])
+             and expires_at > now()`,
+          [ids],
+        );
+        for (const row of occ) {
+          const list = occByBiz.get(row.business_id) ?? [];
+          list.push({ start: row.slot_start, end: row.slot_end });
+          occByBiz.set(row.business_id, list);
+        }
+      } catch {
+        /* Home map must still render if occupancy is unavailable. */
       }
-      const special = await sql.query<{ business_id: string; day: string; closed: boolean; shifts: unknown }>(
-        `select business_id, to_char(day, 'YYYY-MM-DD') as day, closed, shifts
-         from business_special_hours
-         where business_id = any($1::text[])
-           and day >= (timezone('Asia/Tehran', now()))::date
-           and day < (timezone('Asia/Tehran', now()))::date + 14`,
-        [ids],
-      );
-      for (const row of special) {
-        const list = specialByBiz.get(row.business_id) ?? [];
-        const shifts = Array.isArray(row.shifts) ? (row.shifts as { open: string; close: string }[]) : [];
-        list.push({ dayKey: row.day, closed: Boolean(row.closed), shifts });
-        specialByBiz.set(row.business_id, list);
+      try {
+        const special = await sql.query<{ business_id: string; day: string; closed: boolean; shifts: unknown }>(
+          `select business_id, to_char(day, 'YYYY-MM-DD') as day, closed, shifts
+           from business_special_hours
+           where business_id = any($1::text[])
+             and day >= (timezone('Asia/Tehran', now()))::date
+             and day < (timezone('Asia/Tehran', now()))::date + 14`,
+          [ids],
+        );
+        for (const row of special) {
+          const list = specialByBiz.get(row.business_id) ?? [];
+          const shifts = Array.isArray(row.shifts) ? (row.shifts as { open: string; close: string }[]) : [];
+          list.push({ dayKey: row.day, closed: Boolean(row.closed), shifts });
+          specialByBiz.set(row.business_id, list);
+        }
+      } catch {
+        /* Special hours are optional for the public list. */
       }
     }
     const now = new Date();
@@ -287,7 +296,7 @@ export const listBusySlots = createServerFn({ method: "GET" })
          select ${OCCUPANCY_SELECT} from bookings
           where business_id = $1 and ${ACTIVE_OCCUPANCY_SQL} and slot_end > now()
          union all
-         select business_id, slot_start, slot_end, coalesce(nullif(resource_id, ''), nullif(staff_id, ''))
+         select ${HOLDS_OCCUPANCY_SELECT}
            from booking_holds
           where business_id = $1 and expires_at > now()
        ) x`,

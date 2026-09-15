@@ -58,3 +58,14 @@ test("runtime never writes Any Staff as NULL and never uses resource_service_map
   assert.match(writes, /"chair"/);
   assert.match(resources, /staff", "chair", "room", "equipment/);
 });
+
+test("home occupancy union matches hold columns including resource_id", () => {
+  const api = readFileSync(join(root, "src/lib/server/api.ts"), "utf8");
+  const map = readFileSync(join(root, "src/lib/server/db-map.ts"), "utf8");
+  assert.match(map, /export const HOLDS_OCCUPANCY_SELECT/);
+  assert.match(api, /HOLDS_OCCUPANCY_SELECT/);
+  assert.doesNotMatch(
+    api,
+    /union all\s+select business_id, slot_start, slot_end from booking_holds/,
+  );
+});

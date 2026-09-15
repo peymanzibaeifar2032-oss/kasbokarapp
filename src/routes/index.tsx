@@ -41,10 +41,8 @@ const PLACE_KEY = "kasb:place:v2";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [categories, items] = await Promise.all([
-      listCategories(),
-      listBusinesses({ data: { simple: true } }),
-    ]);
+    const categories = await listCategories().catch(() => []);
+    const items = await listBusinesses({ data: { simple: true } }).catch(() => []);
     return { categories, items };
   },
   errorComponent: function HomeError() {

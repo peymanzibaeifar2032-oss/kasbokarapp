@@ -253,3 +253,10 @@ export const OCCUPANCY_SELECT = `
   coalesce(nullif(resource_id, ''), nullif(staff_id, '')) as resource_id
 `;
 
+export const HOLDS_OCCUPANCY_SELECT = `
+  business_id,
+  slot_start,
+  slot_end,
+  coalesce(nullif(resource_id, ''), nullif(staff_id, '')) as resource_id
+`;
+

@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
+import { ACTIVE_OCCUPANCY_SQL, HOLDS_OCCUPANCY_SELECT, OCCUPANCY_SELECT } from "../server/db-map.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const MIGRATION = readFileSync(join(root, "migrations/0016_resources.sql"), "utf8");
@@ -304,5 +305,41 @@ describe("0016 occupancy SQL authority", () => {
       `);
       await bad.exec(MIGRATION);
     }, /0016 resource FK refused|orphan_bookings/);
+  });
+
+  it("home occupancy union has matching hold columns", async () => {
+    const db = await boot(`insert into businesses (id) values ('b1');`);
+    const holdStart = "2026-09-20T07:30:00+00:00";
+    const holdEnd = "2026-09-20T08:30:00+00:00";
+    await db.query(
+      `insert into bookings (id, business_id, slot_start, slot_end, kind, status, resource_id, buffer_before, buffer_after)
+       values ('k1','b1',$1,$2,'booking','confirmed',null,0,0)`,
+      [START, END],
+    );
+    await db.query(
+      `insert into booking_holds (id, business_id, slot_start, slot_end, expires_at, resource_id)
+       values ('h1','b1',$1,$2, now() + interval '10 minutes', null)`,
+      [holdStart, holdEnd],
+    );
+    const rows = await db.query<{
+      business_id: string;
+      slot_start: string;
+      slot_end: string;
+      resource_id: string | null;
+    }>(
+      `select ${OCCUPANCY_SELECT} from bookings
+        where business_id = any($1::text[])
+          and ${ACTIVE_OCCUPANCY_SQL}
+          and slot_end > now()
+          and slot_start < now() + interval '8 days'
+        union all
+        select ${HOLDS_OCCUPANCY_SELECT} from booking_holds
+         where business_id = any($1::text[])
+           and expires_at > now()`,
+      [["b1"]],
+    );
+    assert.equal(rows.rows.length, 2);
+    assert.ok(rows.rows.every((r) => r.business_id === "b1" && r.slot_start && r.slot_end && "resource_id" in r));
+    await db.close();
   });
 });
