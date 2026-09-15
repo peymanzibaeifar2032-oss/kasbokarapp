@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isExpectedProductionRelease } from "./check-production-health.mjs";
+import { isExpectedProductionRelease, parseProductionHealth } from "./check-production-health.mjs";
 
 test("accepts healthy payload with matching sha", () => {
   assert.equal(
@@ -26,4 +26,12 @@ test("rejects 200 payloads that are valid json but missing required fields", () 
     isExpectedProductionRelease(JSON.stringify({ status: "ok", release: "abc123" }), "abc123"),
     false,
   );
+});
+
+test("parseProductionHealth returns parsed json or null", () => {
+  assert.deepEqual(parseProductionHealth('{"ok":true,"sha":"abc123"}'), {
+    ok: true,
+    sha: "abc123",
+  });
+  assert.equal(parseProductionHealth("not-json"), null);
 });

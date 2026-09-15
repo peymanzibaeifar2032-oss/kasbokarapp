@@ -3,11 +3,15 @@
 import { pathToFileURL } from "node:url";
 
 export function isExpectedProductionRelease(body, expectedSha) {
+  const data = parseProductionHealth(body);
+  return data?.ok === true && data?.sha === expectedSha;
+}
+
+export function parseProductionHealth(body) {
   try {
-    const data = JSON.parse(body);
-    return data?.ok === true && data?.sha === expectedSha;
+    return JSON.parse(body);
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -34,8 +38,16 @@ async function main() {
   }
 
   const body = await response.text();
-  if (!isExpectedProductionRelease(body, expectedSha)) {
-    console.error(`[prod-health] unhealthy or wrong release at ${url}`);
+  const data = parseProductionHealth(body);
+  if (!data) {
+    console.error(`[prod-health] invalid health payload from ${url}`);
+    process.exit(1);
+  }
+  if (!(data.ok === true && data.sha === expectedSha)) {
+    const actualSha = typeof data.sha === "string" && data.sha ? data.sha : "missing";
+    console.error(
+      `[prod-health] unhealthy or wrong release at ${url} (expected ${expectedSha}, got ${actualSha})`,
+    );
     process.exit(1);
   }
 }
