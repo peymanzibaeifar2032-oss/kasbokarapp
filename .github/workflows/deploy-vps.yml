@@ -42,8 +42,7 @@ jobs:
           i=0
           while [ "$i" -lt 7 ]; do
             i=$((i + 1))
-            BODY=$(curl -fsS --max-time 20 https://kasbokarapp.com/api/health || true)
-            if BODY="$BODY" EXPECT_SHA="$EXPECT_SHA" node -e 'const body = process.env.BODY || ""; const expect = process.env.EXPECT_SHA || ""; try { const data = JSON.parse(body); process.exit(data.ok === true && data.sha === expect ? 0 : 1); } catch { process.exit(1); }'
+            if node scripts/check-production-health.mjs https://kasbokarapp.com/api/health "$EXPECT_SHA"
             then
               echo "Production already serves ${EXPECT_SHA}; VPS timer path is healthy."
               exit 0
