@@ -91,3 +91,23 @@ test("manual deploy-vps fails closed when VPS secrets are missing", () => {
   assert.match(wf, /Manual deploy-vps requires VPS_HOST/);
   assert.match(wf, /exit 1/);
 });
+
+test("watch matches live health calendar marker and skips when current", () => {
+  const watchPath = join(projectRoot(), "deploy/watch-main.sh");
+  const watch = readFileSync(watchPath, "utf8");
+  execFileSync("sh", ["-n", watchPath], { stdio: "pipe" });
+  assert.doesNotMatch(watch, /grep -q 'kasbokar-jalali-month-v1'/);
+  assert.match(watch, /grep -q 'jalali-month-v1'/);
+  assert.match(watch, /"ok":true/);
+  assert.match(watch, /WATCH_SKIP/);
+  assert.match(watch, /"shaSource":"image"/);
+  assert.match(watch, /"m0016":true/);
+});
+
+test("smoke sends localhost session cookies from the production jar", () => {
+  const smoke = readFileSync(join(projectRoot(), "deploy/smoke.sh"), "utf8");
+  execFileSync("sh", ["-n", join(projectRoot(), "deploy/smoke.sh")], { stdio: "pipe" });
+  assert.match(smoke, /SMOKE_ORIGIN:-\$BASE/);
+  assert.match(smoke, /align-smoke-cookie-jar\.py/);
+  assert.doesNotMatch(smoke, /SMOKE_ORIGIN:-http:\/\/185\.204\.197\.211/);
+});

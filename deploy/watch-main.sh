@@ -10,13 +10,15 @@ LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
 H=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
 NEED_REBUILD=0
-echo "$H" | grep -q 'kasbokar-jalali-month-v1' || NEED_REBUILD=1
+echo "$H" | grep -q '"ok":true' || NEED_REBUILD=1
 echo "$H" | grep -q '"shaSource":"image"' || NEED_REBUILD=1
 echo "$H" | grep -q "$REMOTE" || NEED_REBUILD=1
 echo "$H" | grep -q '"m0016":true' || NEED_REBUILD=1
-IMG_MIG=$(docker compose --profile with-db --profile tls run --no-deps --rm --entrypoint ls web /app/migrations 2>/dev/null | tr -d '\r' || true)
-echo "$IMG_MIG" | grep -qx "0016_resources.sql" || NEED_REBUILD=1
+# Live health bookingCalendar is jalali-month-v1 without a kasbokar- prefix.
+echo "$H" | grep -q 'jalali-month-v1' || NEED_REBUILD=1
 if [ "$LOCAL" != "$REMOTE" ] || [ "$NEED_REBUILD" = "1" ]; then
+  IMG_MIG=$(docker compose --profile with-db --profile tls run --no-deps --rm --entrypoint ls web /app/migrations 2>/dev/null | tr -d '\r' || true)
+  echo "$IMG_MIG" | grep -qx "0016_resources.sql" || NEED_REBUILD=1
   echo "WATCH_PULL $LOCAL -> $REMOTE rebuild=$NEED_REBUILD"
   FORCE_DEPLOY=$NEED_REBUILD sh deploy/release.sh
 else

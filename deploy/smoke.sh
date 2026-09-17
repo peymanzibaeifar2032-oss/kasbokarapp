@@ -4,7 +4,9 @@ set -eu
 APP_DIR=${APP_DIR:-/opt/kasbokarapp}
 cd "$APP_DIR"
 BASE=${SMOKE_BASE:-http://127.0.0.1:8080}
-ORIGIN=${SMOKE_ORIGIN:-http://185.204.197.211}
+# Same-origin with BASE. The public IP Origin used to pass CSRF while cookies
+# were Domain=.kasbokarapp.com, so curl never sent the session back to loopback.
+ORIGIN=${SMOKE_ORIGIN:-$BASE}
 PASS=0
 FAIL=0
 ok() { echo "PASS  $1"; PASS=$((PASS + 1)); }
@@ -60,6 +62,9 @@ MAIL="smoke$(date -u +%s)@kasbokar.local"
 PASSWD="Sm0ke-Test-9x"
 JAR=/tmp/kasb-smoke.jar
 rm -f "$JAR"
+align_jar() {
+  python3 "$APP_DIR/scripts/align-smoke-cookie-jar.py" "$JAR" "$BASE" >/dev/null 2>&1 || true
+}
 api() {
   curl -sS -m 20 -c "$JAR" -b "$JAR" \
     -H "Content-Type: application/json" \
@@ -67,6 +72,7 @@ api() {
     -H "Origin: $ORIGIN" \
     -H "Sec-Fetch-Site: same-origin" \
     "$@"
+  align_jar
 }
 
 SU=$(api -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\",\"name\":\"Smoke\"}" \
