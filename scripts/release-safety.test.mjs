@@ -109,5 +109,8 @@ test("smoke sends localhost session cookies from the production jar", () => {
   execFileSync("sh", ["-n", join(projectRoot(), "deploy/smoke.sh")], { stdio: "pipe" });
   assert.match(smoke, /SMOKE_ORIGIN:-\$BASE/);
   assert.match(smoke, /align-smoke-cookie-jar\.py/);
+  assert.match(smoke, /ingest/);
+  assert.match(smoke, /-H "Cookie: \$ck"/);
   assert.doesNotMatch(smoke, /SMOKE_ORIGIN:-http:\/\/185\.204\.197\.211/);
+  assert.doesNotMatch(smoke, /curl -sS -m 20 -c "\$JAR" -b "\$JAR"/);
 });

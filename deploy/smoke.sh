@@ -61,18 +61,29 @@ echo "$TC" | grep -q '^200:image' && ok "tile proxy image" || bad "tile proxy" "
 MAIL="smoke$(date -u +%s)@kasbokar.local"
 PASSWD="Sm0ke-Test-9x"
 JAR=/tmp/kasb-smoke.jar
-rm -f "$JAR"
-align_jar() {
-  python3 "$APP_DIR/scripts/align-smoke-cookie-jar.py" "$JAR" "$BASE" >/dev/null 2>&1 || true
-}
+HDR=/tmp/kasb-smoke.hdr
+rm -f "$JAR" "$HDR"
+# curl will not store Domain=.kasbokarapp.com cookies for 127.0.0.1.
+# Read Set-Cookie from headers and send a Cookie header instead of curl -c/-b.
 api() {
-  curl -sS -m 20 -c "$JAR" -b "$JAR" \
-    -H "Content-Type: application/json" \
-    -H "Accept: application/json" \
-    -H "Origin: $ORIGIN" \
-    -H "Sec-Fetch-Site: same-origin" \
-    "$@"
-  align_jar
+  ck=$(python3 "$APP_DIR/scripts/align-smoke-cookie-jar.py" header "$JAR" 2>/dev/null || true)
+  if [ -n "$ck" ]; then
+    curl -sS -m 20 -D "$HDR" \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -H "Origin: $ORIGIN" \
+      -H "Sec-Fetch-Site: same-origin" \
+      -H "Cookie: $ck" \
+      "$@"
+  else
+    curl -sS -m 20 -D "$HDR" \
+      -H "Content-Type: application/json" \
+      -H "Accept: application/json" \
+      -H "Origin: $ORIGIN" \
+      -H "Sec-Fetch-Site: same-origin" \
+      "$@"
+  fi
+  python3 "$APP_DIR/scripts/align-smoke-cookie-jar.py" ingest "$JAR" "$BASE" "$HDR" >/dev/null 2>&1 || true
 }
 
 SU=$(api -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\",\"name\":\"Smoke\"}" \
@@ -83,11 +94,12 @@ echo "$SU" | grep -q '<!DOCTYPE' && bad "signup" "html instead of json" || {
 
 SI=$(api -d "{\"email\":\"$MAIL\",\"password\":\"$PASSWD\"}" \
   "$BASE/api/auth/sign-in/email" || true)
-echo "$SI" | grep -q '<!DOCTYPE' && bad "login" "html instead of json" || {
-  echo "$SI" | grep -qiE 'user|token|session' && ok "login" || bad "login" "$(echo "$SI" | head -c 180)"
-}
-
 GS=$(api "$BASE/api/auth/get-session" || true)
+echo "$SI" | grep -q '<!DOCTYPE' && bad "login" "html instead of json" || {
+  echo "$SI" | grep -qiE 'user|token|session' && ok "login" || {
+    echo "$GS" | grep -q "$MAIL" && ok "login" || bad "login" "$(echo "$SI" | head -c 180)"
+  }
+}
 echo "$GS" | grep -q "$MAIL" && ok "session after login" || bad "session after login" "$(echo "$GS" | head -c 180)"
 
 SO=$(api -d '{}' "$BASE/api/auth/sign-out" || true)
