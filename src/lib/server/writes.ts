@@ -32,7 +32,7 @@ import {
   type BizRow,
   type ReviewRow,
 } from "@/lib/server/db-map";
-import type { OwnerStats, PriceItem, Profile, TattooRequest, WorkHour } from "@/lib/types";
+import type { MehrLoanLead, OwnerStats, PriceItem, Profile, TattooRequest, WorkHour } from "@/lib/types";
 
 const hoursSchema = z.array(
   z.object({
@@ -85,6 +85,64 @@ async function requireAdmin(userId: string) {
   const sql = await getSql();
   const me = await sql.query<{ is_admin: boolean }>("select is_admin from profiles where user_id = $1", [userId]);
   if (!me[0]?.is_admin) throw new Error("دسترسی مدیریت ندارید.");
+}
+
+type MehrLoanLeadRow = {
+  id: string;
+  tracking_code: string;
+  full_name: string;
+  phone: string;
+  score_amount_toman: string | number | null;
+  repayment_months: number | null;
+  city: string | null;
+  description: string | null;
+  status: MehrLoanLead["status"];
+  created_at: string;
+  updated_at: string;
+};
+
+function mapMehrLoanLead(row: MehrLoanLeadRow): MehrLoanLead {
+  return {
+    id: row.id,
+    trackingCode: row.tracking_code,
+    fullName: row.full_name,
+    phone: row.phone,
+    scoreAmountToman: row.score_amount_toman == null ? null : Number(row.score_amount_toman),
+    repaymentMonths: row.repayment_months == null ? null : Number(row.repayment_months),
+    city: row.city,
+    description: row.description,
+    status: row.status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+async function performMehrLoanLeads(userId: string) {
+  await requireAdmin(userId);
+  const sql = await getSql();
+  const rows = await sql.query<MehrLoanLeadRow>(
+    `select id, tracking_code, full_name, phone, score_amount_toman, repayment_months,
+            city, description, status, created_at, updated_at
+       from mehr_loan_leads
+      order by case status when 'reviewing' then 0 when 'contacted' then 1 when 'purchased' then 2 else 3 end,
+               created_at desc`,
+  );
+  return rows.map(mapMehrLoanLead);
+}
+
+async function performUpdateMehrLoanLead(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({
+    id: z.string().uuid(),
+    status: z.enum(["reviewing", "contacted", "purchased", "rejected"]),
+  }).parse(raw);
+  const sql = await getSql();
+  const rows = await sql.query<{ id: string }>(
+    `update mehr_loan_leads set status = $2, updated_at = now() where id = $1 returning id`,
+    [data.id, data.status],
+  );
+  if (!rows[0]) throw new Error("درخواست پیدا نشد.");
+  return { ok: true as const };
 }
 
 type TattooRequestRow = {
@@ -1408,6 +1466,10 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioTattooRequests(userId);
     case "decideTattooRequest":
       return performDecideTattooRequest(userId, payload);
+    case "mehrLoanLeads":
+      return performMehrLoanLeads(userId);
+    case "updateMehrLoanLead":
+      return performUpdateMehrLoanLead(userId, payload);
     case "blockInterval":
       return performCreateBlock(userId, payload);
     case "bookingStatus":
