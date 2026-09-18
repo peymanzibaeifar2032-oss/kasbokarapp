@@ -94,7 +94,9 @@ type MehrLoanLeadRow = {
   phone: string;
   score_amount_toman: string | number | null;
   repayment_months: number | null;
-  city: string | null;
+  branch_code: string | null;
+  province: string | null;
+  county: string | null;
   description: string | null;
   status: MehrLoanLead["status"];
   created_at: string;
@@ -109,7 +111,9 @@ function mapMehrLoanLead(row: MehrLoanLeadRow): MehrLoanLead {
     phone: row.phone,
     scoreAmountToman: row.score_amount_toman == null ? null : Number(row.score_amount_toman),
     repaymentMonths: row.repayment_months == null ? null : Number(row.repayment_months),
-    city: row.city,
+    branchCode: row.branch_code,
+    province: row.province,
+    county: row.county,
     description: row.description,
     status: row.status,
     createdAt: row.created_at,
@@ -122,7 +126,7 @@ async function performMehrLoanLeads(userId: string) {
   const sql = await getSql();
   const rows = await sql.query<MehrLoanLeadRow>(
     `select id, tracking_code, full_name, phone, score_amount_toman, repayment_months,
-            city, description, status, created_at, updated_at
+            branch_code, province, county, description, status, created_at, updated_at
        from mehr_loan_leads
       order by case status when 'reviewing' then 0 when 'contacted' then 1 when 'purchased' then 2 else 3 end,
                created_at desc`,
