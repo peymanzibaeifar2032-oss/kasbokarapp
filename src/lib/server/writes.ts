@@ -32,7 +32,7 @@ import {
   type BizRow,
   type ReviewRow,
 } from "@/lib/server/db-map";
-import type { OwnerStats, PriceItem, Profile, WorkHour } from "@/lib/types";
+import type { OwnerStats, PriceItem, Profile, TattooRequest, WorkHour } from "@/lib/types";
 
 const hoursSchema = z.array(
   z.object({
@@ -85,6 +85,158 @@ async function requireAdmin(userId: string) {
   const sql = await getSql();
   const me = await sql.query<{ is_admin: boolean }>("select is_admin from profiles where user_id = $1", [userId]);
   if (!me[0]?.is_admin) throw new Error("دسترسی مدیریت ندارید.");
+}
+
+type TattooRequestRow = {
+  id: string;
+  customer_id: string;
+  business_id: string | null;
+  booking_id: string | null;
+  customer_name: string;
+  customer_phone: string;
+  request_type: "new" | "coverup" | "consultation";
+  style: string;
+  idea: string;
+  placement: string;
+  size_cm: string;
+  preferred_dates: string | null;
+  budget_toman: number | null;
+  reference_images: unknown;
+  body_images: unknown;
+  status: TattooRequest["status"];
+  price_min_toman: number | null;
+  price_max_toman: number | null;
+  session_minutes: number | null;
+  session_count: number | null;
+  deposit_toman: number | null;
+  artist_message: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapTattooRequest(row: TattooRequestRow): TattooRequest {
+  const images = (value: unknown) => Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    businessId: row.business_id,
+    bookingId: row.booking_id,
+    customerName: row.customer_name,
+    customerPhone: row.customer_phone,
+    requestType: row.request_type,
+    style: row.style,
+    idea: row.idea,
+    placement: row.placement,
+    sizeCm: row.size_cm,
+    preferredDates: row.preferred_dates,
+    budgetToman: row.budget_toman == null ? null : Number(row.budget_toman),
+    referenceImages: images(row.reference_images),
+    bodyImages: images(row.body_images),
+    status: row.status,
+    priceMinToman: row.price_min_toman == null ? null : Number(row.price_min_toman),
+    priceMaxToman: row.price_max_toman == null ? null : Number(row.price_max_toman),
+    sessionMinutes: row.session_minutes == null ? null : Number(row.session_minutes),
+    sessionCount: row.session_count == null ? null : Number(row.session_count),
+    depositToman: row.deposit_toman == null ? null : Number(row.deposit_toman),
+    artistMessage: row.artist_message,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+const tattooRequestSelect = `select id, customer_id, business_id, booking_id, customer_name, customer_phone,
+  request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
+  reference_images, body_images, status, price_min_toman, price_max_toman,
+  session_minutes, session_count, deposit_toman, artist_message, created_at, updated_at
+  from tattoo_requests`;
+
+const imageDataSchema = z.string().max(1_000_000).refine(
+  (value) => /^data:image\/(jpeg|png|webp);base64,/i.test(value),
+  "فرمت تصویر معتبر نیست.",
+);
+
+async function performCreateTattooRequest(userId: string, raw: unknown) {
+  const data = z.object({
+    customerName: z.string().trim().min(2, "نام را کامل بنویسید.").max(80),
+    customerPhone: z.string().trim().max(40),
+    requestType: z.enum(["new", "coverup", "consultation"]),
+    style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(80),
+    idea: z.string().trim().min(10, "ایده را کمی کامل‌تر توضیح دهید.").max(1500),
+    placement: z.string().trim().min(2, "محل اجرا را بنویسید.").max(120),
+    sizeCm: z.string().trim().min(1, "اندازه تقریبی را بنویسید.").max(60),
+    preferredDates: z.string().trim().max(200).optional(),
+    budgetToman: z.number().int().min(0).max(2_000_000_000).optional().nullable(),
+    referenceImages: z.array(imageDataSchema).max(3).default([]),
+    bodyImages: z.array(imageDataSchema).max(2).default([]),
+  }).parse(raw);
+  const phone = normalizeIranPhone(data.customerPhone);
+  if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
+  const bytes = [...data.referenceImages, ...data.bodyImages].reduce((sum, value) => sum + value.length, 0);
+  if (bytes > 3_500_000) throw new Error("حجم مجموع عکس‌ها زیاد است. عکس‌های کم‌حجم‌تر بفرستید.");
+  const sql = await getSql();
+  const id = crypto.randomUUID();
+  await sql.query(
+    `insert into tattoo_requests
+      (id, customer_id, customer_name, customer_phone, request_type, style, idea, placement,
+       size_cm, preferred_dates, budget_toman, reference_images, body_images)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb)`,
+    [id, userId, data.customerName, phone, data.requestType, data.style, data.idea, data.placement,
+      data.sizeCm, data.preferredDates || null, data.budgetToman ?? null,
+      JSON.stringify(data.referenceImages), JSON.stringify(data.bodyImages)],
+  );
+  const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin = true");
+  for (const admin of admins) {
+    await notify(sql, admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} دریافت شد.`, "tattoo_request_new");
+  }
+  await notify(sql, userId, "درخواست تاتو ثبت شد", "درخواست شما برای بررسی پیمان زیبائی‌فر ارسال شد.", "tattoo_request_created");
+  return { id };
+}
+
+async function performMyTattooRequests(userId: string) {
+  const sql = await getSql();
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where customer_id = $1 order by created_at desc`, [userId]);
+  return rows.map(mapTattooRequest);
+}
+
+async function performStudioTattooRequests(userId: string) {
+  await requireAdmin(userId);
+  const sql = await getSql();
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} order by case status when 'submitted' then 0 when 'needs_info' then 1 when 'approved' then 2 else 3 end, created_at desc`);
+  return rows.map(mapTattooRequest);
+}
+
+async function performDecideTattooRequest(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({
+    id: z.string(),
+    status: z.enum(["needs_info", "approved", "rejected", "booked"]),
+    businessId: z.string().optional().nullable(),
+    priceMinToman: z.number().int().min(0).optional().nullable(),
+    priceMaxToman: z.number().int().min(0).optional().nullable(),
+    sessionMinutes: z.number().int().min(10).max(4320).optional().nullable(),
+    sessionCount: z.number().int().min(1).max(20).optional().nullable(),
+    depositToman: z.number().int().min(0).optional().nullable(),
+    artistMessage: z.string().trim().min(2).max(1000),
+  }).parse(raw);
+  if (data.status === "approved" && (!data.businessId || data.priceMinToman == null || data.depositToman == null)) {
+    throw new Error("برای تأیید، کسب‌وکار، بازه قیمت و بیعانه را کامل کنید.");
+  }
+  const sql = await getSql();
+  if (data.businessId) {
+    const owned = await sql.query<{ id: string }>("select id from businesses where id = $1 and owner_id = $2", [data.businessId, userId]);
+    if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
+  }
+  const updated = await sql.query<{ customer_id: string }>(
+    `update tattoo_requests set status=$2, business_id=$3, price_min_toman=$4, price_max_toman=$5,
+       session_minutes=$6, session_count=$7, deposit_toman=$8, artist_message=$9, updated_at=now()
+     where id=$1 returning customer_id`,
+    [data.id, data.status, data.businessId ?? null, data.priceMinToman ?? null, data.priceMaxToman ?? null,
+      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, data.artistMessage],
+  );
+  if (!updated[0]) throw new Error("درخواست پیدا نشد.");
+  const titles = { approved: "درخواست تاتو تأیید شد", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
+  await notify(sql, updated[0].customer_id, titles[data.status], data.artistMessage, `tattoo_request_${data.status}`);
+  return { ok: true as const };
 }
 
 export async function performEnsureProfile(userId: string, displayName = "کاربر"): Promise<Profile> {
@@ -1248,6 +1400,14 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performReply(userId, payload);
     case "booking":
       return performCreateBooking(userId, payload);
+    case "createTattooRequest":
+      return performCreateTattooRequest(userId, payload);
+    case "myTattooRequests":
+      return performMyTattooRequests(userId);
+    case "studioTattooRequests":
+      return performStudioTattooRequests(userId);
+    case "decideTattooRequest":
+      return performDecideTattooRequest(userId, payload);
     case "blockInterval":
       return performCreateBlock(userId, payload);
     case "bookingStatus":
