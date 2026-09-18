@@ -362,13 +362,21 @@ function TattooRequestReview({ request, businesses, onChange }: { request: Tatto
   const [businessId, setBusinessId] = useState(request.businessId ?? businesses[0]?.id ?? "");
   const [priceMin, setPriceMin] = useState(request.priceMinToman?.toString() ?? "");
   const [priceMax, setPriceMax] = useState(request.priceMaxToman?.toString() ?? "");
-  const [sessions, setSessions] = useState(request.sessionCount?.toString() ?? "1");
-  const [minutes, setMinutes] = useState(request.sessionMinutes?.toString() ?? "180");
+  const [sessions, setSessions] = useState(request.sessionCount?.toString() ?? "");
+  const [minutes, setMinutes] = useState(request.sessionMinutes?.toString() ?? "");
   const [deposit, setDeposit] = useState(request.depositToman?.toString() ?? "");
   const [message, setMessage] = useState(request.artistMessage ?? "");
   const [busy, setBusy] = useState(false);
 
   async function decideRequest(status: "approved" | "needs_info" | "rejected") {
+    if (message.trim().length < 2) {
+      toast.error("ابتدا پیام کوتاهی برای مشتری بنویسید.");
+      return;
+    }
+    if (status === "approved" && (!businessId || !priceMin || !deposit)) {
+      toast.error("برای تأیید، صفحه کسب‌وکار، حداقل قیمت و بیعانه را کامل کنید.");
+      return;
+    }
     setBusy(true);
     try {
       await saveAction("decideTattooRequest", {
@@ -397,17 +405,21 @@ function TattooRequestReview({ request, businesses, onChange }: { request: Tatto
     <p className="mt-3 text-sm leading-7">{request.idea}</p>
     <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted"><span>اندازه: {request.sizeCm}</span><a className="text-accent" href={`tel:${request.customerPhone}`}>{request.customerPhone}</a>{request.preferredDates ? <span>زمان مناسب: {request.preferredDates}</span> : null}{request.budgetToman ? <span>بودجه: {formatToman(request.budgetToman)}</span> : null}</div>
     {[...request.referenceImages, ...request.bodyImages].length ? <div className="mt-4 flex gap-2 overflow-x-auto">{[...request.referenceImages, ...request.bodyImages].map((src, i) => <a key={`${request.id}-${i}`} href={src} target="_blank" rel="noreferrer"><img src={src} alt="عکس درخواست" className="size-24 rounded-xl border border-border object-cover" /></a>)}</div> : null}
-    <div className="mt-4 grid gap-2 sm:grid-cols-3">
-      <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)} aria-label="صفحه کسب‌وکار"><option value="">انتخاب صفحه کسب‌وکار</option>{businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</NativeSelect>
-      <Input value={priceMin} onChange={(e) => setPriceMin(e.target.value.replace(/\D/g, ""))} placeholder="حداقل قیمت (تومان)" inputMode="numeric" />
-      <Input value={priceMax} onChange={(e) => setPriceMax(e.target.value.replace(/\D/g, ""))} placeholder="حداکثر قیمت (تومان)" inputMode="numeric" />
-      <Input value={sessions} onChange={(e) => setSessions(e.target.value.replace(/\D/g, ""))} placeholder="تعداد جلسات" inputMode="numeric" />
-      <Input value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ""))} placeholder="دقیقه هر جلسه" inputMode="numeric" />
-      <Input value={deposit} onChange={(e) => setDeposit(e.target.value.replace(/\D/g, ""))} placeholder="بیعانه (تومان)" inputMode="numeric" />
+    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <label className="grid gap-1.5 text-sm"><span className="font-medium">صفحه کسب‌وکار</span><NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)} aria-label="صفحه کسب‌وکار"><option value="">انتخاب صفحه کسب‌وکار</option>{businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</NativeSelect></label>
+      <ReviewNumberField label="حداقل قیمت" hint="تومان" value={priceMin} onChange={setPriceMin} />
+      <ReviewNumberField label="حداکثر قیمت" hint="تومان؛ اختیاری" value={priceMax} onChange={setPriceMax} />
+      <ReviewNumberField label="تعداد جلسات" hint="مثلاً ۱ یا ۲ جلسه" value={sessions} onChange={setSessions} />
+      <ReviewNumberField label="مدت هر جلسه" hint="به دقیقه؛ مثلاً ۱۸۰" value={minutes} onChange={setMinutes} />
+      <ReviewNumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} />
     </div>
-    <Textarea className="mt-2" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="پیام شما برای مشتری" />
+    <label className="mt-3 grid gap-1.5 text-sm"><span className="font-medium">پیام برای مشتری</span><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="نتیجه بررسی، شرایط اجرا یا توضیح بیعانه را بنویسید" /></label>
     <div className="mt-3 flex flex-wrap gap-2"><Button disabled={busy} onClick={() => void decideRequest("approved")}>تأیید و بازکردن انتخاب زمان</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("needs_info")}>درخواست اطلاعات بیشتر</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("rejected")}>عدم پذیرش</Button></div>
   </article>;
+}
+
+function ReviewNumberField({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (value: string) => void }) {
+  return <label className="grid gap-1.5 text-sm"><span className="font-medium">{label}</span><Input value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} placeholder={hint} inputMode="numeric" /></label>;
 }
 
 function OwnerBookings({
