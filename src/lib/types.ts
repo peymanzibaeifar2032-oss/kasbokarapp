@@ -189,3 +189,19 @@ export type TattooRequest = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type MehrLoanLeadStatus = "reviewing" | "contacted" | "purchased" | "rejected";
+
+export type MehrLoanLead = {
+  id: string;
+  trackingCode: string;
+  fullName: string;
+  phone: string;
+  scoreAmountToman: number | null;
+  repaymentMonths: number | null;
+  city: string | null;
+  description: string | null;
+  status: MehrLoanLeadStatus;
+  createdAt: string;
+  updatedAt: string;
+};
