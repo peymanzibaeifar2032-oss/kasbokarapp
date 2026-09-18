@@ -15,6 +15,7 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DownloadRouteImport } from './routes/download'
+import { Route as KharidVamMehrRouteImport } from './routes/kharid-vam-mehr'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as StudioRouteImport } from './routes/studio'
@@ -22,9 +23,11 @@ import { Route as ApiGeoStatsRouteImport } from './routes/api/geo-stats'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
+import { Route as ApiMehrLoanLeadsRouteImport } from './routes/api/mehr-loan-leads'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
+import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
@@ -59,6 +62,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const DownloadRoute = DownloadRouteImport.update({
   id: '/download',
   path: '/download',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KharidVamMehrRoute = KharidVamMehrRouteImport.update({
+  id: '/kharid-vam-mehr',
+  path: '/kharid-vam-mehr',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -96,6 +104,11 @@ const ApiMapConfigRoute = ApiMapConfigRouteImport.update({
   path: '/api/map-config',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMehrLoanLeadsRoute = ApiMehrLoanLeadsRouteImport.update({
+  id: '/api/mehr-loan-leads',
+  path: '/api/mehr-loan-leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSaveRoute = ApiSaveRouteImport.update({
   id: '/api/save',
   path: '/api/save',
@@ -110,6 +123,11 @@ const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
   getParentRoute: () => rootRouteImport,
+} as any)
+const KharidVamMehrPanelRoute = KharidVamMehrPanelRouteImport.update({
+  id: '/panel',
+  path: '/panel',
+  getParentRoute: () => KharidVamMehrRoute,
 } as any)
 const StudioRequestRoute = StudioRequestRouteImport.update({
   id: '/request',
@@ -144,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/download': typeof DownloadRoute
+  '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/studio': typeof StudioRouteWithChildren
@@ -151,9 +170,11 @@ export interface FileRoutesByFullPath {
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
+  '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/business/$id': typeof BusinessIdRoute
+  '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/request': typeof StudioRequestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
@@ -167,6 +188,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/download': typeof DownloadRoute
+  '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/studio': typeof StudioRouteWithChildren
@@ -174,9 +196,11 @@ export interface FileRoutesByTo {
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
+  '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/business/$id': typeof BusinessIdRoute
+  '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/request': typeof StudioRequestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
@@ -191,6 +215,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/dashboard': typeof DashboardRoute
   '/download': typeof DownloadRoute
+  '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
   '/studio': typeof StudioRouteWithChildren
@@ -198,9 +223,11 @@ export interface FileRoutesById {
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
+  '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/business/$id': typeof BusinessIdRoute
+  '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/request': typeof StudioRequestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
@@ -216,6 +243,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/download'
+    | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
     | '/studio'
@@ -223,9 +251,11 @@ export interface FileRouteTypes {
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
+    | '/api/mehr-loan-leads'
     | '/api/save'
     | '/api/search-trace'
     | '/business/$id'
+    | '/kharid-vam-mehr/panel'
     | '/studio/request'
     | '/api/auth/$'
     | '/api/payments/callback'
@@ -239,6 +269,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/download'
+    | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
     | '/studio'
@@ -246,9 +277,11 @@ export interface FileRouteTypes {
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
+    | '/api/mehr-loan-leads'
     | '/api/save'
     | '/api/search-trace'
     | '/business/$id'
+    | '/kharid-vam-mehr/panel'
     | '/studio/request'
     | '/api/auth/$'
     | '/api/payments/callback'
@@ -262,6 +295,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard'
     | '/download'
+    | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
     | '/studio'
@@ -269,9 +303,11 @@ export interface FileRouteTypes {
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
+    | '/api/mehr-loan-leads'
     | '/api/save'
     | '/api/search-trace'
     | '/business/$id'
+    | '/kharid-vam-mehr/panel'
     | '/studio/request'
     | '/api/auth/$'
     | '/api/payments/callback'
@@ -286,6 +322,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   DashboardRoute: typeof DashboardRoute
   DownloadRoute: typeof DownloadRoute
+  KharidVamMehrRoute: typeof KharidVamMehrRouteWithChildren
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
   StudioRoute: typeof StudioRouteWithChildren
@@ -293,6 +330,7 @@ export interface RootRouteChildren {
   ApiGuideRoute: typeof ApiGuideRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMapConfigRoute: typeof ApiMapConfigRoute
+  ApiMehrLoanLeadsRoute: typeof ApiMehrLoanLeadsRoute
   ApiSaveRoute: typeof ApiSaveRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
   BusinessIdRoute: typeof BusinessIdRoute
@@ -346,6 +384,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/kharid-vam-mehr': {
+      id: '/kharid-vam-mehr'
+      path: '/kharid-vam-mehr'
+      fullPath: '/kharid-vam-mehr'
+      preLoaderRoute: typeof KharidVamMehrRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -395,6 +440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMapConfigRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mehr-loan-leads': {
+      id: '/api/mehr-loan-leads'
+      path: '/api/mehr-loan-leads'
+      fullPath: '/api/mehr-loan-leads'
+      preLoaderRoute: typeof ApiMehrLoanLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/save': {
       id: '/api/save'
       path: '/api/save'
@@ -415,6 +467,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/business/$id'
       preLoaderRoute: typeof BusinessIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/kharid-vam-mehr/panel': {
+      id: '/kharid-vam-mehr/panel'
+      path: '/panel'
+      fullPath: '/kharid-vam-mehr/panel'
+      preLoaderRoute: typeof KharidVamMehrPanelRouteImport
+      parentRoute: typeof KharidVamMehrRoute
     }
     '/studio/request': {
       id: '/studio/request'
@@ -454,6 +513,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface KharidVamMehrRouteChildren {
+  KharidVamMehrPanelRoute: typeof KharidVamMehrPanelRoute
+}
+
+const KharidVamMehrRouteChildren: KharidVamMehrRouteChildren = {
+  KharidVamMehrPanelRoute: KharidVamMehrPanelRoute,
+}
+
+const KharidVamMehrRouteWithChildren = KharidVamMehrRoute._addFileChildren(
+  KharidVamMehrRouteChildren,
+)
+
 interface StudioRouteChildren {
   StudioRequestRoute: typeof StudioRequestRoute
 }
@@ -472,6 +543,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   DashboardRoute: DashboardRoute,
   DownloadRoute: DownloadRoute,
+  KharidVamMehrRoute: KharidVamMehrRouteWithChildren,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
   StudioRoute: StudioRouteWithChildren,
@@ -479,6 +551,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGuideRoute: ApiGuideRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMapConfigRoute: ApiMapConfigRoute,
+  ApiMehrLoanLeadsRoute: ApiMehrLoanLeadsRoute,
   ApiSaveRoute: ApiSaveRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
   BusinessIdRoute: BusinessIdRoute,

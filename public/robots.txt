@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+Disallow: /kharid-vam-mehr/panel
+Sitemap: https://kasbokarapp.com/sitemap.xml
