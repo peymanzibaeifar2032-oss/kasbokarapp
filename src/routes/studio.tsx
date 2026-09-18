@@ -52,8 +52,7 @@ function StudioLanding() {
             <a href="#faq">سؤالات متداول</a>
           </nav>
           <Link
-            to="/login"
-            search={{ next: "/dashboard" }}
+            to="/studio/request"
             className="inline-flex h-10 items-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-semibold text-black transition hover:bg-[#d0ae70]"
           >
             ثبت درخواست
@@ -81,8 +80,7 @@ function StudioLanding() {
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
                 <Link
-                  to="/login"
-                  search={{ next: "/dashboard" }}
+                  to="/studio/request"
                   className="inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-6 font-bold text-black"
                 >
                   <CalendarDays className="size-5" />
@@ -182,7 +180,7 @@ function StudioLanding() {
               <h2 className="text-3xl font-black">برای طرح خودت آماده‌ای؟</h2>
               <p className="mt-2 text-sm text-black/65">درخواست را ثبت کن تا پس از بررسی، زمان و هزینه اعلام شود.</p>
             </div>
-            <Link to="/login" search={{ next: "/dashboard" }} className="inline-flex h-12 items-center gap-2 rounded-full bg-black px-6 font-bold text-white">
+            <Link to="/studio/request" className="inline-flex h-12 items-center gap-2 rounded-full bg-black px-6 font-bold text-white">
               ثبت درخواست اولیه
               <ArrowLeft className="size-5" />
             </Link>

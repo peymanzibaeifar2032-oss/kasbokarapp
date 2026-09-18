@@ -9,15 +9,15 @@ import { Stars } from "@/components/business/stars";
 import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, NativeSelect } from "@/components/ui/input";
+import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { SignedOutPanel } from "@/components/layout/auth-required";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { formatFaDate, formatFaDateTime, toWhatsAppLink } from "@/lib/format";
+import { formatFaDate, formatFaDateTime, formatToman, toWhatsAppLink } from "@/lib/format";
 import { profileCompleteness, tehranLocalToIso } from "@/lib/hours";
 import { t, type MessageKey } from "@/lib/i18n";
 import type { CompletenessField } from "@/lib/search/completeness";
 import { friendlyError, saveAction } from "@/lib/save";
-import type { Booking, Business, Category, OwnerStats, Profile } from "@/lib/types";
+import type { Booking, Business, Category, OwnerStats, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dashboard")({
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/dashboard")({
 function Dashboard() {
   const pin = Route.useSearch();
   const { user, isPending, sessionError, retry } = useCurrentUserState();
-  const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "finance" | "me">(
+  const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "finance" | "tattoo" | "me">(
     pin.lat != null && pin.lng != null ? "new" : "list",
   );
   const [editing, setEditing] = useState<Business | null>(null);
@@ -48,11 +48,13 @@ function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
   const [stats, setStats] = useState<OwnerStats | null>(null);
+  const [tattooRequests, setTattooRequests] = useState<TattooRequest[]>([]);
 
   function refresh() {
     void saveAction<Business[]>("mine").then(setMine);
     void saveAction<Booking[]>("ownerBookings").then(setBookings);
     void saveAction<OwnerStats>("ownerStats").then(setStats);
+    void saveAction<TattooRequest[]>("studioTattooRequests").then(setTattooRequests).catch(() => undefined);
   }
 
   useEffect(() => {
@@ -104,14 +106,15 @@ function Dashboard() {
 
       <div className="mt-5 flex gap-2 overflow-x-auto">
         {(
-          [
+          ([
             ["list", "کسب‌وکارهای من"],
             ["new", "ثبت جدید"],
             ["calendar", t("navCalendar")],
             ["bookings", "رزروها"],
             ["finance", "مالی"],
+            ...(profile?.isAdmin ? [["tattoo", "درخواست‌های تاتو"]] : []),
             ["me", "حساب"],
-          ] as const
+          ] as [typeof tab, string][])
         ).map(([id, label]) => (
           <button
             key={id}
@@ -181,6 +184,7 @@ function Dashboard() {
         />
       ) : null}
       {!editing && tab === "finance" ? <FinancePanel action="financeMine" /> : null}
+      {!editing && tab === "tattoo" ? <TattooRequests items={tattooRequests} businesses={mine} onChange={refresh} /> : null}
       {!editing && tab === "me" && profile ? (
         <ProfileForm
           profile={profile}
@@ -346,6 +350,64 @@ function ownerWaText(b: Booking) {
     return `سلام ${b.customerName ?? ""}، نوبت ${when} در «${b.businessName}» لغو شد.`;
   }
   return `سلام ${b.customerName ?? ""}، از حضور شما در «${b.businessName}» ممنونیم.`;
+}
+
+function TattooRequests({ items, businesses, onChange }: { items: TattooRequest[]; businesses: Business[]; onChange: () => void }) {
+  const ordered = [...items].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+  if (!ordered.length) return <p className="mt-6 text-sm text-muted">هنوز درخواست تاتویی ثبت نشده است.</p>;
+  return <div className="mt-6 grid gap-4">{ordered.map((request) => <TattooRequestReview key={request.id} request={request} businesses={businesses} onChange={onChange} />)}</div>;
+}
+
+function TattooRequestReview({ request, businesses, onChange }: { request: TattooRequest; businesses: Business[]; onChange: () => void }) {
+  const [businessId, setBusinessId] = useState(request.businessId ?? businesses[0]?.id ?? "");
+  const [priceMin, setPriceMin] = useState(request.priceMinToman?.toString() ?? "");
+  const [priceMax, setPriceMax] = useState(request.priceMaxToman?.toString() ?? "");
+  const [sessions, setSessions] = useState(request.sessionCount?.toString() ?? "1");
+  const [minutes, setMinutes] = useState(request.sessionMinutes?.toString() ?? "180");
+  const [deposit, setDeposit] = useState(request.depositToman?.toString() ?? "");
+  const [message, setMessage] = useState(request.artistMessage ?? "");
+  const [busy, setBusy] = useState(false);
+
+  async function decideRequest(status: "approved" | "needs_info" | "rejected") {
+    setBusy(true);
+    try {
+      await saveAction("decideTattooRequest", {
+        id: request.id,
+        status,
+        businessId: businessId || null,
+        priceMinToman: priceMin ? Number(priceMin) : null,
+        priceMaxToman: priceMax ? Number(priceMax) : null,
+        sessionMinutes: minutes ? Number(minutes) : null,
+        sessionCount: sessions ? Number(sessions) : null,
+        depositToman: deposit ? Number(deposit) : null,
+        artistMessage: message,
+      });
+      toast.success("نتیجه برای مشتری ثبت شد.");
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const type = request.requestType === "coverup" ? "کاور یا بازطراحی" : request.requestType === "consultation" ? "مشاوره" : "تاتوی جدید";
+  return <article className="rounded-2xl border border-border bg-surface p-4">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{request.customerName}</h3><p className="text-sm text-muted">{type} · {request.style} · {request.placement}</p></div><Badge>{request.status === "submitted" ? "در انتظار" : request.status === "needs_info" ? "اطلاعات بیشتر" : request.status === "approved" ? "تأییدشده" : request.status === "rejected" ? "ردشده" : "رزرو قطعی"}</Badge></div>
+    <p className="mt-3 text-sm leading-7">{request.idea}</p>
+    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted"><span>اندازه: {request.sizeCm}</span><a className="text-accent" href={`tel:${request.customerPhone}`}>{request.customerPhone}</a>{request.preferredDates ? <span>زمان مناسب: {request.preferredDates}</span> : null}{request.budgetToman ? <span>بودجه: {formatToman(request.budgetToman)}</span> : null}</div>
+    {[...request.referenceImages, ...request.bodyImages].length ? <div className="mt-4 flex gap-2 overflow-x-auto">{[...request.referenceImages, ...request.bodyImages].map((src, i) => <a key={`${request.id}-${i}`} href={src} target="_blank" rel="noreferrer"><img src={src} alt="عکس درخواست" className="size-24 rounded-xl border border-border object-cover" /></a>)}</div> : null}
+    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+      <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)} aria-label="صفحه کسب‌وکار"><option value="">انتخاب صفحه کسب‌وکار</option>{businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</NativeSelect>
+      <Input value={priceMin} onChange={(e) => setPriceMin(e.target.value.replace(/\D/g, ""))} placeholder="حداقل قیمت (تومان)" inputMode="numeric" />
+      <Input value={priceMax} onChange={(e) => setPriceMax(e.target.value.replace(/\D/g, ""))} placeholder="حداکثر قیمت (تومان)" inputMode="numeric" />
+      <Input value={sessions} onChange={(e) => setSessions(e.target.value.replace(/\D/g, ""))} placeholder="تعداد جلسات" inputMode="numeric" />
+      <Input value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ""))} placeholder="دقیقه هر جلسه" inputMode="numeric" />
+      <Input value={deposit} onChange={(e) => setDeposit(e.target.value.replace(/\D/g, ""))} placeholder="بیعانه (تومان)" inputMode="numeric" />
+    </div>
+    <Textarea className="mt-2" value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="پیام شما برای مشتری" />
+    <div className="mt-3 flex flex-wrap gap-2"><Button disabled={busy} onClick={() => void decideRequest("approved")}>تأیید و بازکردن انتخاب زمان</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("needs_info")}>درخواست اطلاعات بیشتر</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("rejected")}>عدم پذیرش</Button></div>
+  </article>;
 }
 
 function OwnerBookings({
