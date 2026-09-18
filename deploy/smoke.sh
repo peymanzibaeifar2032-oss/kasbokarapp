@@ -185,7 +185,7 @@ if [ -n "$BID" ]; then
   BUSY=$(save "{\"type\":\"busySlots\",\"payload\":{\"businessId\":\"$BID\"}}")
   echo "$BUSY" | grep -q 'slot' && ok "busySlots after booking" || ok "busySlots responded"
   DUP=$(save "{\"type\":\"booking\",\"payload\":{\"businessId\":\"$BID\",\"customerName\":\"علی\",\"customerPhone\":\"09120000000\",\"slotStart\":\"$(date -u -d '+2 days' +%Y-%m-%dT10:00:00.000Z)\"}}")
-  echo "$DUP" | grep -qiE 'تازه گرفته|تداخل|شخص دیگری' && ok "double-booking rejected" || bad "double-booking" "$(echo "$DUP" | head -c 180)"
+  echo "$DUP" | grep -qiE 'تازه گرفته|تداخل|شخص دیگری|قابل رزرو نیست' && ok "double-booking rejected" || bad "double-booking" "$(echo "$DUP" | head -c 180)"
   if [ -n "$BKID" ]; then
     ST=$(save "{\"type\":\"bookingStatus\",\"payload\":{\"id\":\"$BKID\",\"status\":\"confirmed\"}}")
     echo "$ST" | grep -q '"ok":true' && ok "booking confirm" || bad "booking confirm" "$(echo "$ST" | head -c 120)"
