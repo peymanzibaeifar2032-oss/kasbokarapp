@@ -160,3 +160,32 @@ export type BusyInterval = {
   end: string;
   resourceId?: string | null;
 };
+
+export type TattooRequestStatus = "submitted" | "needs_info" | "approved" | "rejected" | "booked";
+
+export type TattooRequest = {
+  id: string;
+  customerId: string;
+  businessId: string | null;
+  bookingId: string | null;
+  customerName: string;
+  customerPhone: string;
+  requestType: "new" | "coverup" | "consultation";
+  style: string;
+  idea: string;
+  placement: string;
+  sizeCm: string;
+  preferredDates: string | null;
+  budgetToman: number | null;
+  referenceImages: string[];
+  bodyImages: string[];
+  status: TattooRequestStatus;
+  priceMinToman: number | null;
+  priceMaxToman: number | null;
+  sessionMinutes: number | null;
+  sessionCount: number | null;
+  depositToman: number | null;
+  artistMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
