@@ -17,16 +17,17 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as StudioRouteImport } from './routes/studio'
 import { Route as ApiGeoStatsRouteImport } from './routes/api/geo-stats'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
-import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
-import { Route as ApiPaymentsWebhookRouteImport } from './routes/api/payments/webhook'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
+import { Route as ApiPaymentsWebhookRouteImport } from './routes/api/payments/webhook'
 import { Route as ApiTilesSplatRouteImport } from './routes/api/tiles/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -69,6 +70,11 @@ const NotificationsRoute = NotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudioRoute = StudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGeoStatsRoute = ApiGeoStatsRouteImport.update({
   id: '/api/geo-stats',
   path: '/api/geo-stats',
@@ -99,16 +105,6 @@ const ApiSearchTraceRoute = ApiSearchTraceRouteImport.update({
   path: '/api/search-trace',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPaymentsCallbackRoute = ApiPaymentsCallbackRouteImport.update({
-  id: '/api/payments/callback',
-  path: '/api/payments/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPaymentsWebhookRoute = ApiPaymentsWebhookRouteImport.update({
-  id: '/api/payments/webhook',
-  path: '/api/payments/webhook',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
@@ -117,6 +113,16 @@ const BusinessIdRoute = BusinessIdRouteImport.update({
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaymentsCallbackRoute = ApiPaymentsCallbackRouteImport.update({
+  id: '/api/payments/callback',
+  path: '/api/payments/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPaymentsWebhookRoute = ApiPaymentsWebhookRouteImport.update({
+  id: '/api/payments/webhook',
+  path: '/api/payments/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTilesSplatRoute = ApiTilesSplatRouteImport.update({
@@ -134,16 +140,17 @@ export interface FileRoutesByFullPath {
   '/download': typeof DownloadRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/studio': typeof StudioRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
-  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
-  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRoutesByTo {
@@ -155,16 +162,17 @@ export interface FileRoutesByTo {
   '/download': typeof DownloadRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/studio': typeof StudioRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
-  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
-  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRoutesById {
@@ -177,16 +185,17 @@ export interface FileRoutesById {
   '/download': typeof DownloadRoute
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/studio': typeof StudioRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
-  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
-  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/business/$id': typeof BusinessIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+  '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRouteTypes {
@@ -200,16 +209,17 @@ export interface FileRouteTypes {
     | '/download'
     | '/login'
     | '/notifications'
+    | '/studio'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
     | '/api/save'
     | '/api/search-trace'
-    | '/api/payments/callback'
-    | '/api/payments/webhook'
     | '/business/$id'
     | '/api/auth/$'
+    | '/api/payments/callback'
+    | '/api/payments/webhook'
     | '/api/tiles/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -221,16 +231,17 @@ export interface FileRouteTypes {
     | '/download'
     | '/login'
     | '/notifications'
+    | '/studio'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
     | '/api/save'
     | '/api/search-trace'
-    | '/api/payments/callback'
-    | '/api/payments/webhook'
     | '/business/$id'
     | '/api/auth/$'
+    | '/api/payments/callback'
+    | '/api/payments/webhook'
     | '/api/tiles/$'
   id:
     | '__root__'
@@ -242,16 +253,17 @@ export interface FileRouteTypes {
     | '/download'
     | '/login'
     | '/notifications'
+    | '/studio'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
     | '/api/save'
     | '/api/search-trace'
-    | '/api/payments/callback'
-    | '/api/payments/webhook'
     | '/business/$id'
     | '/api/auth/$'
+    | '/api/payments/callback'
+    | '/api/payments/webhook'
     | '/api/tiles/$'
   fileRoutesById: FileRoutesById
 }
@@ -264,16 +276,17 @@ export interface RootRouteChildren {
   DownloadRoute: typeof DownloadRoute
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  StudioRoute: typeof StudioRoute
   ApiGeoStatsRoute: typeof ApiGeoStatsRoute
   ApiGuideRoute: typeof ApiGuideRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMapConfigRoute: typeof ApiMapConfigRoute
   ApiSaveRoute: typeof ApiSaveRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
-  ApiPaymentsCallbackRoute: typeof ApiPaymentsCallbackRoute
-  ApiPaymentsWebhookRoute: typeof ApiPaymentsWebhookRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiPaymentsCallbackRoute: typeof ApiPaymentsCallbackRoute
+  ApiPaymentsWebhookRoute: typeof ApiPaymentsWebhookRoute
   ApiTilesSplatRoute: typeof ApiTilesSplatRoute
 }
 
@@ -335,6 +348,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/studio': {
+      id: '/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/geo-stats': {
       id: '/api/geo-stats'
       path: '/api/geo-stats'
@@ -377,20 +397,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchTraceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/payments/callback': {
-      id: '/api/payments/callback'
-      path: '/api/payments/callback'
-      fullPath: '/api/payments/callback'
-      preLoaderRoute: typeof ApiPaymentsCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/payments/webhook': {
-      id: '/api/payments/webhook'
-      path: '/api/payments/webhook'
-      fullPath: '/api/payments/webhook'
-      preLoaderRoute: typeof ApiPaymentsWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/business/$id': {
       id: '/business/$id'
       path: '/business/$id'
@@ -403,6 +409,20 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/payments/callback': {
+      id: '/api/payments/callback'
+      path: '/api/payments/callback'
+      fullPath: '/api/payments/callback'
+      preLoaderRoute: typeof ApiPaymentsCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/payments/webhook': {
+      id: '/api/payments/webhook'
+      path: '/api/payments/webhook'
+      fullPath: '/api/payments/webhook'
+      preLoaderRoute: typeof ApiPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tiles/$': {
@@ -424,16 +444,17 @@ const rootRouteChildren: RootRouteChildren = {
   DownloadRoute: DownloadRoute,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  StudioRoute: StudioRoute,
   ApiGeoStatsRoute: ApiGeoStatsRoute,
   ApiGuideRoute: ApiGuideRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMapConfigRoute: ApiMapConfigRoute,
   ApiSaveRoute: ApiSaveRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
-  ApiPaymentsCallbackRoute: ApiPaymentsCallbackRoute,
-  ApiPaymentsWebhookRoute: ApiPaymentsWebhookRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiPaymentsCallbackRoute: ApiPaymentsCallbackRoute,
+  ApiPaymentsWebhookRoute: ApiPaymentsWebhookRoute,
   ApiTilesSplatRoute: ApiTilesSplatRoute,
 }
 export const routeTree = rootRouteImport
