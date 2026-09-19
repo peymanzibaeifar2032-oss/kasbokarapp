@@ -32,6 +32,7 @@ function MehrLoanPage() {
   const location = useLocation();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
+  const [requestType, setRequestType] = useState<"sell" | "buy">("sell");
 
   if (location.pathname === "/kharid-vam-mehr/panel") return <Outlet />;
 
@@ -47,6 +48,7 @@ function MehrLoanPage() {
         credentials: "same-origin",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
+          requestType,
           fullName: form.get("fullName"),
           phone: form.get("phone"),
           scoreAmount: form.get("scoreAmount"),
@@ -62,6 +64,7 @@ function MehrLoanPage() {
       if (!response.ok) throw new Error(data.error || "ثبت درخواست انجام نشد.");
       setResult(data);
       formElement.reset();
+      setRequestType("sell");
     } catch (error) {
       setResult({ error: friendlyError(error) });
     } finally {
@@ -129,18 +132,20 @@ function MehrLoanPage() {
             </div>
 
             <form onSubmit={submit} className="rounded-[2rem] border border-[#d6e2da] bg-white p-5 shadow-[0_22px_70px_rgba(26,76,59,.12)] sm:p-7">
-              <p className="text-sm font-bold text-[#087a55]">ثبت درخواست فروش امتیاز وام</p>
+              <p className="text-sm font-bold text-[#087a55]">ثبت درخواست خرید یا فروش وام</p>
               <h2 className="mt-1 text-2xl font-black">برای بررسی با شما تماس می‌گیریم</h2>
-              <p className="mt-2 text-sm leading-6 text-[#61736e]">نام، شماره موبایل، کد شعبه، استان و شهرستان الزامی است.</p>
+              <p className="mt-2 text-sm leading-6 text-[#61736e]">نوع درخواست را انتخاب کنید تا فرم مناسب نمایش داده شود.</p>
+              <div className="mt-5 grid grid-cols-2 gap-3" role="group" aria-label="نوع درخواست">
+                <button type="button" onClick={() => setRequestType("sell")} className={`rounded-xl border px-3 py-3 text-sm font-bold ${requestType === "sell" ? "border-[#087a55] bg-[#e6f3ed] text-[#087a55]" : "border-[#d6e2da] bg-white text-[#526862]"}`}>فروش امتیاز وام</button>
+                <button type="button" onClick={() => setRequestType("buy")} className={`rounded-xl border px-3 py-3 text-sm font-bold ${requestType === "buy" ? "border-[#087a55] bg-[#e6f3ed] text-[#087a55]" : "border-[#d6e2da] bg-white text-[#526862]"}`}>خرید وام</button>
+              </div>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <Field label="نام و نام خانوادگی *"><Input name="fullName" required minLength={2} autoComplete="name" /></Field>
                 <Field label="شماره موبایل *"><Input name="phone" required inputMode="tel" dir="ltr" placeholder="0912xxxxxxx" autoComplete="tel" /></Field>
-                <Field label="مبلغ امتیاز وام"><Input name="scoreAmount" inputMode="numeric" placeholder="مثلاً ۳۰۰ میلیون تومان" /></Field>
-                <Field label="مدت بازپرداخت"><NativeSelect name="repaymentMonths" defaultValue=""><option value="">انتخاب کنید</option><option value="12">۱۲ ماه</option><option value="18">۱۸ ماه</option><option value="24">۲۴ ماه</option><option value="36">۳۶ ماه</option><option value="48">۴۸ ماه</option><option value="60">۶۰ ماه</option></NativeSelect></Field>
-                <Field label="کد شعبه *"><Input name="branchCode" required maxLength={20} inputMode="numeric" dir="ltr" placeholder="مثلاً ۱۲۳۴" /></Field>
-                <Field label="استان *"><Input name="province" required minLength={2} placeholder="مثلاً تهران" autoComplete="address-level1" /></Field>
-                <div className="sm:col-span-2"><Field label="شهرستان *"><Input name="county" required minLength={2} placeholder="مثلاً اسلامشهر" autoComplete="address-level2" /></Field></div>
-                <div className="sm:col-span-2"><Field label="توضیحات"><Textarea name="description" rows={3} placeholder="شرایط امتیاز یا زمان موردنظر برای فروش را بنویسید." /></Field></div>
+                <Field label={requestType === "buy" ? "مبلغ وام موردنیاز" : "مبلغ امتیاز وام"}><Input name="scoreAmount" inputMode="numeric" placeholder="مثلاً ۳۰۰ میلیون تومان" /></Field>
+                <Field label={requestType === "buy" ? "بازپرداخت دلخواه" : "مدت بازپرداخت"}><NativeSelect name="repaymentMonths" defaultValue=""><option value="">انتخاب کنید</option><option value="12">۱۲ ماه</option><option value="18">۱۸ ماه</option><option value="24">۲۴ ماه</option><option value="36">۳۶ ماه</option><option value="48">۴۸ ماه</option><option value="60">۶۰ ماه</option></NativeSelect></Field>
+                {requestType === "sell" ? <><Field label="کد شعبه *"><Input name="branchCode" required maxLength={20} inputMode="numeric" dir="ltr" placeholder="مثلاً ۱۲۳۴" /></Field><Field label="استان *"><Input name="province" required minLength={2} placeholder="مثلاً تهران" autoComplete="address-level1" /></Field><div className="sm:col-span-2"><Field label="شهرستان *"><Input name="county" required minLength={2} placeholder="مثلاً اسلامشهر" autoComplete="address-level2" /></Field></div></> : null}
+                <div className="sm:col-span-2"><Field label="توضیحات"><Textarea name="description" rows={3} placeholder={requestType === "buy" ? "مبلغ، زمان یا شرایط موردنظر برای خرید وام را بنویسید." : "شرایط امتیاز یا زمان موردنظر برای فروش را بنویسید."} /></Field></div>
                 <input className="hidden" tabIndex={-1} autoComplete="off" name="website" aria-hidden="true" />
               </div>
               <Button type="submit" disabled={busy} className="mt-5 h-13 w-full rounded-xl bg-[#087a55] text-base text-white hover:bg-[#066745]">
