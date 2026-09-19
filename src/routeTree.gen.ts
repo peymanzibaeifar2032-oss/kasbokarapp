@@ -18,7 +18,9 @@ import { Route as DownloadRouteImport } from './routes/download'
 import { Route as KharidVamMehrRouteImport } from './routes/kharid-vam-mehr'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ApiGeoStatsRouteImport } from './routes/api/geo-stats'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -79,9 +81,19 @@ const NotificationsRoute = NotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StudioRoute = StudioRouteImport.update({
   id: '/studio',
   path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGeoStatsRoute = ApiGeoStatsRouteImport.update({
@@ -165,7 +177,9 @@ export interface FileRoutesByFullPath {
   '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
+  '/terms': typeof TermsRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
@@ -191,7 +205,9 @@ export interface FileRoutesByTo {
   '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
+  '/terms': typeof TermsRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
@@ -218,7 +234,9 @@ export interface FileRoutesById {
   '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
+  '/terms': typeof TermsRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
@@ -246,7 +264,9 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
+    | '/privacy'
     | '/studio'
+    | '/terms'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
@@ -272,7 +292,9 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
+    | '/privacy'
     | '/studio'
+    | '/terms'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
@@ -298,7 +320,9 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
+    | '/privacy'
     | '/studio'
+    | '/terms'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
@@ -325,7 +349,9 @@ export interface RootRouteChildren {
   KharidVamMehrRoute: typeof KharidVamMehrRouteWithChildren
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  PrivacyRoute: typeof PrivacyRoute
   StudioRoute: typeof StudioRouteWithChildren
+  TermsRoute: typeof TermsRoute
   ApiGeoStatsRoute: typeof ApiGeoStatsRoute
   ApiGuideRoute: typeof ApiGuideRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -405,11 +431,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/studio': {
       id: '/studio'
       path: '/studio'
       fullPath: '/studio'
       preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/geo-stats': {
@@ -546,7 +586,9 @@ const rootRouteChildren: RootRouteChildren = {
   KharidVamMehrRoute: KharidVamMehrRouteWithChildren,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  PrivacyRoute: PrivacyRoute,
   StudioRoute: StudioRouteWithChildren,
+  TermsRoute: TermsRoute,
   ApiGeoStatsRoute: ApiGeoStatsRoute,
   ApiGuideRoute: ApiGuideRoute,
   ApiHealthRoute: ApiHealthRoute,

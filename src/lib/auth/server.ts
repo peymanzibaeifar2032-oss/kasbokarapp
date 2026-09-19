@@ -130,10 +130,13 @@ function extraSiteOrigins(): string[] {
 const grokIssuer = env("GROK_AUTH_ISSUER") ?? GROK_ISSUER_DEFAULT;
 const grokClientId = env("GROK_AUTH_CLIENT_ID") ?? (isStandalone() ? undefined : PREVIEW_CLIENT_ID);
 const grokClientSecret = env("GROK_AUTH_CLIENT_SECRET") ?? (isStandalone() ? undefined : PREVIEW_CLIENT_SECRET);
+const googleClientId = env("GOOGLE_CLIENT_ID");
+const googleClientSecret = env("GOOGLE_CLIENT_SECRET");
+export const googleAuthConfigured = Boolean(googleClientId && googleClientSecret);
 
 /** True when email/password or federated sign-in is active. */
 export const authConfigured =
-  !authDisabled && (emailAndPasswordEnabled || Boolean(grokClientId && grokClientSecret));
+  !authDisabled && (emailAndPasswordEnabled || Boolean(grokClientId && grokClientSecret) || googleAuthConfigured);
 
 // This app's own Better Auth origin. When deployed the deployer injects the
 // public URL. In the sandbox live preview there's no fixed URL (each preview gets
@@ -271,6 +274,7 @@ export const auth = betterAuth({
       enabled: true,
       trustedProviders: [
         ...GROK_PROVIDERS.map((p) => p.providerId),
+        ...(googleAuthConfigured ? ["google"] : []),
         GATE_PROVIDER_ID,
       ],
       // X's synthetic email is never "verified", so don't gate linking on the
@@ -284,6 +288,18 @@ export const auth = betterAuth({
   // window and reduces auth flicker. See the `auth` skill for the full
   // flicker-prevention guidance (gate on `isPending`; SSR the session).
   session: { cookieCache: { enabled: true, maxAge: 300 } },
+
+  ...(googleAuthConfigured
+    ? {
+        socialProviders: {
+          google: {
+            clientId: googleClientId as string,
+            clientSecret: googleClientSecret as string,
+            prompt: "select_account" as const,
+          },
+        },
+      }
+    : {}),
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled
