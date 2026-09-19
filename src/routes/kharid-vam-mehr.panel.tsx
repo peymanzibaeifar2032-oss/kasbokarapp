@@ -8,7 +8,7 @@ import { NativeSelect } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatFaDateTime, formatToman } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import type { MehrLoanLead, MehrLoanLeadStatus, Profile } from "@/lib/types";
+import type { MehrLoanLead, MehrLoanLeadStatus } from "@/lib/types";
 
 export const Route = createFileRoute("/kharid-vam-mehr/panel")({
   head: () => ({
@@ -23,13 +23,13 @@ export const Route = createFileRoute("/kharid-vam-mehr/panel")({
 const statusLabel: Record<MehrLoanLeadStatus, string> = {
   reviewing: "در حال بررسی",
   contacted: "تماس گرفته شد",
-  purchased: "خرید انجام شد",
+  purchased: "انجام شد",
   rejected: "رد شد",
 };
 
 function MehrLoanPanel() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [access, setAccess] = useState<boolean | null>(null);
   const [items, setItems] = useState<MehrLoanLead[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -40,11 +40,13 @@ function MehrLoanPanel() {
 
   useEffect(() => {
     if (!user) return;
-    void saveAction<Profile>("profile").then((next) => { setProfile(next); if (next.isAdmin) refresh(); });
+    void saveAction<{ allowed: boolean }>("mehrLoanAccess")
+      .then((next) => { setAccess(next.allowed); if (next.allowed) refresh(); })
+      .catch(() => setAccess(false));
   }, [user]);
 
   if (!user) return <SignedOutPanel title="پنل درخواست‌های وام مهر" next="/kharid-vam-mehr/panel" loading={isPending} error={sessionError} onRetry={retry} />;
-  if (profile && !profile.isAdmin) return <div className="min-h-dvh bg-[#f7f8f5] p-6" dir="rtl"><div className="mx-auto max-w-xl rounded-2xl bg-white p-6"><h1 className="text-xl font-bold">دسترسی پنل فعال نیست</h1><p className="mt-3 text-sm text-slate-600">این حساب هنوز مجوز مشاهده شماره‌های کامل درخواست‌ها را ندارد.</p><Link to="/kharid-vam-mehr" className="mt-5 inline-block text-[#087a55]">بازگشت به صفحه اصلی</Link></div></div>;
+  if (access === false) return <div className="min-h-dvh bg-[#f7f8f5] p-6" dir="rtl"><div className="mx-auto max-w-xl rounded-2xl bg-white p-6"><h1 className="text-xl font-bold">دسترسی پنل فعال نیست</h1><p className="mt-3 text-sm text-slate-600">این حساب هنوز مجوز مشاهده شماره‌های کامل درخواست‌ها را ندارد.</p><Link to="/kharid-vam-mehr" className="mt-5 inline-block text-[#087a55]">بازگشت به صفحه اصلی</Link></div></div>;
 
   return <div dir="rtl" className="min-h-dvh bg-[#f2f5f2] text-[#102a2a]">
     <header className="border-b border-[#dfe7df] bg-white"><div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4"><div><p className="text-xs text-[#087a55]">عرفان حق‌شنو</p><h1 className="font-black">درخواست‌های فروش امتیاز وام مهر</h1></div><Button variant="outline" size="sm" onClick={refresh} disabled={loading}><RefreshCw className={loading ? "animate-spin" : ""} />به‌روزرسانی</Button></div></header>
@@ -52,14 +54,12 @@ function MehrLoanPanel() {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-600">اطلاعات این صفحه محرمانه است و نباید منتشر شود.</p><span className="rounded-full bg-[#e5f3ec] px-3 py-1 text-sm font-bold text-[#087a55]">{new Intl.NumberFormat("fa-IR").format(items.length)} درخواست</span></div>
       <div className="grid gap-4">
         {items.map((lead) => <article key={lead.id} className="rounded-2xl border border-[#dfe7df] bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs text-slate-500">کد پیگیری <span dir="ltr">{lead.trackingCode}</span> · {formatFaDateTime(lead.createdAt)}</p><h2 className="mt-1 text-lg font-black">{lead.fullName}</h2></div><NativeSelect className="w-44" value={lead.status} onChange={(event) => { const status = event.target.value as MehrLoanLeadStatus; void saveAction("updateMehrLoanLead", { id: lead.id, status }).then(refresh).catch((error) => toast.error(friendlyError(error))); }}>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></div>
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-xs text-slate-500">کد پیگیری <span dir="ltr">{lead.trackingCode}</span> · {formatFaDateTime(lead.createdAt)}</p><div className="mt-2 flex flex-wrap items-center gap-2"><h2 className="text-lg font-black">{lead.fullName}</h2><span className={`rounded-full px-3 py-1 text-xs font-bold ${lead.requestType === "buy" ? "bg-blue-100 text-blue-800" : "bg-emerald-100 text-emerald-800"}`}>{lead.requestType === "buy" ? "درخواست خرید وام" : "فروش امتیاز وام"}</span></div></div><NativeSelect className="w-44" value={lead.status} onChange={(event) => { const status = event.target.value as MehrLoanLeadStatus; void saveAction("updateMehrLoanLead", { id: lead.id, status }).then(refresh).catch((error) => toast.error(friendlyError(error))); }}>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</NativeSelect></div>
           <div className="mt-4 grid gap-3 rounded-xl bg-[#f6f8f6] p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <a href={`tel:${lead.phone}`} dir="ltr" className="flex items-center gap-2 font-bold text-[#087a55]"><Phone className="size-4" />{lead.phone}</a>
-            <p><span className="text-slate-500">مبلغ امتیاز:</span> {lead.scoreAmountToman ? formatToman(lead.scoreAmountToman) : "ثبت نشده"}</p>
+            <p><span className="text-slate-500">{lead.requestType === "buy" ? "مبلغ وام موردنیاز:" : "مبلغ امتیاز:"}</span> {lead.scoreAmountToman ? formatToman(lead.scoreAmountToman) : "ثبت نشده"}</p>
             <p><span className="text-slate-500">بازپرداخت:</span> {lead.repaymentMonths ? `${new Intl.NumberFormat("fa-IR").format(lead.repaymentMonths)} ماه` : "ثبت نشده"}</p>
-            <p><span className="text-slate-500">کد شعبه:</span> <span dir="ltr">{lead.branchCode || "ثبت نشده"}</span></p>
-            <p><span className="text-slate-500">استان:</span> {lead.province || "ثبت نشده"}</p>
-            <p><span className="text-slate-500">شهرستان:</span> {lead.county || "ثبت نشده"}</p>
+            {lead.requestType === "sell" ? <><p><span className="text-slate-500">کد شعبه:</span> <span dir="ltr">{lead.branchCode || "ثبت نشده"}</span></p><p><span className="text-slate-500">استان:</span> {lead.province || "ثبت نشده"}</p><p><span className="text-slate-500">شهرستان:</span> {lead.county || "ثبت نشده"}</p></> : null}
           </div>
           {lead.description ? <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-700"><span className="font-bold">توضیحات: </span>{lead.description}</p> : null}
         </article>)}
