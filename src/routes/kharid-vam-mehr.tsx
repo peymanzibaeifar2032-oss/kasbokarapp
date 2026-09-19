@@ -51,7 +51,9 @@ function MehrLoanPage() {
           phone: form.get("phone"),
           scoreAmount: form.get("scoreAmount"),
           repaymentMonths: form.get("repaymentMonths") || null,
-          city: form.get("city"),
+          branchCode: form.get("branchCode"),
+          province: form.get("province"),
+          county: form.get("county"),
           description: form.get("description"),
           website: form.get("website"),
         }),
@@ -129,13 +131,15 @@ function MehrLoanPage() {
             <form onSubmit={submit} className="rounded-[2rem] border border-[#d6e2da] bg-white p-5 shadow-[0_22px_70px_rgba(26,76,59,.12)] sm:p-7">
               <p className="text-sm font-bold text-[#087a55]">ثبت درخواست فروش امتیاز وام</p>
               <h2 className="mt-1 text-2xl font-black">برای بررسی با شما تماس می‌گیریم</h2>
-              <p className="mt-2 text-sm leading-6 text-[#61736e]">نام و شماره موبایل الزامی است. سایر موارد به بررسی سریع‌تر کمک می‌کند.</p>
+              <p className="mt-2 text-sm leading-6 text-[#61736e]">نام، شماره موبایل، کد شعبه، استان و شهرستان الزامی است.</p>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <Field label="نام و نام خانوادگی *"><Input name="fullName" required minLength={2} autoComplete="name" /></Field>
                 <Field label="شماره موبایل *"><Input name="phone" required inputMode="tel" dir="ltr" placeholder="0912xxxxxxx" autoComplete="tel" /></Field>
                 <Field label="مبلغ امتیاز وام"><Input name="scoreAmount" inputMode="numeric" placeholder="مثلاً ۳۰۰ میلیون تومان" /></Field>
                 <Field label="مدت بازپرداخت"><NativeSelect name="repaymentMonths" defaultValue=""><option value="">انتخاب کنید</option><option value="12">۱۲ ماه</option><option value="18">۱۸ ماه</option><option value="24">۲۴ ماه</option><option value="36">۳۶ ماه</option><option value="48">۴۸ ماه</option><option value="60">۶۰ ماه</option></NativeSelect></Field>
-                <div className="sm:col-span-2"><Field label="شهر"><Input name="city" placeholder="مثلاً اسلامشهر" autoComplete="address-level2" /></Field></div>
+                <Field label="کد شعبه *"><Input name="branchCode" required maxLength={20} inputMode="numeric" dir="ltr" placeholder="مثلاً ۱۲۳۴" /></Field>
+                <Field label="استان *"><Input name="province" required minLength={2} placeholder="مثلاً تهران" autoComplete="address-level1" /></Field>
+                <div className="sm:col-span-2"><Field label="شهرستان *"><Input name="county" required minLength={2} placeholder="مثلاً اسلامشهر" autoComplete="address-level2" /></Field></div>
                 <div className="sm:col-span-2"><Field label="توضیحات"><Textarea name="description" rows={3} placeholder="شرایط امتیاز یا زمان موردنظر برای فروش را بنویسید." /></Field></div>
                 <input className="hidden" tabIndex={-1} autoComplete="off" name="website" aria-hidden="true" />
               </div>
