@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   fillTileTemplate,
   isSafeTileTemplate,
+  OFFLINE_TILE_TEMPLATE,
   resolveMapTiles,
   STANDALONE_UPSTREAM_CANDIDATES,
 } from "./tiles.ts";
@@ -73,5 +74,10 @@ describe("map tiles", () => {
       fillTileTemplate("https://t.example/{z}/{x}/{y}.png", 6, 40, 25),
       "https://t.example/6/40/25.png",
     );
+  });
+
+  it("provides an inline offline tile template", () => {
+    assert.match(OFFLINE_TILE_TEMPLATE, /^data:image\/svg\+xml;utf8,/);
+    assert.match(decodeURIComponent(OFFLINE_TILE_TEMPLATE.split(",")[1] || ""), /offline map tile/);
   });
 });
