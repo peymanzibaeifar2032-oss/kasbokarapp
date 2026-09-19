@@ -199,7 +199,9 @@ export type MehrLoanLead = {
   phone: string;
   scoreAmountToman: number | null;
   repaymentMonths: number | null;
-  city: string | null;
+  branchCode: string | null;
+  province: string | null;
+  county: string | null;
   description: string | null;
   status: MehrLoanLeadStatus;
   createdAt: string;
