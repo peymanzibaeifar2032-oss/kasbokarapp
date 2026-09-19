@@ -57,7 +57,9 @@ function MehrLoanPanel() {
             <a href={`tel:${lead.phone}`} dir="ltr" className="flex items-center gap-2 font-bold text-[#087a55]"><Phone className="size-4" />{lead.phone}</a>
             <p><span className="text-slate-500">مبلغ امتیاز:</span> {lead.scoreAmountToman ? formatToman(lead.scoreAmountToman) : "ثبت نشده"}</p>
             <p><span className="text-slate-500">بازپرداخت:</span> {lead.repaymentMonths ? `${new Intl.NumberFormat("fa-IR").format(lead.repaymentMonths)} ماه` : "ثبت نشده"}</p>
-            <p><span className="text-slate-500">شهر:</span> {lead.city || "ثبت نشده"}</p>
+            <p><span className="text-slate-500">کد شعبه:</span> <span dir="ltr">{lead.branchCode || "ثبت نشده"}</span></p>
+            <p><span className="text-slate-500">استان:</span> {lead.province || "ثبت نشده"}</p>
+            <p><span className="text-slate-500">شهرستان:</span> {lead.county || "ثبت نشده"}</p>
           </div>
           {lead.description ? <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-700"><span className="font-bold">توضیحات: </span>{lead.description}</p> : null}
         </article>)}
