@@ -87,11 +87,31 @@ async function requireAdmin(userId: string) {
   if (!me[0]?.is_admin) throw new Error("دسترسی مدیریت ندارید.");
 }
 
+async function hasMehrLoanAccess(userId: string) {
+  const sql = await getSql();
+  const rows = await sql.query<{ allowed: boolean }>(
+    `select exists (
+       select 1 from profiles where user_id = $1 and is_admin = true
+       union all
+       select 1 from mehr_loan_admins where user_id = $1
+     ) as allowed`,
+    [userId],
+  );
+  return Boolean(rows[0]?.allowed);
+}
+
+async function requireMehrLoanAccess(userId: string) {
+  if (!(await hasMehrLoanAccess(userId))) {
+    throw new Error("دسترسی پنل وام فعال نیست.");
+  }
+}
+
 type MehrLoanLeadRow = {
   id: string;
   tracking_code: string;
   full_name: string;
   phone: string;
+  request_type: MehrLoanLead["requestType"];
   score_amount_toman: string | number | null;
   repayment_months: number | null;
   branch_code: string | null;
@@ -109,6 +129,7 @@ function mapMehrLoanLead(row: MehrLoanLeadRow): MehrLoanLead {
     trackingCode: row.tracking_code,
     fullName: row.full_name,
     phone: row.phone,
+    requestType: row.request_type,
     scoreAmountToman: row.score_amount_toman == null ? null : Number(row.score_amount_toman),
     repaymentMonths: row.repayment_months == null ? null : Number(row.repayment_months),
     branchCode: row.branch_code,
@@ -122,10 +143,10 @@ function mapMehrLoanLead(row: MehrLoanLeadRow): MehrLoanLead {
 }
 
 async function performMehrLoanLeads(userId: string) {
-  await requireAdmin(userId);
+  await requireMehrLoanAccess(userId);
   const sql = await getSql();
   const rows = await sql.query<MehrLoanLeadRow>(
-    `select id, tracking_code, full_name, phone, score_amount_toman, repayment_months,
+    `select id, tracking_code, request_type, full_name, phone, score_amount_toman, repayment_months,
             branch_code, province, county, description, status, created_at, updated_at
        from mehr_loan_leads
       order by case status when 'reviewing' then 0 when 'contacted' then 1 when 'purchased' then 2 else 3 end,
@@ -135,7 +156,7 @@ async function performMehrLoanLeads(userId: string) {
 }
 
 async function performUpdateMehrLoanLead(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  await requireMehrLoanAccess(userId);
   const data = z.object({
     id: z.string().uuid(),
     status: z.enum(["reviewing", "contacted", "purchased", "rejected"]),
@@ -1472,6 +1493,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performDecideTattooRequest(userId, payload);
     case "mehrLoanLeads":
       return performMehrLoanLeads(userId);
+    case "mehrLoanAccess":
+      return { allowed: await hasMehrLoanAccess(userId) };
     case "updateMehrLoanLead":
       return performUpdateMehrLoanLead(userId, payload);
     case "blockInterval":
