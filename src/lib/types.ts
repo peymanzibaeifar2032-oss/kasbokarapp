@@ -191,12 +191,14 @@ export type TattooRequest = {
 };
 
 export type MehrLoanLeadStatus = "reviewing" | "contacted" | "purchased" | "rejected";
+export type MehrLoanRequestType = "buy" | "sell";
 
 export type MehrLoanLead = {
   id: string;
   trackingCode: string;
   fullName: string;
   phone: string;
+  requestType: MehrLoanRequestType;
   scoreAmountToman: number | null;
   repaymentMonths: number | null;
   branchCode: string | null;
