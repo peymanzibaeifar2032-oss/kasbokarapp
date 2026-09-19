@@ -130,9 +130,22 @@ export type BookingRow = {
   buffer_after?: number | string | null;
   resource_id?: string | null;
   resource_name?: string | null;
+  tattoo_request_id?: string | null;
+  tattoo_style?: string | null;
+  tattoo_idea?: string | null;
+  tattoo_placement?: string | null;
+  tattoo_size_cm?: string | null;
+  tattoo_reference_images?: unknown;
+  tattoo_body_images?: unknown;
+  tattoo_price_min_toman?: number | string | null;
+  tattoo_price_max_toman?: number | string | null;
+  tattoo_session_count?: number | string | null;
+  tattoo_session_minutes?: number | string | null;
+  tattoo_deposit_toman?: number | string | null;
 };
 
 export function mapBooking(row: BookingRow): Booking {
+  const images = (value: unknown) => Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
   const kind: BookingKind = row.kind === "block" ? "block" : "booking";
   const eventType = (row.event_type || (kind === "block" ? "block" : "booking")) as Booking["eventType"];
   return {
@@ -156,6 +169,18 @@ export function mapBooking(row: BookingRow): Booking {
     createdAt: row.created_at,
     resourceId: row.resource_id ?? null,
     resourceName: row.resource_name ?? null,
+    tattooRequestId: row.tattoo_request_id ?? null,
+    tattooStyle: row.tattoo_style ?? null,
+    tattooIdea: row.tattoo_idea ?? null,
+    tattooPlacement: row.tattoo_placement ?? null,
+    tattooSizeCm: row.tattoo_size_cm ?? null,
+    tattooReferenceImages: images(row.tattoo_reference_images),
+    tattooBodyImages: images(row.tattoo_body_images),
+    tattooPriceMinToman: row.tattoo_price_min_toman == null ? null : Number(row.tattoo_price_min_toman),
+    tattooPriceMaxToman: row.tattoo_price_max_toman == null ? null : Number(row.tattoo_price_max_toman),
+    tattooSessionCount: row.tattoo_session_count == null ? null : Number(row.tattoo_session_count),
+    tattooSessionMinutes: row.tattoo_session_minutes == null ? null : Number(row.tattoo_session_minutes),
+    tattooDepositToman: row.tattoo_deposit_toman == null ? null : Number(row.tattoo_deposit_toman),
   };
 }
 
@@ -237,7 +262,13 @@ export const BOOKING_SELECT = `
   coalesce(k.buffer_before, 0) as buffer_before,
   coalesce(k.buffer_after, 0) as buffer_after,
   k.resource_id,
-  r.name as resource_name
+  r.name as resource_name,
+  tr.id as tattoo_request_id, tr.style as tattoo_style, tr.idea as tattoo_idea,
+  tr.placement as tattoo_placement, tr.size_cm as tattoo_size_cm,
+  tr.reference_images as tattoo_reference_images, tr.body_images as tattoo_body_images,
+  tr.price_min_toman as tattoo_price_min_toman, tr.price_max_toman as tattoo_price_max_toman,
+  tr.session_count as tattoo_session_count, tr.session_minutes as tattoo_session_minutes,
+  tr.deposit_toman as tattoo_deposit_toman
 `;
 
 export const ACTIVE_OCCUPANCY_SQL = `
@@ -259,4 +290,3 @@ export const HOLDS_OCCUPANCY_SELECT = `
   slot_end,
   coalesce(nullif(resource_id, ''), nullif(staff_id, '')) as resource_id
 `;
-

@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDateTime, toWhatsAppLink } from "@/lib/format";
+import { formatFaDateTime, formatToman, toWhatsAppLink } from "@/lib/format";
 import { jalaliDayLabel, tehranClock, tehranDayKey, tehranLocalToIso, type DayStatus } from "@/lib/hours";
 import { t } from "@/lib/i18n";
 import { friendlyError, saveAction } from "@/lib/save";
@@ -52,11 +52,17 @@ export function OwnerCalendar({
   const [selected, setSelected] = useState<Booking | null>(null);
   const [resourceFilter, setResourceFilter] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
+  const [selectedBusinessId, setSelectedBusinessId] = useState(businesses[0]?.id ?? "");
   const clock = tehranClock(cursor);
   const todayKey = tehranDayKey();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
-  const businessId = businesses[0]?.id ?? "";
+  const businessId = selectedBusinessId || businesses[0]?.id || "";
+
+  useEffect(() => {
+    if (!selectedBusinessId && businesses[0]) setSelectedBusinessId(businesses[0].id);
+    if (selectedBusinessId && !businesses.some((b) => b.id === selectedBusinessId)) setSelectedBusinessId(businesses[0]?.id ?? "");
+  }, [businesses, selectedBusinessId]);
 
   useEffect(() => {
     if (!businessId) return;
@@ -64,9 +70,10 @@ export function OwnerCalendar({
   }, [businessId]);
 
   const visibleItems = useMemo(() => {
-    if (!resourceFilter) return items;
-    return items.filter((b) => !b.resourceId || b.resourceId === resourceFilter);
-  }, [items, resourceFilter]);
+    const businessRows = items.filter((b) => b.businessId === businessId);
+    if (!resourceFilter) return businessRows;
+    return businessRows.filter((b) => !b.resourceId || b.resourceId === resourceFilter);
+  }, [businessId, items, resourceFilter]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Booking[]>();
@@ -120,6 +127,11 @@ export function OwnerCalendar({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{t("navCalendar")}</h2>
         <div className="flex flex-wrap gap-1">
+          {businesses.length > 1 ? (
+            <NativeSelect value={businessId} onChange={(e) => { setSelectedBusinessId(e.target.value); setResourceFilter(""); }} className="h-10">
+              {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </NativeSelect>
+          ) : null}
           {resources.length ? (
             <NativeSelect value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)} className="h-10">
               <option value="">{t("allResources")}</option>
@@ -217,6 +229,8 @@ export function OwnerCalendar({
                   {b.resourceName ? <span className="block text-xs">{b.resourceName}</span> : null}
                   {b.kind !== "block" ? <span className="block">{b.customerName}</span> : null}
                   {b.serviceTitle ? <span className="block text-xs text-muted">{b.serviceTitle}</span> : null}
+                  {b.tattooRequestId ? <span className="block text-xs text-accent">تاتو · {b.tattooPlacement || "محل نامشخص"}{b.tattooSizeCm ? ` · ${b.tattooSizeCm}` : ""}</span> : null}
+                  {b.tattooPriceMinToman != null ? <span className="block text-xs text-muted">قیمت: {formatToman(b.tattooPriceMinToman)}{b.tattooPriceMaxToman ? ` تا ${formatToman(b.tattooPriceMaxToman)}` : ""}</span> : null}
                 </button>
               </li>
             ))}
@@ -294,6 +308,18 @@ function AppointmentCard({
       <p className="text-sm">{formatFaDateTime(booking.slotStart)}{booking.slotEnd ? ` – ${formatFaDateTime(booking.slotEnd)}` : ""}</p>
       <p className="text-xs text-muted">ثبت: {formatFaDateTime(booking.createdAt)}</p>
       {booking.note ? <p className="mt-2 text-sm text-muted">{booking.note}</p> : null}
+      {booking.tattooRequestId ? (
+        <div className="mt-3 rounded-xl border border-accent/20 bg-accent/5 p-3 text-sm">
+          <p className="font-semibold text-accent">پروژه تاتو</p>
+          {booking.tattooStyle ? <p>سبک: {booking.tattooStyle}</p> : null}
+          {booking.tattooPlacement ? <p>محل اجرا: {booking.tattooPlacement}</p> : null}
+          {booking.tattooSizeCm ? <p>اندازه: {booking.tattooSizeCm}</p> : null}
+          {booking.tattooPriceMinToman != null ? <p>مبلغ: {formatToman(booking.tattooPriceMinToman)}{booking.tattooPriceMaxToman ? ` تا ${formatToman(booking.tattooPriceMaxToman)}` : ""}</p> : null}
+          {booking.tattooSessionCount ? <p>جلسه: {booking.tattooSessionCount}{booking.tattooSessionMinutes ? ` · ${booking.tattooSessionMinutes} دقیقه` : ""}</p> : null}
+          {booking.tattooIdea ? <p className="mt-1 leading-6">توضیح: {booking.tattooIdea}</p> : null}
+          {booking.tattooReferenceImages?.length || booking.tattooBodyImages?.length ? <div className="mt-2 flex gap-2 overflow-x-auto">{[...(booking.tattooReferenceImages ?? []), ...(booking.tattooBodyImages ?? [])].map((src, i) => <a key={`${booking.id}-tattoo-${i}`} href={src} target="_blank" rel="noreferrer"><img src={src} alt="تصویر پروژه تاتو" className="size-16 rounded-lg border border-border object-cover" /></a>)}</div> : null}
+        </div>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {!isBlock && booking.status === "requested" ? (
           <Button size="sm" onClick={() => void setStatus("confirmed")}>تأیید</Button>

@@ -51,6 +51,11 @@ import type { BusyInterval, Business, Profile, Review } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/business/$id")({
+  validateSearch: (s: Record<string, unknown>): { tattooRequestId?: string; tattooMinutes?: number } => {
+    const tattooRequestId = typeof s.tattooRequestId === "string" ? s.tattooRequestId : undefined;
+    const tattooMinutes = Number(s.tattooMinutes);
+    return { tattooRequestId, tattooMinutes: Number.isFinite(tattooMinutes) && tattooMinutes >= 10 ? tattooMinutes : undefined };
+  },
   loader: async ({ params }) => {
     const [biz, reviews, busy, similar, rank, resources] = await Promise.all([
       getBusiness({ data: { id: params.id } }),
@@ -108,6 +113,7 @@ function BusinessPage() {
   const { biz, reviews: initialReviews, busy: initialBusy, similar, rank, resources, openNow, hoursLabel } =
     Route.useLoaderData();
   const { user } = useCurrentUserState();
+  const tattooSearch = Route.useSearch();
   const favs = useFavorites();
   const [reviews, setReviews] = useState(initialReviews);
   const [busy, setBusy] = useState(initialBusy);
@@ -127,7 +133,9 @@ function BusinessPage() {
   const wa = toWhatsAppLink(biz.whatsapp || biz.phone, inquiry);
   const waQuote = toWhatsAppLink(biz.whatsapp || biz.phone, quote);
   const web = toWebsiteHref(biz.website);
-  const nextPath = `/business/${biz.id}`;
+  const nextPath = tattooSearch.tattooRequestId
+    ? `/business/${biz.id}?tattooRequestId=${encodeURIComponent(tattooSearch.tattooRequestId)}${tattooSearch.tattooMinutes ? `&tattooMinutes=${tattooSearch.tattooMinutes}` : ""}`
+    : `/business/${biz.id}`;
 
   async function share() {
     const url = window.location.href;
@@ -246,6 +254,8 @@ function BusinessPage() {
               resources={resources as BusinessResource[]}
               canBook={canBook}
               nextPath={nextPath}
+              tattooRequestId={tattooSearch.tattooRequestId}
+              tattooMinutes={tattooSearch.tattooMinutes}
               onBooked={(slot) => {
                 setBusy((cur) =>
                   cur.some((x) => x.start === slot.start)
@@ -425,6 +435,8 @@ function BookingPanel({
   resources,
   canBook,
   nextPath,
+  tattooRequestId,
+  tattooMinutes,
   onBooked,
 }: {
   biz: Business;
@@ -432,6 +444,8 @@ function BookingPanel({
   resources: BusinessResource[];
   canBook: boolean;
   nextPath: string;
+  tattooRequestId?: string;
+  tattooMinutes?: number;
   onBooked: (slot: BusyInterval) => void;
 }) {
   const { user } = useCurrentUserState();
@@ -447,8 +461,8 @@ function BookingPanel({
   const [party, setParty] = useState(1);
   const [busySubmit, setBusySubmit] = useState(false);
   const duration = useMemo(
-    () => serviceDurationMinutes(biz.prices, service, biz.slotMinutes),
-    [biz.prices, biz.slotMinutes, service],
+    () => tattooMinutes ? { minutes: tattooMinutes } : serviceDurationMinutes(biz.prices, service, biz.slotMinutes),
+    [biz.prices, biz.slotMinutes, service, tattooMinutes],
   );
   const buffers = useMemo(() => serviceBuffers(biz.prices, service), [biz.prices, service]);
   const specialDays = biz.specialHours ?? [];
@@ -613,6 +627,7 @@ function BookingPanel({
       serviceTitle: service || undefined,
       partySize: party,
       resourceId: resourceId || undefined,
+      tattooRequestId: tattooRequestId || undefined,
     };
     try {
       sessionStorage.setItem("kasb:booking-draft", JSON.stringify({ ...payload, service, party }));

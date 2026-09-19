@@ -47,6 +47,7 @@ export function FinancePanel({ action }: { action: "financeMine" | "financeAdmin
   const [data, setData] = useState<FinancePayload | null>(null);
   const [iban, setIban] = useState("");
   const [ownerName, setOwnerName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
 
   useEffect(() => {
     void saveAction<FinancePayload>(action).then(setData).catch(() => setData(null));
@@ -79,12 +80,13 @@ export function FinancePanel({ action }: { action: "financeMine" | "financeAdmin
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="نام صاحب شبا" />
             <Input value={iban} onChange={(e) => setIban(e.target.value)} placeholder="IR…………" dir="ltr" />
+            <Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))} placeholder="شماره کارت ۱۶ رقمی" inputMode="numeric" dir="ltr" />
           </div>
           <Button
             className="mt-3"
             variant="outline"
             onClick={() => {
-              void saveAction("saveIban", { businessId: biz.id, iban, ownerName })
+              void saveAction("saveIban", { businessId: biz.id, iban, ownerName, cardNumber })
                 .then(() => {
                   toast.success("شبا ذخیره شد.");
                   void saveAction<FinancePayload>(action).then(setData);

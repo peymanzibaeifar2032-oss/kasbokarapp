@@ -414,8 +414,21 @@ function TattooRequestReview({ request, businesses, onChange }: { request: Tatto
       <ReviewNumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} />
     </div>
     <label className="mt-3 grid gap-1.5 text-sm"><span className="font-medium">پیام برای مشتری</span><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="نتیجه بررسی، شرایط اجرا یا توضیح بیعانه را بنویسید" /></label>
+    {request.paymentStatus === "receipt_submitted" ? <ReceiptReview request={request} onChange={onChange} /> : null}
     <div className="mt-3 flex flex-wrap gap-2"><Button disabled={busy} onClick={() => void decideRequest("approved")}>تأیید و بازکردن انتخاب زمان</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("needs_info")}>درخواست اطلاعات بیشتر</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("rejected")}>عدم پذیرش</Button></div>
   </article>;
+}
+
+function ReceiptReview({ request, onChange }: { request: TattooRequest; onChange: () => void }) {
+  const [message, setMessage] = useState("رسید بررسی و تأیید شد.");
+  const [busy, setBusy] = useState(false);
+  async function decide(approved: boolean) {
+    setBusy(true);
+    try { await saveAction("decideTattooReceipt", { requestId: request.id, approved, message }); toast.success(approved ? "رزرو قطعی شد." : "رسید رد شد."); onChange(); }
+    catch (err) { toast.error(friendlyError(err)); }
+    finally { setBusy(false); }
+  }
+  return <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/5 p-3"><p className="font-semibold">رسید پرداخت برای بررسی</p>{request.paymentReviewDeadline ? <p className="mt-1 text-xs text-muted">مهلت بررسی: {formatFaDateTime(request.paymentReviewDeadline)}</p> : null}{request.receiptImage ? <a href={request.receiptImage} target="_blank" rel="noreferrer"><img src={request.receiptImage} alt="رسید پرداخت مشتری" className="mt-3 max-h-64 rounded-xl object-contain" /></a> : null}<Textarea className="mt-3" value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="پیام نتیجه بررسی" /><div className="mt-3 flex gap-2"><Button disabled={busy} onClick={() => void decide(true)}>تأیید رسید و قطعی‌کردن</Button><Button disabled={busy} variant="outline" onClick={() => void decide(false)}>رد رسید</Button></div></div>;
 }
 
 function ReviewNumberField({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (value: string) => void }) {

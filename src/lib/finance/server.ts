@@ -309,17 +309,19 @@ export async function performMyPayments(userId: string) {
   }));
 }
 
-export async function performSaveIban(userId: string, raw: { businessId: string; iban: string; ownerName: string }) {
+export async function performSaveIban(userId: string, raw: { businessId: string; iban: string; ownerName: string; cardNumber?: string }) {
   const sql = await getSql();
   const owned = await sql.query<{ id: string }>(`select id from businesses where id = $1 and owner_id = $2`, [raw.businessId, userId]);
   if (!owned[0]) throw new Error("دسترسی ندارید.");
   const iban = raw.iban.replace(/\s/g, "").toUpperCase();
   if (!/^IR\d{24}$/.test(iban)) throw new Error("شماره شبا معتبر نیست.");
+  const card = (raw.cardNumber ?? "").replace(/\D/g, "");
+  if (card && !/^\d{16}$/.test(card)) throw new Error("شماره کارت باید ۱۶ رقم باشد.");
   await sql.query(
-    `insert into business_settlement_accounts (business_id, iban, owner_name, verification_status, updated_at)
-     values ($1,$2,$3,'unverified', now())
-     on conflict (business_id) do update set iban = excluded.iban, owner_name = excluded.owner_name, verification_status = 'unverified', updated_at = now()`,
-    [raw.businessId, iban, raw.ownerName.trim()],
+    `insert into business_settlement_accounts (business_id, iban, owner_name, card_number, verification_status, updated_at)
+     values ($1,$2,$3,$4,'unverified', now())
+     on conflict (business_id) do update set iban = excluded.iban, owner_name = excluded.owner_name, card_number = excluded.card_number, verification_status = 'unverified', updated_at = now()`,
+    [raw.businessId, iban, raw.ownerName.trim(), card || null],
   );
   await audit(sql, userId, "iban_change", "business", raw.businessId, null, { iban: maskIban(iban) });
   return { ok: true as const, masked: maskIban(iban) };

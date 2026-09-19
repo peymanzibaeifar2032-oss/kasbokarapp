@@ -106,6 +106,18 @@ export type Booking = {
   createdAt: string;
   resourceId?: string | null;
   resourceName?: string | null;
+  tattooRequestId?: string | null;
+  tattooStyle?: string | null;
+  tattooIdea?: string | null;
+  tattooPlacement?: string | null;
+  tattooSizeCm?: string | null;
+  tattooReferenceImages?: string[];
+  tattooBodyImages?: string[];
+  tattooPriceMinToman?: number | null;
+  tattooPriceMaxToman?: number | null;
+  tattooSessionCount?: number | null;
+  tattooSessionMinutes?: number | null;
+  tattooDepositToman?: number | null;
 };
 
 export type NotificationItem = {
@@ -162,6 +174,7 @@ export type BusyInterval = {
 };
 
 export type TattooRequestStatus = "submitted" | "needs_info" | "approved" | "rejected" | "booked";
+export type TattooPaymentStatus = "not_required" | "awaiting_payment" | "receipt_submitted" | "approved" | "rejected" | "expired";
 
 export type TattooRequest = {
   id: string;
@@ -186,6 +199,13 @@ export type TattooRequest = {
   sessionCount: number | null;
   depositToman: number | null;
   artistMessage: string | null;
+  paymentStatus: TattooPaymentStatus;
+  paymentHoldUntil: string | null;
+  paymentSubmittedAt: string | null;
+  paymentReviewDeadline: string | null;
+  receiptImage: string | null;
+  paymentIban: string | null;
+  paymentCardNumber: string | null;
   createdAt: string;
   updatedAt: string;
 };
