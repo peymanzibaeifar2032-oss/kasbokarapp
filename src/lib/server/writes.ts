@@ -200,6 +200,8 @@ type TattooRequestRow = {
   receipt_image: string | null;
   payment_iban: string | null;
   payment_card_number: string | null;
+  proposed_slot_start: string | null;
+  proposed_slot_end: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -236,6 +238,8 @@ function mapTattooRequest(row: TattooRequestRow): TattooRequest {
     receiptImage: row.receipt_image,
     paymentIban: row.payment_iban,
     paymentCardNumber: row.payment_card_number,
+    proposedSlotStart: row.proposed_slot_start,
+    proposedSlotEnd: row.proposed_slot_end,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -245,7 +249,8 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
   reference_images, body_images, status, price_min_toman, price_max_toman,
   session_minutes, session_count, deposit_toman, artist_message, payment_status, payment_hold_until,
-  payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number, created_at, updated_at
+  payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number,
+  proposed_slot_start, proposed_slot_end, created_at, updated_at
   from tattoo_requests`;
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -322,32 +327,88 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
     sessionMinutes: z.number().int().min(10).max(4320).optional().nullable(),
     sessionCount: z.number().int().min(1).max(20).optional().nullable(),
     depositToman: z.number().int().min(0).optional().nullable(),
+    proposedSlotStart: z.string().optional().nullable(),
     artistMessage: z.string().trim().min(2).max(1000),
   }).parse(raw);
-  if (data.status === "approved" && (!data.businessId || data.priceMinToman == null || data.depositToman == null)) {
-    throw new Error("برای تأیید، کسب‌وکار، بازه قیمت و بیعانه را کامل کنید.");
+  if (data.status === "approved" && (!data.businessId || data.priceMinToman == null || data.depositToman == null || !data.sessionMinutes || !data.proposedSlotStart)) {
+    throw new Error("برای تأیید، کسب‌وکار، قیمت، بیعانه، مدت جلسه و زمان پیشنهادی را کامل کنید.");
   }
   const sql = await getSql();
   if (data.businessId) {
     const owned = await sql.query<{ id: string }>("select id from businesses where id = $1 and owner_id = $2", [data.businessId, userId]);
     if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
   }
+  let proposedStart: string | null = null;
+  let proposedEnd: string | null = null;
+  if (data.status === "approved") {
+    const start = new Date(data.proposedSlotStart!);
+    if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 10 * 60000) throw new Error("زمان پیشنهادی معتبر نیست.");
+    const end = new Date(start.getTime() + data.sessionMinutes! * 60000);
+    const overlap = await sql.query<{ id: string }>(
+      `select id from bookings where business_id=$1 and status in ('requested','confirmed') and slot_start < $3 and slot_end > $2 limit 1`,
+      [data.businessId, start.toISOString(), end.toISOString()],
+    );
+    if (overlap[0]) throw new Error("این زمان قبلاً رزرو شده است. زمان دیگری انتخاب کنید.");
+    proposedStart = start.toISOString();
+    proposedEnd = end.toISOString();
+  }
   const updated = await sql.query<{ customer_id: string }>(
     `update tattoo_requests set status=$2, business_id=$3, price_min_toman=$4, price_max_toman=$5,
        session_minutes=$6, session_count=$7, deposit_toman=$8, artist_message=$9,
-       payment_status=case when $2='approved' then 'awaiting_payment' else 'not_required' end,
-       payment_hold_until=case when $2='approved' then now() + interval '6 hours' else null end,
+       payment_status=case when $2='approved' then 'proposal_pending' else 'not_required' end,
+       payment_hold_until=null,
        payment_submitted_at=null, payment_review_deadline=null, receipt_image=null,
        payment_iban=(select iban from business_settlement_accounts where business_id=$3),
-       payment_card_number=(select card_number from business_settlement_accounts where business_id=$3), updated_at=now()
+       payment_card_number=(select card_number from business_settlement_accounts where business_id=$3),
+       proposed_slot_start=$10, proposed_slot_end=$11, booking_id=null, updated_at=now()
      where id=$1 returning customer_id`,
     [data.id, data.status, data.businessId ?? null, data.priceMinToman ?? null, data.priceMaxToman ?? null,
-      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, data.artistMessage],
+      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, data.artistMessage, proposedStart, proposedEnd],
   );
   if (!updated[0]) throw new Error("درخواست پیدا نشد.");
   const titles = { approved: "درخواست تاتو تأیید شد", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
   await notify(sql, updated[0].customer_id, titles[data.status], data.artistMessage, `tattoo_request_${data.status}`);
   return { ok: true as const };
+}
+
+async function performAcceptTattooProposal(userId: string, raw: unknown) {
+  const data = z.object({ requestId: z.string() }).parse(raw);
+  const sql = await getSql();
+  const rows = await sql.query<{
+    id: string; customer_id: string; business_id: string; customer_name: string; customer_phone: string;
+    idea: string; style: string; proposed_slot_start: string; proposed_slot_end: string; payment_status: string;
+  }>(`select id, customer_id, business_id, customer_name, customer_phone, idea, style,
+             proposed_slot_start, proposed_slot_end, payment_status
+        from tattoo_requests where id=$1`, [data.requestId]);
+  const r = rows[0];
+  if (!r || r.customer_id !== userId) throw new Error("دسترسی ندارید.");
+  if (r.payment_status !== "proposal_pending" || !r.proposed_slot_start || !r.proposed_slot_end) throw new Error("این پیشنهاد قابل تأیید نیست.");
+  if (new Date(r.proposed_slot_start).getTime() < Date.now() + 10 * 60000) throw new Error("زمان پیشنهادی گذشته است. از آرتیست زمان تازه بخواهید.");
+  const overlap = await sql.query<{ id: string }>(
+    `select id from bookings where business_id=$1 and status in ('requested','confirmed') and slot_start < $3 and slot_end > $2 limit 1`,
+    [r.business_id, r.proposed_slot_start, r.proposed_slot_end],
+  );
+  if (overlap[0]) throw new Error("این زمان دیگر آزاد نیست. از آرتیست زمان تازه بخواهید.");
+  const bookingId = crypto.randomUUID();
+  try {
+    await sql.query(
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size)
+       values ($1,$2,$3,$4,$5,$6,$7,'booking','online','booking',$8,'requested',$9,1)`,
+      [bookingId, r.business_id, userId, r.customer_name, normalizeIranPhone(r.customer_phone), r.proposed_slot_start, r.proposed_slot_end, r.idea, r.style],
+    );
+  } catch (err) {
+    if (isOccupancyConflict(err)) throw new Error("این زمان همین الان رزرو شد. از آرتیست زمان تازه بخواهید.");
+    throw err;
+  }
+  await sql.query(
+    `update tattoo_requests set booking_id=$2, payment_status='awaiting_payment', payment_hold_until=now()+interval '6 hours', updated_at=now()
+      where id=$1 and customer_id=$3 and payment_status='proposal_pending'`,
+    [r.id, bookingId, userId],
+  );
+  await notify(sql, userId, "مهلت پرداخت آغاز شد", "زمان پیشنهادی تأیید شد. برای ارسال رسید بیعانه ۶ ساعت فرصت دارید.", "tattoo_proposal_accepted", { bookingId, businessId: r.business_id });
+  const owners = await sql.query<{ owner_id: string }>("select owner_id from businesses where id=$1", [r.business_id]);
+  if (owners[0]) await notify(sql, owners[0].owner_id, "زمان پیشنهادی پذیرفته شد", "مشتری زمان تاتو را پذیرفت؛ مهلت پرداخت ۶ ساعته آغاز شد.", "tattoo_proposal_accepted", { bookingId, businessId: r.business_id });
+  return { ok: true as const, bookingId };
 }
 
 const receiptImageSchema = z.string().max(1_400_000).refine((v) => /^data:image\/(jpeg|png|webp);base64,/i.test(v), "فرمت رسید معتبر نیست.");
@@ -688,14 +749,15 @@ export async function performCreateBooking(userId: string, raw: unknown) {
   const slotMinutes = Number(row.slot_minutes) || 60;
   let duration = serviceDurationMinutes(prices, data.serviceTitle, slotMinutes);
   if (data.tattooRequestId) {
-    const tattooRows = await sql.query<{ id: string; business_id: string | null; customer_id: string; status: string; session_minutes: number | null; payment_status: string; payment_hold_until: string | null }>(
-      `select id, business_id, customer_id, status, session_minutes, payment_status, payment_hold_until from tattoo_requests where id = $1`,
+    const tattooRows = await sql.query<{ id: string; business_id: string | null; booking_id: string | null; customer_id: string; status: string; session_minutes: number | null; payment_status: string; payment_hold_until: string | null }>(
+      `select id, business_id, booking_id, customer_id, status, session_minutes, payment_status, payment_hold_until from tattoo_requests where id = $1`,
       [data.tattooRequestId],
     );
     const tattoo = tattooRows[0];
     if (!tattoo || tattoo.customer_id !== userId || tattoo.business_id !== data.businessId || tattoo.status !== "approved") {
       throw new Error("این درخواست تاتو برای رزرو آماده نیست.");
     }
+    if (tattoo.booking_id) throw new Error("زمان این درخواست قبلاً توسط آرتیست ثبت شده است.");
     if (tattoo.payment_status !== "awaiting_payment" || !tattoo.payment_hold_until || new Date(tattoo.payment_hold_until).getTime() <= Date.now()) {
       throw new Error("مهلت پرداخت این درخواست تمام شده است. درخواست جدید ثبت کنید.");
     }
@@ -1582,6 +1644,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioTattooRequests(userId);
     case "decideTattooRequest":
       return performDecideTattooRequest(userId, payload);
+    case "acceptTattooProposal":
+      return performAcceptTattooProposal(userId, payload);
     case "mehrLoanLeads":
       return performMehrLoanLeads(userId);
     case "mehrLoanAccess":
