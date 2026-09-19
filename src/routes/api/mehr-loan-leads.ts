@@ -9,7 +9,9 @@ const inputSchema = z.object({
   phone: z.string().trim().max(40),
   scoreAmount: z.string().trim().max(40).optional(),
   repaymentMonths: z.coerce.number().int().min(1).max(120).optional().nullable(),
-  city: z.string().trim().max(80).optional(),
+  branchCode: z.string().trim().min(1, "کد شعبه را وارد کنید.").max(20),
+  province: z.string().trim().min(2, "استان را وارد کنید.").max(80),
+  county: z.string().trim().min(2, "شهرستان را وارد کنید.").max(80),
   description: z.string().trim().max(1000).optional(),
   website: z.string().max(0).optional(),
 });
@@ -44,10 +46,11 @@ async function submit(request: Request) {
       try {
         await sql.query(
           `insert into mehr_loan_leads
-             (id, tracking_code, full_name, phone, score_amount_toman, repayment_months, city, description)
-           values ($1,$2,$3,$4,$5,$6,$7,$8)`,
+             (id, tracking_code, full_name, phone, score_amount_toman, repayment_months,
+              branch_code, province, county, description)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [id, trackingCode, data.fullName, phone, scoreAmount || null, data.repaymentMonths ?? null,
-            data.city || null, data.description || null],
+            data.branchCode, data.province, data.county, data.description || null],
         );
         return json({ ok: true, trackingCode, status: "reviewing" });
       } catch (error) {
