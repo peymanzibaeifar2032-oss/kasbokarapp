@@ -5,15 +5,21 @@ import { isIranMobile, normalizeIranPhone, parseToman } from "@/lib/format";
 import { clientKey, allowRate } from "@/lib/server/rate-limit";
 
 const inputSchema = z.object({
+  requestType: z.enum(["buy", "sell"]),
   fullName: z.string().trim().min(2, "نام و نام خانوادگی را کامل بنویسید.").max(80),
   phone: z.string().trim().max(40),
   scoreAmount: z.string().trim().max(40).optional(),
   repaymentMonths: z.coerce.number().int().min(1).max(120).optional().nullable(),
-  branchCode: z.string().trim().min(1, "کد شعبه را وارد کنید.").max(20),
-  province: z.string().trim().min(2, "استان را وارد کنید.").max(80),
-  county: z.string().trim().min(2, "شهرستان را وارد کنید.").max(80),
+  branchCode: z.string().trim().max(20).optional(),
+  province: z.string().trim().max(80).optional(),
+  county: z.string().trim().max(80).optional(),
   description: z.string().trim().max(1000).optional(),
   website: z.string().max(0).optional(),
+}).superRefine((data, ctx) => {
+  if (data.requestType !== "sell") return;
+  if (!data.branchCode) ctx.addIssue({ code: "custom", path: ["branchCode"], message: "کد شعبه را وارد کنید." });
+  if (!data.province || data.province.length < 2) ctx.addIssue({ code: "custom", path: ["province"], message: "استان را وارد کنید." });
+  if (!data.county || data.county.length < 2) ctx.addIssue({ code: "custom", path: ["county"], message: "شهرستان را وارد کنید." });
 });
 
 function json(data: unknown, status = 200) {
@@ -46,11 +52,14 @@ async function submit(request: Request) {
       try {
         await sql.query(
           `insert into mehr_loan_leads
-             (id, tracking_code, full_name, phone, score_amount_toman, repayment_months,
+             (id, tracking_code, request_type, full_name, phone, score_amount_toman, repayment_months,
               branch_code, province, county, description)
-           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [id, trackingCode, data.fullName, phone, scoreAmount || null, data.repaymentMonths ?? null,
-            data.branchCode, data.province, data.county, data.description || null],
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [id, trackingCode, data.requestType, data.fullName, phone, scoreAmount || null, data.repaymentMonths ?? null,
+            data.requestType === "sell" ? data.branchCode || null : null,
+            data.requestType === "sell" ? data.province || null : null,
+            data.requestType === "sell" ? data.county || null : null,
+            data.description || null],
         );
         return json({ ok: true, trackingCode, status: "reviewing" });
       } catch (error) {
