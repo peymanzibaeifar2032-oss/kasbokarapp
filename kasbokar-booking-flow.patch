@@ -1,0 +1,1330 @@
+diff --git a/deploy/smoke.sh b/deploy/smoke.sh
+index 2e7b235..4c4a773 100755
+--- a/deploy/smoke.sh
++++ b/deploy/smoke.sh
+@@ -185,7 +185,7 @@ if [ -n "$BID" ]; then
+   BUSY=$(save "{\"type\":\"busySlots\",\"payload\":{\"businessId\":\"$BID\"}}")
+   echo "$BUSY" | grep -q 'slot' && ok "busySlots after booking" || ok "busySlots responded"
+   DUP=$(save "{\"type\":\"booking\",\"payload\":{\"businessId\":\"$BID\",\"customerName\":\"علی\",\"customerPhone\":\"09120000000\",\"slotStart\":\"$(date -u -d '+2 days' +%Y-%m-%dT10:00:00.000Z)\"}}")
+-  echo "$DUP" | grep -qiE 'تازه گرفته|تداخل|شخص دیگری' && ok "double-booking rejected" || bad "double-booking" "$(echo "$DUP" | head -c 180)"
++  echo "$DUP" | grep -qiE 'تازه گرفته|تداخل|شخص دیگری|قابل رزرو نیست' && ok "double-booking rejected" || bad "double-booking" "$(echo "$DUP" | head -c 180)"
+   if [ -n "$BKID" ]; then
+     ST=$(save "{\"type\":\"bookingStatus\",\"payload\":{\"id\":\"$BKID\",\"status\":\"confirmed\"}}")
+     echo "$ST" | grep -q '"ok":true' && ok "booking confirm" || bad "booking confirm" "$(echo "$ST" | head -c 120)"
+diff --git a/migrations/0017_tattoo_requests.sql b/migrations/0017_tattoo_requests.sql
+new file mode 100644
+index 0000000..8d50097
+--- /dev/null
++++ b/migrations/0017_tattoo_requests.sql
+@@ -0,0 +1,33 @@
++-- Tattoo project intake before appointment selection.
++create table if not exists tattoo_requests (
++  id text primary key,
++  customer_id text not null,
++  business_id text references businesses(id) on delete set null,
++  booking_id text references bookings(id) on delete set null,
++  customer_name text not null,
++  customer_phone text not null,
++  request_type text not null,
++  style text not null,
++  idea text not null,
++  placement text not null,
++  size_cm text not null,
++  preferred_dates text,
++  budget_toman int,
++  reference_images jsonb not null default '[]'::jsonb,
++  body_images jsonb not null default '[]'::jsonb,
++  status text not null default 'submitted',
++  price_min_toman int,
++  price_max_toman int,
++  session_minutes int,
++  session_count int,
++  deposit_toman int,
++  artist_message text,
++  created_at timestamptz not null default now(),
++  updated_at timestamptz not null default now(),
++  constraint tattoo_requests_type_chk check (request_type in ('new','coverup','consultation')),
++  constraint tattoo_requests_status_chk check (status in ('submitted','needs_info','approved','rejected','booked'))
++);
++
++create index if not exists tattoo_requests_customer_idx on tattoo_requests(customer_id, created_at desc);
++create index if not exists tattoo_requests_status_idx on tattoo_requests(status, created_at desc);
++
+diff --git a/migrations/0018_tattoo_payment_flow.sql b/migrations/0018_tattoo_payment_flow.sql
+new file mode 100644
+index 0000000..7a359c3
+--- /dev/null
++++ b/migrations/0018_tattoo_payment_flow.sql
+@@ -0,0 +1,12 @@
++-- Tattoo proposal hold and manual receipt review.
++alter table tattoo_requests add column if not exists payment_status text not null default 'not_required';
++alter table tattoo_requests add column if not exists payment_hold_until timestamptz;
++alter table tattoo_requests add column if not exists payment_submitted_at timestamptz;
++alter table tattoo_requests add column if not exists payment_review_deadline timestamptz;
++alter table tattoo_requests add column if not exists receipt_image text;
++alter table tattoo_requests add column if not exists payment_iban text;
++alter table tattoo_requests add column if not exists payment_card_number text;
++alter table business_settlement_accounts add column if not exists card_number text;
++alter table tattoo_requests drop constraint if exists tattoo_requests_payment_status_chk;
++alter table tattoo_requests add constraint tattoo_requests_payment_status_chk check (payment_status in ('not_required','awaiting_payment','receipt_submitted','approved','rejected','expired'));
++create index if not exists tattoo_requests_payment_hold_idx on tattoo_requests (payment_status, payment_hold_until);
+diff --git a/src/components/calendar/owner-calendar.tsx b/src/components/calendar/owner-calendar.tsx
+index dc86b63..d67724c 100644
+--- a/src/components/calendar/owner-calendar.tsx
++++ b/src/components/calendar/owner-calendar.tsx
+@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
+ import { Button } from "@/components/ui/button";
+ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
+ import { gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
+-import { formatFaDateTime, toWhatsAppLink } from "@/lib/format";
++import { formatFaDateTime, formatToman, toWhatsAppLink } from "@/lib/format";
+ import { jalaliDayLabel, tehranClock, tehranDayKey, tehranLocalToIso, type DayStatus } from "@/lib/hours";
+ import { t } from "@/lib/i18n";
+ import { friendlyError, saveAction } from "@/lib/save";
+@@ -52,11 +52,17 @@ export function OwnerCalendar({
+   const [selected, setSelected] = useState<Booking | null>(null);
+   const [resourceFilter, setResourceFilter] = useState("");
+   const [resources, setResources] = useState<BusinessResource[]>([]);
++  const [selectedBusinessId, setSelectedBusinessId] = useState(businesses[0]?.id ?? "");
+   const clock = tehranClock(cursor);
+   const todayKey = tehranDayKey();
+   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
+   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
+-  const businessId = businesses[0]?.id ?? "";
++  const businessId = selectedBusinessId || businesses[0]?.id || "";
++
++  useEffect(() => {
++    if (!selectedBusinessId && businesses[0]) setSelectedBusinessId(businesses[0].id);
++    if (selectedBusinessId && !businesses.some((b) => b.id === selectedBusinessId)) setSelectedBusinessId(businesses[0]?.id ?? "");
++  }, [businesses, selectedBusinessId]);
+ 
+   useEffect(() => {
+     if (!businessId) return;
+@@ -64,9 +70,10 @@ export function OwnerCalendar({
+   }, [businessId]);
+ 
+   const visibleItems = useMemo(() => {
+-    if (!resourceFilter) return items;
+-    return items.filter((b) => !b.resourceId || b.resourceId === resourceFilter);
+-  }, [items, resourceFilter]);
++    const businessRows = items.filter((b) => b.businessId === businessId);
++    if (!resourceFilter) return businessRows;
++    return businessRows.filter((b) => !b.resourceId || b.resourceId === resourceFilter);
++  }, [businessId, items, resourceFilter]);
+ 
+   const byDay = useMemo(() => {
+     const map = new Map<string, Booking[]>();
+@@ -120,6 +127,11 @@ export function OwnerCalendar({
+       <div className="flex flex-wrap items-center justify-between gap-2">
+         <h2 className="text-lg font-semibold">{t("navCalendar")}</h2>
+         <div className="flex flex-wrap gap-1">
++          {businesses.length > 1 ? (
++            <NativeSelect value={businessId} onChange={(e) => { setSelectedBusinessId(e.target.value); setResourceFilter(""); }} className="h-10">
++              {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
++            </NativeSelect>
++          ) : null}
+           {resources.length ? (
+             <NativeSelect value={resourceFilter} onChange={(e) => setResourceFilter(e.target.value)} className="h-10">
+               <option value="">{t("allResources")}</option>
+@@ -217,6 +229,8 @@ export function OwnerCalendar({
+                   {b.resourceName ? <span className="block text-xs">{b.resourceName}</span> : null}
+                   {b.kind !== "block" ? <span className="block">{b.customerName}</span> : null}
+                   {b.serviceTitle ? <span className="block text-xs text-muted">{b.serviceTitle}</span> : null}
++                  {b.tattooRequestId ? <span className="block text-xs text-accent">تاتو · {b.tattooPlacement || "محل نامشخص"}{b.tattooSizeCm ? ` · ${b.tattooSizeCm}` : ""}</span> : null}
++                  {b.tattooPriceMinToman != null ? <span className="block text-xs text-muted">قیمت: {formatToman(b.tattooPriceMinToman)}{b.tattooPriceMaxToman ? ` تا ${formatToman(b.tattooPriceMaxToman)}` : ""}</span> : null}
+                 </button>
+               </li>
+             ))}
+@@ -294,6 +308,18 @@ function AppointmentCard({
+       <p className="text-sm">{formatFaDateTime(booking.slotStart)}{booking.slotEnd ? ` – ${formatFaDateTime(booking.slotEnd)}` : ""}</p>
+       <p className="text-xs text-muted">ثبت: {formatFaDateTime(booking.createdAt)}</p>
+       {booking.note ? <p className="mt-2 text-sm text-muted">{booking.note}</p> : null}
++      {booking.tattooRequestId ? (
++        <div className="mt-3 rounded-xl border border-accent/20 bg-accent/5 p-3 text-sm">
++          <p className="font-semibold text-accent">پروژه تاتو</p>
++          {booking.tattooStyle ? <p>سبک: {booking.tattooStyle}</p> : null}
++          {booking.tattooPlacement ? <p>محل اجرا: {booking.tattooPlacement}</p> : null}
++          {booking.tattooSizeCm ? <p>اندازه: {booking.tattooSizeCm}</p> : null}
++          {booking.tattooPriceMinToman != null ? <p>مبلغ: {formatToman(booking.tattooPriceMinToman)}{booking.tattooPriceMaxToman ? ` تا ${formatToman(booking.tattooPriceMaxToman)}` : ""}</p> : null}
++          {booking.tattooSessionCount ? <p>جلسه: {booking.tattooSessionCount}{booking.tattooSessionMinutes ? ` · ${booking.tattooSessionMinutes} دقیقه` : ""}</p> : null}
++          {booking.tattooIdea ? <p className="mt-1 leading-6">توضیح: {booking.tattooIdea}</p> : null}
++          {booking.tattooReferenceImages?.length || booking.tattooBodyImages?.length ? <div className="mt-2 flex gap-2 overflow-x-auto">{[...(booking.tattooReferenceImages ?? []), ...(booking.tattooBodyImages ?? [])].map((src, i) => <a key={`${booking.id}-tattoo-${i}`} href={src} target="_blank" rel="noreferrer"><img src={src} alt="تصویر پروژه تاتو" className="size-16 rounded-lg border border-border object-cover" /></a>)}</div> : null}
++        </div>
++      ) : null}
+       <div className="mt-3 flex flex-wrap gap-2">
+         {!isBlock && booking.status === "requested" ? (
+           <Button size="sm" onClick={() => void setStatus("confirmed")}>تأیید</Button>
+diff --git a/src/components/finance/panel.tsx b/src/components/finance/panel.tsx
+index 247a4a5..ed51922 100644
+--- a/src/components/finance/panel.tsx
++++ b/src/components/finance/panel.tsx
+@@ -47,6 +47,7 @@ export function FinancePanel({ action }: { action: "financeMine" | "financeAdmin
+   const [data, setData] = useState<FinancePayload | null>(null);
+   const [iban, setIban] = useState("");
+   const [ownerName, setOwnerName] = useState("");
++  const [cardNumber, setCardNumber] = useState("");
+ 
+   useEffect(() => {
+     void saveAction<FinancePayload>(action).then(setData).catch(() => setData(null));
+@@ -79,12 +80,13 @@ export function FinancePanel({ action }: { action: "financeMine" | "financeAdmin
+           <div className="mt-3 grid gap-2 sm:grid-cols-2">
+             <Input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="نام صاحب شبا" />
+             <Input value={iban} onChange={(e) => setIban(e.target.value)} placeholder="IR…………" dir="ltr" />
++            <Input value={cardNumber} onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ""))} placeholder="شماره کارت ۱۶ رقمی" inputMode="numeric" dir="ltr" />
+           </div>
+           <Button
+             className="mt-3"
+             variant="outline"
+             onClick={() => {
+-              void saveAction("saveIban", { businessId: biz.id, iban, ownerName })
++              void saveAction("saveIban", { businessId: biz.id, iban, ownerName, cardNumber })
+                 .then(() => {
+                   toast.success("شبا ذخیره شد.");
+                   void saveAction<FinancePayload>(action).then(setData);
+diff --git a/src/lib/finance/server.ts b/src/lib/finance/server.ts
+index 1e32cbd..8301957 100644
+--- a/src/lib/finance/server.ts
++++ b/src/lib/finance/server.ts
+@@ -309,17 +309,19 @@ export async function performMyPayments(userId: string) {
+   }));
+ }
+ 
+-export async function performSaveIban(userId: string, raw: { businessId: string; iban: string; ownerName: string }) {
++export async function performSaveIban(userId: string, raw: { businessId: string; iban: string; ownerName: string; cardNumber?: string }) {
+   const sql = await getSql();
+   const owned = await sql.query<{ id: string }>(`select id from businesses where id = $1 and owner_id = $2`, [raw.businessId, userId]);
+   if (!owned[0]) throw new Error("دسترسی ندارید.");
+   const iban = raw.iban.replace(/\s/g, "").toUpperCase();
+   if (!/^IR\d{24}$/.test(iban)) throw new Error("شماره شبا معتبر نیست.");
++  const card = (raw.cardNumber ?? "").replace(/\D/g, "");
++  if (card && !/^\d{16}$/.test(card)) throw new Error("شماره کارت باید ۱۶ رقم باشد.");
+   await sql.query(
+-    `insert into business_settlement_accounts (business_id, iban, owner_name, verification_status, updated_at)
+-     values ($1,$2,$3,'unverified', now())
+-     on conflict (business_id) do update set iban = excluded.iban, owner_name = excluded.owner_name, verification_status = 'unverified', updated_at = now()`,
+-    [raw.businessId, iban, raw.ownerName.trim()],
++    `insert into business_settlement_accounts (business_id, iban, owner_name, card_number, verification_status, updated_at)
++     values ($1,$2,$3,$4,'unverified', now())
++     on conflict (business_id) do update set iban = excluded.iban, owner_name = excluded.owner_name, card_number = excluded.card_number, verification_status = 'unverified', updated_at = now()`,
++    [raw.businessId, iban, raw.ownerName.trim(), card || null],
+   );
+   await audit(sql, userId, "iban_change", "business", raw.businessId, null, { iban: maskIban(iban) });
+   return { ok: true as const, masked: maskIban(iban) };
+diff --git a/src/lib/server/db-map.ts b/src/lib/server/db-map.ts
+index 10358b5..d93923d 100644
+--- a/src/lib/server/db-map.ts
++++ b/src/lib/server/db-map.ts
+@@ -130,9 +130,22 @@ export type BookingRow = {
+   buffer_after?: number | string | null;
+   resource_id?: string | null;
+   resource_name?: string | null;
++  tattoo_request_id?: string | null;
++  tattoo_style?: string | null;
++  tattoo_idea?: string | null;
++  tattoo_placement?: string | null;
++  tattoo_size_cm?: string | null;
++  tattoo_reference_images?: unknown;
++  tattoo_body_images?: unknown;
++  tattoo_price_min_toman?: number | string | null;
++  tattoo_price_max_toman?: number | string | null;
++  tattoo_session_count?: number | string | null;
++  tattoo_session_minutes?: number | string | null;
++  tattoo_deposit_toman?: number | string | null;
+ };
+ 
+ export function mapBooking(row: BookingRow): Booking {
++  const images = (value: unknown) => Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
+   const kind: BookingKind = row.kind === "block" ? "block" : "booking";
+   const eventType = (row.event_type || (kind === "block" ? "block" : "booking")) as Booking["eventType"];
+   return {
+@@ -156,6 +169,18 @@ export function mapBooking(row: BookingRow): Booking {
+     createdAt: row.created_at,
+     resourceId: row.resource_id ?? null,
+     resourceName: row.resource_name ?? null,
++    tattooRequestId: row.tattoo_request_id ?? null,
++    tattooStyle: row.tattoo_style ?? null,
++    tattooIdea: row.tattoo_idea ?? null,
++    tattooPlacement: row.tattoo_placement ?? null,
++    tattooSizeCm: row.tattoo_size_cm ?? null,
++    tattooReferenceImages: images(row.tattoo_reference_images),
++    tattooBodyImages: images(row.tattoo_body_images),
++    tattooPriceMinToman: row.tattoo_price_min_toman == null ? null : Number(row.tattoo_price_min_toman),
++    tattooPriceMaxToman: row.tattoo_price_max_toman == null ? null : Number(row.tattoo_price_max_toman),
++    tattooSessionCount: row.tattoo_session_count == null ? null : Number(row.tattoo_session_count),
++    tattooSessionMinutes: row.tattoo_session_minutes == null ? null : Number(row.tattoo_session_minutes),
++    tattooDepositToman: row.tattoo_deposit_toman == null ? null : Number(row.tattoo_deposit_toman),
+   };
+ }
+ 
+@@ -237,7 +262,13 @@ export const BOOKING_SELECT = `
+   coalesce(k.buffer_before, 0) as buffer_before,
+   coalesce(k.buffer_after, 0) as buffer_after,
+   k.resource_id,
+-  r.name as resource_name
++  r.name as resource_name,
++  tr.id as tattoo_request_id, tr.style as tattoo_style, tr.idea as tattoo_idea,
++  tr.placement as tattoo_placement, tr.size_cm as tattoo_size_cm,
++  tr.reference_images as tattoo_reference_images, tr.body_images as tattoo_body_images,
++  tr.price_min_toman as tattoo_price_min_toman, tr.price_max_toman as tattoo_price_max_toman,
++  tr.session_count as tattoo_session_count, tr.session_minutes as tattoo_session_minutes,
++  tr.deposit_toman as tattoo_deposit_toman
+ `;
+ 
+ export const ACTIVE_OCCUPANCY_SQL = `
+@@ -259,4 +290,3 @@ export const HOLDS_OCCUPANCY_SELECT = `
+   slot_end,
+   coalesce(nullif(resource_id, ''), nullif(staff_id, '')) as resource_id
+ `;
+-
+diff --git a/src/lib/server/writes.ts b/src/lib/server/writes.ts
+index b813130..93a5520 100644
+--- a/src/lib/server/writes.ts
++++ b/src/lib/server/writes.ts
+@@ -32,7 +32,7 @@ import {
+   type BizRow,
+   type ReviewRow,
+ } from "@/lib/server/db-map";
+-import type { OwnerStats, PriceItem, Profile, WorkHour } from "@/lib/types";
++import type { OwnerStats, PriceItem, Profile, TattooRequest, WorkHour } from "@/lib/types";
+ 
+ const hoursSchema = z.array(
+   z.object({
+@@ -87,6 +87,225 @@ async function requireAdmin(userId: string) {
+   if (!me[0]?.is_admin) throw new Error("دسترسی مدیریت ندارید.");
+ }
+ 
++type TattooRequestRow = {
++  id: string;
++  customer_id: string;
++  business_id: string | null;
++  booking_id: string | null;
++  customer_name: string;
++  customer_phone: string;
++  request_type: "new" | "coverup" | "consultation";
++  style: string;
++  idea: string;
++  placement: string;
++  size_cm: string;
++  preferred_dates: string | null;
++  budget_toman: number | null;
++  reference_images: unknown;
++  body_images: unknown;
++  status: TattooRequest["status"];
++  price_min_toman: number | null;
++  price_max_toman: number | null;
++  session_minutes: number | null;
++  session_count: number | null;
++  deposit_toman: number | null;
++  artist_message: string | null;
++  payment_status: TattooRequest["paymentStatus"];
++  payment_hold_until: string | null;
++  payment_submitted_at: string | null;
++  payment_review_deadline: string | null;
++  receipt_image: string | null;
++  payment_iban: string | null;
++  payment_card_number: string | null;
++  created_at: string;
++  updated_at: string;
++};
++
++function mapTattooRequest(row: TattooRequestRow): TattooRequest {
++  const images = (value: unknown) => Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
++  return {
++    id: row.id,
++    customerId: row.customer_id,
++    businessId: row.business_id,
++    bookingId: row.booking_id,
++    customerName: row.customer_name,
++    customerPhone: row.customer_phone,
++    requestType: row.request_type,
++    style: row.style,
++    idea: row.idea,
++    placement: row.placement,
++    sizeCm: row.size_cm,
++    preferredDates: row.preferred_dates,
++    budgetToman: row.budget_toman == null ? null : Number(row.budget_toman),
++    referenceImages: images(row.reference_images),
++    bodyImages: images(row.body_images),
++    status: row.status,
++    priceMinToman: row.price_min_toman == null ? null : Number(row.price_min_toman),
++    priceMaxToman: row.price_max_toman == null ? null : Number(row.price_max_toman),
++    sessionMinutes: row.session_minutes == null ? null : Number(row.session_minutes),
++    sessionCount: row.session_count == null ? null : Number(row.session_count),
++    depositToman: row.deposit_toman == null ? null : Number(row.deposit_toman),
++    artistMessage: row.artist_message,
++    paymentStatus: row.payment_status,
++    paymentHoldUntil: row.payment_hold_until,
++    paymentSubmittedAt: row.payment_submitted_at,
++    paymentReviewDeadline: row.payment_review_deadline,
++    receiptImage: row.receipt_image,
++    paymentIban: row.payment_iban,
++    paymentCardNumber: row.payment_card_number,
++    createdAt: row.created_at,
++    updatedAt: row.updated_at,
++  };
++}
++
++const tattooRequestSelect = `select id, customer_id, business_id, booking_id, customer_name, customer_phone,
++  request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
++  reference_images, body_images, status, price_min_toman, price_max_toman,
++  session_minutes, session_count, deposit_toman, artist_message, payment_status, payment_hold_until,
++  payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number, created_at, updated_at
++  from tattoo_requests`;
++
++const imageDataSchema = z.string().max(1_000_000).refine(
++  (value) => /^data:image\/(jpeg|png|webp);base64,/i.test(value),
++  "فرمت تصویر معتبر نیست.",
++);
++
++async function performCreateTattooRequest(userId: string, raw: unknown) {
++  const data = z.object({
++    customerName: z.string().trim().min(2, "نام را کامل بنویسید.").max(80),
++    customerPhone: z.string().trim().max(40),
++    requestType: z.enum(["new", "coverup", "consultation"]),
++    style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(80),
++    idea: z.string().trim().min(10, "ایده را کمی کامل‌تر توضیح دهید.").max(1500),
++    placement: z.string().trim().min(2, "محل اجرا را بنویسید.").max(120),
++    sizeCm: z.string().trim().min(1, "اندازه تقریبی را بنویسید.").max(60),
++    preferredDates: z.string().trim().max(200).optional(),
++    budgetToman: z.number().int().min(0).max(2_000_000_000).optional().nullable(),
++    referenceImages: z.array(imageDataSchema).max(3).default([]),
++    bodyImages: z.array(imageDataSchema).max(2).default([]),
++  }).parse(raw);
++  const phone = normalizeIranPhone(data.customerPhone);
++  if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
++  const bytes = [...data.referenceImages, ...data.bodyImages].reduce((sum, value) => sum + value.length, 0);
++  if (bytes > 3_500_000) throw new Error("حجم مجموع عکس‌ها زیاد است. عکس‌های کم‌حجم‌تر بفرستید.");
++  const sql = await getSql();
++  const id = crypto.randomUUID();
++  await sql.query(
++    `insert into tattoo_requests
++      (id, customer_id, customer_name, customer_phone, request_type, style, idea, placement,
++       size_cm, preferred_dates, budget_toman, reference_images, body_images)
++     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb)`,
++    [id, userId, data.customerName, phone, data.requestType, data.style, data.idea, data.placement,
++      data.sizeCm, data.preferredDates || null, data.budgetToman ?? null,
++      JSON.stringify(data.referenceImages), JSON.stringify(data.bodyImages)],
++  );
++  const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin = true");
++  for (const admin of admins) {
++    await notify(sql, admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} دریافت شد.`, "tattoo_request_new");
++  }
++  await notify(sql, userId, "درخواست تاتو ثبت شد", "درخواست شما برای بررسی پیمان زیبائی‌فر ارسال شد.", "tattoo_request_created");
++  return { id };
++}
++
++async function performMyTattooRequests(userId: string) {
++  const sql = await getSql();
++  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where customer_id=$1 and status='approved' and payment_status='awaiting_payment' and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`, [userId]);
++  await sql.query(`update tattoo_requests set status='rejected', payment_status='expired', updated_at=now()
++    where customer_id=$1 and status='approved' and payment_status='awaiting_payment'
++      and payment_hold_until is not null and payment_hold_until <= now()`, [userId]);
++  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where customer_id = $1 order by created_at desc`, [userId]);
++  return rows.map(mapTattooRequest);
++}
++
++async function performStudioTattooRequests(userId: string) {
++  await requireAdmin(userId);
++  const sql = await getSql();
++  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where status='approved' and payment_status='awaiting_payment' and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`);
++  await sql.query(`update tattoo_requests set status='rejected', payment_status='expired', updated_at=now()
++    where status='approved' and payment_status='awaiting_payment'
++      and payment_hold_until is not null and payment_hold_until <= now()`);
++  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} order by case status when 'submitted' then 0 when 'needs_info' then 1 when 'approved' then 2 else 3 end, created_at desc`);
++  return rows.map(mapTattooRequest);
++}
++
++async function performDecideTattooRequest(userId: string, raw: unknown) {
++  await requireAdmin(userId);
++  const data = z.object({
++    id: z.string(),
++    status: z.enum(["needs_info", "approved", "rejected", "booked"]),
++    businessId: z.string().optional().nullable(),
++    priceMinToman: z.number().int().min(0).optional().nullable(),
++    priceMaxToman: z.number().int().min(0).optional().nullable(),
++    sessionMinutes: z.number().int().min(10).max(4320).optional().nullable(),
++    sessionCount: z.number().int().min(1).max(20).optional().nullable(),
++    depositToman: z.number().int().min(0).optional().nullable(),
++    artistMessage: z.string().trim().min(2).max(1000),
++  }).parse(raw);
++  if (data.status === "approved" && (!data.businessId || data.priceMinToman == null || data.depositToman == null)) {
++    throw new Error("برای تأیید، کسب‌وکار، بازه قیمت و بیعانه را کامل کنید.");
++  }
++  const sql = await getSql();
++  if (data.businessId) {
++    const owned = await sql.query<{ id: string }>("select id from businesses where id = $1 and owner_id = $2", [data.businessId, userId]);
++    if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
++  }
++  const updated = await sql.query<{ customer_id: string }>(
++    `update tattoo_requests set status=$2, business_id=$3, price_min_toman=$4, price_max_toman=$5,
++       session_minutes=$6, session_count=$7, deposit_toman=$8, artist_message=$9,
++       payment_status=case when $2='approved' then 'awaiting_payment' else 'not_required' end,
++       payment_hold_until=case when $2='approved' then now() + interval '6 hours' else null end,
++       payment_submitted_at=null, payment_review_deadline=null, receipt_image=null,
++       payment_iban=(select iban from business_settlement_accounts where business_id=$3),
++       payment_card_number=(select card_number from business_settlement_accounts where business_id=$3), updated_at=now()
++     where id=$1 returning customer_id`,
++    [data.id, data.status, data.businessId ?? null, data.priceMinToman ?? null, data.priceMaxToman ?? null,
++      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, data.artistMessage],
++  );
++  if (!updated[0]) throw new Error("درخواست پیدا نشد.");
++  const titles = { approved: "درخواست تاتو تأیید شد", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
++  await notify(sql, updated[0].customer_id, titles[data.status], data.artistMessage, `tattoo_request_${data.status}`);
++  return { ok: true as const };
++}
++
++const receiptImageSchema = z.string().max(1_400_000).refine((v) => /^data:image\/(jpeg|png|webp);base64,/i.test(v), "فرمت رسید معتبر نیست.");
++
++async function performSubmitTattooReceipt(userId: string, raw: unknown) {
++  const data = z.object({ requestId: z.string(), receiptImage: receiptImageSchema }).parse(raw);
++  const sql = await getSql();
++  const rows = await sql.query<{ id: string; customer_id: string; business_id: string | null; payment_status: string; payment_hold_until: string | null }>(`select id, customer_id, business_id, payment_status, payment_hold_until from tattoo_requests where id=$1`, [data.requestId]);
++  const r = rows[0];
++  if (!r || r.customer_id !== userId) throw new Error("دسترسی ندارید.");
++  if (r.payment_status !== "awaiting_payment") throw new Error("این درخواست در وضعیت پرداخت نیست.");
++  if (!r.payment_hold_until || new Date(r.payment_hold_until).getTime() <= Date.now()) {
++    await sql.query(`update tattoo_requests set status='rejected', payment_status='expired', updated_at=now() where id=$1`, [r.id]);
++    throw new Error("مهلت پرداخت تمام شده است.");
++  }
++  await sql.query(`update tattoo_requests set payment_status='receipt_submitted', payment_submitted_at=now(), payment_review_deadline=now()+interval '12 hours', receipt_image=$2, updated_at=now() where id=$1`, [r.id, data.receiptImage]);
++  const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin=true");
++  for (const a of admins) await notify(sql, a.user_id, "رسید پرداخت جدید", "رسید بیعانه برای بررسی ارسال شد.", "tattoo_receipt_submitted", { businessId: r.business_id ?? undefined });
++  await notify(sql, userId, "رسید در دست بررسی", "رسید شما دریافت شد و حداکثر تا ۱۲ ساعت آینده بررسی می‌شود.", "tattoo_receipt_review", { businessId: r.business_id ?? undefined });
++  return { ok: true as const };
++}
++
++async function performDecideTattooReceipt(userId: string, raw: unknown) {
++  await requireAdmin(userId);
++  const data = z.object({ requestId: z.string(), approved: z.boolean(), message: z.string().trim().min(2).max(1000) }).parse(raw);
++  const sql = await getSql();
++  const rows = await sql.query<{ customer_id: string; booking_id: string | null; business_id: string | null; payment_status: string }>(`select customer_id, booking_id, business_id, payment_status from tattoo_requests where id=$1`, [data.requestId]);
++  const r = rows[0];
++  if (!r || r.payment_status !== "receipt_submitted") throw new Error("رسید قابل بررسی نیست.");
++  if (data.approved) {
++    if (!r.booking_id) throw new Error("ابتدا زمان رزرو باید انتخاب شود.");
++    await sql.query(`update tattoo_requests set status='booked', payment_status='approved', artist_message=$2, updated_at=now() where id=$1`, [data.requestId, data.message]);
++    await sql.query(`update bookings set status='confirmed', finance_status='deposit_paid' where id=$1`, [r.booking_id]);
++  } else {
++    await sql.query(`update tattoo_requests set payment_status='rejected', artist_message=$2, updated_at=now() where id=$1`, [data.requestId, data.message]);
++    if (r.booking_id) await sql.query(`update bookings set status='cancelled', finance_status='payment_failed' where id=$1 and status='requested'`, [r.booking_id]);
++  }
++  await notify(sql, r.customer_id, data.approved ? "رزرو تاتو قطعی شد" : "رسید نیاز به اصلاح دارد", data.message, data.approved ? "tattoo_receipt_approved" : "tattoo_receipt_rejected", { bookingId: r.booking_id ?? undefined, businessId: r.business_id ?? undefined });
++  return { ok: true as const };
++}
++
+ export async function performEnsureProfile(userId: string, displayName = "کاربر"): Promise<Profile> {
+   const sql = await getSql();
+   let email: string | null = null;
+@@ -359,6 +578,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
+       serviceTitle: z.string().max(80).optional(),
+       partySize: z.number().int().min(1).max(20).optional(),
+       resourceId: z.string().max(80).optional().nullable(),
++      tattooRequestId: z.string().optional().nullable(),
+     })
+     .parse(raw);
+   if (!isIranMobile(data.customerPhone)) throw new Error("شماره موبایل معتبر وارد کنید.");
+@@ -383,7 +603,21 @@ export async function performCreateBooking(userId: string, raw: unknown) {
+   const workHours = parseJsonField(row.work_hours as never, [] as WorkHour[]);
+   const prices = parseJsonField(row.prices as never, [] as PriceItem[]);
+   const slotMinutes = Number(row.slot_minutes) || 60;
+-  const duration = serviceDurationMinutes(prices, data.serviceTitle, slotMinutes);
++  let duration = serviceDurationMinutes(prices, data.serviceTitle, slotMinutes);
++  if (data.tattooRequestId) {
++    const tattooRows = await sql.query<{ id: string; business_id: string | null; customer_id: string; status: string; session_minutes: number | null; payment_status: string; payment_hold_until: string | null }>(
++      `select id, business_id, customer_id, status, session_minutes, payment_status, payment_hold_until from tattoo_requests where id = $1`,
++      [data.tattooRequestId],
++    );
++    const tattoo = tattooRows[0];
++    if (!tattoo || tattoo.customer_id !== userId || tattoo.business_id !== data.businessId || tattoo.status !== "approved") {
++      throw new Error("این درخواست تاتو برای رزرو آماده نیست.");
++    }
++    if (tattoo.payment_status !== "awaiting_payment" || !tattoo.payment_hold_until || new Date(tattoo.payment_hold_until).getTime() <= Date.now()) {
++      throw new Error("مهلت پرداخت این درخواست تمام شده است. درخواست جدید ثبت کنید.");
++    }
++    if (tattoo.session_minutes != null) duration = { ...duration, minutes: Number(tattoo.session_minutes) };
++  }
+   const buffers = serviceBuffers(prices, data.serviceTitle);
+   const slotEnd = new Date(start.getTime() + duration.minutes * 60000).toISOString();
+   const specialDays = await loadSpecialDays(sql, data.businessId);
+@@ -480,7 +714,14 @@ export async function performCreateBooking(userId: string, raw: unknown) {
+   if (staffed && !resourceId) {
+     throw new Error("این ساعت قابل رزرو نیست.");
+   }
+-  await audit(sql, id, userId, "created", null, { slotStart: data.slotStart, slotEnd, status: "requested", resourceId });
++  if (data.tattooRequestId) {
++    await sql.query(
++      `update tattoo_requests set booking_id = $2, updated_at = now()
++       where id = $1 and customer_id = $3 and status = 'approved'`,
++      [data.tattooRequestId, id, userId],
++    );
++  }
++  await audit(sql, id, userId, "created", null, { slotStart: data.slotStart, slotEnd, status: "requested", resourceId, tattooRequestId: data.tattooRequestId ?? null });
+   await notify(sql, userId, "رزرو ثبت شد", `درخواست نوبت شما در «${row.name}» ثبت شد.`, "booking_created", {
+     bookingId: id,
+     businessId: data.businessId,
+@@ -1049,6 +1290,7 @@ async function performOwnerBookings(userId: string) {
+      from bookings k
+      join businesses b on b.id = k.business_id
+      left join business_resources r on r.id = k.resource_id
++     left join tattoo_requests tr on tr.booking_id = k.id
+      where b.owner_id = $1
+      order by k.slot_start desc`,
+     [userId],
+@@ -1093,6 +1335,7 @@ async function performMyBookings(userId: string) {
+      from bookings k
+      join businesses b on b.id = k.business_id
+      left join business_resources r on r.id = k.resource_id
++     left join tattoo_requests tr on tr.booking_id = k.id
+      where k.customer_id = $1 and k.kind = 'booking'
+      order by k.slot_start desc`,
+     [userId],
+@@ -1248,6 +1491,18 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
+       return performReply(userId, payload);
+     case "booking":
+       return performCreateBooking(userId, payload);
++    case "createTattooRequest":
++      return performCreateTattooRequest(userId, payload);
++    case "myTattooRequests":
++      return performMyTattooRequests(userId);
++    case "studioTattooRequests":
++      return performStudioTattooRequests(userId);
++    case "decideTattooRequest":
++      return performDecideTattooRequest(userId, payload);
++    case "submitTattooReceipt":
++      return performSubmitTattooReceipt(userId, payload);
++    case "decideTattooReceipt":
++      return performDecideTattooReceipt(userId, payload);
+     case "blockInterval":
+       return performCreateBlock(userId, payload);
+     case "bookingStatus":
+@@ -1316,7 +1571,7 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
+     }
+     case "saveIban": {
+       const { performSaveIban } = await import("@/lib/finance/server");
+-      return performSaveIban(userId, payload as { businessId: string; iban: string; ownerName: string });
++      return performSaveIban(userId, payload as { businessId: string; iban: string; ownerName: string; cardNumber?: string });
+     }
+     case "requestSettlement": {
+       const { performRequestSettlement } = await import("@/lib/finance/server");
+diff --git a/src/lib/types.ts b/src/lib/types.ts
+index 9b3c138..b78ea45 100644
+--- a/src/lib/types.ts
++++ b/src/lib/types.ts
+@@ -106,6 +106,18 @@ export type Booking = {
+   createdAt: string;
+   resourceId?: string | null;
+   resourceName?: string | null;
++  tattooRequestId?: string | null;
++  tattooStyle?: string | null;
++  tattooIdea?: string | null;
++  tattooPlacement?: string | null;
++  tattooSizeCm?: string | null;
++  tattooReferenceImages?: string[];
++  tattooBodyImages?: string[];
++  tattooPriceMinToman?: number | null;
++  tattooPriceMaxToman?: number | null;
++  tattooSessionCount?: number | null;
++  tattooSessionMinutes?: number | null;
++  tattooDepositToman?: number | null;
+ };
+ 
+ export type NotificationItem = {
+@@ -160,3 +172,40 @@ export type BusyInterval = {
+   end: string;
+   resourceId?: string | null;
+ };
++
++export type TattooRequestStatus = "submitted" | "needs_info" | "approved" | "rejected" | "booked";
++export type TattooPaymentStatus = "not_required" | "awaiting_payment" | "receipt_submitted" | "approved" | "rejected" | "expired";
++
++export type TattooRequest = {
++  id: string;
++  customerId: string;
++  businessId: string | null;
++  bookingId: string | null;
++  customerName: string;
++  customerPhone: string;
++  requestType: "new" | "coverup" | "consultation";
++  style: string;
++  idea: string;
++  placement: string;
++  sizeCm: string;
++  preferredDates: string | null;
++  budgetToman: number | null;
++  referenceImages: string[];
++  bodyImages: string[];
++  status: TattooRequestStatus;
++  priceMinToman: number | null;
++  priceMaxToman: number | null;
++  sessionMinutes: number | null;
++  sessionCount: number | null;
++  depositToman: number | null;
++  artistMessage: string | null;
++  paymentStatus: TattooPaymentStatus;
++  paymentHoldUntil: string | null;
++  paymentSubmittedAt: string | null;
++  paymentReviewDeadline: string | null;
++  receiptImage: string | null;
++  paymentIban: string | null;
++  paymentCardNumber: string | null;
++  createdAt: string;
++  updatedAt: string;
++};
+diff --git a/src/routeTree.gen.ts b/src/routeTree.gen.ts
+index b9b72d9..e983add 100644
+--- a/src/routeTree.gen.ts
++++ b/src/routeTree.gen.ts
+@@ -25,6 +25,7 @@ import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
+ import { Route as ApiSaveRouteImport } from './routes/api/save'
+ import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
+ import { Route as BusinessIdRouteImport } from './routes/business/$id'
++import { Route as StudioRequestRouteImport } from './routes/studio.request'
+ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+ import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
+ import { Route as ApiPaymentsWebhookRouteImport } from './routes/api/payments/webhook'
+@@ -110,6 +111,11 @@ const BusinessIdRoute = BusinessIdRouteImport.update({
+   path: '/business/$id',
+   getParentRoute: () => rootRouteImport,
+ } as any)
++const StudioRequestRoute = StudioRequestRouteImport.update({
++  id: '/request',
++  path: '/request',
++  getParentRoute: () => StudioRoute,
++} as any)
+ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+   id: '/api/auth/$',
+   path: '/api/auth/$',
+@@ -140,7 +146,7 @@ export interface FileRoutesByFullPath {
+   '/download': typeof DownloadRoute
+   '/login': typeof LoginRoute
+   '/notifications': typeof NotificationsRoute
+-  '/studio': typeof StudioRoute
++  '/studio': typeof StudioRouteWithChildren
+   '/api/geo-stats': typeof ApiGeoStatsRoute
+   '/api/guide': typeof ApiGuideRoute
+   '/api/health': typeof ApiHealthRoute
+@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
+   '/api/save': typeof ApiSaveRoute
+   '/api/search-trace': typeof ApiSearchTraceRoute
+   '/business/$id': typeof BusinessIdRoute
++  '/studio/request': typeof StudioRequestRoute
+   '/api/auth/$': typeof ApiAuthSplatRoute
+   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
+@@ -162,7 +169,7 @@ export interface FileRoutesByTo {
+   '/download': typeof DownloadRoute
+   '/login': typeof LoginRoute
+   '/notifications': typeof NotificationsRoute
+-  '/studio': typeof StudioRoute
++  '/studio': typeof StudioRouteWithChildren
+   '/api/geo-stats': typeof ApiGeoStatsRoute
+   '/api/guide': typeof ApiGuideRoute
+   '/api/health': typeof ApiHealthRoute
+@@ -170,6 +177,7 @@ export interface FileRoutesByTo {
+   '/api/save': typeof ApiSaveRoute
+   '/api/search-trace': typeof ApiSearchTraceRoute
+   '/business/$id': typeof BusinessIdRoute
++  '/studio/request': typeof StudioRequestRoute
+   '/api/auth/$': typeof ApiAuthSplatRoute
+   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
+@@ -185,7 +193,7 @@ export interface FileRoutesById {
+   '/download': typeof DownloadRoute
+   '/login': typeof LoginRoute
+   '/notifications': typeof NotificationsRoute
+-  '/studio': typeof StudioRoute
++  '/studio': typeof StudioRouteWithChildren
+   '/api/geo-stats': typeof ApiGeoStatsRoute
+   '/api/guide': typeof ApiGuideRoute
+   '/api/health': typeof ApiHealthRoute
+@@ -193,6 +201,7 @@ export interface FileRoutesById {
+   '/api/save': typeof ApiSaveRoute
+   '/api/search-trace': typeof ApiSearchTraceRoute
+   '/business/$id': typeof BusinessIdRoute
++  '/studio/request': typeof StudioRequestRoute
+   '/api/auth/$': typeof ApiAuthSplatRoute
+   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
+   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
+@@ -217,6 +226,7 @@ export interface FileRouteTypes {
+     | '/api/save'
+     | '/api/search-trace'
+     | '/business/$id'
++    | '/studio/request'
+     | '/api/auth/$'
+     | '/api/payments/callback'
+     | '/api/payments/webhook'
+@@ -239,6 +249,7 @@ export interface FileRouteTypes {
+     | '/api/save'
+     | '/api/search-trace'
+     | '/business/$id'
++    | '/studio/request'
+     | '/api/auth/$'
+     | '/api/payments/callback'
+     | '/api/payments/webhook'
+@@ -261,6 +272,7 @@ export interface FileRouteTypes {
+     | '/api/save'
+     | '/api/search-trace'
+     | '/business/$id'
++    | '/studio/request'
+     | '/api/auth/$'
+     | '/api/payments/callback'
+     | '/api/payments/webhook'
+@@ -276,7 +288,7 @@ export interface RootRouteChildren {
+   DownloadRoute: typeof DownloadRoute
+   LoginRoute: typeof LoginRoute
+   NotificationsRoute: typeof NotificationsRoute
+-  StudioRoute: typeof StudioRoute
++  StudioRoute: typeof StudioRouteWithChildren
+   ApiGeoStatsRoute: typeof ApiGeoStatsRoute
+   ApiGuideRoute: typeof ApiGuideRoute
+   ApiHealthRoute: typeof ApiHealthRoute
+@@ -404,6 +416,13 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof BusinessIdRouteImport
+       parentRoute: typeof rootRouteImport
+     }
++    '/studio/request': {
++      id: '/studio/request'
++      path: '/request'
++      fullPath: '/studio/request'
++      preLoaderRoute: typeof StudioRequestRouteImport
++      parentRoute: typeof StudioRoute
++    }
+     '/api/auth/$': {
+       id: '/api/auth/$'
+       path: '/api/auth/$'
+@@ -435,6 +454,17 @@ declare module '@tanstack/react-router' {
+   }
+ }
+ 
++interface StudioRouteChildren {
++  StudioRequestRoute: typeof StudioRequestRoute
++}
++
++const StudioRouteChildren: StudioRouteChildren = {
++  StudioRequestRoute: StudioRequestRoute,
++}
++
++const StudioRouteWithChildren =
++  StudioRoute._addFileChildren(StudioRouteChildren)
++
+ const rootRouteChildren: RootRouteChildren = {
+   IndexRoute: IndexRoute,
+   AboutRoute: AboutRoute,
+@@ -444,7 +474,7 @@ const rootRouteChildren: RootRouteChildren = {
+   DownloadRoute: DownloadRoute,
+   LoginRoute: LoginRoute,
+   NotificationsRoute: NotificationsRoute,
+-  StudioRoute: StudioRoute,
++  StudioRoute: StudioRouteWithChildren,
+   ApiGeoStatsRoute: ApiGeoStatsRoute,
+   ApiGuideRoute: ApiGuideRoute,
+   ApiHealthRoute: ApiHealthRoute,
+diff --git a/src/routes/business/$id.tsx b/src/routes/business/$id.tsx
+index 5082ade..ac86207 100644
+--- a/src/routes/business/$id.tsx
++++ b/src/routes/business/$id.tsx
+@@ -51,6 +51,11 @@ import type { BusyInterval, Business, Profile, Review } from "@/lib/types";
+ import { cn } from "@/lib/utils";
+ 
+ export const Route = createFileRoute("/business/$id")({
++  validateSearch: (s: Record<string, unknown>): { tattooRequestId?: string; tattooMinutes?: number } => {
++    const tattooRequestId = typeof s.tattooRequestId === "string" ? s.tattooRequestId : undefined;
++    const tattooMinutes = Number(s.tattooMinutes);
++    return { tattooRequestId, tattooMinutes: Number.isFinite(tattooMinutes) && tattooMinutes >= 10 ? tattooMinutes : undefined };
++  },
+   loader: async ({ params }) => {
+     const [biz, reviews, busy, similar, rank, resources] = await Promise.all([
+       getBusiness({ data: { id: params.id } }),
+@@ -108,6 +113,7 @@ function BusinessPage() {
+   const { biz, reviews: initialReviews, busy: initialBusy, similar, rank, resources, openNow, hoursLabel } =
+     Route.useLoaderData();
+   const { user } = useCurrentUserState();
++  const tattooSearch = Route.useSearch();
+   const favs = useFavorites();
+   const [reviews, setReviews] = useState(initialReviews);
+   const [busy, setBusy] = useState(initialBusy);
+@@ -127,7 +133,9 @@ function BusinessPage() {
+   const wa = toWhatsAppLink(biz.whatsapp || biz.phone, inquiry);
+   const waQuote = toWhatsAppLink(biz.whatsapp || biz.phone, quote);
+   const web = toWebsiteHref(biz.website);
+-  const nextPath = `/business/${biz.id}`;
++  const nextPath = tattooSearch.tattooRequestId
++    ? `/business/${biz.id}?tattooRequestId=${encodeURIComponent(tattooSearch.tattooRequestId)}${tattooSearch.tattooMinutes ? `&tattooMinutes=${tattooSearch.tattooMinutes}` : ""}`
++    : `/business/${biz.id}`;
+ 
+   async function share() {
+     const url = window.location.href;
+@@ -246,6 +254,8 @@ function BusinessPage() {
+               resources={resources as BusinessResource[]}
+               canBook={canBook}
+               nextPath={nextPath}
++              tattooRequestId={tattooSearch.tattooRequestId}
++              tattooMinutes={tattooSearch.tattooMinutes}
+               onBooked={(slot) => {
+                 setBusy((cur) =>
+                   cur.some((x) => x.start === slot.start)
+@@ -425,6 +435,8 @@ function BookingPanel({
+   resources,
+   canBook,
+   nextPath,
++  tattooRequestId,
++  tattooMinutes,
+   onBooked,
+ }: {
+   biz: Business;
+@@ -432,6 +444,8 @@ function BookingPanel({
+   resources: BusinessResource[];
+   canBook: boolean;
+   nextPath: string;
++  tattooRequestId?: string;
++  tattooMinutes?: number;
+   onBooked: (slot: BusyInterval) => void;
+ }) {
+   const { user } = useCurrentUserState();
+@@ -447,8 +461,8 @@ function BookingPanel({
+   const [party, setParty] = useState(1);
+   const [busySubmit, setBusySubmit] = useState(false);
+   const duration = useMemo(
+-    () => serviceDurationMinutes(biz.prices, service, biz.slotMinutes),
+-    [biz.prices, biz.slotMinutes, service],
++    () => tattooMinutes ? { minutes: tattooMinutes } : serviceDurationMinutes(biz.prices, service, biz.slotMinutes),
++    [biz.prices, biz.slotMinutes, service, tattooMinutes],
+   );
+   const buffers = useMemo(() => serviceBuffers(biz.prices, service), [biz.prices, service]);
+   const specialDays = biz.specialHours ?? [];
+@@ -613,6 +627,7 @@ function BookingPanel({
+       serviceTitle: service || undefined,
+       partySize: party,
+       resourceId: resourceId || undefined,
++      tattooRequestId: tattooRequestId || undefined,
+     };
+     try {
+       sessionStorage.setItem("kasb:booking-draft", JSON.stringify({ ...payload, service, party }));
+diff --git a/src/routes/dashboard.tsx b/src/routes/dashboard.tsx
+index beaae53..223448f 100644
+--- a/src/routes/dashboard.tsx
++++ b/src/routes/dashboard.tsx
+@@ -9,15 +9,15 @@ import { Stars } from "@/components/business/stars";
+ import { Shell } from "@/components/layout/shell";
+ import { Badge } from "@/components/ui/badge";
+ import { Button } from "@/components/ui/button";
+-import { Input, NativeSelect } from "@/components/ui/input";
++import { Input, NativeSelect, Textarea } from "@/components/ui/input";
+ import { SignedOutPanel } from "@/components/layout/auth-required";
+ import { useCurrentUserState } from "@/lib/auth/use-current-user";
+-import { formatFaDate, formatFaDateTime, toWhatsAppLink } from "@/lib/format";
++import { formatFaDate, formatFaDateTime, formatToman, toWhatsAppLink } from "@/lib/format";
+ import { profileCompleteness, tehranLocalToIso } from "@/lib/hours";
+ import { t, type MessageKey } from "@/lib/i18n";
+ import type { CompletenessField } from "@/lib/search/completeness";
+ import { friendlyError, saveAction } from "@/lib/save";
+-import type { Booking, Business, Category, OwnerStats, Profile } from "@/lib/types";
++import type { Booking, Business, Category, OwnerStats, Profile, TattooRequest } from "@/lib/types";
+ import { cn } from "@/lib/utils";
+ 
+ export const Route = createFileRoute("/dashboard")({
+@@ -39,7 +39,7 @@ export const Route = createFileRoute("/dashboard")({
+ function Dashboard() {
+   const pin = Route.useSearch();
+   const { user, isPending, sessionError, retry } = useCurrentUserState();
+-  const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "finance" | "me">(
++  const [tab, setTab] = useState<"list" | "new" | "bookings" | "calendar" | "finance" | "tattoo" | "me">(
+     pin.lat != null && pin.lng != null ? "new" : "list",
+   );
+   const [editing, setEditing] = useState<Business | null>(null);
+@@ -48,11 +48,13 @@ function Dashboard() {
+   const [bookings, setBookings] = useState<Booking[]>([]);
+   const [cats, setCats] = useState<Category[]>([]);
+   const [stats, setStats] = useState<OwnerStats | null>(null);
++  const [tattooRequests, setTattooRequests] = useState<TattooRequest[]>([]);
+ 
+   function refresh() {
+     void saveAction<Business[]>("mine").then(setMine);
+     void saveAction<Booking[]>("ownerBookings").then(setBookings);
+     void saveAction<OwnerStats>("ownerStats").then(setStats);
++    void saveAction<TattooRequest[]>("studioTattooRequests").then(setTattooRequests).catch(() => undefined);
+   }
+ 
+   useEffect(() => {
+@@ -104,14 +106,15 @@ function Dashboard() {
+ 
+       <div className="mt-5 flex gap-2 overflow-x-auto">
+         {(
+-          [
++          ([
+             ["list", "کسب‌وکارهای من"],
+             ["new", "ثبت جدید"],
+             ["calendar", t("navCalendar")],
+             ["bookings", "رزروها"],
+             ["finance", "مالی"],
++            ...(profile?.isAdmin ? [["tattoo", "درخواست‌های تاتو"]] : []),
+             ["me", "حساب"],
+-          ] as const
++          ] as [typeof tab, string][])
+         ).map(([id, label]) => (
+           <button
+             key={id}
+@@ -181,6 +184,7 @@ function Dashboard() {
+         />
+       ) : null}
+       {!editing && tab === "finance" ? <FinancePanel action="financeMine" /> : null}
++      {!editing && tab === "tattoo" ? <TattooRequests items={tattooRequests} businesses={mine} onChange={refresh} /> : null}
+       {!editing && tab === "me" && profile ? (
+         <ProfileForm
+           profile={profile}
+@@ -348,6 +352,89 @@ function ownerWaText(b: Booking) {
+   return `سلام ${b.customerName ?? ""}، از حضور شما در «${b.businessName}» ممنونیم.`;
+ }
+ 
++function TattooRequests({ items, businesses, onChange }: { items: TattooRequest[]; businesses: Business[]; onChange: () => void }) {
++  const ordered = [...items].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
++  if (!ordered.length) return <p className="mt-6 text-sm text-muted">هنوز درخواست تاتویی ثبت نشده است.</p>;
++  return <div className="mt-6 grid gap-4">{ordered.map((request) => <TattooRequestReview key={request.id} request={request} businesses={businesses} onChange={onChange} />)}</div>;
++}
++
++function TattooRequestReview({ request, businesses, onChange }: { request: TattooRequest; businesses: Business[]; onChange: () => void }) {
++  const [businessId, setBusinessId] = useState(request.businessId ?? businesses[0]?.id ?? "");
++  const [priceMin, setPriceMin] = useState(request.priceMinToman?.toString() ?? "");
++  const [priceMax, setPriceMax] = useState(request.priceMaxToman?.toString() ?? "");
++  const [sessions, setSessions] = useState(request.sessionCount?.toString() ?? "");
++  const [minutes, setMinutes] = useState(request.sessionMinutes?.toString() ?? "");
++  const [deposit, setDeposit] = useState(request.depositToman?.toString() ?? "");
++  const [message, setMessage] = useState(request.artistMessage ?? "");
++  const [busy, setBusy] = useState(false);
++
++  async function decideRequest(status: "approved" | "needs_info" | "rejected") {
++    if (message.trim().length < 2) {
++      toast.error("ابتدا پیام کوتاهی برای مشتری بنویسید.");
++      return;
++    }
++    if (status === "approved" && (!businessId || !priceMin || !deposit)) {
++      toast.error("برای تأیید، صفحه کسب‌وکار، حداقل قیمت و بیعانه را کامل کنید.");
++      return;
++    }
++    setBusy(true);
++    try {
++      await saveAction("decideTattooRequest", {
++        id: request.id,
++        status,
++        businessId: businessId || null,
++        priceMinToman: priceMin ? Number(priceMin) : null,
++        priceMaxToman: priceMax ? Number(priceMax) : null,
++        sessionMinutes: minutes ? Number(minutes) : null,
++        sessionCount: sessions ? Number(sessions) : null,
++        depositToman: deposit ? Number(deposit) : null,
++        artistMessage: message,
++      });
++      toast.success("نتیجه برای مشتری ثبت شد.");
++      onChange();
++    } catch (err) {
++      toast.error(friendlyError(err));
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  const type = request.requestType === "coverup" ? "کاور یا بازطراحی" : request.requestType === "consultation" ? "مشاوره" : "تاتوی جدید";
++  return <article className="rounded-2xl border border-border bg-surface p-4">
++    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{request.customerName}</h3><p className="text-sm text-muted">{type} · {request.style} · {request.placement}</p></div><Badge>{request.status === "submitted" ? "در انتظار" : request.status === "needs_info" ? "اطلاعات بیشتر" : request.status === "approved" ? "تأییدشده" : request.status === "rejected" ? "ردشده" : "رزرو قطعی"}</Badge></div>
++    <p className="mt-3 text-sm leading-7">{request.idea}</p>
++    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted"><span>اندازه: {request.sizeCm}</span><a className="text-accent" href={`tel:${request.customerPhone}`}>{request.customerPhone}</a>{request.preferredDates ? <span>زمان مناسب: {request.preferredDates}</span> : null}{request.budgetToman ? <span>بودجه: {formatToman(request.budgetToman)}</span> : null}</div>
++    {[...request.referenceImages, ...request.bodyImages].length ? <div className="mt-4 flex gap-2 overflow-x-auto">{[...request.referenceImages, ...request.bodyImages].map((src, i) => <a key={`${request.id}-${i}`} href={src} target="_blank" rel="noreferrer"><img src={src} alt="عکس درخواست" className="size-24 rounded-xl border border-border object-cover" /></a>)}</div> : null}
++    <div className="mt-4 grid gap-3 sm:grid-cols-3">
++      <label className="grid gap-1.5 text-sm"><span className="font-medium">صفحه کسب‌وکار</span><NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)} aria-label="صفحه کسب‌وکار"><option value="">انتخاب صفحه کسب‌وکار</option>{businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</NativeSelect></label>
++      <ReviewNumberField label="حداقل قیمت" hint="تومان" value={priceMin} onChange={setPriceMin} />
++      <ReviewNumberField label="حداکثر قیمت" hint="تومان؛ اختیاری" value={priceMax} onChange={setPriceMax} />
++      <ReviewNumberField label="تعداد جلسات" hint="مثلاً ۱ یا ۲ جلسه" value={sessions} onChange={setSessions} />
++      <ReviewNumberField label="مدت هر جلسه" hint="به دقیقه؛ مثلاً ۱۸۰" value={minutes} onChange={setMinutes} />
++      <ReviewNumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} />
++    </div>
++    <label className="mt-3 grid gap-1.5 text-sm"><span className="font-medium">پیام برای مشتری</span><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="نتیجه بررسی، شرایط اجرا یا توضیح بیعانه را بنویسید" /></label>
++    {request.paymentStatus === "receipt_submitted" ? <ReceiptReview request={request} onChange={onChange} /> : null}
++    <div className="mt-3 flex flex-wrap gap-2"><Button disabled={busy} onClick={() => void decideRequest("approved")}>تأیید و بازکردن انتخاب زمان</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("needs_info")}>درخواست اطلاعات بیشتر</Button><Button disabled={busy} variant="outline" onClick={() => void decideRequest("rejected")}>عدم پذیرش</Button></div>
++  </article>;
++}
++
++function ReceiptReview({ request, onChange }: { request: TattooRequest; onChange: () => void }) {
++  const [message, setMessage] = useState("رسید بررسی و تأیید شد.");
++  const [busy, setBusy] = useState(false);
++  async function decide(approved: boolean) {
++    setBusy(true);
++    try { await saveAction("decideTattooReceipt", { requestId: request.id, approved, message }); toast.success(approved ? "رزرو قطعی شد." : "رسید رد شد."); onChange(); }
++    catch (err) { toast.error(friendlyError(err)); }
++    finally { setBusy(false); }
++  }
++  return <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/5 p-3"><p className="font-semibold">رسید پرداخت برای بررسی</p>{request.paymentReviewDeadline ? <p className="mt-1 text-xs text-muted">مهلت بررسی: {formatFaDateTime(request.paymentReviewDeadline)}</p> : null}{request.receiptImage ? <a href={request.receiptImage} target="_blank" rel="noreferrer"><img src={request.receiptImage} alt="رسید پرداخت مشتری" className="mt-3 max-h-64 rounded-xl object-contain" /></a> : null}<Textarea className="mt-3" value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="پیام نتیجه بررسی" /><div className="mt-3 flex gap-2"><Button disabled={busy} onClick={() => void decide(true)}>تأیید رسید و قطعی‌کردن</Button><Button disabled={busy} variant="outline" onClick={() => void decide(false)}>رد رسید</Button></div></div>;
++}
++
++function ReviewNumberField({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (value: string) => void }) {
++  return <label className="grid gap-1.5 text-sm"><span className="font-medium">{label}</span><Input value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} placeholder={hint} inputMode="numeric" /></label>;
++}
++
+ function OwnerBookings({
+   items,
+   businesses,
+diff --git a/src/routes/studio.request.tsx b/src/routes/studio.request.tsx
+new file mode 100644
+index 0000000..98307ff
+--- /dev/null
++++ b/src/routes/studio.request.tsx
+@@ -0,0 +1,210 @@
++import { createFileRoute, Link } from "@tanstack/react-router";
++import { CheckCircle2, ChevronLeft, ImagePlus, Loader2, ShieldCheck } from "lucide-react";
++import { useEffect, useState } from "react";
++import { toast } from "sonner";
++import { SignedOutPanel } from "@/components/layout/auth-required";
++import { Button } from "@/components/ui/button";
++import { Input, NativeSelect, Textarea } from "@/components/ui/input";
++import { useCurrentUserState } from "@/lib/auth/use-current-user";
++import { formatFaDate, formatToman } from "@/lib/format";
++import { friendlyError, saveAction } from "@/lib/save";
++import type { Profile, TattooRequest } from "@/lib/types";
++
++export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
++
++const statusText: Record<TattooRequest["status"], string> = {
++  submitted: "در انتظار بررسی",
++  needs_info: "نیاز به اطلاعات بیشتر",
++  approved: "تأیید شده",
++  rejected: "پذیرفته نشد",
++  booked: "رزرو قطعی",
++};
++
++async function compressImage(file: File): Promise<string> {
++  if (!file.type.startsWith("image/")) throw new Error("فقط فایل تصویری انتخاب کنید.");
++  const url = URL.createObjectURL(file);
++  try {
++    const image = new Image();
++    image.src = url;
++    await image.decode();
++    const max = 1280;
++    const scale = Math.min(1, max / Math.max(image.width, image.height));
++    const canvas = document.createElement("canvas");
++    canvas.width = Math.max(1, Math.round(image.width * scale));
++    canvas.height = Math.max(1, Math.round(image.height * scale));
++    const ctx = canvas.getContext("2d");
++    if (!ctx) throw new Error("پردازش عکس انجام نشد.");
++    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
++    return canvas.toDataURL("image/jpeg", 0.76);
++  } finally {
++    URL.revokeObjectURL(url);
++  }
++}
++
++function StudioRequestPage() {
++  const { user, isPending, sessionError, retry } = useCurrentUserState();
++  const [profile, setProfile] = useState<Profile | null>(null);
++  const [requests, setRequests] = useState<TattooRequest[]>([]);
++  const [name, setName] = useState("");
++  const [phone, setPhone] = useState("");
++  const [requestType, setRequestType] = useState<"new" | "coverup" | "consultation">("new");
++  const [style, setStyle] = useState("رئال و بلک‌اندگری");
++  const [idea, setIdea] = useState("");
++  const [placement, setPlacement] = useState("");
++  const [sizeCm, setSizeCm] = useState("");
++  const [preferredDates, setPreferredDates] = useState("");
++  const [budget, setBudget] = useState("");
++  const [referenceImages, setReferenceImages] = useState<string[]>([]);
++  const [bodyImages, setBodyImages] = useState<string[]>([]);
++  const [busy, setBusy] = useState(false);
++
++  function refresh() {
++    void saveAction<TattooRequest[]>("myTattooRequests").then(setRequests);
++  }
++
++  useEffect(() => {
++    if (!user) return;
++    void saveAction<Profile>("profile").then((p) => {
++      setProfile(p);
++      setName(p.displayName || user.displayName || "");
++      setPhone(p.phone || "");
++    });
++    refresh();
++  }, [user]);
++
++  if (!user) {
++    return <SignedOutPanel title="درخواست تاتو" next="/studio/request" loading={isPending} error={sessionError} onRetry={retry} />;
++  }
++
++  async function addImages(files: FileList | null, target: "reference" | "body") {
++    if (!files?.length) return;
++    const limit = target === "reference" ? 3 : 2;
++    const current = target === "reference" ? referenceImages : bodyImages;
++    try {
++      const next = await Promise.all(Array.from(files).slice(0, limit - current.length).map(compressImage));
++      if (target === "reference") setReferenceImages([...current, ...next]);
++      else setBodyImages([...current, ...next]);
++    } catch (err) {
++      toast.error(friendlyError(err));
++    }
++  }
++
++  async function submit() {
++    setBusy(true);
++    try {
++      await saveAction("createTattooRequest", {
++        customerName: name,
++        customerPhone: phone,
++        requestType,
++        style,
++        idea,
++        placement,
++        sizeCm,
++        preferredDates,
++        budgetToman: budget ? Number(budget.replace(/\D/g, "")) : null,
++        referenceImages,
++        bodyImages,
++      });
++      toast.success("درخواست برای بررسی پیمان ارسال شد.");
++      setIdea("");
++      setPlacement("");
++      setSizeCm("");
++      setPreferredDates("");
++      setBudget("");
++      setReferenceImages([]);
++      setBodyImages([]);
++      refresh();
++    } catch (err) {
++      toast.error(friendlyError(err));
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  return (
++    <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
++      <header className="border-b border-white/10 bg-[#0b0b0c]/95">
++        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
++          <Link to="/studio" className="font-bold">پیمان زیبائی‌فر</Link>
++          <Link to="/studio" className="flex items-center gap-1 text-sm text-white/60">بازگشت <ChevronLeft className="size-4" /></Link>
++        </div>
++      </header>
++
++      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[1fr_19rem]">
++        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-8">
++          <p className="text-xs tracking-[.18em] text-[#b7955b]">PROJECT REQUEST</p>
++          <h1 className="mt-2 text-3xl font-black">درخواست بررسی پروژه تاتو</h1>
++          <p className="mt-3 text-sm leading-7 text-white/55">ابتدا طرح و محل بدن بررسی می‌شود. بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های مناسب برای شما فعال می‌شود.</p>
++
++          <div className="mt-8 grid gap-4 sm:grid-cols-2">
++            <Field label="نام و نام خانوادگی"><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
++            <Field label="شماره موبایل"><Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" dir="ltr" /></Field>
++            <Field label="نوع درخواست">
++              <NativeSelect value={requestType} onChange={(e) => setRequestType(e.target.value as typeof requestType)}>
++                <option value="new">تاتوی جدید</option><option value="coverup">کاور یا بازطراحی</option><option value="consultation">مشاوره تخصصی</option>
++              </NativeSelect>
++            </Field>
++            <Field label="سبک">
++              <NativeSelect value={style} onChange={(e) => setStyle(e.target.value)}>
++                <option>رئال و بلک‌اندگری</option><option>کاور و بازطراحی</option><option>پرتره</option><option>مینیمال و فاین‌لاین</option><option>سایر</option>
++              </NativeSelect>
++            </Field>
++            <Field label="محل اجرا"><Input value={placement} onChange={(e) => setPlacement(e.target.value)} placeholder="مثلاً ساعد دست راست" /></Field>
++            <Field label="اندازه تقریبی"><Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="مثلاً ۲۰ × ۱۲ سانتی‌متر" /></Field>
++            <div className="sm:col-span-2"><Field label="ایده و جزئیات طرح"><Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={5} placeholder="موضوع، عناصر اصلی، تغییرات موردنظر و هر نکته مهم را بنویسید." /></Field></div>
++            <Field label="روزهای مناسب شما"><Input value={preferredDates} onChange={(e) => setPreferredDates(e.target.value)} placeholder="مثلاً شنبه و دوشنبه بعدازظهر" /></Field>
++            <Field label="بودجه تقریبی (تومان، اختیاری)"><Input value={budget} onChange={(e) => setBudget(e.target.value)} inputMode="numeric" /></Field>
++          </div>
++
++          <div className="mt-6 grid gap-4 sm:grid-cols-2">
++            <ImageField title="عکس یا رفرنس طرح" hint="حداکثر ۳ عکس" images={referenceImages} onFiles={(f) => void addImages(f, "reference")} onRemove={(i) => setReferenceImages((x) => x.filter((_, n) => n !== i))} />
++            <ImageField title="عکس واضح محل بدن" hint="برای بررسی فرم بدن؛ حداکثر ۲ عکس" images={bodyImages} onFiles={(f) => void addImages(f, "body")} onRemove={(i) => setBodyImages((x) => x.filter((_, n) => n !== i))} />
++          </div>
++
++          <div className="mt-6 rounded-2xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-4 text-sm leading-7 text-[#e5d2ae]">
++            ارسال این فرم به معنی رزرو قطعی نیست. زمان فقط پس از بررسی پروژه و تأیید شرایط نمایش داده می‌شود.
++          </div>
++          <Button className="mt-5 h-12 w-full bg-[#b7955b] text-black hover:bg-[#cfad70]" disabled={busy} onClick={() => void submit()}>
++            {busy ? <Loader2 className="size-5 animate-spin" /> : <ShieldCheck className="size-5" />} ارسال برای بررسی
++          </Button>
++        </section>
++
++        <aside className="space-y-4">
++          <div className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
++            <h2 className="font-bold">روند بررسی</h2>
++            <ol className="mt-4 space-y-4 text-sm text-white/60">
++              {["ارسال اطلاعات و عکس‌ها", "بررسی توسط پیمان", "اعلام قیمت، جلسات و بیعانه", "انتخاب زمان و رزرو قطعی"].map((x, i) => <li key={x} className="flex gap-3"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#b7955b] text-xs font-bold text-black">{i + 1}</span>{x}</li>)}
++            </ol>
++          </div>
++          {requests.map((request) => <RequestCard key={request.id} request={request} />)}
++        </aside>
++      </main>
++    </div>
++  );
++}
++
++function Field({ label, children }: { label: string; children: React.ReactNode }) {
++  return <label className="block text-sm"><span className="mb-2 block text-white/70">{label}</span>{children}</label>;
++}
++
++function ImageField({ title, hint, images, onFiles, onRemove }: { title: string; hint: string; images: string[]; onFiles: (files: FileList | null) => void; onRemove: (index: number) => void }) {
++  return <div className="rounded-2xl border border-dashed border-white/15 p-4"><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-white/40">{hint}</p><label className="mt-4 flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/15 text-sm"><ImagePlus className="size-4 text-[#b7955b]" /> انتخاب عکس<input className="sr-only" type="file" accept="image/*" multiple onChange={(e) => onFiles(e.target.files)} /></label>{images.length ? <div className="mt-3 grid grid-cols-3 gap-2">{images.map((src, i) => <button type="button" key={`${src.slice(-20)}-${i}`} onClick={() => onRemove(i)} className="relative aspect-square overflow-hidden rounded-lg border border-white/10"><img src={src} alt="تصویر انتخابی" className="size-full object-cover" /><span className="absolute inset-x-0 bottom-0 bg-black/70 py-1 text-[10px]">حذف</span></button>)}</div> : null}</div>;
++}
++
++function RequestCard({ request }: { request: TattooRequest }) {
++  const [receipt, setReceipt] = useState(request.receiptImage ?? "");
++  const [busy, setBusy] = useState(false);
++  async function pick(file: File | undefined) {
++    if (!file) return;
++    try { setReceipt(await compressImage(file)); } catch (err) { toast.error(friendlyError(err)); }
++  }
++  async function submitReceipt() {
++    if (!receipt) return toast.error("عکس رسید را انتخاب کنید.");
++    setBusy(true);
++    try { await saveAction("submitTattooReceipt", { requestId: request.id, receiptImage: receipt }); toast.success("رسید ارسال شد و در دست بررسی است."); }
++    catch (err) { toast.error(friendlyError(err)); }
++    finally { setBusy(false); }
++  }
++  const paymentText = request.paymentStatus === "receipt_submitted" ? "رسید در دست بررسی؛ نتیجه حداکثر تا ۱۲ ساعت" : request.paymentStatus === "approved" ? "پرداخت تأیید شد" : request.paymentStatus === "expired" ? "مهلت پرداخت تمام شده" : null;
++  return <article className="rounded-3xl border border-white/10 bg-white/[.035] p-5"><div className="flex items-start justify-between gap-2"><div><p className="text-xs text-white/40">{formatFaDate(request.createdAt)}</p><h3 className="mt-1 font-bold">{request.style}</h3></div><span className="rounded-full bg-[#b7955b]/15 px-2 py-1 text-[11px] text-[#d9bd87]">{statusText[request.status]}</span></div>{request.artistMessage ? <p className="mt-4 text-sm leading-7 text-white/65">{request.artistMessage}</p> : null}{request.status === "approved" || request.status === "booked" ? <div className="mt-4 space-y-1 text-sm text-white/65">{request.priceMinToman != null ? <p>قیمت: {formatToman(request.priceMinToman)}{request.priceMaxToman ? ` تا ${formatToman(request.priceMaxToman)}` : ""}</p> : null}{request.sessionCount ? <p>تعداد جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionCount)}</p> : null}{request.sessionMinutes ? <p>مدت هر جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionMinutes)} دقیقه</p> : null}{request.depositToman != null ? <p>بیعانه: {formatToman(request.depositToman)}</p> : null}{request.paymentIban || request.paymentCardNumber ? <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]"><p className="font-semibold">اطلاعات واریز بیعانه</p>{request.paymentIban ? <p dir="ltr">شبا: {request.paymentIban}</p> : null}{request.paymentCardNumber ? <p dir="ltr">کارت: {request.paymentCardNumber}</p> : null}<p className="text-xs">از زمان تأیید، ۶ ساعت برای واریز فرصت دارید.</p></div> : null}{request.paymentHoldUntil && request.paymentStatus === "awaiting_payment" ? <p className="text-amber-300">مهلت واریز: {formatFaDate(request.paymentHoldUntil)}</p> : null}{paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}{request.businessId && request.paymentStatus === "awaiting_payment" ? <Button asChild className="mt-3 w-full bg-[#b7955b] text-black"><Link to="/business/$id" params={{ id: request.businessId }} search={{ tattooRequestId: request.id, tattooMinutes: request.sessionMinutes ?? undefined }}>انتخاب زمان آزاد</Link></Button> : null}{request.paymentStatus === "awaiting_payment" && request.bookingId ? <div className="mt-4 rounded-2xl border border-white/10 p-3"><p className="font-semibold">رسید واریز بیعانه</p><input className="mt-2 block w-full text-xs" type="file" accept="image/*" onChange={(e) => void pick(e.target.files?.[0])} />{receipt ? <img src={receipt} alt="پیش‌نمایش رسید" className="mt-2 max-h-40 rounded-xl object-contain" /> : null}<Button disabled={busy} className="mt-3 w-full" onClick={() => void submitReceipt()}>{busy ? "در حال ارسال…" : "ارسال رسید برای بررسی"}</Button></div> : null}</div> : null}</article>;
++}
+diff --git a/src/routes/studio.tsx b/src/routes/studio.tsx
+index c16b0c2..3f4f4d7 100644
+--- a/src/routes/studio.tsx
++++ b/src/routes/studio.tsx
+@@ -1,4 +1,4 @@
+-import { createFileRoute, Link } from "@tanstack/react-router";
++import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+ import {
+   ArrowLeft,
+   CalendarDays,
+@@ -37,6 +37,10 @@ const faqs = [
+ ];
+ 
+ function StudioLanding() {
++  const pathname = useRouterState({ select: (state) => state.location.pathname });
++
++  if (pathname !== "/studio") return <Outlet />;
++
+   return (
+     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
+       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0c]/90 backdrop-blur-xl">
+@@ -52,8 +56,7 @@ function StudioLanding() {
+             <a href="#faq">سؤالات متداول</a>
+           </nav>
+           <Link
+-            to="/login"
+-            search={{ next: "/dashboard" }}
++            to="/studio/request"
+             className="inline-flex h-10 items-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-semibold text-black transition hover:bg-[#d0ae70]"
+           >
+             ثبت درخواست
+@@ -81,8 +84,7 @@ function StudioLanding() {
+               </p>
+               <div className="mt-9 flex flex-wrap gap-3">
+                 <Link
+-                  to="/login"
+-                  search={{ next: "/dashboard" }}
++                  to="/studio/request"
+                   className="inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-6 font-bold text-black"
+                 >
+                   <CalendarDays className="size-5" />
+@@ -182,7 +184,7 @@ function StudioLanding() {
+               <h2 className="text-3xl font-black">برای طرح خودت آماده‌ای؟</h2>
+               <p className="mt-2 text-sm text-black/65">درخواست را ثبت کن تا پس از بررسی، زمان و هزینه اعلام شود.</p>
+             </div>
+-            <Link to="/login" search={{ next: "/dashboard" }} className="inline-flex h-12 items-center gap-2 rounded-full bg-black px-6 font-bold text-white">
++            <Link to="/studio/request" className="inline-flex h-12 items-center gap-2 rounded-full bg-black px-6 font-bold text-white">
+               ثبت درخواست اولیه
+               <ArrowLeft className="size-5" />
+             </Link>
