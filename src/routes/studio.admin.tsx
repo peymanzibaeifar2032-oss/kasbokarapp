@@ -22,6 +22,7 @@ type RequestFilter = "active" | "receipt" | "booked" | "all";
 
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
+  const userId = user?.id;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -51,12 +52,12 @@ function StudioAdminPage() {
   }
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     void saveAction<Profile>("profile").then((next) => {
       setProfile(next);
       if (next.isAdmin) void refresh();
     });
-  }, [user]);
+  }, [userId]);
 
   const filtered = useMemo(() => requests.filter((request) => {
     if (filter === "receipt") return request.paymentStatus === "receipt_submitted";
