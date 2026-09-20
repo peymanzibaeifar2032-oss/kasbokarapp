@@ -327,12 +327,21 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
     sessionMinutes: z.number().int().min(10).max(4320).optional().nullable(),
     sessionCount: z.number().int().min(1).max(20).optional().nullable(),
     depositToman: z.number().int().min(0).optional().nullable(),
+    paymentIban: z.string().trim().max(34).optional().nullable(),
+    paymentCardNumber: z.string().trim().max(24).optional().nullable(),
     proposedSlotStart: z.string().optional().nullable(),
     artistMessage: z.string().trim().min(2).max(1000),
   }).parse(raw);
   if (data.status === "approved" && (!data.businessId || data.priceMinToman == null || data.depositToman == null || !data.sessionMinutes || !data.proposedSlotStart)) {
     throw new Error("برای تأیید، کسب‌وکار، قیمت، بیعانه، مدت جلسه و زمان پیشنهادی را کامل کنید.");
   }
+  const paymentIban = data.paymentIban?.replace(/\s/g, "").toUpperCase() || null;
+  const paymentCardNumber = data.paymentCardNumber?.replace(/\D/g, "") || null;
+  if (data.status === "approved" && (data.depositToman ?? 0) > 0 && !paymentIban && !paymentCardNumber) {
+    throw new Error("برای دریافت بیعانه، شماره کارت یا شماره شبا را وارد کنید.");
+  }
+  if (paymentIban && !/^IR\d{24}$/.test(paymentIban)) throw new Error("شماره شبا معتبر نیست.");
+  if (paymentCardNumber && !/^\d{16}$/.test(paymentCardNumber)) throw new Error("شماره کارت باید ۱۶ رقم باشد.");
   const sql = await getSql();
   if (data.businessId) {
     const owned = await sql.query<{ id: string }>("select id from businesses where id = $1 and owner_id = $2", [data.businessId, userId]);
@@ -358,12 +367,12 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
        payment_status=case when $2='approved' then 'proposal_pending' else 'not_required' end,
        payment_hold_until=null,
        payment_submitted_at=null, payment_review_deadline=null, receipt_image=null,
-       payment_iban=(select iban from business_settlement_accounts where business_id=$3),
-       payment_card_number=(select card_number from business_settlement_accounts where business_id=$3),
-       proposed_slot_start=$10, proposed_slot_end=$11, booking_id=null, updated_at=now()
+       payment_iban=$10, payment_card_number=$11,
+       proposed_slot_start=$12, proposed_slot_end=$13, booking_id=null, updated_at=now()
      where id=$1 returning customer_id`,
     [data.id, data.status, data.businessId ?? null, data.priceMinToman ?? null, data.priceMaxToman ?? null,
-      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, data.artistMessage, proposedStart, proposedEnd],
+      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, data.artistMessage,
+      paymentIban, paymentCardNumber, proposedStart, proposedEnd],
   );
   if (!updated[0]) throw new Error("درخواست پیدا نشد.");
   const titles = { approved: "درخواست تاتو تأیید شد", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
@@ -443,8 +452,12 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
     await sql.query(`update tattoo_requests set status='booked', payment_status='approved', artist_message=$2, updated_at=now() where id=$1`, [data.requestId, data.message]);
     await sql.query(`update bookings set status='confirmed', finance_status='deposit_paid' where id=$1`, [r.booking_id]);
   } else {
-    await sql.query(`update tattoo_requests set payment_status='rejected', artist_message=$2, updated_at=now() where id=$1`, [data.requestId, data.message]);
-    if (r.booking_id) await sql.query(`update bookings set status='cancelled', finance_status='payment_failed' where id=$1 and status='requested'`, [r.booking_id]);
+    await sql.query(
+      `update tattoo_requests set payment_status='awaiting_payment', payment_hold_until=now()+interval '6 hours',
+         receipt_image=null, payment_submitted_at=null, payment_review_deadline=null, artist_message=$2, updated_at=now()
+       where id=$1`,
+      [data.requestId, data.message],
+    );
   }
   await notify(sql, r.customer_id, data.approved ? "رزرو تاتو قطعی شد" : "رسید نیاز به اصلاح دارد", data.message, data.approved ? "tattoo_receipt_approved" : "tattoo_receipt_rejected", { bookingId: r.booking_id ?? undefined, businessId: r.business_id ?? undefined });
   return { ok: true as const };
