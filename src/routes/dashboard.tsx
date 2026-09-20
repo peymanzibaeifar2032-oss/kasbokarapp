@@ -48,9 +48,6 @@ function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
   const [stats, setStats] = useState<OwnerStats | null>(null);
-  const [tattooRequests, setTattooRequests] = useState<TattooRequest[]>([]);
-  const [tattooLoading, setTattooLoading] = useState(false);
-  const [tattooError, setTattooError] = useState("");
 
   function refresh() {
     void saveAction<Business[]>("mine").then(setMine);
@@ -58,25 +55,9 @@ function Dashboard() {
     void saveAction<OwnerStats>("ownerStats").then(setStats);
   }
 
-  function refreshTattooRequests() {
-    setTattooLoading(true);
-    setTattooError("");
-    void saveAction<TattooRequest[]>("studioTattooRequests")
-      .then(setTattooRequests)
-      .catch((error) => {
-        const message = friendlyError(error);
-        setTattooError(message);
-        toast.error(message);
-      })
-      .finally(() => setTattooLoading(false));
-  }
-
   useEffect(() => {
     if (!user) return;
-    void saveAction<Profile>("profile").then((nextProfile) => {
-      setProfile(nextProfile);
-      if (nextProfile.isAdmin) refreshTattooRequests();
-    });
+    void saveAction<Profile>("profile").then(setProfile);
     void saveAction<Category[]>("categories").then(setCats);
     refresh();
   }, [user]);
@@ -202,9 +183,11 @@ function Dashboard() {
       ) : null}
       {!editing && tab === "finance" ? <FinancePanel action="financeMine" /> : null}
       {!editing && tab === "tattoo" ? (
-        tattooLoading ? <p className="mt-6 text-sm text-muted">در حال دریافت درخواست‌ها…</p>
-        : tattooError ? <div className="mt-6 space-y-3"><p className="text-sm text-destructive">{tattooError}</p><Button variant="outline" onClick={refreshTattooRequests}>تلاش دوباره</Button></div>
-        : <TattooRequests items={tattooRequests} businesses={mine} onChange={() => { refresh(); refreshTattooRequests(); }} />
+        <div className="mt-6 rounded-3xl border border-border bg-surface p-5">
+          <h2 className="text-lg font-bold">پنل مستقل مدیریت تاتو</h2>
+          <p className="mt-2 text-sm leading-7 text-muted">درخواست‌ها، قیمت و بیعانه، رسیدهای واریزی و تقویم کاری در صفحه اختصاصی تاتو مدیریت می‌شوند.</p>
+          <Button asChild className="mt-4"><Link to="/studio/admin">ورود به مدیریت تاتو و تقویم</Link></Button>
+        </div>
       ) : null}
       {!editing && tab === "me" && profile ? (
         <ProfileForm
@@ -373,7 +356,7 @@ function ownerWaText(b: Booking) {
   return `سلام ${b.customerName ?? ""}، از حضور شما در «${b.businessName}» ممنونیم.`;
 }
 
-function TattooRequests({ items, businesses, onChange }: { items: TattooRequest[]; businesses: Business[]; onChange: () => void }) {
+function _TattooRequests({ items, businesses, onChange }: { items: TattooRequest[]; businesses: Business[]; onChange: () => void }) {
   const ordered = [...items].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
   if (!ordered.length) return <p className="mt-6 text-sm text-muted">هنوز درخواست تاتویی ثبت نشده است.</p>;
   return <div className="mt-6 grid gap-4">{ordered.map((request) => <TattooRequestReview key={request.id} request={request} businesses={businesses} onChange={onChange} />)}</div>;
