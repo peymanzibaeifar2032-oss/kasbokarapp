@@ -347,11 +347,13 @@ function ImageField({
 
 function RequestCard({ request, onChange }: { request: TattooRequest; onChange: () => void }) {
   const [receipt, setReceipt] = useState(request.receiptImage ?? "");
+  const [receiptName, setReceiptName] = useState("");
   const [busy, setBusy] = useState(false);
   async function pick(file: File | undefined) {
     if (!file) return;
     try {
       setReceipt(await compressImage(file));
+      setReceiptName(file.name);
     } catch (err) {
       toast.error(friendlyError(err));
     }
@@ -448,22 +450,38 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
           ) : null}
           {paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}
           {request.paymentStatus === "awaiting_payment" ? (
-            <div className="mt-4 rounded-2xl border border-white/10 p-3">
-              <p className="font-semibold">رسید واریز بیعانه</p>
-              <input
-                className="mt-2 block w-full text-xs"
-                type="file"
-                accept="image/*"
-                onChange={(e) => void pick(e.target.files?.[0])}
-              />
+            <div className="mt-4 rounded-2xl border border-[#b7955b]/35 bg-[#b7955b]/5 p-4">
+              <p className="font-semibold text-[#e5d2ae]">ارسال عکس رسید واریز</p>
+              <p className="mt-1 text-xs leading-6 text-white/50">
+                عکس رسید را از گالری گوشی انتخاب کنید؛ سپس دکمه ارسال را بزنید.
+              </p>
+              <label className="mt-3 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#b7955b]/50 bg-[#b7955b]/15 px-3 font-bold text-[#e5d2ae]">
+                <ImagePlus className="size-5" />
+                {receipt ? "تغییر عکس رسید" : "انتخاب عکس رسید از گالری"}
+                <input
+                  className="sr-only"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => void pick(e.target.files?.[0])}
+                />
+              </label>
+              {receiptName ? (
+                <p className="mt-2 text-center text-xs text-emerald-300">
+                  انتخاب شد: {receiptName}
+                </p>
+              ) : null}
               {receipt ? (
                 <img
                   src={receipt}
                   alt="پیش‌نمایش رسید"
-                  className="mt-2 max-h-40 rounded-xl object-contain"
+                  className="mx-auto mt-3 max-h-52 rounded-xl border border-white/10 object-contain"
                 />
               ) : null}
-              <Button disabled={busy} className="mt-3 w-full" onClick={() => void submitReceipt()}>
+              <Button
+                disabled={busy || !receipt}
+                className="mt-3 h-12 w-full"
+                onClick={() => void submitReceipt()}
+              >
                 {busy ? "در حال ارسال…" : "ارسال رسید برای بررسی"}
               </Button>
             </div>
