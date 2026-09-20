@@ -6,7 +6,7 @@ import { SignedOutPanel } from "@/components/layout/auth-required";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { formatFaDate, formatToman } from "@/lib/format";
+import { formatFaDate, formatFaDateTime, formatToman } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import type { Profile, TattooRequest } from "@/lib/types";
 
@@ -176,7 +176,7 @@ function StudioRequestPage() {
               {["ارسال اطلاعات و عکس‌ها", "بررسی توسط پیمان", "اعلام قیمت، جلسات و بیعانه", "انتخاب زمان و رزرو قطعی"].map((x, i) => <li key={x} className="flex gap-3"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#b7955b] text-xs font-bold text-black">{i + 1}</span>{x}</li>)}
             </ol>
           </div>
-          {requests.map((request) => <RequestCard key={request.id} request={request} />)}
+          {requests.map((request) => <RequestCard key={request.id} request={request} onChange={refresh} />)}
         </aside>
       </main>
     </div>
@@ -191,7 +191,7 @@ function ImageField({ title, hint, images, onFiles, onRemove }: { title: string;
   return <div className="rounded-2xl border border-dashed border-white/15 p-4"><p className="font-semibold">{title}</p><p className="mt-1 text-xs text-white/40">{hint}</p><label className="mt-4 flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/15 text-sm"><ImagePlus className="size-4 text-[#b7955b]" /> انتخاب عکس<input className="sr-only" type="file" accept="image/*" multiple onChange={(e) => onFiles(e.target.files)} /></label>{images.length ? <div className="mt-3 grid grid-cols-3 gap-2">{images.map((src, i) => <button type="button" key={`${src.slice(-20)}-${i}`} onClick={() => onRemove(i)} className="relative aspect-square overflow-hidden rounded-lg border border-white/10"><img src={src} alt="تصویر انتخابی" className="size-full object-cover" /><span className="absolute inset-x-0 bottom-0 bg-black/70 py-1 text-[10px]">حذف</span></button>)}</div> : null}</div>;
 }
 
-function RequestCard({ request }: { request: TattooRequest }) {
+function RequestCard({ request, onChange }: { request: TattooRequest; onChange: () => void }) {
   const [receipt, setReceipt] = useState(request.receiptImage ?? "");
   const [busy, setBusy] = useState(false);
   async function pick(file: File | undefined) {
@@ -201,10 +201,19 @@ function RequestCard({ request }: { request: TattooRequest }) {
   async function submitReceipt() {
     if (!receipt) return toast.error("عکس رسید را انتخاب کنید.");
     setBusy(true);
-    try { await saveAction("submitTattooReceipt", { requestId: request.id, receiptImage: receipt }); toast.success("رسید ارسال شد و در دست بررسی است."); }
+    try { await saveAction("submitTattooReceipt", { requestId: request.id, receiptImage: receipt }); toast.success("رسید ارسال شد و در دست بررسی است."); onChange(); }
     catch (err) { toast.error(friendlyError(err)); }
     finally { setBusy(false); }
   }
+  async function acceptProposal() {
+    setBusy(true);
+    try {
+      await saveAction("acceptTattooProposal", { requestId: request.id });
+      toast.success("زمان تأیید شد. اکنون رسید بیعانه را ارسال کنید.");
+      onChange();
+    } catch (err) { toast.error(friendlyError(err)); }
+    finally { setBusy(false); }
+  }
   const paymentText = request.paymentStatus === "receipt_submitted" ? "رسید در دست بررسی؛ نتیجه حداکثر تا ۱۲ ساعت" : request.paymentStatus === "approved" ? "پرداخت تأیید شد" : request.paymentStatus === "expired" ? "مهلت پرداخت تمام شده" : null;
-  return <article className="rounded-3xl border border-white/10 bg-white/[.035] p-5"><div className="flex items-start justify-between gap-2"><div><p className="text-xs text-white/40">{formatFaDate(request.createdAt)}</p><h3 className="mt-1 font-bold">{request.style}</h3></div><span className="rounded-full bg-[#b7955b]/15 px-2 py-1 text-[11px] text-[#d9bd87]">{statusText[request.status]}</span></div>{request.artistMessage ? <p className="mt-4 text-sm leading-7 text-white/65">{request.artistMessage}</p> : null}{request.status === "approved" || request.status === "booked" ? <div className="mt-4 space-y-1 text-sm text-white/65">{request.priceMinToman != null ? <p>قیمت: {formatToman(request.priceMinToman)}{request.priceMaxToman ? ` تا ${formatToman(request.priceMaxToman)}` : ""}</p> : null}{request.sessionCount ? <p>تعداد جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionCount)}</p> : null}{request.sessionMinutes ? <p>مدت هر جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionMinutes)} دقیقه</p> : null}{request.depositToman != null ? <p>بیعانه: {formatToman(request.depositToman)}</p> : null}{request.paymentIban || request.paymentCardNumber ? <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]"><p className="font-semibold">اطلاعات واریز بیعانه</p>{request.paymentIban ? <p dir="ltr">شبا: {request.paymentIban}</p> : null}{request.paymentCardNumber ? <p dir="ltr">کارت: {request.paymentCardNumber}</p> : null}<p className="text-xs">از زمان تأیید، ۶ ساعت برای واریز فرصت دارید.</p></div> : null}{request.paymentHoldUntil && request.paymentStatus === "awaiting_payment" ? <p className="text-amber-300">مهلت واریز: {formatFaDate(request.paymentHoldUntil)}</p> : null}{paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}{request.businessId && request.paymentStatus === "awaiting_payment" ? <Button asChild className="mt-3 w-full bg-[#b7955b] text-black"><Link to="/business/$id" params={{ id: request.businessId }} search={{ tattooRequestId: request.id, tattooMinutes: request.sessionMinutes ?? undefined }}>انتخاب زمان آزاد</Link></Button> : null}{request.paymentStatus === "awaiting_payment" && request.bookingId ? <div className="mt-4 rounded-2xl border border-white/10 p-3"><p className="font-semibold">رسید واریز بیعانه</p><input className="mt-2 block w-full text-xs" type="file" accept="image/*" onChange={(e) => void pick(e.target.files?.[0])} />{receipt ? <img src={receipt} alt="پیش‌نمایش رسید" className="mt-2 max-h-40 rounded-xl object-contain" /> : null}<Button disabled={busy} className="mt-3 w-full" onClick={() => void submitReceipt()}>{busy ? "در حال ارسال…" : "ارسال رسید برای بررسی"}</Button></div> : null}</div> : null}</article>;
+  return <article className="rounded-3xl border border-white/10 bg-white/[.035] p-5"><div className="flex items-start justify-between gap-2"><div><p className="text-xs text-white/40">{formatFaDate(request.createdAt)}</p><h3 className="mt-1 font-bold">{request.style}</h3></div><span className="rounded-full bg-[#b7955b]/15 px-2 py-1 text-[11px] text-[#d9bd87]">{statusText[request.status]}</span></div>{request.artistMessage ? <p className="mt-4 text-sm leading-7 text-white/65">{request.artistMessage}</p> : null}{request.status === "approved" || request.status === "booked" ? <div className="mt-4 space-y-1 text-sm text-white/65">{request.priceMinToman != null ? <p>قیمت: {formatToman(request.priceMinToman)}</p> : null}{request.sessionCount ? <p>تعداد جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionCount)}</p> : null}{request.sessionMinutes ? <p>مدت هر جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionMinutes)} دقیقه</p> : null}{request.depositToman != null ? <p>بیعانه: {formatToman(request.depositToman)}</p> : null}{request.proposedSlotStart ? <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]"><p className="font-semibold">زمان پیشنهادی پیمان</p><p>{formatFaDateTime(request.proposedSlotStart)}</p>{request.paymentStatus === "proposal_pending" ? <Button disabled={busy} className="mt-3 w-full bg-[#b7955b] text-black" onClick={() => void acceptProposal()}>تأیید این زمان و ادامه پرداخت</Button> : null}</div> : null}{request.paymentStatus === "awaiting_payment" && (request.paymentIban || request.paymentCardNumber) ? <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]"><p className="font-semibold">اطلاعات واریز بیعانه</p>{request.paymentIban ? <p dir="ltr">شبا: {request.paymentIban}</p> : null}{request.paymentCardNumber ? <p dir="ltr">کارت: {request.paymentCardNumber}</p> : null}<p className="text-xs">از زمان تأیید، ۶ ساعت برای واریز فرصت دارید.</p></div> : null}{request.paymentHoldUntil && request.paymentStatus === "awaiting_payment" ? <p className="text-amber-300">مهلت واریز: {formatFaDateTime(request.paymentHoldUntil)}</p> : null}{paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}{request.paymentStatus === "awaiting_payment" && request.bookingId ? <div className="mt-4 rounded-2xl border border-white/10 p-3"><p className="font-semibold">رسید واریز بیعانه</p><input className="mt-2 block w-full text-xs" type="file" accept="image/*" onChange={(e) => void pick(e.target.files?.[0])} />{receipt ? <img src={receipt} alt="پیش‌نمایش رسید" className="mt-2 max-h-40 rounded-xl object-contain" /> : null}<Button disabled={busy} className="mt-3 w-full" onClick={() => void submitReceipt()}>{busy ? "در حال ارسال…" : "ارسال رسید برای بررسی"}</Button></div> : null}</div> : null}</article>;
 }
