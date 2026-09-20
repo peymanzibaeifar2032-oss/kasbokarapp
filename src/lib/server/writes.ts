@@ -468,6 +468,11 @@ export async function performEnsureProfile(userId: string, displayName = "کار
   );
   if (grant) {
     await sql.query(`update profiles set is_admin = true where user_id = $1`, [userId]);
+    await sql.query(
+      `update businesses set subscription_ends_at = '2099-12-31 23:59:59+00', updated_at = now()
+       where owner_id = $1 and (subscription_ends_at is null or subscription_ends_at < '2099-12-31 23:59:59+00')`,
+      [userId],
+    );
   }
   const rows = await sql.query<{
     user_id: string;
