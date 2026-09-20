@@ -49,17 +49,34 @@ function Dashboard() {
   const [cats, setCats] = useState<Category[]>([]);
   const [stats, setStats] = useState<OwnerStats | null>(null);
   const [tattooRequests, setTattooRequests] = useState<TattooRequest[]>([]);
+  const [tattooLoading, setTattooLoading] = useState(false);
+  const [tattooError, setTattooError] = useState("");
 
   function refresh() {
     void saveAction<Business[]>("mine").then(setMine);
     void saveAction<Booking[]>("ownerBookings").then(setBookings);
     void saveAction<OwnerStats>("ownerStats").then(setStats);
-    void saveAction<TattooRequest[]>("studioTattooRequests").then(setTattooRequests).catch(() => undefined);
+  }
+
+  function refreshTattooRequests() {
+    setTattooLoading(true);
+    setTattooError("");
+    void saveAction<TattooRequest[]>("studioTattooRequests")
+      .then(setTattooRequests)
+      .catch((error) => {
+        const message = friendlyError(error);
+        setTattooError(message);
+        toast.error(message);
+      })
+      .finally(() => setTattooLoading(false));
   }
 
   useEffect(() => {
     if (!user) return;
-    void saveAction<Profile>("profile").then(setProfile);
+    void saveAction<Profile>("profile").then((nextProfile) => {
+      setProfile(nextProfile);
+      if (nextProfile.isAdmin) refreshTattooRequests();
+    });
     void saveAction<Category[]>("categories").then(setCats);
     refresh();
   }, [user]);
@@ -184,7 +201,11 @@ function Dashboard() {
         />
       ) : null}
       {!editing && tab === "finance" ? <FinancePanel action="financeMine" /> : null}
-      {!editing && tab === "tattoo" ? <TattooRequests items={tattooRequests} businesses={mine} onChange={refresh} /> : null}
+      {!editing && tab === "tattoo" ? (
+        tattooLoading ? <p className="mt-6 text-sm text-muted">در حال دریافت درخواست‌ها…</p>
+        : tattooError ? <div className="mt-6 space-y-3"><p className="text-sm text-destructive">{tattooError}</p><Button variant="outline" onClick={refreshTattooRequests}>تلاش دوباره</Button></div>
+        : <TattooRequests items={tattooRequests} businesses={mine} onChange={() => { refresh(); refreshTattooRequests(); }} />
+      ) : null}
       {!editing && tab === "me" && profile ? (
         <ProfileForm
           profile={profile}
