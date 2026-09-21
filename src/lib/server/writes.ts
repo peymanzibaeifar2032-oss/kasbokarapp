@@ -297,9 +297,9 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
 
 async function performMyTattooRequests(userId: string) {
   const sql = await getSql();
-  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where customer_id=$1 and status='approved' and payment_status='awaiting_payment' and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`, [userId]);
-  await sql.query(`update tattoo_requests set status='rejected', payment_status='expired', updated_at=now()
-    where customer_id=$1 and status='approved' and payment_status='awaiting_payment'
+  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where customer_id=$1 and status='approved' and payment_status in ('awaiting_payment','rejected') and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`, [userId]);
+  await sql.query(`update tattoo_requests set booking_id=null, payment_status='expired', updated_at=now()
+    where customer_id=$1 and status='approved' and payment_status in ('awaiting_payment','rejected')
       and payment_hold_until is not null and payment_hold_until <= now()`, [userId]);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where customer_id = $1 order by created_at desc`, [userId]);
   return rows.map(mapTattooRequest);
@@ -308,9 +308,9 @@ async function performMyTattooRequests(userId: string) {
 async function performStudioTattooRequests(userId: string) {
   await requireAdmin(userId);
   const sql = await getSql();
-  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where status='approved' and payment_status='awaiting_payment' and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`);
-  await sql.query(`update tattoo_requests set status='rejected', payment_status='expired', updated_at=now()
-    where status='approved' and payment_status='awaiting_payment'
+  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where status='approved' and payment_status in ('awaiting_payment','rejected') and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`);
+  await sql.query(`update tattoo_requests set booking_id=null, payment_status='expired', updated_at=now()
+    where status='approved' and payment_status in ('awaiting_payment','rejected')
       and payment_hold_until is not null and payment_hold_until <= now()`);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} order by case status when 'submitted' then 0 when 'needs_info' then 1 when 'approved' then 2 else 3 end, created_at desc`);
   return rows.map(mapTattooRequest);
@@ -428,10 +428,11 @@ async function performSubmitTattooReceipt(userId: string, raw: unknown) {
   const rows = await sql.query<{ id: string; customer_id: string; business_id: string | null; payment_status: string; payment_hold_until: string | null }>(`select id, customer_id, business_id, payment_status, payment_hold_until from tattoo_requests where id=$1`, [data.requestId]);
   const r = rows[0];
   if (!r || r.customer_id !== userId) throw new Error("دسترسی ندارید.");
-  if (r.payment_status !== "awaiting_payment") throw new Error("این درخواست در وضعیت پرداخت نیست.");
+  if (r.payment_status !== "awaiting_payment" && r.payment_status !== "rejected") throw new Error("این درخواست در وضعیت پرداخت نیست.");
   if (!r.payment_hold_until || new Date(r.payment_hold_until).getTime() <= Date.now()) {
-    await sql.query(`update tattoo_requests set status='rejected', payment_status='expired', updated_at=now() where id=$1`, [r.id]);
-    throw new Error("مهلت پرداخت تمام شده است.");
+    await sql.query(`update bookings set status='cancelled' where id=(select booking_id from tattoo_requests where id=$1) and status='requested'`, [r.id]);
+    await sql.query(`update tattoo_requests set booking_id=null, payment_status='expired', updated_at=now() where id=$1`, [r.id]);
+    throw new Error("مهلت پرداخت تمام شد. وقت آزاد شد، اما درخواست شما همچنان باز است.");
   }
   await sql.query(`update tattoo_requests set payment_status='receipt_submitted', payment_submitted_at=now(), payment_review_deadline=now()+interval '12 hours', receipt_image=$2, updated_at=now() where id=$1`, [r.id, data.receiptImage]);
   const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin=true");
@@ -453,7 +454,7 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
     await sql.query(`update bookings set status='confirmed', finance_status='deposit_paid' where id=$1`, [r.booking_id]);
   } else {
     await sql.query(
-      `update tattoo_requests set payment_status='awaiting_payment', payment_hold_until=now()+interval '6 hours',
+      `update tattoo_requests set payment_status='rejected', payment_hold_until=now()+interval '6 hours',
          receipt_image=null, payment_submitted_at=null, payment_review_deadline=null, artist_message=$2, updated_at=now()
        where id=$1`,
       [data.requestId, data.message],
