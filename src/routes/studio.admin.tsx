@@ -301,9 +301,13 @@ function TattooAdminCard({
             ? "قطعی"
             : request.paymentStatus === "receipt_submitted"
               ? "رسید جدید"
-              : request.status === "approved"
-                ? "منتظر مشتری"
-                : "در انتظار بررسی"}
+              : request.paymentStatus === "rejected"
+                ? "رسید نیاز به اصلاح"
+                : request.paymentStatus === "expired"
+                  ? "وقت آزاد شده"
+                  : request.status === "approved"
+                    ? "منتظر مشتری"
+                    : "در انتظار بررسی"}
         </Badge>
       </div>
       <p className="mt-3 text-sm leading-7">{request.idea}</p>
@@ -454,6 +458,11 @@ function ReceiptReview({ request, onChange }: { request: TattooRequest; onChange
       {request.paymentSubmittedAt ? (
         <p className="mt-1 text-xs text-muted">
           ارسال: {formatFaDateTime(request.paymentSubmittedAt)}
+        </p>
+      ) : null}
+      {request.paymentReviewDeadline ? (
+        <p className="mt-1 text-xs font-medium text-amber-700">
+          مهلت بررسی: {formatFaDateTime(request.paymentReviewDeadline)}
         </p>
       ) : null}
       {request.receiptImage ? (
