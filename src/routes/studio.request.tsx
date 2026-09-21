@@ -12,13 +12,17 @@ import type { Profile, TattooRequest } from "@/lib/types";
 
 export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
 
-const statusText: Record<TattooRequest["status"], string> = {
-  submitted: "در انتظار بررسی",
-  needs_info: "نیاز به اطلاعات بیشتر",
-  approved: "تأیید شده",
-  rejected: "پذیرفته نشد",
-  booked: "رزرو قطعی",
-};
+function requestStatusText(request: TattooRequest) {
+  if (request.status === "booked" || request.paymentStatus === "approved") return "رزرو قطعی";
+  if (request.paymentStatus === "proposal_pending") return "پیشنهاد پیمان آماده است";
+  if (request.paymentStatus === "awaiting_payment") return "منتظر ارسال رسید";
+  if (request.paymentStatus === "receipt_submitted") return "رسید در دست بررسی";
+  if (request.paymentStatus === "rejected") return "رسید نیاز به اصلاح دارد";
+  if (request.paymentStatus === "expired") return "مهلت پرداخت تمام شده";
+  if (request.status === "needs_info") return "نیاز به اطلاعات بیشتر";
+  if (request.status === "rejected") return "پذیرفته نشد";
+  return "در انتظار بررسی";
+}
 
 async function compressImage(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("فقط فایل تصویری انتخاب کنید.");
@@ -385,12 +389,14 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
   }
   const paymentText =
     request.paymentStatus === "receipt_submitted"
-      ? "رسید در دست بررسی؛ نتیجه حداکثر تا ۱۲ ساعت"
+      ? "رسید در دست بررسی است. نتیجه حداکثر تا ۱۲ ساعت اعلام می‌شود."
       : request.paymentStatus === "approved"
         ? "پرداخت تأیید شد"
-        : request.paymentStatus === "expired"
-          ? "مهلت پرداخت تمام شده"
-          : null;
+        : request.paymentStatus === "rejected"
+          ? "رسید پذیرفته نشد. دلیل را بخوانید و عکس درست را دوباره بفرستید."
+          : request.paymentStatus === "expired"
+            ? "مهلت پرداخت تمام شد و وقت آزاد شد. درخواست شما باز است؛ پیمان می‌تواند زمان تازه‌ای پیشنهاد کند."
+            : null;
   return (
     <article className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
       <div className="flex items-start justify-between gap-2">
@@ -399,7 +405,7 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
           <h3 className="mt-1 font-bold">{request.style}</h3>
         </div>
         <span className="rounded-full bg-[#b7955b]/15 px-2 py-1 text-[11px] text-[#d9bd87]">
-          {statusText[request.status]}
+          {requestStatusText(request)}
         </span>
       </div>
       {request.artistMessage ? (
@@ -432,7 +438,7 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
               ) : null}
             </div>
           ) : null}
-          {request.paymentStatus === "awaiting_payment" &&
+          {(request.paymentStatus === "awaiting_payment" || request.paymentStatus === "rejected") &&
           (request.paymentIban || request.paymentCardNumber) ? (
             <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]">
               <p className="font-semibold">اطلاعات واریز بیعانه</p>
@@ -443,13 +449,14 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
               <p className="text-xs">از زمان تأیید، ۶ ساعت برای واریز فرصت دارید.</p>
             </div>
           ) : null}
-          {request.paymentHoldUntil && request.paymentStatus === "awaiting_payment" ? (
+          {request.paymentHoldUntil &&
+          (request.paymentStatus === "awaiting_payment" || request.paymentStatus === "rejected") ? (
             <p className="text-amber-300">
               مهلت واریز: {formatFaDateTime(request.paymentHoldUntil)}
             </p>
           ) : null}
           {paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}
-          {request.paymentStatus === "awaiting_payment" ? (
+          {request.paymentStatus === "awaiting_payment" || request.paymentStatus === "rejected" ? (
             <div className="mt-4 rounded-2xl border border-[#b7955b]/35 bg-[#b7955b]/5 p-4">
               <p className="font-semibold text-[#e5d2ae]">ارسال عکس رسید واریز</p>
               <p className="mt-1 text-xs leading-6 text-white/50">
