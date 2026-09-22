@@ -8,7 +8,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addBookingToPhoneCalendar, formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled } from "@/lib/studio-notices";
-import { tattooStage } from "@/lib/tattoo-flow";
+import { STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
 import type { NotificationItem, Profile, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
 
@@ -173,7 +173,7 @@ function StudioStatusPage() {
                   title: "نوبت تاتو · پیمان زیبائی‌فر",
                   startIso: request.proposedSlotStart!,
                   minutes: calendarMinutes(request),
-                  location: "استودیو پیمان زیبائی‌فر، کرمانشاه",
+                  location: STUDIO_ADDRESS,
                   description: [request.style, request.artistMessage].filter(Boolean).join(" — "),
                   fileName: `tattoo-${request.id}.ics`,
                 })

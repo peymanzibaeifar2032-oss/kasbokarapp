@@ -86,6 +86,19 @@ export const TATTOO_SETTLEMENT_PRESETS = [
 ] as const;
 
 export const STUDIO_OWNER_STAFF_NAME = "پیمان زیبائی‌فر";
+export const STUDIO_ADDRESS =
+  "کرمانشاه، چهارراه بسیج، جنب آتش‌نشانی، بغل موتورسیکلت‌فروشی فقیرزاده، مجتمع ارشاد، طبقه ۴، واحد ۱۶";
+export const STUDIO_CONTACT_PHONE = "09216812852";
+
+export function studioVisitText() {
+  return `آدرس استودیو:\n${STUDIO_ADDRESS}\nتلفن: ${STUDIO_CONTACT_PHONE}`;
+}
+
+export function withStudioVisitDetails(message: string) {
+  const trimmed = message.trim();
+  if (trimmed.includes("مجتمع ارشاد") && trimmed.includes(STUDIO_CONTACT_PHONE)) return trimmed;
+  return `${trimmed}\n\n${studioVisitText()}`;
+}
 
 export function isRetiredCollaborator(name: string) {
   return /مهر+داد/.test(name.replace(/\s/g, ""));

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, isRetiredCollaborator, tattooBalance, tattooStage } from "../tattoo-flow.ts";
+import { STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, isRetiredCollaborator, tattooBalance, tattooStage, withStudioVisitDetails } from "../tattoo-flow.ts";
 import { googleCalendarUrl, normalizeInstagramHandle } from "../format.ts";
 import { studioJobsReportHtml } from "../studio-list-pdf.ts";
 import {
@@ -396,6 +396,15 @@ describe("tattooBalance and bank presets", () => {
     assert.equal(isRetiredCollaborator("مهرداد"), true);
     assert.equal(isRetiredCollaborator("مهررداد"), true);
     assert.equal(isRetiredCollaborator("پیمان زیبائی‌فر"), false);
+  });
+
+  it("appends studio address and phone after the artist message", () => {
+    const text = withStudioVisitDetails("قیمت و زمان پیشنهادی");
+    assert.match(text, /قیمت و زمان پیشنهادی/);
+    assert.match(text, /مجتمع ارشاد/);
+    assert.match(text, /طبقه ۴/);
+    assert.match(text, new RegExp(STUDIO_CONTACT_PHONE));
+    assert.equal(withStudioVisitDetails(text), text);
   });
 });
 

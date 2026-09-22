@@ -3,6 +3,7 @@ import { ChevronLeft, Download, ImagePlus, Loader2, ShieldCheck, Smartphone } fr
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { StudioVisitNote } from "@/components/studio/visit-note";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { compressImage, designFileName, downloadImage } from "@/lib/design-images";
 import { formatFaDate, formatFaDateTime, formatToman, addBookingToPhoneCalendar } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
+import { TATTOO_CUSTOMER_STAGE_LABEL, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
 import type { Profile, TattooRequest } from "@/lib/types";
 
 export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
@@ -510,6 +511,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
                   {request.paymentCardNumber ? (
                     <p dir="ltr">کارت: {request.paymentCardNumber}</p>
                   ) : null}
+                  <StudioVisitNote tone="dark" />
                 </div>
               ) : null}
               {request.paymentStatus === "proposal_pending" ? (
@@ -530,6 +532,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
               {request.paymentCardNumber ? (
                 <p dir="ltr">کارت: {request.paymentCardNumber}</p>
               ) : null}
+              <StudioVisitNote tone="dark" />
               <p className="text-xs">
                 {stage === "receipt_fix"
                   ? "تا پایان مهلت اصلاح، همین زمان قفل می‌ماند."
@@ -543,6 +546,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
             </p>
           ) : null}
           {paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}
+          {stage === "booked" ? <StudioVisitNote tone="dark" /> : null}
           {stage === "booked" && request.proposedSlotStart ? (
             <Button
               className="mt-3 w-full bg-[#b7955b] text-black"
@@ -561,7 +565,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
                           ),
                         )
                       : request.sessionMinutes || 120,
-                  location: "استودیو پیمان زیبائی‌فر، کرمانشاه",
+                  location: STUDIO_ADDRESS,
                   description: [request.style, request.artistMessage].filter(Boolean).join(" — "),
                   fileName: `tattoo-${request.id}.ics`,
                 })

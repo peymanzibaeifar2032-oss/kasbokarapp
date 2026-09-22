@@ -18,7 +18,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
-import { tattooBalance, STUDIO_OWNER_STAFF_NAME } from "@/lib/tattoo-flow";
+import { tattooBalance, STUDIO_OWNER_STAFF_NAME, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { STUDIO_EXPENSE_CATEGORIES, studioMonthSummary, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
@@ -486,7 +486,7 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
     paymentIban: z.string().trim().max(34).optional().nullable(),
     paymentCardNumber: z.string().trim().max(24).optional().nullable(),
     proposedSlotStart: z.string().optional().nullable(),
-    artistMessage: z.string().trim().min(2).max(1000),
+    artistMessage: z.string().trim().min(2).max(2000),
   }).parse(raw);
   if (data.status === "approved" && (!data.businessId || data.priceMinToman == null || data.depositToman == null || !data.sessionMinutes || !data.proposedSlotStart)) {
     throw new Error("برای تأیید، کسب‌وکار، قیمت، بیعانه، مدت جلسه و زمان پیشنهادی را کامل کنید.");
@@ -540,6 +540,8 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
       [current[0].booking_id],
     );
   }
+  const artistMessage =
+    data.status === "approved" ? withStudioVisitDetails(data.artistMessage) : data.artistMessage;
   const updated = await sql.query<{ customer_id: string }>(
     `update tattoo_requests set status=$2, business_id=$3, price_min_toman=$4, price_max_toman=$5,
        session_minutes=$6, session_count=$7, deposit_toman=$8, artist_message=$9,
@@ -550,12 +552,12 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
        proposed_slot_start=$12, proposed_slot_end=$13, booking_id=null, updated_at=now()
      where id=$1 returning customer_id`,
     [data.id, data.status, data.businessId ?? null, data.priceMinToman ?? null, data.priceMaxToman ?? null,
-      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, data.artistMessage,
+      data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, artistMessage,
       paymentIban, paymentCardNumber, proposedStart, proposedEnd],
   );
   if (!updated[0]) throw new Error("درخواست پیدا نشد.");
   const titles = { approved: "پیشنهاد قیمت و زمان تاتو", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
-  await notify(sql, updated[0].customer_id, titles[data.status], data.artistMessage, `tattoo_request_${data.status}`);
+  await notify(sql, updated[0].customer_id, titles[data.status], artistMessage, `tattoo_request_${data.status}`);
   return { ok: true as const };
 }
 

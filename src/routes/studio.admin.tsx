@@ -24,6 +24,7 @@ import {
   formatCardNumber,
   formatTattooToman,
   isTattooReviewOverdue,
+  studioVisitText,
   tattooBalance,
   tattooStage,
 } from "@/lib/tattoo-flow";
@@ -293,7 +294,7 @@ function TattooAdminCard({
   const defaultBank = TATTOO_SETTLEMENT_PRESETS[0];
   const [cardNumber, setCardNumber] = useState(request.paymentCardNumber || defaultBank.card);
   const [iban, setIban] = useState(request.paymentIban || defaultBank.iban);
-  const [message, setMessage] = useState(request.artistMessage ?? "");
+  const [message, setMessage] = useState(request.artistMessage || studioVisitText());
   const [day, setDay] = useState(tehranDateInput(request.proposedSlotStart));
   const [time, setTime] = useState(tehranTimeInput(request.proposedSlotStart));
   const [busy, setBusy] = useState(false);
@@ -551,7 +552,7 @@ function TattooAdminCard({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={3}
-              placeholder="نتیجه بررسی و شرایط اجرا"
+              placeholder="نتیجه بررسی. آدرس استودیو خودش به پیام مشتری اضافه می‌شود."
             />
           </Field>
           <div className="mt-3 flex flex-wrap gap-2">
