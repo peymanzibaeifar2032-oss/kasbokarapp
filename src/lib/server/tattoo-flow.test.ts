@@ -384,11 +384,11 @@ describe("tattooBalance and bank presets", () => {
   it("fills both IBAN and card from each titled bank", () => {
     assert.equal(TATTOO_SETTLEMENT_PRESETS.length, 2);
     assert.equal(TATTOO_SETTLEMENT_PRESETS[0].title, "پیمان زیبائی‌فر کارت بانک مهر ایران");
+    assert.equal(TATTOO_SETTLEMENT_PRESETS[0].card, "6063731197753891");
+    assert.equal(TATTOO_SETTLEMENT_PRESETS[0].iban, "IR680600581470017758851001");
     assert.equal(TATTOO_SETTLEMENT_PRESETS[1].title, "پیمان زیبائی‌فر بانک مسکن");
-    for (const preset of TATTOO_SETTLEMENT_PRESETS) {
-      assert.equal(preset.iban, "IR160140040000152900013417");
-      assert.equal(preset.card, "6280231566846282");
-    }
+    assert.equal(TATTOO_SETTLEMENT_PRESETS[1].card, "6280231566846282");
+    assert.equal(TATTOO_SETTLEMENT_PRESETS[1].iban, "IR160140040000152900013417");
   });
 
   it("keeps only Peyman as studio staff and drops Mehrdad spellings", () => {

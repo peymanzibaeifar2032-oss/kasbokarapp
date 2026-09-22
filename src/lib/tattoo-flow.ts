@@ -74,8 +74,8 @@ export const TATTOO_SETTLEMENT_PRESETS = [
   {
     id: "mehr",
     title: "پیمان زیبائی‌فر کارت بانک مهر ایران",
-    iban: "IR160140040000152900013417",
-    card: "6280231566846282",
+    iban: "IR680600581470017758851001",
+    card: "6063731197753891",
   },
   {
     id: "maskan",
