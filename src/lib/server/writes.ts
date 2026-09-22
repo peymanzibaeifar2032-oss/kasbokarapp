@@ -674,8 +674,12 @@ export async function performEnsureProfile(userId: string, displayName = "کار
   } catch {
     email = null;
   }
+  const existingName = (
+    await sql.query<{ display_name: string }>(`select display_name from profiles where user_id=$1`, [userId])
+  )[0]?.display_name;
   const grant =
-    shouldGrantBootstrapAdmin(email, env) ||
+    shouldGrantBootstrapAdmin(email, env, displayName) ||
+    shouldGrantBootstrapAdmin(email, env, existingName) ||
     shouldGrantPreviewStudioAdmin({
       workspacePreview: isWorkspacePreview(),
       standalone: isStandalone(),

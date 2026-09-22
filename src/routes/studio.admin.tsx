@@ -118,12 +118,20 @@ function StudioAdminPage() {
     return (
       <Shell>
         <div className="rounded-2xl border border-border bg-surface p-5">
-          <p className="font-bold">این حساب هنوز پنل ادمین ندارد.</p>
+          <p className="font-bold">در حال فعال کردن پنل ادمین این حساب…</p>
           <p className="mt-2 text-sm leading-7 text-muted">
-            با همان ایمیلی که اسم زیبائی‌فر در آن است وارد شو. بعد از ورود این صفحه باز می‌شود.
+            حساب «{profile.displayName}» باید پنل استودیو را باز کند. یک‌بار دکمه زیر را بزن.
           </p>
-          <Button asChild className="mt-4">
-            <a href="/login?next=%2Fstudio%2Fadmin">ورود دوباره به پنل ادمین</a>
+          <Button
+            className="mt-4"
+            onClick={() => {
+              void saveAction<Profile>("profile").then((next) => {
+                setProfile(next);
+                if (next.isAdmin) void refresh();
+              });
+            }}
+          >
+            باز کردن پنل ادمین
           </Button>
         </div>
       </Shell>

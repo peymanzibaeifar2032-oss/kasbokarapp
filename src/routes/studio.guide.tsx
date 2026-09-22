@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { StudioGuideGallery } from "@/components/studio/guide-gallery";
 import { StudioTopBar } from "@/components/studio/top-bar";
-import { STUDIO_GUIDE_CARDS } from "@/lib/studio-guide";
 
 export const Route = createFileRoute("/studio/guide")({
   component: StudioGuidePage,
@@ -39,29 +39,8 @@ function StudioGuidePage() {
           </Link>
         </div>
 
-        <section className="mt-10 grid gap-6 sm:grid-cols-2">
-          {STUDIO_GUIDE_CARDS.map((card, index) => (
-            <figure key={card.slug} className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[.03]">
-              <img
-                src={`/studio-guide/${card.slug}.png`}
-                alt={card.title}
-                className="aspect-[4/5] w-full object-cover"
-              />
-              <figcaption className="p-4">
-                <p className="text-xs text-[#b7955b]">مرحله {new Intl.NumberFormat("fa-IR").format(index + 1)}</p>
-                <h2 className="mt-1 text-lg font-bold">{card.title}</h2>
-                <p className="mt-2 text-sm leading-7 text-white/55">{card.lead}</p>
-                <a
-                  href={`/studio-guide/${card.slug}.png`}
-                  download={`${card.slug}.png`}
-                  className="mt-3 inline-flex items-center gap-2 text-sm text-[#e5d2ae]"
-                >
-                  <Download className="size-4" />
-                  ذخیره این عکس
-                </a>
-              </figcaption>
-            </figure>
-          ))}
+        <section className="mt-10">
+          <StudioGuideGallery />
         </section>
       </main>
     </div>

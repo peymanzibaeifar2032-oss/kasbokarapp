@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   isExclusionViolation,
   isOccupancyConflict,
+  isStudioOwnerName,
   isUniqueViolation,
   shouldGrantBootstrapAdmin,
   shouldGrantPreviewStudioAdmin,
@@ -32,6 +33,15 @@ describe("admin bootstrap", () => {
     assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar2032@googlemail.com", get), true);
     assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar@yahoo.com", get), true);
     assert.equal(shouldGrantBootstrapAdmin("client@gmail.com", get), false);
+  });
+
+  it("grants Peyman by display name even when email is unrelated", () => {
+    const get = () => undefined;
+    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "پیمان زیبائی فر"), true);
+    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "پیمان زیبائی‌فر"), true);
+    assert.equal(isStudioOwnerName("پیمان زیبائی فر"), true);
+    assert.equal(isStudioOwnerName("مشتری عادی"), false);
+    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "مشتری عادی"), false);
   });
 
   it("grants studio admin only in the live preview", () => {

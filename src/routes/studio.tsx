@@ -13,8 +13,8 @@ import {
   Upload,
 } from "lucide-react";
 import { StudioTopBar } from "@/components/studio/top-bar";
+import { StudioGuideGallery } from "@/components/studio/guide-gallery";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
-import { STUDIO_GUIDE_CARDS } from "@/lib/studio-guide";
 
 export const Route = createFileRoute("/studio")({
   component: StudioLanding,
@@ -177,21 +177,8 @@ function StudioLanding() {
             مراحل ورود، پر کردن فرم، ارسال عکس طرح و محل بدن، بررسی پیمان و واریز بیعانه اینجاست تا
             لازم نباشد از استودیو بپرسی.
           </p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {STUDIO_GUIDE_CARDS.map((card) => (
-              <Link
-                key={card.slug}
-                to="/studio/guide"
-                className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[.03]"
-              >
-                <img
-                  src={`/studio-guide/${card.slug}.png`}
-                  alt={card.title}
-                  className="aspect-[4/5] w-full object-cover"
-                />
-                <span className="block p-4 text-sm font-bold">{card.title}</span>
-              </Link>
-            ))}
+          <div className="mt-8">
+            <StudioGuideGallery />
           </div>
         </section>
 

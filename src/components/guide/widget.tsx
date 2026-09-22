@@ -1,4 +1,4 @@
-import { useRouterState, Link } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import { CircleHelp, Send, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/guide/version";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
-import { STUDIO_GUIDE_CARDS } from "@/lib/studio-guide";
+import { StudioGuideGallery } from "@/components/studio/guide-gallery";
 import { cn, newId } from "@/lib/utils";
 
 type Msg = { id: string; role: "user" | "assistant"; text: string };
@@ -191,20 +191,8 @@ export function GuideWidget() {
                   {busy ? <p className="text-xs text-muted">در حال نوشتن…</p> : null}
                   {offline ? <p className="text-xs text-danger">اتصال اینترنت قطع است.</p> : null}
                   {error ? <p className="text-xs text-danger">{error}</p> : null}
-                  {studio ? (
-                    <div className="grid grid-cols-3 gap-1.5 pt-1">
-                      {STUDIO_GUIDE_CARDS.map((card) => (
-                        <Link
-                          key={card.slug}
-                          to="/studio/guide"
-                          className="overflow-hidden rounded-lg border border-border"
-                        >
-                          <img src={`/studio-guide/${card.slug}.png`} alt={card.title} className="aspect-[4/5] w-full object-cover" />
-                        </Link>
-                      ))}
-                    </div>
-                  ) : null}
-                  {!busy && messages.length < 4 ? (
+                  {studio ? <StudioGuideGallery compact /> : null}
+                  {!busy ? (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {suggestions.map((s) => (
                         <button
