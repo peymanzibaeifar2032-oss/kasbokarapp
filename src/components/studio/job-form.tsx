@@ -86,7 +86,6 @@ export function StudioJobForm({
     if (placement.trim().length < 2) return toast.error("محل اجرا را بنویسید.");
     if (!price) return toast.error("مبلغ کل را بنویسید.");
     if (!day || !time) return toast.error("تاریخ و ساعت را انتخاب کنید.");
-    if (!businessId) return toast.error("صفحه کسب‌وکار را انتخاب کنید.");
     if (phone.trim() && !isIranMobile(normalizeIranPhone(phone))) {
       return toast.error("شماره موبایل اول معتبر نیست.");
     }

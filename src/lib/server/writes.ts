@@ -18,7 +18,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
-import { tattooBalance, STUDIO_OWNER_STAFF_NAME, withStudioVisitDetails } from "@/lib/tattoo-flow";
+import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { STUDIO_EXPENSE_CATEGORIES, studioMonthSummary, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
@@ -97,14 +97,39 @@ async function requireAdmin(userId: string) {
 
 const PREVIEW_STUDIO_ID = "biz-peyman-studio";
 
-async function ensurePreviewStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
+async function ensureStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId: string): Promise<string> {
   const mine = await sql.query<{ id: string }>(
-    `select id from businesses where owner_id = $1 and name ilike '%پیمان%' limit 1`,
+    `select id from businesses
+      where owner_id = $1
+      order by case
+        when name ilike '%پیمان%' then 0
+        when name ilike '%تاتو%' then 1
+        else 2
+      end, created_at
+      limit 1`,
     [userId],
   );
   if (mine[0]) {
     await removeRetiredCollaborators(sql, userId);
-    return;
+    return mine[0].id;
+  }
+  const named = await sql.query<{ id: string }>(
+    `select id from businesses
+      where id = $1 or name ilike '%پیمان زیبائی%' or name ilike '%استودیو پیمان%'
+      order by case when id = $1 then 0 else 1 end
+      limit 1`,
+    [PREVIEW_STUDIO_ID],
+  );
+  if (named[0]) {
+    await sql.query(
+      `update businesses
+          set owner_id = $1, is_active = true, approval_status = 'approved',
+              subscription_ends_at = '2099-12-31 23:59:59+00', updated_at = now()
+        where id = $2`,
+      [userId, named[0].id],
+    );
+    await removeRetiredCollaborators(sql, userId);
+    return named[0].id;
   }
   await sql.query(
     `insert into businesses (
@@ -121,10 +146,10 @@ async function ensurePreviewStudioShop(sql: Awaited<ReturnType<typeof getSql>>, 
       userId,
       "استودیو پیمان زیبائی‌فر",
       "تاتو آرتیست",
-      "08337221100",
+      STUDIO_CONTACT_PHONE,
       "کرمانشاه",
       "کرمانشاه",
-      "کرمانشاه",
+      STUDIO_ADDRESS,
       KERMANSHAH_CENTER.lat,
       KERMANSHAH_CENTER.lng,
       "طراحی و اجرای تاتو رئال، بلک‌اندگری و کاور.",
@@ -137,6 +162,7 @@ async function ensurePreviewStudioShop(sql: Awaited<ReturnType<typeof getSql>>, 
     ],
   );
   await removeRetiredCollaborators(sql, userId);
+  return PREVIEW_STUDIO_ID;
 }
 
 async function expireOpenTattooHolds(sql: Awaited<ReturnType<typeof getSql>>, customerId?: string) {
@@ -488,8 +514,13 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
     proposedSlotStart: z.string().optional().nullable(),
     artistMessage: z.string().trim().min(2).max(2000),
   }).parse(raw);
-  if (data.status === "approved" && (!data.businessId || data.priceMinToman == null || data.depositToman == null || !data.sessionMinutes || !data.proposedSlotStart)) {
-    throw new Error("برای تأیید، کسب‌وکار، قیمت، بیعانه، مدت جلسه و زمان پیشنهادی را کامل کنید.");
+  const sql = await getSql();
+  let businessId = data.businessId || null;
+  if (data.status === "approved") {
+    if (!businessId) businessId = await ensureStudioShop(sql, userId);
+    if (data.priceMinToman == null || data.depositToman == null || !data.sessionMinutes || !data.proposedSlotStart) {
+      throw new Error("برای تأیید، قیمت، بیعانه، مدت جلسه و زمان پیشنهادی را کامل کنید.");
+    }
   }
   const paymentIban = data.paymentIban?.replace(/\s/g, "").toUpperCase() || null;
   const paymentCardNumber = data.paymentCardNumber?.replace(/\D/g, "") || null;
@@ -498,7 +529,6 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
   }
   if (paymentIban && !/^IR\d{24}$/.test(paymentIban)) throw new Error("شماره شبا معتبر نیست.");
   if (paymentCardNumber && !/^\d{16}$/.test(paymentCardNumber)) throw new Error("شماره کارت باید ۱۶ رقم باشد.");
-  const sql = await getSql();
   const current = await sql.query<{ status: string; payment_status: string; booking_id: string | null }>(
     `select status, payment_status, booking_id from tattoo_requests where id=$1`,
     [data.id],
@@ -511,8 +541,8 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
   if (data.status === "approved" && (current[0].payment_status === "awaiting_payment" || current[0].payment_status === "rejected")) {
     throw new Error("این زمان تا پایان مهلت پرداخت یا ارسال رسید قفل است.");
   }
-  if (data.businessId) {
-    const owned = await sql.query<{ id: string }>("select id from businesses where id = $1 and owner_id = $2", [data.businessId, userId]);
+  if (businessId) {
+    const owned = await sql.query<{ id: string }>("select id from businesses where id = $1 and owner_id = $2", [businessId, userId]);
     if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
   }
   let proposedStart: string | null = null;
@@ -523,12 +553,12 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
     const end = new Date(start.getTime() + data.sessionMinutes! * 60000);
     const overlap = await sql.query<{ id: string }>(
       TATTOO_SLOT_OVERLAP_SQL,
-      [data.businessId, start.toISOString(), end.toISOString()],
+      [businessId, start.toISOString(), end.toISOString()],
     );
     if (overlap[0]) throw new Error("این زمان قبلاً رزرو شده است. زمان دیگری انتخاب کنید.");
     const pending = await sql.query<{ id: string }>(
       TATTOO_PENDING_PROPOSAL_OVERLAP_SQL,
-      [data.businessId, start.toISOString(), end.toISOString(), data.id],
+      [businessId, start.toISOString(), end.toISOString(), data.id],
     );
     if (pending[0]) throw new Error("این زمان برای درخواست دیگری پیشنهاد شده است. زمان دیگری انتخاب کنید.");
     proposedStart = start.toISOString();
@@ -551,7 +581,7 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
        payment_iban=$10, payment_card_number=$11,
        proposed_slot_start=$12, proposed_slot_end=$13, booking_id=null, updated_at=now()
      where id=$1 returning customer_id`,
-    [data.id, data.status, data.businessId ?? null, data.priceMinToman ?? null, data.priceMaxToman ?? null,
+    [data.id, data.status, businessId, data.priceMinToman ?? null, data.priceMaxToman ?? null,
       data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, artistMessage,
       paymentIban, paymentCardNumber, proposedStart, proposedEnd],
   );
@@ -713,14 +743,7 @@ export async function performEnsureProfile(userId: string, displayName = "کار
        where owner_id = $1 and (subscription_ends_at is null or subscription_ends_at < '2099-12-31 23:59:59+00')`,
       [userId],
     );
-    if (
-      shouldGrantPreviewStudioAdmin({
-        workspacePreview: isWorkspacePreview(),
-        standalone: isStandalone(),
-      })
-    ) {
-      await ensurePreviewStudioShop(sql, userId);
-    }
+    await ensureStudioShop(sql, userId);
   }
   const rows = await sql.query<{
     user_id: string;
@@ -2201,7 +2224,7 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
 async function performCreateStudioJob(userId: string, raw: unknown) {
   await requireAdmin(userId);
   const data = z.object({
-    businessId: z.string(),
+    businessId: z.string().optional(),
     customerName: z.string().trim().min(2).max(80),
     customerPhone: z.string().trim().max(40).optional(),
     customerPhone2: z.string().trim().max(40).optional(),
@@ -2219,13 +2242,14 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   }).parse(raw);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
-  const owned = await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [data.businessId, userId]);
+  const businessId = data.businessId || (await ensureStudioShop(sql, userId));
+  const owned = await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [businessId, userId]);
   if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
   const start = new Date(data.slotStart);
   if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
   const minutes = data.sessionMinutes ?? 180;
   const slotEnd = new Date(start.getTime() + minutes * 60000).toISOString();
-  const resources = await loadResources(sql, data.businessId);
+  const resources = await loadResources(sql, businessId);
   const staffed = hasActiveResources(resources);
   const active = resources.filter((row) => row.active !== false);
   let resourceId = data.resourceId?.trim() || null;
@@ -2260,7 +2284,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     await sql.query(
       `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status)
        values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,$9,$9,$10)`,
-      [bookingId, data.businessId, data.customerName, data.customerPhone ? phone : null, start.toISOString(), slotEnd, data.idea || null, data.style, resourceId, settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required"],
+      [bookingId, businessId, data.customerName, data.customerPhone ? phone : null, start.toISOString(), slotEnd, data.idea || null, data.style, resourceId, settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required"],
     );
   } catch (err) {
     if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
@@ -2272,7 +2296,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
        size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
        payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images)
      values ($1,$2,$3,$4,$5,$6,$7,$8,'new',$9,$10,$11,$12,'booked',$13,$14,1,$15,'ثبت دستی از تقویم کاری','approved',$16,$17,$18,$19,$20::jsonb)`,
-    [requestId, userId, data.businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images)],
+    [requestId, userId, businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images)],
   );
   if (paid > 0) {
     await sql.query(`insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`, [crypto.randomUUID(), requestId, paid, "واریز ثبت‌شده هنگام ورود دستی"]);

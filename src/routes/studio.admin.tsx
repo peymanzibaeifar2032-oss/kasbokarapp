@@ -11,7 +11,7 @@ import { SignedOutPanel } from "@/components/layout/auth-required";
 import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, NativeSelect, Textarea } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle } from "@/lib/format";
@@ -353,7 +353,7 @@ function TattooAdminCard({
 
   async function decide(status: "approved" | "needs_info" | "rejected") {
     if (message.trim().length < 2) return toast.error("پیام کوتاهی برای مشتری بنویسید.");
-    if (status === "approved" && (!businessId || !price || !minutes || !deposit || !proposalIso()))
+    if (status === "approved" && (!price || !minutes || !deposit || !proposalIso()))
       return toast.error("قیمت، بیعانه، مدت جلسه و تاریخ و ساعت را کامل کنید.");
     setBusy(true);
     try {
@@ -458,16 +458,6 @@ function TattooAdminCard({
       {showProposalForm ? (
         <>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="صفحه کسب‌وکار">
-              <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
-                <option value="">انتخاب کنید</option>
-                {businesses.map((business) => (
-                  <option key={business.id} value={business.id}>
-                    {business.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            </Field>
             <NumberField label="قیمت نهایی" hint="تومان" value={price} onChange={setPrice} />
             <NumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} />
             <NumberField
