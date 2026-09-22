@@ -1,9 +1,24 @@
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronLeft } from "lucide-react";
+import { useEffect, useState } from "react";
 import { StudioNoticeBanner, useStudioNotices } from "@/components/studio/notice-watcher";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { saveAction } from "@/lib/save";
+import type { Profile } from "@/lib/types";
 
 export function StudioTopBar({ compact }: { compact?: boolean }) {
   const { unread, banner, dismiss } = useStudioNotices();
+  const { user } = useCurrentUserState();
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!user?.id) {
+      setIsAdmin(false);
+      return;
+    }
+    void saveAction<Profile>("profile")
+      .then((profile) => setIsAdmin(Boolean(profile?.isAdmin)))
+      .catch(() => setIsAdmin(false));
+  }, [user?.id]);
   return (
     <>
       {banner ? <StudioNoticeBanner item={banner} onDismiss={dismiss} /> : null}
@@ -33,12 +48,14 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
           >
             آموزش
           </Link>
-          <Link
-            to="/studio/admin"
-            className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/70"
-          >
-            پنل ادمین
-          </Link>
+          {isAdmin ? (
+            <Link
+              to="/studio/admin"
+              className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/70"
+            >
+              پنل ادمین
+            </Link>
+          ) : null}
           <Link
             to="/studio/request"
             className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-[#b7955b] px-3 text-sm font-semibold text-black sm:px-4"

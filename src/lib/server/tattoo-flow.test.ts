@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, isRetiredCollaborator, tattooBalance, tattooStage } from "../tattoo-flow.ts";
-import { googleCalendarUrl } from "../format.ts";
+import { googleCalendarUrl, normalizeInstagramHandle } from "../format.ts";
+import { studioJobsReportHtml } from "../studio-list-pdf.ts";
 import {
   expireTattooHoldSql,
   TATTOO_OVERDUE_REVIEW_SQL,
@@ -409,5 +410,65 @@ describe("customer calendar link", () => {
     assert.match(url, /^https:\/\/calendar\.google\.com\/calendar\/render\?/);
     assert.match(url, /dates=20261027T090000Z%2F20261027T110000Z/);
     assert.match(url, /text=/);
+  });
+});
+
+describe("instagram handle", () => {
+  it("accepts optional handle from url or at-sign", () => {
+    assert.equal(normalizeInstagramHandle("@sara.tattoo"), "sara.tattoo");
+    assert.equal(normalizeInstagramHandle("https://instagram.com/sara.tattoo/"), "sara.tattoo");
+  });
+});
+
+describe("studio customer list report", () => {
+  it("includes name, placement and instagram in printable html", () => {
+    const html = studioJobsReportHtml(
+      [
+        {
+          id: "1",
+          customerId: "c",
+          businessId: null,
+          bookingId: null,
+          customerName: "سارا محمدی",
+          customerPhone: "09120000000",
+          customerPhone2: "",
+          customerInstagram: "@sara.tattoo",
+          requestType: "new",
+          style: "پرتره",
+          idea: "چهره",
+          placement: "ساعد",
+          sizeCm: "۲۰×۱۲",
+          preferredDates: null,
+          budgetToman: null,
+          referenceImages: [],
+          bodyImages: [],
+          status: "booked",
+          priceMinToman: 10_000_000,
+          priceMaxToman: null,
+          sessionMinutes: 180,
+          sessionCount: 1,
+          depositToman: 2_000_000,
+          artistMessage: null,
+          paymentStatus: "approved",
+          paymentHoldUntil: null,
+          paymentSubmittedAt: null,
+          paymentReviewDeadline: null,
+          receiptImage: null,
+          paymentIban: null,
+          paymentCardNumber: null,
+          proposedSlotStart: "2026-10-27T09:00:00.000Z",
+          proposedSlotEnd: null,
+          paidToman: 2_000_000,
+          settled: false,
+          payments: [],
+          createdAt: "2026-10-01T09:00:00.000Z",
+          updatedAt: "2026-10-01T09:00:00.000Z",
+        },
+      ],
+      "لیست مهر",
+    );
+    assert.match(html, /سارا محمدی/);
+    assert.match(html, /ساعد/);
+    assert.match(html, /sara\.tattoo/);
   });
 });

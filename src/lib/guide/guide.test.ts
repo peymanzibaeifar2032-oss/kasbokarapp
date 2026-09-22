@@ -25,9 +25,9 @@ test("off-topic detector", () => {
   assert.equal(isClearlyOffTopic("چطور کسب‌وکار ثبت کنم"), false);
 });
 
-test("retrieve finds booking help", () => {
-  const chunks = retrieveChunks("چطور نوبت رزرو کنم", "user");
-  assert.ok(chunks.some((c) => c.id === "booking"));
+test("retrieve finds tattoo form guide", () => {
+  const chunks = retrieveChunks("چطور فرم رزرو تاتو را پر کنم", "user");
+  assert.ok(chunks.some((c) => c.id === "tattoo-form"));
 });
 
 test("retrieve finds trial plan for free-days question", () => {

@@ -21,6 +21,13 @@ export function suggestionsForPath(path: string): GuideSuggestion[] {
       { label: "ذخیره‌ها", text: "کسب‌وکارهای ذخیره‌شده با قلب کجا هستند؟" },
     ];
   }
+  if (path.startsWith("/studio")) {
+    return [
+      { label: "آموزش فرم", text: "چطور فرم رزرو تاتو را مرحله‌به‌مرحله پر کنم؟" },
+      { label: "ورود با ایمیل", text: "داخل اپ تاتو چطور با ایمیل وارد شوم؟" },
+      { label: "عکس طرح", text: "چه عکس‌هایی برای درخواست تاتو باید بفرستم؟" },
+    ];
+  }
   if (path.startsWith("/login")) {
     return [
       { label: "ورود با ایمیل", text: "چطور با ایمیل و رمز وارد شوم یا حساب بسازم؟" },

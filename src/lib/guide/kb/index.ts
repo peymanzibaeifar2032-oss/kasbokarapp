@@ -8,6 +8,7 @@ import { INTRO_CHUNKS } from "./intro.ts";
 import { ROLE_CHUNKS } from "./roles.ts";
 import { SEARCH_CHUNKS } from "./search.ts";
 import { TRIAL_CHUNKS } from "./trial.ts";
+import { TATTOO_CHUNKS } from "./tattoo.ts";
 import type { GuideChunk } from "./types.ts";
 
 export type { GuideAudience, GuideChunk } from "./types.ts";
@@ -16,6 +17,7 @@ export const GUIDE_CHUNKS: GuideChunk[] = [
   ...INTRO_CHUNKS,
   ...ROLE_CHUNKS,
   ...AUTH_CHUNKS,
+  ...TATTOO_CHUNKS,
   ...SEARCH_CHUNKS,
   ...BOOKING_CHUNKS,
   ...BUSINESS_CHUNKS,

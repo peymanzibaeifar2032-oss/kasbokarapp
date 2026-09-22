@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, RefreshCw } from "lucide-react";
+import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, FileDown, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
@@ -13,9 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDateTime } from "@/lib/format";
+import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle } from "@/lib/format";
 import { tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
+import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import {
   TATTOO_ADMIN_STAGE_LABEL,
   TATTOO_SETTLEMENT_PRESETS,
@@ -393,6 +394,16 @@ function TattooAdminCard({
             دوم: {request.customerPhone2}
           </a>
         ) : null}
+        {request.customerInstagram ? (
+          <a
+            className="text-accent"
+            href={instagramProfileUrl(request.customerInstagram) ?? undefined}
+            target="_blank"
+            rel="noreferrer"
+          >
+            اینستاگرام: @{normalizeInstagramHandle(request.customerInstagram)}
+          </a>
+        ) : null}
         {request.preferredDates ? <span>زمان مناسب مشتری: {request.preferredDates}</span> : null}
       </div>
       <DesignThumbs
@@ -747,7 +758,26 @@ function MonthJobsPanel({
             نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!jobs.length}
+            onClick={() => {
+              try {
+                downloadStudioJobsPdf(
+                  jobs,
+                  `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
+                );
+                toast.success("فایل لیست روی گوشی ذخیره شد. اگر PDF خواستی از چاپ، ذخیره به‌صورت PDF را بزن.");
+              } catch (err) {
+                toast.error(friendlyError(err));
+              }
+            }}
+          >
+            <FileDown className="size-4" />
+            دانلود PDF لیست
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}>
             ماه قبل
           </Button>
@@ -797,6 +827,7 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
   const [price, setPrice] = useState(job.priceMinToman?.toString() ?? "");
   const [phoneEdit, setPhoneEdit] = useState(job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "");
   const [phone2Edit, setPhone2Edit] = useState(job.customerPhone2 || "");
+  const [instagramEdit, setInstagramEdit] = useState(job.customerInstagram || "");
   const [images, setImages] = useState<string[]>([...(job.referenceImages ?? [])]);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -815,6 +846,7 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
         customerName: name.trim(),
         customerPhone: phoneEdit.trim() || undefined,
         customerPhone2: phone2Edit.trim() || "",
+        customerInstagram: instagramEdit.trim() || "",
         style: style.trim(),
         placement: placement.trim(),
         idea: idea.trim() || undefined,
@@ -872,6 +904,16 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
               دوم: {phone2}
             </a>
           ) : null}
+          {job.customerInstagram ? (
+            <a
+              className="mt-1 mr-3 inline-block text-sm text-accent"
+              href={instagramProfileUrl(job.customerInstagram) ?? undefined}
+              target="_blank"
+              rel="noreferrer"
+            >
+              @{normalizeInstagramHandle(job.customerInstagram)}
+            </a>
+          ) : null}
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
@@ -917,6 +959,9 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
             </Field>
             <Field label="شماره دوم">
               <Input value={phone2Edit} onChange={(e) => setPhone2Edit(e.target.value)} dir="ltr" />
+            </Field>
+            <Field label="اینستاگرام">
+              <Input value={instagramEdit} onChange={(e) => setInstagramEdit(e.target.value)} dir="ltr" placeholder="بدون @" />
             </Field>
             <Field label="طرح">
               <Input value={style} onChange={(e) => setStyle(e.target.value)} />

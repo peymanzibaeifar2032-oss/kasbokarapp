@@ -61,11 +61,7 @@ function persistEmailSession(data: unknown) {
 function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: boolean; resetToken?: string }) {
   const authMethods = Route.useLoaderData();
   const inApp = inStudioApp();
-  const hideGoogle =
-    inApp ||
-    (dest.startsWith("/studio") &&
-      typeof window !== "undefined" &&
-      (/Android|iPhone|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768));
+  const hideGoogle = inApp || dest.startsWith("/studio");
   const googleOk = Boolean(authMethods.google) && !hideGoogle;
   const [mode, setMode] = useState<"in" | "up" | "forgot" | "reset">(resetToken ? "reset" : "up");
   const [name, setName] = useState("");

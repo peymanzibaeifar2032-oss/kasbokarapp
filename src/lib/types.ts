@@ -192,6 +192,7 @@ export type TattooRequest = {
   customerName: string;
   customerPhone: string;
   customerPhone2: string;
+  customerInstagram: string;
   requestType: "new" | "coverup" | "consultation";
   style: string;
   idea: string;

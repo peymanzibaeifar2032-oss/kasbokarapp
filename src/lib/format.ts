@@ -56,6 +56,21 @@ export function toWebsiteHref(raw: string | null | undefined) {
   return `https://${t.replace(/^\/+/, "")}`;
 }
 
+export function normalizeInstagramHandle(raw: string | null | undefined) {
+  if (!raw) return "";
+  let t = raw.trim();
+  t = t.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "");
+  t = t.replace(/^@+/, "");
+  t = t.split(/[/?#]/)[0] ?? "";
+  t = t.replace(/[^A-Za-z0-9._]/g, "");
+  return t.slice(0, 30);
+}
+
+export function instagramProfileUrl(raw: string | null | undefined) {
+  const handle = normalizeInstagramHandle(raw);
+  return handle ? `https://instagram.com/${handle}` : null;
+}
+
 export function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;

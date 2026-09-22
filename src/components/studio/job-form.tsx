@@ -27,6 +27,7 @@ export function StudioJobForm({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [style, setStyle] = useState("");
   const [placement, setPlacement] = useState("");
   const [idea, setIdea] = useState("");
@@ -68,6 +69,7 @@ export function StudioJobForm({
     setName("");
     setPhone("");
     setPhone2("");
+    setInstagram("");
     setStyle("");
     setPlacement("");
     setIdea("");
@@ -100,6 +102,7 @@ export function StudioJobForm({
         customerName: name.trim(),
         customerPhone: phone.trim() || undefined,
         customerPhone2: phone2.trim() || undefined,
+        customerInstagram: instagram.trim() || undefined,
         style: style.trim(),
         idea: idea.trim() || style.trim(),
         placement: placement.trim(),
@@ -160,6 +163,10 @@ export function StudioJobForm({
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">شماره دوم (اختیاری)</span>
           <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} dir="ltr" inputMode="tel" placeholder="اگر دو تا شماره دارد" />
+        </label>
+        <label className="grid gap-1.5 text-sm">
+          <span className="font-medium">آیدی اینستاگرام (اختیاری)</span>
+          <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} dir="ltr" placeholder="بدون @" />
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">طرح</span>

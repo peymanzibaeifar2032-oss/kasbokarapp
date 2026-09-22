@@ -2,7 +2,7 @@ import { z } from "zod";
 import { DEFAULT_HOURS, KERMANSHAH_CENTER } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
 import { env, isStandalone, isWorkspacePreview } from "@/lib/env.server";
-import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
+import { isIranMobile, normalizeIranPhone, normalizeInstagramHandle, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, shouldGrantPreviewStudioAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
 import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import {
@@ -271,6 +271,7 @@ type TattooRequestRow = {
   customer_name: string;
   customer_phone: string;
   customer_phone_2: string | null;
+  customer_instagram: string | null;
   request_type: "new" | "coverup" | "consultation";
   style: string;
   idea: string;
@@ -323,6 +324,7 @@ function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = [])
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
     customerPhone2: row.customer_phone_2 || "",
+    customerInstagram: row.customer_instagram || "",
     requestType: row.request_type,
     style: row.style,
     idea: row.idea,
@@ -385,6 +387,7 @@ async function mapTattooRequestRows(sql: Awaited<ReturnType<typeof getSql>>, row
 
 const tattooRequestSelect = `select id, customer_id, business_id, booking_id, customer_name, customer_phone,
   coalesce(customer_phone_2,'') as customer_phone_2,
+  coalesce(customer_instagram,'') as customer_instagram,
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
   reference_images, body_images, status, price_min_toman, price_max_toman,
   session_minutes, session_count, deposit_toman, artist_message, payment_status, payment_hold_until,
@@ -403,6 +406,7 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     customerName: z.string().trim().min(2, "نام را کامل بنویسید.").max(80),
     customerPhone: z.string().trim().max(40),
     customerPhone2: z.string().trim().max(40).optional(),
+    customerInstagram: z.string().trim().max(80).optional(),
     requestType: z.enum(["new", "coverup", "consultation"]),
     style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(80),
     idea: z.string().trim().min(10, "ایده را کمی کامل‌تر توضیح دهید.").max(1500),
@@ -419,16 +423,17 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     phone2 = normalizeIranPhone(data.customerPhone2);
     if (!isIranMobile(phone2)) throw new Error("شماره موبایل دوم معتبر نیست.");
   }
+  const instagram = normalizeInstagramHandle(data.customerInstagram);
   const bytes = [...data.referenceImages, ...data.bodyImages].reduce((sum, value) => sum + value.length, 0);
   if (bytes > 3_500_000) throw new Error("حجم مجموع عکس‌ها زیاد است. عکس‌های کم‌حجم‌تر بفرستید.");
   const sql = await getSql();
   const id = crypto.randomUUID();
   await sql.query(
     `insert into tattoo_requests
-      (id, customer_id, customer_name, customer_phone, customer_phone_2, request_type, style, idea, placement,
+      (id, customer_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
        size_cm, preferred_dates, budget_toman, reference_images, body_images)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb)`,
-    [id, userId, data.customerName, phone, phone2, data.requestType, data.style, data.idea, data.placement,
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb)`,
+    [id, userId, data.customerName, phone, phone2, instagram || null, data.requestType, data.style, data.idea, data.placement,
       data.sizeCm, data.preferredDates || null, null,
       JSON.stringify(data.referenceImages), JSON.stringify(data.bodyImages)],
   );
@@ -1893,6 +1898,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     customerName: z.string().trim().min(2).max(80).optional(),
     customerPhone: z.string().trim().max(40).optional(),
     customerPhone2: z.string().trim().max(40).optional().nullable(),
+    customerInstagram: z.string().trim().max(80).optional().nullable(),
     style: z.string().trim().min(2).max(80).optional(),
     idea: z.string().trim().max(1500).optional(),
     placement: z.string().trim().min(2).max(120).optional(),
@@ -1916,6 +1922,8 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     phone2 = normalizeIranPhone(data.customerPhone2);
     if (!isIranMobile(phone2)) throw new Error("شماره موبایل دوم معتبر نیست.");
   }
+  const instagram =
+    data.customerInstagram === undefined ? undefined : normalizeInstagramHandle(data.customerInstagram) || null;
   await sql.query(
     `update tattoo_requests set
        customer_name=coalesce($2, customer_name),
@@ -1928,6 +1936,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
        price_min_toman=coalesce($9, price_min_toman),
        settled=$10,
        reference_images=coalesce($12::jsonb, reference_images),
+       customer_instagram=case when $13 then $14 else customer_instagram end,
        updated_at=now()
      where id=$1`,
     [
@@ -1943,6 +1952,8 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
       settled,
       data.customerPhone2 !== undefined,
       data.referenceImages ? JSON.stringify(data.referenceImages) : null,
+      data.customerInstagram !== undefined,
+      instagram ?? null,
     ],
   );
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
@@ -1985,6 +1996,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     customerName: z.string().trim().min(2).max(80),
     customerPhone: z.string().trim().max(40).optional(),
     customerPhone2: z.string().trim().max(40).optional(),
+    customerInstagram: z.string().trim().max(80).optional(),
     style: z.string().trim().min(2).max(80),
     idea: z.string().trim().max(1500).optional(),
     placement: z.string().trim().min(2).max(120),
@@ -2027,6 +2039,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     phone2 = normalizeIranPhone(data.customerPhone2);
     if (!isIranMobile(phone2)) throw new Error("شماره موبایل دوم معتبر نیست.");
   }
+  const instagram = normalizeInstagramHandle(data.customerInstagram);
   const images = data.referenceImages ?? [];
   const bytes = images.reduce((sum, value) => sum + value.length, 0);
   if (bytes > 3_500_000) throw new Error("حجم عکس‌ها زیاد است. عکس کم‌حجم‌تر بفرستید.");
@@ -2046,11 +2059,11 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   }
   await sql.query(
     `insert into tattoo_requests
-      (id, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, request_type, style, idea, placement,
+      (id, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
        size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
        payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images)
-     values ($1,$2,$3,$4,$5,$6,$7,'new',$8,$9,$10,$11,'booked',$12,$13,1,$14,'ثبت دستی از تقویم کاری','approved',$15,$16,$17,$18,$19::jsonb)`,
-    [requestId, userId, data.businessId, bookingId, data.customerName, phone, phone2, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images)],
+     values ($1,$2,$3,$4,$5,$6,$7,$8,'new',$9,$10,$11,$12,'booked',$13,$14,1,$15,'ثبت دستی از تقویم کاری','approved',$16,$17,$18,$19,$20::jsonb)`,
+    [requestId, userId, data.businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images)],
   );
   if (paid > 0) {
     await sql.query(`insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`, [crypto.randomUUID(), requestId, paid, "واریز ثبت‌شده هنگام ورود دستی"]);

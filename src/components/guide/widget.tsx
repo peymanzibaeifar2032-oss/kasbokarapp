@@ -1,4 +1,4 @@
-import { useRouterState } from "@tanstack/react-router";
+import { useRouterState, Link } from "@tanstack/react-router";
 import { CircleHelp, Send, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/guide/version";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
+import { STUDIO_GUIDE_CARDS } from "@/lib/studio-guide";
 import { cn, newId } from "@/lib/utils";
 
 type Msg = { id: string; role: "user" | "assistant"; text: string };
@@ -64,13 +65,20 @@ export function GuideWidget() {
   const [error, setError] = useState<string | null>(null);
   const [oosStreak, setOosStreak] = useState(0);
   const [cid, setCid] = useState("");
-  const [messages, setMessages] = useState<Msg[]>([
-    {
-      id: "hi",
-      role: "assistant",
-      text: "سلام، راهنمای سامانه کسب‌وکار هستم. از پیدا کردن روی نقشه تا رزرو و ثبت صفحه می‌توانم مرحله‌به‌مرحله بگویم.",
-    },
-  ]);
+  const studio = path.startsWith("/studio");
+  const [messages, setMessages] = useState<Msg[]>([]);
+
+  useEffect(() => {
+    setMessages([
+      {
+        id: "hi",
+        role: "assistant",
+        text: studio
+          ? "سلام. این راهنما مخصوص فرم رزرو تاتو است. عکس‌های آموزش را ببین، بعد با ایمیل وارد شو و فرم را پر کن."
+          : "سلام، راهنمای سامانه کسب‌وکار هستم. از پیدا کردن روی نقشه تا رزرو و ثبت صفحه می‌توانم مرحله‌به‌مرحله بگویم.",
+      },
+    ]);
+  }, [studio]);
   const listRef = useRef<HTMLDivElement>(null);
   const suggestions = useMemo(() => suggestionsForPath(path), [path]);
 
@@ -141,7 +149,7 @@ export function GuideWidget() {
           >
             <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
               <div>
-                <p className="text-sm font-semibold">{GUIDE_NAME}</p>
+                <p className="text-sm font-semibold">{studio ? "آموزش فرم تاتو" : GUIDE_NAME}</p>
                 <p className="text-[11px] text-muted">{user ? "متناسب با حساب شما" : "بدون ورود هم می‌توانید بپرسید"}</p>
               </div>
               <div className="flex items-center gap-1">
@@ -183,6 +191,19 @@ export function GuideWidget() {
                   {busy ? <p className="text-xs text-muted">در حال نوشتن…</p> : null}
                   {offline ? <p className="text-xs text-danger">اتصال اینترنت قطع است.</p> : null}
                   {error ? <p className="text-xs text-danger">{error}</p> : null}
+                  {studio ? (
+                    <div className="grid grid-cols-3 gap-1.5 pt-1">
+                      {STUDIO_GUIDE_CARDS.map((card) => (
+                        <Link
+                          key={card.slug}
+                          to="/studio/guide"
+                          className="overflow-hidden rounded-lg border border-border"
+                        >
+                          <img src={`/studio-guide/${card.slug}.png`} alt={card.title} className="aspect-[4/5] w-full object-cover" />
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
                   {!busy && messages.length < 4 ? (
                     <div className="flex flex-wrap gap-1.5 pt-1">
                       {suggestions.map((s) => (

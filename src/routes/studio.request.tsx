@@ -23,6 +23,7 @@ function StudioRequestPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [requestType, setRequestType] = useState<"new" | "coverup" | "consultation">("new");
   const [style, setStyle] = useState("رئال و بلک‌اندگری");
   const [idea, setIdea] = useState("");
@@ -56,9 +57,7 @@ function StudioRequestPage() {
             <p className="mt-3 text-sm leading-7 text-white/55">
               {sessionError
                 ? "بارگذاری پنل انجام نشد."
-                : isPending
-                  ? "در حال بررسی ورود…"
-                  : "برای پر کردن فرم وارد حساب شوید. اگر اپ را نصب کردی، از داخل اپ هم می‌توانی وارد شوی."}
+                : "برای پر کردن فرم با ایمیل وارد شو. گوگل را نزن."}
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
               {sessionError && retry ? (
@@ -79,16 +78,6 @@ function StudioRequestPage() {
                 }}
               >
                 ورود / ثبت‌نام
-              </a>
-              <a
-                href="/login?next=%2Fstudio%2Fadmin"
-                className="inline-flex h-11 items-center rounded-full border border-[#b7955b]/45 px-5 text-sm text-[#e5d2ae]"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.location.assign("/login?next=/studio/admin");
-                }}
-              >
-                ورود مدیر
               </a>
             </div>
           </section>
@@ -121,6 +110,7 @@ function StudioRequestPage() {
         customerName: name,
         customerPhone: phone,
         customerPhone2: phone2.trim() || undefined,
+        customerInstagram: instagram.trim() || undefined,
         requestType,
         style,
         idea,
@@ -184,6 +174,14 @@ function StudioRequestPage() {
                 inputMode="tel"
                 dir="ltr"
                 placeholder="اگر دو تا شماره دارید"
+              />
+            </Field>
+            <Field label="آیدی اینستاگرام (اختیاری)">
+              <Input
+                value={instagram}
+                onChange={(e) => setInstagram(e.target.value)}
+                dir="ltr"
+                placeholder="مثلاً sara.tattoo"
               />
             </Field>
             <Field label="نوع درخواست">
