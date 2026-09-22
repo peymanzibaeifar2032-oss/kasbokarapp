@@ -52,6 +52,7 @@ function StudioLanding() {
           <nav className="hidden items-center gap-7 text-sm text-white/70 md:flex">
             <a href="#work">سبک‌ها</a>
             <a href="#process">روند رزرو</a>
+            <Link to="/studio/guide">آموزش فرم</Link>
             <a href="#care">مراقبت</a>
             <a href="#faq">سؤالات متداول</a>
           </nav>
@@ -150,10 +151,18 @@ function StudioLanding() {
                 </div>
               ))}
             </div>
-            <div className="mt-6 grid gap-3 rounded-3xl border border-[#b7955b]/25 bg-[#b7955b]/[.07] p-5 sm:grid-cols-3">
-              <Mini icon={Upload} label="آپلود طرح و محل بدن" />
-              <Mini icon={Clock3} label="تأیید زمان پیشنهادی پیمان" />
-              <Mini icon={CircleDollarSign} label="پرداخت بیعانه و رسید" />
+            <div className="mt-6 flex flex-col gap-4 rounded-3xl border border-[#b7955b]/25 bg-[#b7955b]/[.07] p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="grid gap-3 sm:grid-cols-3 sm:gap-6">
+                <Mini icon={Upload} label="آپلود طرح و محل بدن" />
+                <Mini icon={Clock3} label="تأیید زمان پیشنهادی پیمان" />
+                <Mini icon={CircleDollarSign} label="پرداخت بیعانه و رسید" />
+              </div>
+              <Link
+                to="/studio/guide"
+                className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#b7955b] px-5 text-sm font-bold text-black"
+              >
+                آموزش تصویری فرم
+              </Link>
             </div>
           </div>
         </section>
