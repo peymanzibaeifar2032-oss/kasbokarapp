@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Plugin } from "vite";
 import { defineConfig } from "vite";
@@ -8,7 +8,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 import netlify from "@netlify/vite-plugin-tanstack-start";
 // @ts-expect-error JS plugin alongside the TS vite config
-import { grokPwaPlugin, omitGrokPublicAssets } from "./scripts/grok-pwa-plugin.mjs";
+import { grokPwaPlugin } from "./scripts/grok-pwa-plugin.mjs";
 // @ts-expect-error JS plugin alongside the TS vite config
 import { appEnvPlugin } from "./scripts/app-env-plugin.mjs";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
@@ -218,6 +218,17 @@ function authPopupPlugin(): Plugin {
 
 const isNetlifyBuild =
   process.env.NITRO_PRESET === "netlify" || process.env.NETLIFY === "true";
+
+function omitGrokPublicAssets(root: string) {
+  for (const rel of [
+    ".vercel/output/static/__grok",
+    ".output/public/__grok",
+    "dist/client/__grok",
+  ]) {
+    const dir = join(root, rel);
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 // `0.0.0.0:8080` is the live-preview contract — don't change host/port.
 // The dev server starts once `src/router.tsx` and `src/routes/` exist — see

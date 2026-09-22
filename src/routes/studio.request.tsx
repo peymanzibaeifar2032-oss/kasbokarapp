@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircle2, ChevronLeft, ImagePlus, Loader2, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Download, ImagePlus, Loader2, ShieldCheck, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { SignedOutPanel } from "@/components/layout/auth-required";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -49,13 +48,41 @@ function StudioRequestPage() {
 
   if (!user) {
     return (
-      <SignedOutPanel
-        title="درخواست تاتو"
-        next="/studio/request"
-        loading={isPending}
-        error={sessionError}
-        onRetry={retry}
-      />
+      <StudioRequestChrome>
+        <main className="mx-auto max-w-5xl px-4 py-10">
+          <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6 sm:p-8">
+            <h1 className="text-2xl font-black">درخواست تاتو</h1>
+            <p className="mt-3 text-sm leading-7 text-white/55">
+              {sessionError
+                ? "بارگذاری پنل انجام نشد."
+                : isPending
+                  ? "در حال بررسی ورود…"
+                  : "برای پر کردن فرم وارد حساب شوید. اگر اپ را نصب کردی، از داخل اپ هم می‌توانی وارد شوی."}
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {sessionError && retry ? (
+                <button
+                  type="button"
+                  className="inline-flex h-11 items-center rounded-full border border-white/15 px-4 text-sm"
+                  onClick={retry}
+                >
+                  تلاش دوباره
+                </button>
+              ) : null}
+              <a
+                href="/login?next=%2Fstudio%2Frequest"
+                className="inline-flex h-11 items-center rounded-full bg-[#b7955b] px-5 text-sm font-bold text-black"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.assign("/login?next=/studio/request");
+                }}
+              >
+                ورود / ثبت‌نام
+              </a>
+            </div>
+          </section>
+        </main>
+      </StudioRequestChrome>
     );
   }
 
@@ -108,18 +135,7 @@ function StudioRequestPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-      <header className="border-b border-white/10 bg-[#0b0b0c]/95">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-          <Link to="/studio" className="font-bold">
-            پیمان زیبائی‌فر
-          </Link>
-          <Link to="/studio" className="flex items-center gap-1 text-sm text-white/60">
-            بازگشت <ChevronLeft className="size-4" />
-          </Link>
-        </div>
-      </header>
-
+    <StudioRequestChrome>
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[1fr_19rem]">
         <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-8">
           <p className="text-xs tracking-[.18em] text-[#b7955b]">PROJECT REQUEST</p>
@@ -261,6 +277,48 @@ function StudioRequestPage() {
           ))}
         </aside>
       </main>
+    </StudioRequestChrome>
+  );
+}
+
+function StudioRequestChrome({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
+      <header className="border-b border-white/10 bg-[#0b0b0c]/95">
+        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
+          <Link to="/studio" className="font-bold">
+            پیمان زیبائی‌فر
+          </Link>
+          <Link to="/studio" className="flex items-center gap-1 text-sm text-white/60">
+            بازگشت <ChevronLeft className="size-4" />
+          </Link>
+        </div>
+      </header>
+      <div className="border-b border-[#b7955b]/30 bg-[#b7955b]/12">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-center gap-2 text-sm leading-6 text-[#e5d2ae]">
+            <Smartphone className="size-4 shrink-0" />
+            اپ اندروید «رزرو وقت تاتو» را روی گوشی نصب کن؛ همان فرم روی صفحه اصلی می‌آید.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href="/apps/rezerv-vaght-tatoo.apk"
+              download="rezerv-vaght-tatoo.apk"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
+            >
+              <Download className="size-4" />
+              دانلود اپ
+            </a>
+            <Link
+              to="/studio/app"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-[#b7955b]/40 px-4 text-sm text-[#e5d2ae]"
+            >
+              راهنمای نصب
+            </Link>
+          </div>
+        </div>
+      </div>
+      {children}
     </div>
   );
 }
