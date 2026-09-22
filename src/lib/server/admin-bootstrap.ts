@@ -10,6 +10,14 @@ export function shouldGrantBootstrapAdmin(
   return allow === email;
 }
 
+/** Live preview only — never production / standalone. */
+export function shouldGrantPreviewStudioAdmin(opts: {
+  workspacePreview: boolean;
+  standalone: boolean;
+}): boolean {
+  return opts.workspacePreview && !opts.standalone;
+}
+
 export function isUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const rec = err as { code?: string; message?: string };

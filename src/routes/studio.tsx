@@ -54,6 +54,9 @@ function StudioLanding() {
             <a href="#process">روند رزرو</a>
             <a href="#care">مراقبت</a>
             <a href="#faq">سؤالات متداول</a>
+            <Link to="/studio/admin" className="text-[#dbc08d]">
+              ورود مدیر
+            </Link>
           </nav>
           <Link
             to="/studio/request"

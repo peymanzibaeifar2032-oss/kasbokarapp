@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { DEFAULT_HOURS } from "@/lib/data/catalog";
+import { DEFAULT_HOURS, KERMANSHAH_CENTER } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
-import { env } from "@/lib/env.server";
+import { env, isStandalone, isWorkspacePreview } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
-import { shouldGrantBootstrapAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
+import { shouldGrantBootstrapAdmin, shouldGrantPreviewStudioAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
 import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import {
   RESOURCE_KINDS,
@@ -93,6 +93,50 @@ async function requireAdmin(userId: string) {
   const sql = await getSql();
   const me = await sql.query<{ is_admin: boolean }>("select is_admin from profiles where user_id = $1", [userId]);
   if (!me[0]?.is_admin) throw new Error("دسترسی مدیریت ندارید.");
+}
+
+const PREVIEW_STUDIO_ID = "biz-peyman-studio";
+
+async function ensurePreviewStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
+  const mine = await sql.query<{ id: string }>(
+    `select id from businesses where owner_id = $1 and name ilike '%پیمان%' limit 1`,
+    [userId],
+  );
+  if (mine[0]) {
+    await removeRetiredCollaborators(sql, userId);
+    return;
+  }
+  await sql.query(
+    `insert into businesses (
+      id, owner_id, name, job_title, phone, province, city, address,
+      latitude, longitude, category_id, description, instagram, work_hours, slot_minutes, prices,
+      approval_status, is_active, trial_started_at, trial_ends_at, subscription_ends_at
+    ) values (
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1, $11, $12, $13::jsonb, 180,
+      $14::jsonb, 'approved', true, now(), now() + interval '30 days', '2099-12-31 23:59:59+00'
+    )
+    on conflict (id) do update set owner_id = excluded.owner_id, is_active = true, approval_status = 'approved'`,
+    [
+      PREVIEW_STUDIO_ID,
+      userId,
+      "استودیو پیمان زیبائی‌فر",
+      "تاتو آرتیست",
+      "08337221100",
+      "کرمانشاه",
+      "کرمانشاه",
+      "کرمانشاه",
+      KERMANSHAH_CENTER.lat,
+      KERMANSHAH_CENTER.lng,
+      "طراحی و اجرای تاتو رئال، بلک‌اندگری و کاور.",
+      "peyman_zibaeifar_tattoo",
+      JSON.stringify(DEFAULT_HOURS),
+      JSON.stringify([
+        { title: "مشاوره طرح", price: 0 },
+        { title: "جلسه تاتو", price: 3500000 },
+      ]),
+    ],
+  );
+  await removeRetiredCollaborators(sql, userId);
 }
 
 async function expireOpenTattooHolds(sql: Awaited<ReturnType<typeof getSql>>, customerId?: string) {
@@ -624,7 +668,12 @@ export async function performEnsureProfile(userId: string, displayName = "کار
   } catch {
     email = null;
   }
-  const grant = shouldGrantBootstrapAdmin(email, env);
+  const grant =
+    shouldGrantBootstrapAdmin(email, env) ||
+    shouldGrantPreviewStudioAdmin({
+      workspacePreview: isWorkspacePreview(),
+      standalone: isStandalone(),
+    });
   await sql.query(
     `insert into profiles (user_id, display_name, is_admin)
      values ($1, $2, $3)
@@ -638,6 +687,14 @@ export async function performEnsureProfile(userId: string, displayName = "کار
        where owner_id = $1 and (subscription_ends_at is null or subscription_ends_at < '2099-12-31 23:59:59+00')`,
       [userId],
     );
+    if (
+      shouldGrantPreviewStudioAdmin({
+        workspacePreview: isWorkspacePreview(),
+        standalone: isStandalone(),
+      })
+    ) {
+      await ensurePreviewStudioShop(sql, userId);
+    }
   }
   const rows = await sql.query<{
     user_id: string;

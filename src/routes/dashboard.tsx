@@ -87,9 +87,14 @@ function Dashboard() {
           <p className="mt-1 text-sm text-muted">ویرایش صفحه، نوبت‌ها، پیشنهاد ویژه و آمار.</p>
         </div>
         {profile?.isAdmin ? (
-          <Link to="/admin" className="text-sm text-accent">
-            ورود به مدیریت تأییدها
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild>
+              <Link to="/studio/admin">مدیریت تاتو و تقویم</Link>
+            </Button>
+            <Link to="/admin" className="inline-flex h-11 items-center text-sm text-accent">
+              مدیریت تأییدها
+            </Link>
+          </div>
         ) : null}
       </div>
 

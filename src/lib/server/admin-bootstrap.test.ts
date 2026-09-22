@@ -5,6 +5,7 @@ import {
   isOccupancyConflict,
   isUniqueViolation,
   shouldGrantBootstrapAdmin,
+  shouldGrantPreviewStudioAdmin,
 } from "./admin-bootstrap.ts";
 
 describe("admin bootstrap", () => {
@@ -22,6 +23,12 @@ describe("admin bootstrap", () => {
     const get = (k: string) => (k === "BOOTSTRAP_ADMIN_EMAIL" ? "Ops@Kasbokarapp.com" : undefined);
     assert.equal(shouldGrantBootstrapAdmin("ops@kasbokarapp.com", get), true);
     assert.equal(shouldGrantBootstrapAdmin("other@kasbokarapp.com", get), false);
+  });
+
+  it("grants studio admin only in the live preview", () => {
+    assert.equal(shouldGrantPreviewStudioAdmin({ workspacePreview: true, standalone: false }), true);
+    assert.equal(shouldGrantPreviewStudioAdmin({ workspacePreview: true, standalone: true }), false);
+    assert.equal(shouldGrantPreviewStudioAdmin({ workspacePreview: false, standalone: false }), false);
   });
 });
 

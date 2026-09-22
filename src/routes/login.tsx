@@ -160,7 +160,9 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
         </Link>
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-1 text-sm text-muted">
-          {mode === "forgot"
+          {dest.startsWith("/studio/admin")
+            ? "بعد از ورود، پنل مدیریت تاتو و تقویم باز می‌شود."
+            : mode === "forgot"
             ? "ایمیل حساب را بنویسید. پیوند بازیابی به همان ایمیل می‌رود."
             : mode === "reset"
               ? "رمز جدید را حداقل ۸ کاراکتر بنویسید."
