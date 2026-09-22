@@ -4,6 +4,7 @@ export const STUDIO_SEEN_NOTICES_KEY = "studio-seen-notices";
 type AndroidBridge = {
   showNotice?: (title: string, body: string) => void;
   noticesReady?: () => boolean;
+  setOwnerChrome?: (show: boolean) => void;
 };
 
 function androidBridge(): AndroidBridge | null {
@@ -17,6 +18,15 @@ export function inStudioApp() {
   if (androidBridge()) return true;
   const ua = window.navigator.userAgent || "";
   return /TattooApp\//.test(ua) || /; wv\)/.test(ua);
+}
+
+/** Native gold admin bar stays hidden unless this mailbox is signed in. */
+export function syncStudioOwnerChrome(isOwner: boolean) {
+  try {
+    androidBridge()?.setOwnerChrome?.(isOwner);
+  } catch {
+    /* older APK builds have no bridge method */
+  }
 }
 
 function readSeen(): string[] {

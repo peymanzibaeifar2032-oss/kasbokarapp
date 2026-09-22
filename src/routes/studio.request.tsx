@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { StudioVisitNote } from "@/components/studio/visit-note";
 import { StudioTopBar } from "@/components/studio/top-bar";
+import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/studio/request")({ component: StudioReque
 
 function StudioRequestPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
+  const { showAdmin } = useStudioAdminEntry();
   const userId = user?.id;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
@@ -146,7 +148,7 @@ function StudioRequestPage() {
             ابتدا طرح و محل بدن بررسی می‌شود. بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های
             مناسب برای شما فعال می‌شود.
           </p>
-          {profile?.isAdmin ? (
+          {showAdmin ? (
             <Link
               to="/studio/admin"
               className="mt-5 flex h-12 items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-bold text-black"
@@ -319,7 +321,7 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
           </p>
           <div className="flex flex-wrap gap-2">
             <a
-              href="/apps/rezerv-vaght-tatoo.apk?v=6"
+              href="/apps/rezerv-vaght-tatoo.apk?v=7"
               download="rezerv-vaght-tatoo.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
             >

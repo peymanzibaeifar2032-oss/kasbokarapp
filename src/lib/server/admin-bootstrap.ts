@@ -1,6 +1,6 @@
-import { isStudioOwnerName } from "../studio-owner.ts";
+import { isStudioOwnerEmail, isStudioOwnerName } from "../studio-owner.ts";
 
-export { isStudioOwnerName };
+export { isStudioOwnerEmail, isStudioOwnerName };
 
 /** Admin is never granted just because the profiles table is empty. */
 
@@ -28,12 +28,11 @@ function allowedAdminEmails(getEnv: (key: string) => string | undefined) {
 export function shouldGrantBootstrapAdmin(
   userEmail: string | null | undefined,
   getEnv: (key: string) => string | undefined = (k) => process.env[k],
-  displayName?: string | null,
+  _displayName?: string | null,
 ): boolean {
-  if (isStudioOwnerName(displayName)) return true;
   const email = normalizeAdminEmail(userEmail);
   if (!email) return false;
-  if (email.includes("zibaeifar")) return true;
+  if (isStudioOwnerEmail(email)) return true;
   return allowedAdminEmails(getEnv).has(email);
 }
 

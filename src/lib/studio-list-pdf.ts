@@ -80,7 +80,7 @@ export function downloadStudioJobsPdf(jobs: TattooRequest[], title: string): "ap
   }
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
   if (/TattooApp\//.test(ua)) {
-    throw new Error("برای ذخیره PDF، از صفحه دانلود اپ نسخه ۱.۵ را نصب کن. بعد فایل در پوشه دانلود گوشی می‌آید.");
+    throw new Error("برای ذخیره PDF، آخرین نسخه اپ را از صفحه دانلود نصب کن. بعد فایل در پوشه دانلود گوشی می‌آید.");
   }
   const html = studioJobsReportHtml(jobs, title, true);
   const frame = document.createElement("iframe");

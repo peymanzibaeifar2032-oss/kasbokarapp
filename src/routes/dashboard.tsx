@@ -17,6 +17,7 @@ import { profileCompleteness, tehranLocalToIso } from "@/lib/hours";
 import { t, type MessageKey } from "@/lib/i18n";
 import type { CompletenessField } from "@/lib/search/completeness";
 import { friendlyError, saveAction } from "@/lib/save";
+import { isStudioOwnerEmail } from "@/lib/studio-owner";
 import { digitsOnly, formatGroupedDigits } from "@/lib/tattoo-flow";
 import type { Booking, Business, Category, OwnerStats, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,8 @@ function Dashboard() {
     refresh();
   }, [user]);
 
+  const studioOwner = Boolean(user && isStudioOwnerEmail(user.primaryEmail) && profile?.isAdmin);
+
   if (!user) {
     const next =
       pin.lat != null && pin.lng != null ? `/dashboard?lat=${pin.lat}&lng=${pin.lng}` : "/dashboard";
@@ -87,15 +90,15 @@ function Dashboard() {
           </p>
           <p className="mt-1 text-sm text-muted">ویرایش صفحه، نوبت‌ها، پیشنهاد ویژه و آمار.</p>
         </div>
+        {studioOwner ? (
+          <Button asChild>
+            <Link to="/studio/admin">مدیریت تاتو و تقویم</Link>
+          </Button>
+        ) : null}
         {profile?.isAdmin ? (
-          <div className="flex flex-wrap gap-2">
-            <Button asChild>
-              <Link to="/studio/admin">مدیریت تاتو و تقویم</Link>
-            </Button>
-            <Link to="/admin" className="inline-flex h-11 items-center text-sm text-accent">
-              مدیریت تأییدها
-            </Link>
-          </div>
+          <Link to="/admin" className="inline-flex h-11 items-center text-sm text-accent">
+            مدیریت تأییدها
+          </Link>
         ) : null}
       </div>
 
@@ -116,7 +119,7 @@ function Dashboard() {
             ["calendar", t("navCalendar")],
             ["bookings", "رزروها"],
             ["finance", "مالی"],
-            ...(profile?.isAdmin ? [["tattoo", "درخواست‌های تاتو"]] : []),
+            ...(studioOwner ? [["tattoo", "درخواست‌های تاتو"] as const] : []),
             ["me", "حساب"],
           ] as [typeof tab, string][])
         ).map(([id, label]) => (

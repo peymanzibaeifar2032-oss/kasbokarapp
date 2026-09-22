@@ -26,22 +26,22 @@ describe("admin bootstrap", () => {
     assert.equal(shouldGrantBootstrapAdmin("other@kasbokarapp.com", get), false);
   });
 
-  it("grants the studio owner even if Gmail dots differ", () => {
+  it("grants only the studio owner mailbox, ignoring dots in Gmail", () => {
     const get = () => undefined;
     assert.equal(shouldGrantBootstrapAdmin("Peyman.zibaeifar2032@gmail.com", get), true);
     assert.equal(shouldGrantBootstrapAdmin("peymanzibaeifar2032@gmail.com", get), true);
     assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar2032@googlemail.com", get), true);
-    assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar@yahoo.com", get), true);
+    assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar@yahoo.com", get), false);
     assert.equal(shouldGrantBootstrapAdmin("client@gmail.com", get), false);
   });
 
-  it("grants Peyman by display name even when email is unrelated", () => {
+  it("does not grant admin from a display name or a lookalike address", () => {
     const get = () => undefined;
-    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "پیمان زیبائی فر"), true);
-    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "پیمان زیبائی‌فر"), true);
+    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "پیمان زیبائی فر"), false);
+    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "پیمان زیبائی‌فر"), false);
     assert.equal(isStudioOwnerName("پیمان زیبائی فر"), true);
     assert.equal(isStudioOwnerName("مشتری عادی"), false);
-    assert.equal(shouldGrantBootstrapAdmin("shop@gmail.com", get, "مشتری عادی"), false);
+    assert.equal(shouldGrantBootstrapAdmin("other.zibaeifar@gmail.com", get), false);
   });
 
   it("grants studio admin only in the live preview", () => {

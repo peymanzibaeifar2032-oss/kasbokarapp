@@ -61,6 +61,8 @@ public class MainActivity extends Activity {
         webView = findViewById(R.id.web);
         webView.setBackgroundColor(0xFF0B0B0C);
 
+        View ownerChrome = findViewById(R.id.ownerChrome);
+        ownerChrome.setVisibility(View.GONE);
         View adminBar = findViewById(R.id.adminBar);
         View homeBar = findViewById(R.id.homeBar);
         adminBar.setOnClickListener(v -> webView.loadUrl(ADMIN));
@@ -94,7 +96,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.5");
+            settings.setUserAgentString(ua + " TattooApp/1.6");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -260,6 +262,14 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void showNotice(String title, String body) {
             runOnUiThread(() -> postNotice(title, body));
+        }
+
+        @JavascriptInterface
+        public void setOwnerChrome(boolean show) {
+            runOnUiThread(() -> {
+                View bar = findViewById(R.id.ownerChrome);
+                if (bar != null) bar.setVisibility(show ? View.VISIBLE : View.GONE);
+            });
         }
 
         @JavascriptInterface

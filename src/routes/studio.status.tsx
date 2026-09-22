@@ -3,13 +3,14 @@ import { CalendarPlus, ChevronLeft, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { StudioTopBar } from "@/components/studio/top-bar";
+import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
 import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addBookingToPhoneCalendar, formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled } from "@/lib/studio-notices";
 import { STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
-import type { NotificationItem, Profile, TattooRequest } from "@/lib/types";
+import type { NotificationItem, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
 
 export const Route = createFileRoute("/studio/status")({
@@ -21,10 +22,10 @@ export const Route = createFileRoute("/studio/status")({
 
 function StudioStatusPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
+  const { showAdmin } = useStudioAdminEntry();
   const userId = user?.id;
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [notices, setNotices] = useState<NotificationItem[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [phoneOn, setPhoneOn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -68,9 +69,6 @@ function StudioStatusPage() {
   useEffect(() => {
     setPhoneOn(phoneNoticesEnabled() || inStudioApp());
     if (!userId) return;
-    void saveAction<Profile>("profile")
-      .then((profile) => setIsAdmin(Boolean(profile?.isAdmin)))
-      .catch(() => setIsAdmin(false));
     void ensureAutoNotices();
     refresh();
   }, [userId]);
@@ -131,7 +129,7 @@ function StudioStatusPage() {
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
       <StudioTopBar compact />
       <main className="mx-auto grid max-w-3xl gap-5 px-4 py-8">
-        {isAdmin ? (
+        {showAdmin ? (
           <Link
             to="/studio/admin"
             className="flex items-center justify-between rounded-3xl bg-[#b7955b] px-5 py-4 text-black"

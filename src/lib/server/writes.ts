@@ -743,24 +743,9 @@ export async function performEnsureProfile(userId: string, displayName = "کار
   const existingName = (
     await sql.query<{ display_name: string }>(`select display_name from profiles where user_id=$1`, [userId])
   )[0]?.display_name;
-  const shopOwner = (
-    await sql.query<{ ok: number }>(
-      `select 1 as ok from businesses
-        where owner_id = $1
-          and (
-            name ilike '%پیمان%'
-            or name ilike '%زیبائی%'
-            or name ilike '%زیبایی%'
-            or name ilike '%تاتو%'
-          )
-        limit 1`,
-      [userId],
-    )
-  )[0];
   const grant =
     shouldGrantBootstrapAdmin(email, env, displayName) ||
     shouldGrantBootstrapAdmin(email, env, existingName) ||
-    Boolean(shopOwner) ||
     shouldGrantPreviewStudioAdmin({
       workspacePreview: isWorkspacePreview(),
       standalone: isStandalone(),
@@ -779,6 +764,8 @@ export async function performEnsureProfile(userId: string, displayName = "کار
       [userId],
     );
     await ensureStudioShop(sql, userId);
+  } else if (email) {
+    await sql.query(`update profiles set is_admin = false where user_id = $1`, [userId]);
   }
   const rows = await sql.query<{
     user_id: string;

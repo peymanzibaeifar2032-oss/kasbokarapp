@@ -19,6 +19,7 @@ import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle } from 
 import { tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
+import { isStudioOwnerEmail } from "@/lib/studio-owner";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import {
   TATTOO_ADMIN_STAGE_LABEL,
@@ -43,6 +44,7 @@ type RequestFilter = "active" | "receipt" | "booked" | "all";
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
   const userId = user?.id;
+  const owner = isStudioOwnerEmail(user?.primaryEmail);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
@@ -71,7 +73,7 @@ function StudioAdminPage() {
   }
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !owner) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -85,7 +87,7 @@ function StudioAdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, owner]);
 
   const filtered = useMemo(() => {
     const rows = requests.filter((request) => {
@@ -126,6 +128,19 @@ function StudioAdminPage() {
         error={sessionError}
         onRetry={retry}
       />
+    );
+
+  if (!owner)
+    return (
+      <Shell>
+        <h1 className="text-2xl font-bold">مدیریت تاتو</h1>
+        <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
+          این صفحه فقط با ایمیل مدیر استودیو باز می‌شود. درخواست نوبت از فرم مشتری ثبت می‌شود.
+        </p>
+        <Button asChild className="mt-6">
+          <Link to="/studio/request">رفتن به فرم درخواست</Link>
+        </Button>
+      </Shell>
     );
 
   return (
