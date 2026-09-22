@@ -563,6 +563,7 @@ function TattooAdminCard({
           {request.proposedSlotStart ? (
             <p className="mt-1">{formatFaDateTime(request.proposedSlotStart)}</p>
           ) : null}
+          <BookedSlotActions request={request} busyKeys={busyKeys} onChange={onChange} />
         </div>
       ) : null}
     </article>
@@ -808,7 +809,14 @@ function MonthJobsPanel({
         </p>
       ) : null}
       {jobs.map((job) => (
-        <MonthJobCard key={`${job.id}-${job.updatedAt}-${job.paidToman}`} job={job} onChange={() => void refreshAll()} />
+        <MonthJobCard
+          key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
+          job={job}
+          busyKeys={bookings
+            .filter((booking) => booking.status !== "cancelled")
+            .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+          onChange={() => void refreshAll()}
+        />
       ))}
 
       <ClearCalendarBox
@@ -821,7 +829,109 @@ function MonthJobsPanel({
   );
 }
 
-function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => void }) {
+function BookedSlotActions({
+  request,
+  busyKeys,
+  onChange,
+}: {
+  request: TattooRequest;
+  busyKeys: string[];
+  onChange: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [day, setDay] = useState(tehranDateInput(request.proposedSlotStart));
+  const [time, setTime] = useState(tehranTimeInput(request.proposedSlotStart));
+  const [minutes, setMinutes] = useState(request.sessionMinutes?.toString() ?? "180");
+  const [busy, setBusy] = useState(false);
+
+  async function saveTime() {
+    if (!day || !time) return toast.error("تاریخ و ساعت را انتخاب کنید.");
+    const [y, m, d] = day.split("-").map(Number);
+    const [hh, mm] = time.split(":").map(Number);
+    setBusy(true);
+    try {
+      await saveAction("updateStudioJob", {
+        id: request.id,
+        slotStart: tehranLocalToIso(y, m, d, hh, mm),
+        sessionMinutes: minutes ? Number(minutes) : undefined,
+      });
+      toast.success("زمان نوبت عوض شد و به مشتری خبر داده شد.");
+      setEditing(false);
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveAction("cancelStudioJob", { id: request.id });
+      toast.success("نوبت از تقویم حذف شد.");
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3">
+      {editing ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="تاریخ جدید">
+            <JalaliDatePicker value={day} onChange={setDay} label="انتخاب روز" busyKeys={busyKeys} />
+          </Field>
+          <Field label="ساعت شروع">
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </Field>
+          <NumberField label="مدت جلسه" hint="دقیقه" value={minutes} onChange={setMinutes} />
+          <div className="flex flex-wrap gap-2 sm:col-span-3">
+            <Button disabled={busy} size="sm" onClick={() => void saveTime()}>
+              ذخیره زمان جدید
+            </Button>
+            <Button disabled={busy} size="sm" variant="outline" onClick={() => setEditing(false)}>
+              انصراف
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={busy} size="sm" variant="outline" onClick={() => setEditing(true)}>
+            ویرایش زمان
+          </Button>
+          <Button
+            disabled={busy}
+            size="sm"
+            variant="outline"
+            className={confirmDelete ? "border-destructive text-destructive" : ""}
+            onClick={() => void remove()}
+          >
+            {confirmDelete ? "مطمئنی؟ حذف شود" : "حذف نوبت"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MonthJobCard({
+  job,
+  busyKeys,
+  onChange,
+}: {
+  job: TattooRequest;
+  busyKeys: string[];
+  onChange: () => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(job.customerName);
   const [style, setStyle] = useState(job.style);
@@ -898,6 +1008,7 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
           <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
+          <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} />
           {phone ? (
             <a className="mt-1 inline-block text-sm text-accent" href={`tel:${phone}`}>
               {phone}

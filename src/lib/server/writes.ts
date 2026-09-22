@@ -2138,6 +2138,8 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     priceMinToman: z.number().int().min(0).max(2_000_000_000).optional(),
     settled: z.boolean().optional(),
     referenceImages: z.array(imageDataSchema).max(3).optional(),
+    slotStart: z.string().optional(),
+    sessionMinutes: z.number().int().min(10).max(4320).optional(),
   }).parse(raw);
   const sql = await getSql();
   const current = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
@@ -2188,9 +2190,73 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
       instagram ?? null,
     ],
   );
+  if (data.slotStart) {
+    if (!current[0].business_id) throw new Error("این کار به استودیو وصل نیست.");
+    const start = new Date(data.slotStart);
+    if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
+    const minutes = data.sessionMinutes ?? current[0].session_minutes ?? 180;
+    const end = new Date(start.getTime() + minutes * 60000);
+    const overlap = await sql.query<{ id: string }>(
+      `select id from bookings
+        where business_id=$1 and status in ('requested','confirmed')
+          and slot_end is not null and slot_start < $3 and slot_end > $2
+          and id <> coalesce($4,'')
+        limit 1`,
+      [current[0].business_id, start.toISOString(), end.toISOString(), current[0].booking_id],
+    );
+    if (overlap[0]) throw new Error("این زمان با نوبت دیگری تداخل دارد.");
+    await sql.query(
+      `update tattoo_requests
+          set proposed_slot_start=$2, proposed_slot_end=$3, session_minutes=$4, updated_at=now()
+        where id=$1`,
+      [data.id, start.toISOString(), end.toISOString(), minutes],
+    );
+    if (current[0].booking_id) {
+      await sql.query(
+        `update bookings set slot_start=$2, slot_end=$3 where id=$1 and status in ('requested','confirmed')`,
+        [current[0].booking_id, start.toISOString(), end.toISOString()],
+      );
+    }
+    await notify(
+      sql,
+      current[0].customer_id,
+      "زمان نوبت تاتو تغییر کرد",
+      "زمان جدید را در بررسی وضعیت ببینید.",
+      "tattoo_rescheduled",
+      { bookingId: current[0].booking_id ?? undefined, businessId: current[0].business_id ?? undefined },
+    );
+  }
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const mapped = await mapTattooRequestRows(sql, rows);
   return mapped[0];
+}
+
+async function performCancelStudioJob(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({ id: z.string() }).parse(raw);
+  const sql = await getSql();
+  const current = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
+  if (!current[0]) throw new Error("کار پیدا نشد.");
+  if (current[0].booking_id) {
+    await sql.query(`update bookings set status='cancelled' where id=$1`, [current[0].booking_id]);
+  }
+  const message = "نوبت لغو شد. برای زمان تازه با استودیو هماهنگ کنید.";
+  await sql.query(
+    `update tattoo_requests
+        set status='rejected', payment_status='not_required', booking_id=null,
+            artist_message=$2, updated_at=now()
+      where id=$1`,
+    [data.id, message],
+  );
+  await notify(
+    sql,
+    current[0].customer_id,
+    "نوبت تاتو لغو شد",
+    message,
+    "tattoo_cancelled",
+    { businessId: current[0].business_id ?? undefined },
+  );
+  return { ok: true as const };
 }
 
 async function performAddStudioPayment(userId: string, raw: unknown) {
@@ -2446,6 +2512,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performDeleteStudioExpense(userId, payload);
     case "updateStudioJob":
       return performUpdateStudioJob(userId, payload);
+    case "cancelStudioJob":
+      return performCancelStudioJob(userId, payload);
     case "addStudioPayment":
       return performAddStudioPayment(userId, payload);
     case "createStudioJob":
