@@ -1,3 +1,5 @@
+import { tehranClock, tehranLocalToIso } from "@/lib/hours";
+
 export const STUDIO_PHONE_NOTICES_KEY = "studio-phone-notices";
 export const STUDIO_SEEN_NOTICES_KEY = "studio-seen-notices";
 
@@ -5,6 +7,7 @@ type AndroidBridge = {
   showNotice?: (title: string, body: string) => void;
   noticesReady?: () => boolean;
   setOwnerChrome?: (show: boolean) => void;
+  scheduleNotice?: (id: string, title: string, body: string, whenMs: number) => void;
 };
 
 function androidBridge(): AndroidBridge | null {
@@ -112,4 +115,66 @@ export function showStudioOsNotice(title: string, body: string, id: string) {
   } catch {
     /* WebView without notification support */
   }
+}
+
+const PREP_SHOWN_KEY = "studio-prep-shown";
+
+function tehranDayBefore(slotIso: string) {
+  const clock = tehranClock(new Date(slotIso));
+  const prev = new Date(Date.UTC(clock.y, clock.m - 1, clock.day - 1));
+  return {
+    y: prev.getUTCFullYear(),
+    m: prev.getUTCMonth() + 1,
+    d: prev.getUTCDate(),
+  };
+}
+
+/** Morning and night of the day before the session. Past alarms are skipped. */
+export function tattooPrepReminders(slotIso: string, name: string, now = Date.now()) {
+  const day = tehranDayBefore(slotIso);
+  const slotAt = Date.parse(slotIso);
+  const items = [
+    {
+      id: `prep-am-${slotIso}`,
+      at: Date.parse(tehranLocalToIso(day.y, day.m, day.d, 9, 0)),
+      title: "فردا وقت تاتو داری",
+      body: `${name}، فردا نوبت تاتو داری. تا شب استراحت کن، آب زیاد بنوش، الکل نخور و بخش آموزش را بخوان.`,
+    },
+    {
+      id: `prep-pm-${slotIso}`,
+      at: Date.parse(tehranLocalToIso(day.y, day.m, day.d, 20, 0)),
+      title: "امشب برای تاتوی فردا آماده شو",
+      body: "شب زود بخواب. محل تاتو را چرب و آفتاب‌سوخته نکن. فردا غذای سبک بخور و سر وقت بیا.",
+    },
+  ];
+  return items.filter((item) => Number.isFinite(item.at) && item.at > now + 30_000 && item.at < slotAt);
+}
+
+export function scheduleTattooPrepNotices(slotIso: string, name: string) {
+  if (!slotIso) return;
+  const upcoming = tattooPrepReminders(slotIso, name);
+  const bridge = androidBridge();
+  for (const item of upcoming) {
+    if (bridge?.scheduleNotice) {
+      try {
+        bridge.scheduleNotice(item.id, item.title, item.body, item.at);
+      } catch {
+        /* older app builds ignore scheduling */
+      }
+    }
+  }
+  const day = tehranDayBefore(slotIso);
+  const clock = tehranClock();
+  const isDayBefore = clock.y === day.y && clock.m === day.m && clock.day === day.d;
+  if (!isDayBefore || Date.now() >= Date.parse(slotIso)) return;
+  const shown = new Set((localStorage.getItem(PREP_SHOWN_KEY) || "").split(",").filter(Boolean));
+  const id = `prep-now-${slotIso}`;
+  if (shown.has(id)) return;
+  showStudioOsNotice(
+    "فردا وقت تاتو داری",
+    `${name}، از الان تا شب خودت را آماده کن. راهنمای قبل از تاتو در بخش آموزش است.`,
+    id,
+  );
+  shown.add(id);
+  localStorage.setItem(PREP_SHOWN_KEY, [...shown].slice(-80).join(","));
 }

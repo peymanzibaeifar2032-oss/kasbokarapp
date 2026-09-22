@@ -9,6 +9,7 @@ import {
   formatThursdayLabel,
   isTehranThursday,
   nextSessionNumber,
+  sessionCountDelta,
   upcomingThursdays,
 } from "./studio-apprentices.ts";
 
@@ -21,6 +22,14 @@ describe("studio apprentice Thursdays", () => {
     assert.equal(sina?.defaultSlotKey, null);
     assert.equal(STUDIO_APPRENTICE_SEEDS[0]?.name, "آرمان رستمی");
     assert.equal(STUDIO_APPRENTICE_SEEDS[0]?.phone, "09910476671");
+  });
+
+  it("does not count a cancelled apprentice session toward the 10", () => {
+    assert.equal(sessionCountDelta("planned", "absent"), 0);
+    assert.equal(sessionCountDelta("absent", "absent"), 0);
+    assert.equal(sessionCountDelta("planned", "present"), 1);
+    assert.equal(sessionCountDelta("present", "absent"), -1);
+    assert.equal(sessionCountDelta("present", "planned"), -1);
   });
 
   it("treats 24 Sep 2026 as Thursday and lists upcoming Thursdays", () => {

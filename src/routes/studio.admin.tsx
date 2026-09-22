@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/studio/admin")({ component: StudioAdminPage });
 
 type PanelTab = "requests" | "jobs" | "calendar" | "money" | "apprentices";
-type RequestFilter = "active" | "receipt" | "booked" | "all";
+type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
 
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
@@ -50,6 +50,7 @@ function StudioAdminPage() {
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [tab, setTab] = useState<PanelTab>("requests");
   const [filter, setFilter] = useState<RequestFilter>("active");
+  const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -91,6 +92,8 @@ function StudioAdminPage() {
 
   const filtered = useMemo(() => {
     const rows = requests.filter((request) => {
+      if (!customerQueryMatch(query, request)) return false;
+      if (filter === "consultation") return request.requestType === "consultation";
       if (filter === "receipt") return request.paymentStatus === "receipt_submitted";
       if (filter === "booked") return request.status === "booked";
       if (filter === "active")
@@ -117,7 +120,7 @@ function StudioAdminPage() {
       };
       return rank(a) - rank(b) || +new Date(b.createdAt) - +new Date(a.createdAt);
     });
-  }, [filter, requests]);
+  }, [filter, query, requests]);
 
   if (!user)
     return (
@@ -246,6 +249,7 @@ function StudioAdminPage() {
             {(
               [
                 ["active", "در جریان"],
+                ["consultation", "مشاوره"],
                 ["receipt", "رسیدهای جدید"],
                 ["booked", "قطعی‌شده"],
                 ["all", "همه"],
@@ -266,6 +270,16 @@ function StudioAdminPage() {
               </button>
             ))}
           </div>
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="جستجوی اسم یا شماره"
+            className="mt-3"
+          />
+          <p className="mt-2 text-xs leading-6 text-muted">
+            چند نوبت برای یک نفر پاک نمی‌شود. فول‌هند و فول‌بک چند جلسهٔ واقعی است، نه تکرار اشتباه.
+            {filter === "consultation" ? " مشاوره تخصصی همین‌جا جدا آمده تا با نوبت اجرا قاطی نشود." : ""}
+          </p>
           {!filtered.length ? (
             <p className="mt-5 rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
               در این بخش درخواستی وجود ندارد.
@@ -751,6 +765,19 @@ function BankPresetButtons({
   );
 }
 
+function customerQueryMatch(query: string, request: Pick<TattooRequest, "customerName" | "customerPhone" | "customerPhone2" | "customerInstagram">) {
+  const needle = query.trim().toLowerCase().replace(/\s+/g, "");
+  if (!needle) return true;
+  const hay = [request.customerName, request.customerPhone, request.customerPhone2, request.customerInstagram]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/\s+/g, "");
+  const fold = (value: string) =>
+    value.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+  return fold(hay).includes(fold(needle));
+}
+
 function MonthJobsPanel({
   businesses,
   bookings,
@@ -764,6 +791,7 @@ function MonthJobsPanel({
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [jobs, setJobs] = useState<TattooRequest[]>([]);
+  const [jobQuery, setJobQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -784,6 +812,8 @@ function MonthJobsPanel({
     void load();
   }, [month.jy, month.jm]);
 
+  const visibleJobs = jobs.filter((job) => customerQueryMatch(jobQuery, job));
+
   async function refreshAll() {
     await load();
     onChange();
@@ -796,17 +826,18 @@ function MonthJobsPanel({
           <h2 className="text-lg font-bold">لیست کارهای این ماه</h2>
           <p className="mt-1 text-sm leading-7 text-muted">
             نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
+            جستجو فقط همان اسم یا شماره را نشان می‌دهد و نوبت‌های چندروزه را یکی نمی‌کند.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            disabled={!jobs.length}
+            disabled={!visibleJobs.length}
             onClick={() => {
               try {
                 const mode = downloadStudioJobsPdf(
-                  jobs,
+                  visibleJobs,
                   `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
                 );
                 toast.success(
@@ -836,6 +867,12 @@ function MonthJobsPanel({
 
       <StudioJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} />
 
+      <Input
+        value={jobQuery}
+        onChange={(e) => setJobQuery(e.target.value)}
+        placeholder="جستجوی اسم یا شماره در این ماه"
+      />
+
       {error ? (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error}
@@ -847,7 +884,12 @@ function MonthJobsPanel({
           در این ماه کار رزرو‌شده‌ای نیست. کارهای عقب‌افتاده را از فرم بالا دستی وارد کنید. تاریخ‌های سه‌شنبه ۵ آبان، شنبه ۹ آبان و جمعه ۱۴ آبان را هم همین‌جا ثبت کنید.
         </p>
       ) : null}
-      {jobs.map((job) => (
+      {!loading && jobs.length > 0 && !visibleJobs.length ? (
+        <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
+          با این اسم یا شماره در این ماه نوبتی نیست. نوبت‌های دیگر همان مشتری حذف نشده‌اند.
+        </p>
+      ) : null}
+      {visibleJobs.map((job) => (
         <MonthJobCard
           key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
           job={job}

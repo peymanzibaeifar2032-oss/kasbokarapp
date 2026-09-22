@@ -88,8 +88,8 @@ export function StudioApprenticeBoard() {
       <div className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="text-lg font-bold">پنجشنبه‌های هنرجو</h2>
         <p className="mt-1 text-sm leading-7 text-muted">
-          هر پنجشنبه سال همین چهار تایم دوساعته است. ناهار ۱۲ تا ۱۳ قفل است. جلسه فقط وقتی «حاضر شد» بزنی
-          شمرده می‌شود. عدد جلسه‌ها را از خانه‌های ۱ تا ۱۰ مشخص کن.
+          هر پنجشنبه سال برای هنرجوهاست و نوبت مشتری نمی‌گیرد. اگر کسی نیاید، همان روز استراحت است.
+          ناهار ۱۲ تا ۱۳ قفل است. فقط «حاضر شد» جزو ۱۰ جلسه است. «کنسل شد» هیچ جلسه‌ای اضافه نمی‌کند.
         </p>
       </div>
 
@@ -159,7 +159,7 @@ export function StudioApprenticeBoard() {
                       : "bg-bg text-muted",
                 )}
               >
-                {slot.status === "present" ? "حاضر" : slot.status === "absent" ? "نیامد" : "برنامه"}
+                {slot.status === "present" ? "حاضر" : slot.status === "absent" ? "کنسل · بدون شمارش" : "برنامه"}
               </span>
             </div>
             <label className="mt-3 grid gap-1.5 text-sm">
@@ -197,7 +197,7 @@ export function StudioApprenticeBoard() {
                 disabled={busy}
                 onClick={() => void run("markApprenticeSlot", { slotId: slot.id, status: "absent" })}
               >
-                نیامد / تمرین آماده نبود
+                کنسل شد، جزو ۱۰ جلسه نیست
               </Button>
               {sina ? (
                 <Button

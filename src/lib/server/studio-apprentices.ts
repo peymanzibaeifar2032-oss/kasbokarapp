@@ -6,6 +6,7 @@ import {
   THURSDAY_CUSTOMER_BLOCK_MESSAGE,
   formatThursdayLabel,
   isTehranThursday,
+  sessionCountDelta,
   slotTimesIso,
   upcomingThursdays,
   type ApprenticeKind,
@@ -256,10 +257,8 @@ export async function performMarkApprenticeSlot(
   const slot = current[0];
   if (!slot) throw new Error("این ساعت پیدا نشد.");
   if (slot.status === "lunch") throw new Error("ساعت ناهار قفل است.");
-  const wasPresent = slot.status === "present";
-  const willPresent = data.status === "present";
-  if (wasPresent && !willPresent) await bumpSessions(sql, slot.apprentice_id, -1);
-  if (!wasPresent && willPresent) await bumpSessions(sql, slot.apprentice_id, 1);
+  const delta = sessionCountDelta(slot.status, data.status);
+  if (delta) await bumpSessions(sql, slot.apprentice_id, delta);
   await sql.query(
     `update studio_apprentice_slots set status=$2, updated_at=now() where id=$1`,
     [data.slotId, data.status],

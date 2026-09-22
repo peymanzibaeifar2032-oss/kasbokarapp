@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Intent;
@@ -96,7 +97,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.6");
+            settings.setUserAgentString(ua + " TattooApp/1.7");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -265,6 +266,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void scheduleNotice(String id, String title, String body, double whenMs) {
+            runOnUiThread(() -> schedulePrepNotice(id, title, body, (long) whenMs));
+        }
+
+        @JavascriptInterface
         public void setOwnerChrome(boolean show) {
             runOnUiThread(() -> {
                 View bar = findViewById(R.id.ownerChrome);
@@ -275,6 +281,30 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void saveReport(String filename, String html) {
             runOnUiThread(() -> beginSaveReport(filename, html));
+        }
+    }
+
+    private void schedulePrepNotice(String id, String title, String body, long whenMs) {
+        if (whenMs <= System.currentTimeMillis()) return;
+        AlarmManager alarms = (AlarmManager) getSystemService(ALARM_SERVICE);
+        if (alarms == null) return;
+        Intent intent = new Intent(this, NoticeReceiver.class);
+        intent.putExtra("title", title == null ? "نوبت تاتو" : title);
+        intent.putExtra("body", body == null ? "" : body);
+        int request = id == null ? (int) (whenMs & 0xfffffff) : id.hashCode();
+        PendingIntent pending = PendingIntent.getBroadcast(
+                this,
+                request,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        if (Build.VERSION.SDK_INT >= 23) {
+            try {
+                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, pending);
+            } catch (SecurityException ignored) {
+                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, whenMs, pending);
+            }
+        } else {
+            alarms.setExact(AlarmManager.RTC_WAKEUP, whenMs, pending);
         }
     }
 

@@ -12,7 +12,8 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { compressImage, designFileName, downloadImage } from "@/lib/design-images";
 import { formatFaDate, formatFaDateTime, formatToman, addBookingToPhoneCalendar } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { TATTOO_CUSTOMER_STAGE_LABEL, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
+import { TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_STYLES, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
+import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
 import type { Profile, TattooRequest } from "@/lib/types";
 
 export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
@@ -28,7 +29,7 @@ function StudioRequestPage() {
   const [phone2, setPhone2] = useState("");
   const [instagram, setInstagram] = useState("");
   const [requestType, setRequestType] = useState<"new" | "coverup" | "consultation">("new");
-  const [style, setStyle] = useState("رئال و بلک‌اندگری");
+  const [style, setStyle] = useState<(typeof TATTOO_STYLES)[number]>("رئال");
   const [idea, setIdea] = useState("");
   const [placement, setPlacement] = useState("");
   const [sizeCm, setSizeCm] = useState("");
@@ -38,7 +39,14 @@ function StudioRequestPage() {
   const [busy, setBusy] = useState(false);
 
   function refresh() {
-    void saveAction<TattooRequest[]>("myTattooRequests").then(setRequests);
+    void saveAction<TattooRequest[]>("myTattooRequests").then((rows) => {
+      setRequests(rows);
+      for (const request of rows) {
+        if (tattooStage(request) === "booked" && request.proposedSlotStart) {
+          scheduleTattooPrepNotices(request.proposedSlotStart, request.customerName || "مشتری");
+        }
+      }
+    });
   }
 
   useEffect(() => {
@@ -198,12 +206,10 @@ function StudioRequestPage() {
               </NativeSelect>
             </Field>
             <Field label="سبک">
-              <NativeSelect value={style} onChange={(e) => setStyle(e.target.value)}>
-                <option>رئال و بلک‌اندگری</option>
-                <option>کاور و بازطراحی</option>
-                <option>پرتره</option>
-                <option>مینیمال و فاین‌لاین</option>
-                <option>سایر</option>
+              <NativeSelect value={style} onChange={(e) => setStyle(e.target.value as (typeof TATTOO_STYLES)[number])}>
+                {TATTOO_STYLES.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
               </NativeSelect>
             </Field>
             <Field label="محل اجرا">
@@ -321,7 +327,7 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
           </p>
           <div className="flex flex-wrap gap-2">
             <a
-              href="/apps/rezerv-vaght-tatoo.apk?v=7"
+              href="/apps/rezerv-vaght-tatoo.apk?v=8"
               download="rezerv-vaght-tatoo.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
             >

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addBookingToPhoneCalendar, formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled } from "@/lib/studio-notices";
+import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled, scheduleTattooPrepNotices } from "@/lib/studio-notices";
 import { STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
 import type { NotificationItem, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
@@ -49,6 +49,11 @@ function StudioStatusPage() {
     ])
       .then(([reqs, n]) => {
         setRequests(reqs ?? []);
+        for (const request of reqs ?? []) {
+          if (tattooStage(request) === "booked" && request.proposedSlotStart) {
+            scheduleTattooPrepNotices(request.proposedSlotStart, request.customerName || "مشتری");
+          }
+        }
         const tattoo = (n.items ?? []).filter((item) => item.kind.startsWith("tattoo"));
         setNotices(tattoo);
         const unreadIds = tattoo.filter((item) => !item.readAt).map((item) => item.id);
@@ -146,7 +151,8 @@ function StudioStatusPage() {
           <h1 className="mt-2 text-3xl font-black">بررسی وضعیت نوبت</h1>
           <p className="mt-3 text-sm leading-7 text-white/55">
             اینجا تأیید پیمان، پیام‌ها، مهلت پرداخت و زمان قطعی را می‌بینی. بعد از قطعی شدن وقت، همان
-            زمان را به تقویم گوشی اضافه کن.
+            زمان را به تقویم گوشی اضافه کن. روز قبل از اجرا، اعلان گوشی یادآوری آمادگی را می‌آورد.
+            مراقبت قبل و بعد در بخش آموزش است.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <p className="rounded-2xl border border-[#b7955b]/30 bg-[#b7955b]/10 px-4 py-3 text-sm leading-7 text-[#e5d2ae]">

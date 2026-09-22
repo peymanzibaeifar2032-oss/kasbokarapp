@@ -1,4 +1,19 @@
-/** Staged tattoo request labels shared by customer and artist panels. */
+export const TATTOO_STYLES = [
+  "رئال",
+  "بلک‌اندگری",
+  "رئال و بلک‌اندگری",
+  "بلک‌ورک",
+  "فول کالر (فول رنگی)",
+  "پرتره",
+  "فاین‌لاین",
+  "مینیمال",
+  "کاور و بازطراحی",
+  "تریبال",
+  "دات‌ورک",
+  "لترینگ و نوشته",
+  "اورینتال",
+  "سایر",
+] as const;
 
 export type TattooStage =
   | "submitted"

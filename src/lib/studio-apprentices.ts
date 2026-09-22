@@ -2,6 +2,12 @@ import { gregorianToJalali, JALALI_MONTHS, toFaDigits } from "./calendar/jalali.
 
 const TEHRAN_OFFSET_MS = 3.5 * 3600 * 1000;
 
+/** Only a session marked present counts. Cancelled or missed lessons stay outside the 10. */
+export function sessionCountDelta(fromStatus: string, toStatus: string) {
+  const counted = (status: string) => (status === "present" ? 1 : 0);
+  return counted(toStatus) - counted(fromStatus);
+}
+
 export const APPRENTICE_SESSION_GOAL = 10;
 export const TEHRAN_THURSDAY = 4;
 

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   Coffee,
   Dumbbell,
@@ -40,6 +40,9 @@ import { cn } from "@/lib/utils";
 const PLACE_KEY = "kasb:place:v2";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    throw redirect({ to: "/studio" });
+  },
   loader: async () => {
     const categories = await listCategories().catch(() => []);
     const items = await listBusinesses({ data: { simple: true } }).catch(() => []);

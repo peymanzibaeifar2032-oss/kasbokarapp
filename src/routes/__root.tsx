@@ -1,5 +1,5 @@
 import { Component, useEffect, type ReactNode } from "react";
-import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
 import { GuideWidget } from "@/components/guide/widget";
@@ -15,6 +15,12 @@ class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean
   render() {
     return this.state.failed ? null : this.props.children;
   }
+}
+
+function ProductGuide() {
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  if (path.startsWith("/studio")) return null;
+  return <GuideWidget />;
 }
 
 function CanonicalHost() {
@@ -72,7 +78,7 @@ export const Route = createRootRoute({
         <AuthProvider>
           <Outlet />
           <QuietBoundary>
-            <GuideWidget />
+            <ProductGuide />
           </QuietBoundary>
           <QuietBoundary>
             <Toaster position="bottom-center" dir="rtl" richColors />
