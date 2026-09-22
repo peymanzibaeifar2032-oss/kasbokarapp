@@ -319,7 +319,7 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
           </p>
           <div className="flex flex-wrap gap-2">
             <a
-              href="/apps/rezerv-vaght-tatoo.apk"
+              href="/apps/rezerv-vaght-tatoo.apk?v=5"
               download="rezerv-vaght-tatoo.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
             >

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createFileRoute } from "@tanstack/react-router";
 
-const NAMES = ["rezerv-vaght-tatoo-v3.apk", "rezerv-vaght-tatoo.apk"];
+const NAMES = ["rezerv-vaght-tatoo.apk"];
 
 function apkBuffer() {
   const roots = [process.cwd(), join(process.cwd(), ".output/public"), join(process.cwd(), "public"), "/app", "/app/.output/public", "/app/public"];

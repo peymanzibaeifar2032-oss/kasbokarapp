@@ -72,7 +72,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.2");
+            settings.setUserAgentString(ua + " TattooApp/1.4");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
