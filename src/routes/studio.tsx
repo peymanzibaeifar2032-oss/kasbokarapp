@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { StudioTopBar } from "@/components/studio/top-bar";
+import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
 import { STUDIO_GUIDE_CARDS } from "@/lib/studio-guide";
 
 export const Route = createFileRoute("/studio")({
@@ -41,6 +42,7 @@ const faqs = [
 
 function StudioLanding() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const { showAdmin } = useStudioAdminEntry();
 
   if (pathname !== "/studio") return <Outlet />;
 
@@ -66,9 +68,19 @@ function StudioLanding() {
                 مشاوره، ثبت نوبت و پیگیری کار در یک مسیر روشن و امن.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
+                {showAdmin ? (
+                  <Link
+                    to="/studio/admin"
+                    className="inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-6 font-black text-black"
+                  >
+                    ورود به پنل ادمین من
+                  </Link>
+                ) : null}
                 <Link
                   to="/studio/request"
-                  className="inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-6 font-bold text-black"
+                  className={`inline-flex h-12 items-center gap-2 rounded-full px-6 font-bold ${
+                    showAdmin ? "border border-[#b7955b]/40 text-[#e5d2ae]" : "bg-[#b7955b] text-black"
+                  }`}
                 >
                   <CalendarDays className="size-5" />
                   شروع ثبت نوبت

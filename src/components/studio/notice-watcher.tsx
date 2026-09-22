@@ -17,10 +17,13 @@ export function useStudioNotices() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     let cancelled = false;
+    let busy = false;
     void ensureStudioPhoneNotices().catch(() => undefined);
     async function tick() {
+      if (busy) return;
+      busy = true;
       try {
         const r = await saveAction<{ items: NotificationItem[]; unread: number }>("notifications");
         if (cancelled) return;
@@ -35,6 +38,8 @@ export function useStudioNotices() {
         }
       } catch {
         /* ignore poll errors */
+      } finally {
+        busy = false;
       }
     }
     void tick();

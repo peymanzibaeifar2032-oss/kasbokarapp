@@ -1,28 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronLeft } from "lucide-react";
-import { useEffect, useState } from "react";
 import { StudioNoticeBanner, useStudioNotices } from "@/components/studio/notice-watcher";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { saveAction } from "@/lib/save";
-import type { Profile } from "@/lib/types";
+import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
 
 export function StudioTopBar({ compact }: { compact?: boolean }) {
   const { unread, banner, dismiss } = useStudioNotices();
-  const { user } = useCurrentUserState();
-  const [isAdmin, setIsAdmin] = useState(false);
-  useEffect(() => {
-    if (!user?.id) {
-      setIsAdmin(false);
-      return;
-    }
-    void saveAction<Profile>("profile")
-      .then((profile) => setIsAdmin(Boolean(profile?.isAdmin)))
-      .catch(() => setIsAdmin(false));
-  }, [user?.id]);
+  const { showAdmin } = useStudioAdminEntry();
   return (
     <>
       {banner ? <StudioNoticeBanner item={banner} onDismiss={dismiss} /> : null}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0c]/95 backdrop-blur-xl">
+        {showAdmin ? (
+          <Link
+            to="/studio/admin"
+            className="block bg-[#b7955b] px-4 py-3.5 text-center text-[15px] font-black text-black"
+          >
+            پنل ادمین من · درخواست‌ها، تقویم، درآمد
+          </Link>
+        ) : null}
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4">
           <Link to="/studio" className="min-w-0 flex-1 leading-tight">
             <strong className="block truncate text-sm tracking-wide">پیمان زیبائی‌فر</strong>
@@ -56,14 +51,6 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
             <ChevronLeft className="size-4" />
           </Link>
         </div>
-        {isAdmin ? (
-          <Link
-            to="/studio/admin"
-            className="block border-t border-black/10 bg-[#b7955b] px-4 py-3 text-center text-sm font-black text-black"
-          >
-            پنل ادمین · درخواست‌ها، تقویم و درآمد ماه
-          </Link>
-        ) : null}
       </header>
     </>
   );

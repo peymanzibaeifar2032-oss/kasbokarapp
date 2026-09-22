@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarPlus, ChevronLeft, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { Button } from "@/components/ui/button";
@@ -28,14 +28,23 @@ function StudioStatusPage() {
   const [phoneOn, setPhoneOn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const inFlight = useRef(false);
+  const loadedOnce = useRef(false);
 
   function refresh() {
-    if (!userId) return;
-    setLoading(true);
+    if (!userId || inFlight.current) return;
+    inFlight.current = true;
+    if (!loadedOnce.current) setLoading(true);
     setLoadError("");
-    Promise.all([
-      saveAction<TattooRequest[]>("myTattooRequests"),
-      saveAction<{ items: NotificationItem[] }>("notifications"),
+    const timeout = new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error("خواندن وضعیت طول کشید. دوباره بزن.")), 12000);
+    });
+    Promise.race([
+      Promise.all([
+        saveAction<TattooRequest[]>("myTattooRequests"),
+        saveAction<{ items: NotificationItem[] }>("notifications"),
+      ]),
+      timeout,
     ])
       .then(([reqs, n]) => {
         setRequests(reqs ?? []);
@@ -49,7 +58,11 @@ function StudioStatusPage() {
         setLoadError(message);
         toast.error(message);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        inFlight.current = false;
+        loadedOnce.current = true;
+        setLoading(false);
+      });
   }
 
   useEffect(() => {

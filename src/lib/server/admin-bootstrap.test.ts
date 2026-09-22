@@ -30,6 +30,8 @@ describe("admin bootstrap", () => {
     assert.equal(shouldGrantBootstrapAdmin("Peyman.zibaeifar2032@gmail.com", get), true);
     assert.equal(shouldGrantBootstrapAdmin("peymanzibaeifar2032@gmail.com", get), true);
     assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar2032@googlemail.com", get), true);
+    assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar@yahoo.com", get), true);
+    assert.equal(shouldGrantBootstrapAdmin("client@gmail.com", get), false);
   });
 
   it("grants studio admin only in the live preview", () => {

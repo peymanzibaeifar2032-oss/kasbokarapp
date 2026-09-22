@@ -117,9 +117,15 @@ function StudioAdminPage() {
   if (profile && !profile.isAdmin)
     return (
       <Shell>
-        <p className="rounded-2xl border border-border bg-surface p-5">
-          این صفحه فقط برای مدیر استودیو فعال است.
-        </p>
+        <div className="rounded-2xl border border-border bg-surface p-5">
+          <p className="font-bold">این حساب هنوز پنل ادمین ندارد.</p>
+          <p className="mt-2 text-sm leading-7 text-muted">
+            با همان ایمیلی که اسم زیبائی‌فر در آن است وارد شو. بعد از ورود این صفحه باز می‌شود.
+          </p>
+          <Button asChild className="mt-4">
+            <a href="/login?next=%2Fstudio%2Fadmin">ورود دوباره به پنل ادمین</a>
+          </Button>
+        </div>
       </Shell>
     );
 
