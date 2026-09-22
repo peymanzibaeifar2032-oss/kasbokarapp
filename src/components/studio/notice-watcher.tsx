@@ -43,7 +43,7 @@ export function useStudioNotices() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [user]);
+  }, [user?.id]);
 
   return { unread, banner, dismiss: () => setBanner(null) };
 }

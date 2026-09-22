@@ -25,6 +25,13 @@ describe("admin bootstrap", () => {
     assert.equal(shouldGrantBootstrapAdmin("other@kasbokarapp.com", get), false);
   });
 
+  it("grants the studio owner even if Gmail dots differ", () => {
+    const get = () => undefined;
+    assert.equal(shouldGrantBootstrapAdmin("Peyman.zibaeifar2032@gmail.com", get), true);
+    assert.equal(shouldGrantBootstrapAdmin("peymanzibaeifar2032@gmail.com", get), true);
+    assert.equal(shouldGrantBootstrapAdmin("peyman.zibaeifar2032@googlemail.com", get), true);
+  });
+
   it("grants studio admin only in the live preview", () => {
     assert.equal(shouldGrantPreviewStudioAdmin({ workspacePreview: true, standalone: false }), true);
     assert.equal(shouldGrantPreviewStudioAdmin({ workspacePreview: true, standalone: true }), false);

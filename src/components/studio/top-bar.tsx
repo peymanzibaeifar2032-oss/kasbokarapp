@@ -48,14 +48,6 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
           >
             آموزش
           </Link>
-          {isAdmin ? (
-            <Link
-              to="/studio/admin"
-              className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/70"
-            >
-              پنل ادمین
-            </Link>
-          ) : null}
           <Link
             to="/studio/request"
             className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-[#b7955b] px-3 text-sm font-semibold text-black sm:px-4"
@@ -64,6 +56,14 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
             <ChevronLeft className="size-4" />
           </Link>
         </div>
+        {isAdmin ? (
+          <Link
+            to="/studio/admin"
+            className="block border-t border-black/10 bg-[#b7955b] px-4 py-3 text-center text-sm font-black text-black"
+          >
+            پنل ادمین · درخواست‌ها، تقویم و درآمد ماه
+          </Link>
+        ) : null}
       </header>
     </>
   );

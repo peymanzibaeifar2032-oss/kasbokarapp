@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { authClient, authEnabled } from "./client";
 
 /** Normalized user shape used across the app, auth on or off. */
@@ -47,15 +47,19 @@ export function useCurrentUserState(): CurrentUserState {
   }, [session.isPending]);
 
   const raw = session.data?.user;
-  const user = raw
-    ? {
-        id: raw.id,
-        displayName: raw.name ?? null,
-        primaryEmail: raw.email ?? null,
-        profileImageUrl: raw.image ?? null,
-        isDevFallback: false,
-      }
-    : null;
+  const user = useMemo(
+    () =>
+      raw
+        ? {
+            id: raw.id,
+            displayName: raw.name ?? null,
+            primaryEmail: raw.email ?? null,
+            profileImageUrl: raw.image ?? null,
+            isDevFallback: false,
+          }
+        : null,
+    [raw?.id, raw?.name, raw?.email, raw?.image],
+  );
   const sessionError = Boolean(session.error) || (gaveUp && session.isPending);
   return {
     user,

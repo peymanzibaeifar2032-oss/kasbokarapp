@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarPlus, Loader2 } from "lucide-react";
+import { CalendarPlus, ChevronLeft, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StudioTopBar } from "@/components/studio/top-bar";
@@ -9,7 +9,7 @@ import { addBookingToPhoneCalendar, formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled } from "@/lib/studio-notices";
 import { tattooStage } from "@/lib/tattoo-flow";
-import type { NotificationItem, TattooRequest } from "@/lib/types";
+import type { NotificationItem, Profile, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
 
 export const Route = createFileRoute("/studio/status")({
@@ -21,13 +21,18 @@ export const Route = createFileRoute("/studio/status")({
 
 function StudioStatusPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
+  const userId = user?.id;
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [notices, setNotices] = useState<NotificationItem[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [phoneOn, setPhoneOn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   function refresh() {
+    if (!userId) return;
     setLoading(true);
+    setLoadError("");
     Promise.all([
       saveAction<TattooRequest[]>("myTattooRequests"),
       saveAction<{ items: NotificationItem[] }>("notifications"),
@@ -39,16 +44,23 @@ function StudioStatusPage() {
         const unreadIds = tattoo.filter((item) => !item.readAt).map((item) => item.id);
         if (unreadIds.length) void saveAction("notificationsRead", { ids: unreadIds });
       })
-      .catch((err) => toast.error(friendlyError(err)))
+      .catch((err) => {
+        const message = friendlyError(err);
+        setLoadError(message);
+        toast.error(message);
+      })
       .finally(() => setLoading(false));
   }
 
   useEffect(() => {
     setPhoneOn(phoneNoticesEnabled() || inStudioApp());
-    if (!user) return;
+    if (!userId) return;
+    void saveAction<Profile>("profile")
+      .then((profile) => setIsAdmin(Boolean(profile?.isAdmin)))
+      .catch(() => setIsAdmin(false));
     void ensureAutoNotices();
     refresh();
-  }, [user]);
+  }, [userId]);
 
   async function ensureAutoNotices() {
     try {
@@ -106,6 +118,18 @@ function StudioStatusPage() {
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
       <StudioTopBar compact />
       <main className="mx-auto grid max-w-3xl gap-5 px-4 py-8">
+        {isAdmin ? (
+          <Link
+            to="/studio/admin"
+            className="flex items-center justify-between rounded-3xl bg-[#b7955b] px-5 py-4 text-black"
+          >
+            <span>
+              <strong className="block text-base">این صفحه مال مشتری است</strong>
+              <span className="mt-1 block text-sm font-medium opacity-80">برای درخواست‌ها، تقویم و درآمد ماه برو به پنل ادمین</span>
+            </span>
+            <ChevronLeft className="size-5 shrink-0" />
+          </Link>
+        ) : null}
         <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-7">
           <p className="text-xs tracking-[.18em] text-[#b7955b]">STATUS</p>
           <h1 className="mt-2 text-3xl font-black">بررسی وضعیت نوبت</h1>
@@ -155,7 +179,15 @@ function StudioStatusPage() {
               <Loader2 className="size-4 animate-spin" /> در حال خواندن وضعیت…
             </p>
           ) : null}
-          {!loading && !notices.length ? (
+          {loadError ? (
+            <p className="mt-4 text-sm leading-7 text-red-300">
+              {loadError}
+              <button type="button" className="mr-2 font-bold text-[#e5d2ae]" onClick={refresh}>
+                تلاش دوباره
+              </button>
+            </p>
+          ) : null}
+          {!loading && !loadError && !notices.length ? (
             <p className="mt-4 text-sm text-white/45">هنوز پیامی ثبت نشده. بعد از بررسی پیمان اینجا می‌آید.</p>
           ) : null}
           <div className="mt-4 grid gap-3">
