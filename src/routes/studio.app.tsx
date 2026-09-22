@@ -32,7 +32,7 @@ function StudioAppDownload() {
           />
           <div>
             <h1 className="text-3xl font-black leading-[1.4] sm:text-4xl">رزرو وقت تاتو</h1>
-            <p className="mt-2 text-sm text-white/50">نسخه اندروید · نصب مستقیم روی گوشی</p>
+            <p className="mt-2 text-sm text-white/50">نسخه ۱.۲ · نصب مستقیم روی گوشی</p>
           </div>
         </div>
 
@@ -42,8 +42,8 @@ function StudioAppDownload() {
         </p>
 
         <a
-          href="/apps/rezerv-vaght-tatoo.apk"
-          download="rezerv-vaght-tatoo.apk"
+          href="/apps/rezerv-vaght-tatoo-v3.apk"
+          download="rezerv-vaght-tatoo-v3.apk"
           className="mt-8 inline-flex h-14 items-center gap-2 rounded-full bg-[#b7955b] px-6 text-base font-black text-black"
         >
           <Download className="size-5" />
