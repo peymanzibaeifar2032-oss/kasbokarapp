@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, FileDown, RefreshCw, Wallet } from "lucide-react";
+import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, FileDown, GraduationCap, RefreshCw, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { SignedOutPanel } from "@/components/layout/auth-required";
@@ -18,6 +19,7 @@ import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle } from 
 import { tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
+import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import {
   TATTOO_ADMIN_STAGE_LABEL,
   TATTOO_SETTLEMENT_PRESETS,
@@ -33,7 +35,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/studio/admin")({ component: StudioAdminPage });
 
-type PanelTab = "requests" | "jobs" | "calendar" | "money";
+type PanelTab = "requests" | "jobs" | "calendar" | "money" | "apprentices";
 type RequestFilter = "active" | "receipt" | "booked" | "all";
 
 function StudioAdminPage() {
@@ -146,7 +148,7 @@ function StudioAdminPage() {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-surface p-1.5 sm:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-surface p-1.5 sm:grid-cols-3 lg:grid-cols-5">
         <button
           type="button"
           onClick={() => setTab("requests")}
@@ -179,6 +181,16 @@ function StudioAdminPage() {
         </button>
         <button
           type="button"
+          onClick={() => setTab("apprentices")}
+          className={cn(
+            "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
+            tab === "apprentices" ? "bg-primary text-primary-fg" : "text-muted",
+          )}
+        >
+          <GraduationCap className="ml-1 inline size-4" /> پنجشنبه‌ها
+        </button>
+        <button
+          type="button"
           onClick={() => setTab("money")}
           className={cn(
             "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
@@ -206,6 +218,8 @@ function StudioAdminPage() {
       {!loading && !error && tab === "jobs" ? (
         <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} />
       ) : null}
+
+      {!loading && !error && tab === "apprentices" ? <StudioApprenticeBoard /> : null}
 
       {!loading && !error && tab === "money" ? <StudioMonthFinance /> : null}
 
@@ -305,7 +319,7 @@ function TattooAdminCard({
   const showProposalForm =
     request.status !== "booked" && request.status !== "rejected" && !slotLocked;
   const busyKeys = useMemo(() => {
-    const keys = new Set<string>();
+    const keys = new Set<string>(thursdayBusyKeys());
     for (const booking of bookings) {
       if (booking.businessId !== businessId || booking.status === "cancelled") continue;
       keys.add(tehranDayKey(new Date(booking.slotStart)));

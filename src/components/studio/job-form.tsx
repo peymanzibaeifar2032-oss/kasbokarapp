@@ -9,6 +9,7 @@ import { tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { isRetiredCollaborator } from "@/lib/tattoo-flow";
+import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { Booking, Business } from "@/lib/types";
 
 export function StudioJobForm({
@@ -41,13 +42,15 @@ export function StudioJobForm({
   const [resources, setResources] = useState<BusinessResource[]>([]);
   const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const busyKeys = useMemo(
-    () =>
-      bookings
-        .filter((booking) => booking.businessId === businessId && booking.status !== "cancelled")
-        .map((booking) => tehranDayKey(new Date(booking.slotStart))),
-    [bookings, businessId],
-  );
+  const busyKeys = useMemo(() => {
+    const keys = new Set(thursdayBusyKeys());
+    for (const booking of bookings) {
+      if (booking.businessId === businessId && booking.status !== "cancelled") {
+        keys.add(tehranDayKey(new Date(booking.slotStart)));
+      }
+    }
+    return [...keys];
+  }, [bookings, businessId]);
   const visibleStaff = resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name));
 
   useEffect(() => {

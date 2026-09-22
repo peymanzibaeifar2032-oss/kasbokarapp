@@ -19,6 +19,13 @@ import {
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, withStudioVisitDetails } from "@/lib/tattoo-flow";
+import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
+import {
+  performAssignApprenticeSlot,
+  performMarkApprenticeSlot,
+  performSetApprenticeProgress,
+  performStudioApprenticeBoard,
+} from "@/lib/server/studio-apprentices";
 import { STUDIO_EXPENSE_CATEGORIES, studioMonthSummary, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
@@ -97,6 +104,30 @@ async function requireAdmin(userId: string) {
 
 const PREVIEW_STUDIO_ID = "biz-peyman-studio";
 
+function rejectCustomerThursday(iso: string) {
+  if (isThursdayIso(iso)) throw new Error(THURSDAY_CUSTOMER_BLOCK_MESSAGE);
+}
+
+async function lockStudioThursdays(sql: Awaited<ReturnType<typeof getSql>>, businessId: string) {
+  const row = await sql.query<{ work_hours: unknown }>(`select work_hours from businesses where id=$1`, [businessId]);
+  if (!row[0]) return;
+  let hours = DEFAULT_HOURS;
+  const raw = row[0].work_hours;
+  if (Array.isArray(raw) && raw.length) hours = raw as typeof DEFAULT_HOURS;
+  else if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as typeof DEFAULT_HOURS;
+      if (Array.isArray(parsed) && parsed.length) hours = parsed;
+    } catch {
+      hours = DEFAULT_HOURS;
+    }
+  }
+  await sql.query(`update businesses set work_hours=$2::jsonb, updated_at=now() where id=$1`, [
+    businessId,
+    JSON.stringify(closeThursdayHours(hours)),
+  ]);
+}
+
 async function ensureStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId: string): Promise<string> {
   const mine = await sql.query<{ id: string }>(
     `select id from businesses
@@ -111,6 +142,7 @@ async function ensureStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId:
   );
   if (mine[0]) {
     await removeRetiredCollaborators(sql, userId);
+    await lockStudioThursdays(sql, mine[0].id);
     return mine[0].id;
   }
   const named = await sql.query<{ id: string }>(
@@ -129,6 +161,7 @@ async function ensureStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId:
       [userId, named[0].id],
     );
     await removeRetiredCollaborators(sql, userId);
+    await lockStudioThursdays(sql, named[0].id);
     return named[0].id;
   }
   await sql.query(
@@ -154,7 +187,7 @@ async function ensureStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId:
       KERMANSHAH_CENTER.lng,
       "طراحی و اجرای تاتو رئال، بلک‌اندگری و کاور.",
       "peyman_zibaeifar_tattoo",
-      JSON.stringify(DEFAULT_HOURS),
+      JSON.stringify(closeThursdayHours(DEFAULT_HOURS)),
       JSON.stringify([
         { title: "مشاوره طرح", price: 0 },
         { title: "جلسه تاتو", price: 3500000 },
@@ -162,6 +195,7 @@ async function ensureStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId:
     ],
   );
   await removeRetiredCollaborators(sql, userId);
+  await lockStudioThursdays(sql, PREVIEW_STUDIO_ID);
   return PREVIEW_STUDIO_ID;
 }
 
@@ -550,6 +584,7 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
   if (data.status === "approved") {
     const start = new Date(data.proposedSlotStart!);
     if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 10 * 60000) throw new Error("زمان پیشنهادی معتبر نیست.");
+    rejectCustomerThursday(start.toISOString());
     const end = new Date(start.getTime() + data.sessionMinutes! * 60000);
     const overlap = await sql.query<{ id: string }>(
       TATTOO_SLOT_OVERLAP_SQL,
@@ -1011,6 +1046,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
   if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 10 * 60000) {
     throw new Error("این ساعت قابل رزرو نیست.");
   }
+  rejectCustomerThursday(start.toISOString());
   const sql = await getSql();
   const visible = await sql.query<{
     id: string;
@@ -1353,6 +1389,7 @@ async function performReschedule(userId: string, raw: unknown) {
   if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 10 * 60000) {
     throw new Error("این ساعت قابل رزرو نیست.");
   }
+  rejectCustomerThursday(start.toISOString());
   const prices = parseJsonField(row.prices as never, [] as PriceItem[]);
   const workHours = parseJsonField(row.work_hours as never, [] as WorkHour[]);
   const duration = serviceDurationMinutes(prices, row.service_title, Number(row.slot_minutes) || 60);
@@ -2194,6 +2231,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     if (!current[0].business_id) throw new Error("این کار به استودیو وصل نیست.");
     const start = new Date(data.slotStart);
     if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
+    rejectCustomerThursday(start.toISOString());
     const minutes = data.sessionMinutes ?? current[0].session_minutes ?? 180;
     const end = new Date(start.getTime() + minutes * 60000);
     const overlap = await sql.query<{ id: string }>(
@@ -2313,6 +2351,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
   const start = new Date(data.slotStart);
   if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
+  rejectCustomerThursday(start.toISOString());
   const minutes = data.sessionMinutes ?? 180;
   const slotEnd = new Date(start.getTime() + minutes * 60000).toISOString();
   const resources = await loadResources(sql, businessId);
@@ -2518,6 +2557,14 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performAddStudioPayment(userId, payload);
     case "createStudioJob":
       return performCreateStudioJob(userId, payload);
+    case "studioApprenticeBoard":
+      return performStudioApprenticeBoard(userId, payload, { requireAdmin, ensureStudioShop });
+    case "setApprenticeProgress":
+      return performSetApprenticeProgress(userId, payload, requireAdmin);
+    case "markApprenticeSlot":
+      return performMarkApprenticeSlot(userId, payload, { requireAdmin, ensureStudioShop });
+    case "assignApprenticeSlot":
+      return performAssignApprenticeSlot(userId, payload, { requireAdmin, ensureStudioShop });
     case "clearStudioCalendar":
       return performClearStudioCalendar(userId, payload);
     case "favorites":
