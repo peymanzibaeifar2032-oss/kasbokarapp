@@ -1,10 +1,13 @@
 package com.peymanzibaeifar.tattoobooking;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.webkit.CookieManager;
+import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -26,6 +29,10 @@ public class MainActivity extends Activity {
         webView = new WebView(this);
         webView.setBackgroundColor(0xFF0B0B0C);
         setContentView(webView);
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 2002);
+        }
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -63,6 +70,11 @@ public class MainActivity extends Activity {
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                request.grant(request.getResources());
+            }
+
             @Override
             public boolean onShowFileChooser(
                     WebView view,

@@ -160,6 +160,47 @@ export function downloadTextFile(filename: string, content: string, mime: string
   URL.revokeObjectURL(url);
 }
 
+export function googleCalendarUrl(opts: {
+  title: string;
+  startIso: string;
+  minutes?: number;
+  location?: string;
+  description?: string;
+}) {
+  const start = new Date(opts.startIso);
+  const end = new Date(start.getTime() + (opts.minutes ?? 60) * 60000);
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: opts.title,
+    dates: `${icsStamp(start)}/${icsStamp(end)}`,
+    details: opts.description ?? "",
+    location: opts.location ?? "",
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export function addBookingToPhoneCalendar(
+  opts: {
+    title: string;
+    startIso: string;
+    minutes?: number;
+    location?: string;
+    description?: string;
+    fileName?: string;
+  },
+) {
+  downloadTextFile(
+    opts.fileName ?? "nobat.ics",
+    bookingIcs(opts),
+    "text/calendar;charset=utf-8",
+  );
+  const a = document.createElement("a");
+  a.href = googleCalendarUrl(opts);
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.click();
+}
+
 export function safeNextPath(raw: unknown) {
   if (typeof raw !== "string") return undefined;
   if (!raw.startsWith("/") || raw.startsWith("//") || raw.includes("://")) return undefined;

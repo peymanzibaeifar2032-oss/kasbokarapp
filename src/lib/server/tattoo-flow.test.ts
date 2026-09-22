@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
 import { STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, isRetiredCollaborator, tattooBalance, tattooStage } from "../tattoo-flow.ts";
+import { googleCalendarUrl } from "../format.ts";
 import {
   expireTattooHoldSql,
   TATTOO_OVERDUE_REVIEW_SQL,
@@ -394,5 +395,19 @@ describe("tattooBalance and bank presets", () => {
     assert.equal(isRetiredCollaborator("مهرداد"), true);
     assert.equal(isRetiredCollaborator("مهررداد"), true);
     assert.equal(isRetiredCollaborator("پیمان زیبائی‌فر"), false);
+  });
+});
+
+describe("customer calendar link", () => {
+  it("builds a Google Calendar url for a confirmed tattoo slot", () => {
+    const url = googleCalendarUrl({
+      title: "نوبت تاتو · پیمان زیبائی‌فر",
+      startIso: "2026-10-27T09:00:00.000Z",
+      minutes: 120,
+      location: "کرمانشاه",
+    });
+    assert.match(url, /^https:\/\/calendar\.google\.com\/calendar\/render\?/);
+    assert.match(url, /dates=20261027T090000Z%2F20261027T110000Z/);
+    assert.match(url, /text=/);
   });
 });

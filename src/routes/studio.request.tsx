@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircle2, ChevronLeft, Download, ImagePlus, Loader2, ShieldCheck, Smartphone } from "lucide-react";
+import { ChevronLeft, Download, ImagePlus, Loader2, ShieldCheck, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { compressImage, designFileName, downloadImage } from "@/lib/design-images";
-import { formatFaDate, formatFaDateTime, formatToman } from "@/lib/format";
+import { formatFaDate, formatFaDateTime, formatToman, addBookingToPhoneCalendar } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 import type { Profile, TattooRequest } from "@/lib/types";
@@ -274,6 +274,13 @@ function StudioRequestPage() {
         </section>
 
         <aside className="space-y-4">
+          <Link
+            to="/studio/status"
+            className="flex h-12 items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-bold text-black"
+          >
+            بررسی وضعیت نوبت و پیام‌ها
+            <ChevronLeft className="size-4" />
+          </Link>
           <div className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
             <h2 className="font-bold">روند بررسی</h2>
             <ol className="mt-4 space-y-4 text-sm text-white/60">
@@ -399,7 +406,7 @@ function ImageField({
   );
 }
 
-function RequestCard({ request, onChange }: { request: TattooRequest; onChange: () => void }) {
+export function RequestCard({ request, onChange }: { request: TattooRequest; onChange: () => void }) {
   const [receipt, setReceipt] = useState(request.receiptImage ?? "");
   const [receiptName, setReceiptName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -532,6 +539,33 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
             </p>
           ) : null}
           {paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}
+          {stage === "booked" && request.proposedSlotStart ? (
+            <Button
+              className="mt-3 w-full bg-[#b7955b] text-black"
+              onClick={() =>
+                addBookingToPhoneCalendar({
+                  title: "نوبت تاتو · پیمان زیبائی‌فر",
+                  startIso: request.proposedSlotStart!,
+                  minutes:
+                    request.proposedSlotEnd && request.proposedSlotStart
+                      ? Math.max(
+                          10,
+                          Math.round(
+                            (new Date(request.proposedSlotEnd).getTime() -
+                              new Date(request.proposedSlotStart).getTime()) /
+                              60000,
+                          ),
+                        )
+                      : request.sessionMinutes || 120,
+                  location: "استودیو پیمان زیبائی‌فر، کرمانشاه",
+                  description: [request.style, request.artistMessage].filter(Boolean).join(" — "),
+                  fileName: `tattoo-${request.id}.ics`,
+                })
+              }
+            >
+              افزودن به تقویم گوشی
+            </Button>
+          ) : null}
           {canPay ? (
             <div className="mt-4 rounded-2xl border border-[#b7955b]/35 bg-[#b7955b]/5 p-4">
               <p className="font-semibold text-[#e5d2ae]">

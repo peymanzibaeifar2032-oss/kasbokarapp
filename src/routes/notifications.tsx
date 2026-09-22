@@ -59,7 +59,11 @@ function NotificationsPage() {
             <strong>{n.title}</strong>
             <p className="mt-1 text-sm text-muted">{n.body}</p>
             <p className="mt-2 text-xs text-muted">{formatFaDateTime(n.createdAt)}</p>
-            {n.businessId ? (
+            {n.kind.startsWith("tattoo") ? (
+              <Link className="mt-2 inline-block text-sm text-accent" to="/studio/status">
+                مشاهده وضعیت نوبت تاتو
+              </Link>
+            ) : n.businessId ? (
               <Link className="mt-2 inline-block text-sm text-accent" to="/business/$id" params={{ id: n.businessId }}>
                 مشاهده کسب‌وکار
               </Link>

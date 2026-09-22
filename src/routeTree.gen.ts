@@ -33,6 +33,7 @@ import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
 import { Route as StudioAppRouteImport } from './routes/studio.app'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
+import { Route as StudioStatusRouteImport } from './routes/studio.status'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
 import { Route as ApiPaymentsWebhookRouteImport } from './routes/api/payments/webhook'
@@ -158,6 +159,11 @@ const StudioRequestRoute = StudioRequestRouteImport.update({
   path: '/request',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioStatusRoute = StudioStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => StudioRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
   '/studio/request': typeof StudioRequestRoute
+  '/studio/status': typeof StudioStatusRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
   '/studio/request': typeof StudioRequestRoute
+  '/studio/status': typeof StudioStatusRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
   '/studio/request': typeof StudioRequestRoute
+  '/studio/status': typeof StudioStatusRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
     | '/studio/admin'
     | '/studio/app'
     | '/studio/request'
+    | '/studio/status'
     | '/api/auth/$'
     | '/api/payments/callback'
     | '/api/payments/webhook'
@@ -327,6 +337,7 @@ export interface FileRouteTypes {
     | '/studio/admin'
     | '/studio/app'
     | '/studio/request'
+    | '/studio/status'
     | '/api/auth/$'
     | '/api/payments/callback'
     | '/api/payments/webhook'
@@ -357,6 +368,7 @@ export interface FileRouteTypes {
     | '/studio/admin'
     | '/studio/app'
     | '/studio/request'
+    | '/studio/status'
     | '/api/auth/$'
     | '/api/payments/callback'
     | '/api/payments/webhook'
@@ -560,6 +572,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioRequestRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/status': {
+      id: '/studio/status'
+      path: '/status'
+      fullPath: '/studio/status'
+      preLoaderRoute: typeof StudioStatusRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -607,12 +626,14 @@ interface StudioRouteChildren {
   StudioAdminRoute: typeof StudioAdminRoute
   StudioAppRoute: typeof StudioAppRoute
   StudioRequestRoute: typeof StudioRequestRoute
+  StudioStatusRoute: typeof StudioStatusRoute
 }
 
 const StudioRouteChildren: StudioRouteChildren = {
   StudioAdminRoute: StudioAdminRoute,
   StudioAppRoute: StudioAppRoute,
   StudioRequestRoute: StudioRequestRoute,
+  StudioStatusRoute: StudioStatusRoute,
 }
 
 const StudioRouteWithChildren =

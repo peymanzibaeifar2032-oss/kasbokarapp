@@ -72,6 +72,12 @@ function StudioLanding() {
                   شروع ثبت نوبت
                 </Link>
                 <Link
+                  to="/studio/status"
+                  className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
+                >
+                  بررسی وضعیت
+                </Link>
+                <Link
                   to="/studio/app"
                   className="inline-flex h-12 items-center gap-2 rounded-full border border-white/15 px-6 text-sm text-white/80"
                 >
