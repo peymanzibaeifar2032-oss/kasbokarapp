@@ -32,6 +32,12 @@ import {
   type BizRow,
   type ReviewRow,
 } from "@/lib/server/db-map";
+import {
+  expireTattooHoldSql,
+  TATTOO_OVERDUE_REVIEW_SQL,
+  TATTOO_PENDING_PROPOSAL_OVERLAP_SQL,
+  TATTOO_SLOT_OVERLAP_SQL,
+} from "@/lib/server/tattoo-holds";
 import type { MehrLoanLead, OwnerStats, PriceItem, Profile, TattooRequest, WorkHour } from "@/lib/types";
 
 const hoursSchema = z.array(
@@ -85,6 +91,47 @@ async function requireAdmin(userId: string) {
   const sql = await getSql();
   const me = await sql.query<{ is_admin: boolean }>("select is_admin from profiles where user_id = $1", [userId]);
   if (!me[0]?.is_admin) throw new Error("دسترسی مدیریت ندارید.");
+}
+
+async function expireOpenTattooHolds(sql: Awaited<ReturnType<typeof getSql>>, customerId?: string) {
+  const q = expireTattooHoldSql({ customerScoped: Boolean(customerId) });
+  const params = customerId ? [customerId] : [];
+  await sql.query(q.cancelBookings, params);
+  await sql.query(q.expireRequests, params);
+}
+
+async function remindOverdueTattooReviews(sql: Awaited<ReturnType<typeof getSql>>) {
+  const overdue = await sql.query<{
+    id: string;
+    customer_id: string;
+    business_id: string | null;
+    booking_id: string | null;
+    customer_name: string;
+    payment_review_deadline: string;
+  }>(TATTOO_OVERDUE_REVIEW_SQL);
+  if (!overdue.length) return;
+  const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin=true");
+  for (const row of overdue) {
+    for (const admin of admins) {
+      const exists = await sql.query<{ ok: number }>(
+        `select 1 as ok from notifications
+          where user_id=$1 and kind='tattoo_receipt_overdue'
+            and created_at >= $2
+            and coalesce(business_id,'') = coalesce($3,'')
+          limit 1`,
+        [admin.user_id, row.payment_review_deadline, row.business_id],
+      );
+      if (exists[0]) continue;
+      await notify(
+        sql,
+        admin.user_id,
+        "مهلت بررسی رسید گذشته",
+        `رسید «${row.customer_name}» هنوز تعیین تکلیف نشده. زمان قفل مانده تا تأیید یا رد کنید.`,
+        "tattoo_receipt_overdue",
+        { bookingId: row.booking_id ?? undefined, businessId: row.business_id ?? undefined },
+      );
+    }
+  }
 }
 
 async function hasMehrLoanAccess(userId: string) {
@@ -297,10 +344,7 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
 
 async function performMyTattooRequests(userId: string) {
   const sql = await getSql();
-  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where customer_id=$1 and status='approved' and payment_status in ('awaiting_payment','rejected') and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`, [userId]);
-  await sql.query(`update tattoo_requests set booking_id=null, payment_status='expired', updated_at=now()
-    where customer_id=$1 and status='approved' and payment_status in ('awaiting_payment','rejected')
-      and payment_hold_until is not null and payment_hold_until <= now()`, [userId]);
+  await expireOpenTattooHolds(sql, userId);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where customer_id = $1 order by created_at desc`, [userId]);
   return rows.map(mapTattooRequest);
 }
@@ -308,11 +352,19 @@ async function performMyTattooRequests(userId: string) {
 async function performStudioTattooRequests(userId: string) {
   await requireAdmin(userId);
   const sql = await getSql();
-  await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where status='approved' and payment_status in ('awaiting_payment','rejected') and payment_hold_until is not null and payment_hold_until <= now()) and status='requested'`);
-  await sql.query(`update tattoo_requests set booking_id=null, payment_status='expired', updated_at=now()
-    where status='approved' and payment_status in ('awaiting_payment','rejected')
-      and payment_hold_until is not null and payment_hold_until <= now()`);
-  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} order by case status when 'submitted' then 0 when 'needs_info' then 1 when 'approved' then 2 else 3 end, created_at desc`);
+  await expireOpenTattooHolds(sql);
+  await remindOverdueTattooReviews(sql);
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} order by
+    case
+      when payment_status='receipt_submitted' and payment_review_deadline is not null and payment_review_deadline <= now() then 0
+      when payment_status='receipt_submitted' then 1
+      when payment_status='rejected' then 2
+      when status='submitted' then 3
+      when status='needs_info' then 4
+      when payment_status='expired' then 5
+      when status='approved' then 6
+      else 7
+    end, created_at desc`);
   return rows.map(mapTattooRequest);
 }
 
@@ -343,6 +395,18 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
   if (paymentIban && !/^IR\d{24}$/.test(paymentIban)) throw new Error("شماره شبا معتبر نیست.");
   if (paymentCardNumber && !/^\d{16}$/.test(paymentCardNumber)) throw new Error("شماره کارت باید ۱۶ رقم باشد.");
   const sql = await getSql();
+  const current = await sql.query<{ status: string; payment_status: string; booking_id: string | null }>(
+    `select status, payment_status, booking_id from tattoo_requests where id=$1`,
+    [data.id],
+  );
+  if (!current[0]) throw new Error("درخواست پیدا نشد.");
+  if (current[0].status === "booked") throw new Error("این نوبت قطعی شده و از این مسیر قابل تغییر نیست.");
+  if (data.status === "approved" && current[0].payment_status === "receipt_submitted") {
+    throw new Error("ابتدا رسید واریز را بررسی کنید.");
+  }
+  if (data.status === "approved" && (current[0].payment_status === "awaiting_payment" || current[0].payment_status === "rejected")) {
+    throw new Error("این زمان تا پایان مهلت پرداخت یا ارسال رسید قفل است.");
+  }
   if (data.businessId) {
     const owned = await sql.query<{ id: string }>("select id from businesses where id = $1 and owner_id = $2", [data.businessId, userId]);
     if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
@@ -354,12 +418,23 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
     if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 10 * 60000) throw new Error("زمان پیشنهادی معتبر نیست.");
     const end = new Date(start.getTime() + data.sessionMinutes! * 60000);
     const overlap = await sql.query<{ id: string }>(
-      `select id from bookings where business_id=$1 and status in ('requested','confirmed') and slot_start < $3 and slot_end > $2 limit 1`,
+      TATTOO_SLOT_OVERLAP_SQL,
       [data.businessId, start.toISOString(), end.toISOString()],
     );
     if (overlap[0]) throw new Error("این زمان قبلاً رزرو شده است. زمان دیگری انتخاب کنید.");
+    const pending = await sql.query<{ id: string }>(
+      TATTOO_PENDING_PROPOSAL_OVERLAP_SQL,
+      [data.businessId, start.toISOString(), end.toISOString(), data.id],
+    );
+    if (pending[0]) throw new Error("این زمان برای درخواست دیگری پیشنهاد شده است. زمان دیگری انتخاب کنید.");
     proposedStart = start.toISOString();
     proposedEnd = end.toISOString();
+  }
+  if (current[0].booking_id && (data.status === "approved" || data.status === "rejected" || data.status === "needs_info")) {
+    await sql.query(
+      `update bookings set status='cancelled' where id=$1 and status='requested'`,
+      [current[0].booking_id],
+    );
   }
   const updated = await sql.query<{ customer_id: string }>(
     `update tattoo_requests set status=$2, business_id=$3, price_min_toman=$4, price_max_toman=$5,
@@ -375,7 +450,7 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
       paymentIban, paymentCardNumber, proposedStart, proposedEnd],
   );
   if (!updated[0]) throw new Error("درخواست پیدا نشد.");
-  const titles = { approved: "درخواست تاتو تأیید شد", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
+  const titles = { approved: "پیشنهاد قیمت و زمان تاتو", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
   await notify(sql, updated[0].customer_id, titles[data.status], data.artistMessage, `tattoo_request_${data.status}`);
   return { ok: true as const };
 }
@@ -394,7 +469,7 @@ async function performAcceptTattooProposal(userId: string, raw: unknown) {
   if (r.payment_status !== "proposal_pending" || !r.proposed_slot_start || !r.proposed_slot_end) throw new Error("این پیشنهاد قابل تأیید نیست.");
   if (new Date(r.proposed_slot_start).getTime() < Date.now() + 10 * 60000) throw new Error("زمان پیشنهادی گذشته است. از آرتیست زمان تازه بخواهید.");
   const overlap = await sql.query<{ id: string }>(
-    `select id from bookings where business_id=$1 and status in ('requested','confirmed') and slot_start < $3 and slot_end > $2 limit 1`,
+    TATTOO_SLOT_OVERLAP_SQL,
     [r.business_id, r.proposed_slot_start, r.proposed_slot_end],
   );
   if (overlap[0]) throw new Error("این زمان دیگر آزاد نیست. از آرتیست زمان تازه بخواهید.");
@@ -428,10 +503,12 @@ async function performSubmitTattooReceipt(userId: string, raw: unknown) {
   const rows = await sql.query<{ id: string; customer_id: string; business_id: string | null; payment_status: string; payment_hold_until: string | null }>(`select id, customer_id, business_id, payment_status, payment_hold_until from tattoo_requests where id=$1`, [data.requestId]);
   const r = rows[0];
   if (!r || r.customer_id !== userId) throw new Error("دسترسی ندارید.");
-  if (r.payment_status !== "awaiting_payment" && r.payment_status !== "rejected") throw new Error("این درخواست در وضعیت پرداخت نیست.");
+  if (r.payment_status !== "awaiting_payment" && r.payment_status !== "rejected") {
+    throw new Error("این درخواست در وضعیت پرداخت نیست.");
+  }
   if (!r.payment_hold_until || new Date(r.payment_hold_until).getTime() <= Date.now()) {
-    await sql.query(`update bookings set status='cancelled' where id=(select booking_id from tattoo_requests where id=$1) and status='requested'`, [r.id]);
-    await sql.query(`update tattoo_requests set booking_id=null, payment_status='expired', updated_at=now() where id=$1`, [r.id]);
+    await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where id=$1) and status='requested'`, [r.id]);
+    await sql.query(`update tattoo_requests set payment_status='expired', booking_id=null, updated_at=now() where id=$1 and payment_status in ('awaiting_payment','rejected')`, [r.id]);
     throw new Error("مهلت پرداخت تمام شد. وقت آزاد شد، اما درخواست شما همچنان باز است.");
   }
   await sql.query(`update tattoo_requests set payment_status='receipt_submitted', payment_submitted_at=now(), payment_review_deadline=now()+interval '12 hours', receipt_image=$2, updated_at=now() where id=$1`, [r.id, data.receiptImage]);
@@ -455,7 +532,7 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
   } else {
     await sql.query(
       `update tattoo_requests set payment_status='rejected', payment_hold_until=now()+interval '6 hours',
-         receipt_image=null, payment_submitted_at=null, payment_review_deadline=null, artist_message=$2, updated_at=now()
+         payment_submitted_at=null, payment_review_deadline=null, artist_message=$2, updated_at=now()
        where id=$1`,
       [data.requestId, data.message],
     );
@@ -744,6 +821,9 @@ export async function performCreateBooking(userId: string, raw: unknown) {
       tattooRequestId: z.string().optional().nullable(),
     })
     .parse(raw);
+  if (data.tattooRequestId) {
+    throw new Error("زمان تاتو را آرتیست پیشنهاد می‌کند. از صفحه درخواست، زمان پیشنهادی را تأیید کنید.");
+  }
   if (!isIranMobile(data.customerPhone)) throw new Error("شماره موبایل معتبر وارد کنید.");
   const start = new Date(data.slotStart);
   if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 10 * 60000) {
@@ -766,22 +846,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
   const workHours = parseJsonField(row.work_hours as never, [] as WorkHour[]);
   const prices = parseJsonField(row.prices as never, [] as PriceItem[]);
   const slotMinutes = Number(row.slot_minutes) || 60;
-  let duration = serviceDurationMinutes(prices, data.serviceTitle, slotMinutes);
-  if (data.tattooRequestId) {
-    const tattooRows = await sql.query<{ id: string; business_id: string | null; booking_id: string | null; customer_id: string; status: string; session_minutes: number | null; payment_status: string; payment_hold_until: string | null }>(
-      `select id, business_id, booking_id, customer_id, status, session_minutes, payment_status, payment_hold_until from tattoo_requests where id = $1`,
-      [data.tattooRequestId],
-    );
-    const tattoo = tattooRows[0];
-    if (!tattoo || tattoo.customer_id !== userId || tattoo.business_id !== data.businessId || tattoo.status !== "approved") {
-      throw new Error("این درخواست تاتو برای رزرو آماده نیست.");
-    }
-    if (tattoo.booking_id) throw new Error("زمان این درخواست قبلاً توسط آرتیست ثبت شده است.");
-    if (tattoo.payment_status !== "awaiting_payment" || !tattoo.payment_hold_until || new Date(tattoo.payment_hold_until).getTime() <= Date.now()) {
-      throw new Error("مهلت پرداخت این درخواست تمام شده است. درخواست جدید ثبت کنید.");
-    }
-    if (tattoo.session_minutes != null) duration = { ...duration, minutes: Number(tattoo.session_minutes) };
-  }
+  const duration = serviceDurationMinutes(prices, data.serviceTitle, slotMinutes);
   const buffers = serviceBuffers(prices, data.serviceTitle);
   const slotEnd = new Date(start.getTime() + duration.minutes * 60000).toISOString();
   const specialDays = await loadSpecialDays(sql, data.businessId);
@@ -878,14 +943,7 @@ export async function performCreateBooking(userId: string, raw: unknown) {
   if (staffed && !resourceId) {
     throw new Error("این ساعت قابل رزرو نیست.");
   }
-  if (data.tattooRequestId) {
-    await sql.query(
-      `update tattoo_requests set booking_id = $2, updated_at = now()
-       where id = $1 and customer_id = $3 and status = 'approved'`,
-      [data.tattooRequestId, id, userId],
-    );
-  }
-  await audit(sql, id, userId, "created", null, { slotStart: data.slotStart, slotEnd, status: "requested", resourceId, tattooRequestId: data.tattooRequestId ?? null });
+  await audit(sql, id, userId, "created", null, { slotStart: data.slotStart, slotEnd, status: "requested", resourceId, tattooRequestId: null });
   await notify(sql, userId, "رزرو ثبت شد", `درخواست نوبت شما در «${row.name}» ثبت شد.`, "booking_created", {
     bookingId: id,
     businessId: data.businessId,

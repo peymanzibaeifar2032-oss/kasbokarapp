@@ -12,10 +12,12 @@ export function JalaliDatePicker({
   value,
   onChange,
   label = "انتخاب تاریخ شمسی",
+  busyKeys = [],
 }: {
   value: string;
   onChange: (value: string) => void;
   label?: string;
+  busyKeys?: string[];
 }) {
   const initial = parseDayKey(value);
   const now = tehranClock(new Date());
@@ -26,10 +28,14 @@ export function JalaliDatePicker({
   );
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState({ jy: initialJ.jy, jm: initialJ.jm });
+  const busy = useMemo(() => new Set(busyKeys), [busyKeys]);
   const cells = useMemo(
     () =>
-      jalaliMonthGrid(month.jy, month.jm).map((cell) => ({ cell, status: "free" as DayStatus })),
-    [month.jy, month.jm],
+      jalaliMonthGrid(month.jy, month.jm).map((cell) => ({
+        cell,
+        status: (busy.has(cell.dayKey) ? "limited" : "free") as DayStatus,
+      })),
+    [month.jy, month.jm, busy],
   );
   const selected = parseDayKey(value);
 

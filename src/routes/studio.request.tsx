@@ -8,21 +8,10 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { formatFaDate, formatFaDateTime, formatToman } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
+import { TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 import type { Profile, TattooRequest } from "@/lib/types";
 
 export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
-
-function requestStatusText(request: TattooRequest) {
-  if (request.status === "booked" || request.paymentStatus === "approved") return "رزرو قطعی";
-  if (request.paymentStatus === "proposal_pending") return "پیشنهاد پیمان آماده است";
-  if (request.paymentStatus === "awaiting_payment") return "منتظر ارسال رسید";
-  if (request.paymentStatus === "receipt_submitted") return "رسید در دست بررسی";
-  if (request.paymentStatus === "rejected") return "رسید نیاز به اصلاح دارد";
-  if (request.paymentStatus === "expired") return "مهلت پرداخت تمام شده";
-  if (request.status === "needs_info") return "نیاز به اطلاعات بیشتر";
-  if (request.status === "rejected") return "پذیرفته نشد";
-  return "در انتظار بررسی";
-}
 
 async function compressImage(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("فقط فایل تصویری انتخاب کنید.");
@@ -273,8 +262,8 @@ function StudioRequestPage() {
               {[
                 "ارسال اطلاعات و عکس‌ها",
                 "بررسی توسط پیمان",
-                "اعلام قیمت، جلسات و بیعانه",
-                "انتخاب زمان و رزرو قطعی",
+                "اعلام قیمت، زمان پیشنهادی و بیعانه",
+                "تأیید شما، واریز و رزرو قطعی",
               ].map((x, i) => (
                 <li key={x} className="flex gap-3">
                   <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#b7955b] text-xs font-bold text-black">
@@ -387,16 +376,26 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
       setBusy(false);
     }
   }
+  const stage = tattooStage(request);
+  const canPay = request.paymentStatus === "awaiting_payment" || request.paymentStatus === "rejected";
   const paymentText =
-    request.paymentStatus === "receipt_submitted"
-      ? "رسید در دست بررسی است. نتیجه حداکثر تا ۱۲ ساعت اعلام می‌شود."
-      : request.paymentStatus === "approved"
-        ? "پرداخت تأیید شد"
-        : request.paymentStatus === "rejected"
-          ? "رسید پذیرفته نشد. دلیل را بخوانید و عکس درست را دوباره بفرستید."
-          : request.paymentStatus === "expired"
-            ? "مهلت پرداخت تمام شد و وقت آزاد شد. درخواست شما باز است؛ پیمان می‌تواند زمان تازه‌ای پیشنهاد کند."
-            : null;
+    stage === "receipt_review"
+      ? request.paymentReviewDeadline
+        ? `رسید در دست بررسی؛ نتیجه حداکثر تا ${formatFaDateTime(request.paymentReviewDeadline)}`
+        : "رسید در دست بررسی؛ نتیجه حداکثر تا ۱۲ ساعت"
+      : stage === "receipt_overdue"
+        ? "بررسی رسید از مهلت ۱۲ ساعته گذشته؛ زمان شما قفل مانده تا پیمان نتیجه را اعلام کند."
+        : stage === "booked"
+          ? "پرداخت تأیید شد و نوبت قطعی است."
+          : stage === "expired"
+            ? "مهلت واریز تمام شد و این زمان آزاد شد. منتظر زمان تازه از پیمان بمانید."
+            : stage === "proposal_sent"
+              ? "پیشنهاد پیمان آماده تأیید است. مهلت ۶ ساعته بعد از تأیید شما شروع می‌شود."
+              : stage === "receipt_fix"
+                ? "رسید نیاز به اصلاح دارد. ۶ ساعت برای ارسال رسید تازه فرصت دارید."
+                : stage === "awaiting_payment"
+                  ? "زمان تأیید شد. تا ۶ ساعت رسید واریز را بفرستید."
+                  : null;
   return (
     <article className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
       <div className="flex items-start justify-between gap-2">
@@ -405,7 +404,7 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
           <h3 className="mt-1 font-bold">{request.style}</h3>
         </div>
         <span className="rounded-full bg-[#b7955b]/15 px-2 py-1 text-[11px] text-[#d9bd87]">
-          {requestStatusText(request)}
+          {TATTOO_CUSTOMER_STAGE_LABEL[stage]}
         </span>
       </div>
       {request.artistMessage ? (
@@ -427,38 +426,51 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
             <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]">
               <p className="font-semibold">زمان پیشنهادی پیمان</p>
               <p>{formatFaDateTime(request.proposedSlotStart)}</p>
+              {request.paymentStatus === "proposal_pending" &&
+              (request.paymentIban || request.paymentCardNumber) ? (
+                <div className="mt-2 text-sm">
+                  {request.paymentIban ? <p dir="ltr">شبا: {request.paymentIban}</p> : null}
+                  {request.paymentCardNumber ? (
+                    <p dir="ltr">کارت: {request.paymentCardNumber}</p>
+                  ) : null}
+                </div>
+              ) : null}
               {request.paymentStatus === "proposal_pending" ? (
                 <Button
                   disabled={busy}
                   className="mt-3 w-full bg-[#b7955b] text-black"
                   onClick={() => void acceptProposal()}
                 >
-                  تأیید این زمان و ادامه پرداخت
+                  تأیید این زمان و شروع مهلت پرداخت
                 </Button>
               ) : null}
             </div>
           ) : null}
-          {(request.paymentStatus === "awaiting_payment" || request.paymentStatus === "rejected") &&
-          (request.paymentIban || request.paymentCardNumber) ? (
+          {canPay && (request.paymentIban || request.paymentCardNumber) ? (
             <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]">
               <p className="font-semibold">اطلاعات واریز بیعانه</p>
               {request.paymentIban ? <p dir="ltr">شبا: {request.paymentIban}</p> : null}
               {request.paymentCardNumber ? (
                 <p dir="ltr">کارت: {request.paymentCardNumber}</p>
               ) : null}
-              <p className="text-xs">از زمان تأیید، ۶ ساعت برای واریز فرصت دارید.</p>
+              <p className="text-xs">
+                {stage === "receipt_fix"
+                  ? "تا پایان مهلت اصلاح، همین زمان قفل می‌ماند."
+                  : "از زمان تأیید شما، ۶ ساعت برای واریز فرصت دارید."}
+              </p>
             </div>
           ) : null}
-          {request.paymentHoldUntil &&
-          (request.paymentStatus === "awaiting_payment" || request.paymentStatus === "rejected") ? (
+          {request.paymentHoldUntil && canPay ? (
             <p className="text-amber-300">
               مهلت واریز: {formatFaDateTime(request.paymentHoldUntil)}
             </p>
           ) : null}
           {paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}
-          {request.paymentStatus === "awaiting_payment" || request.paymentStatus === "rejected" ? (
+          {canPay ? (
             <div className="mt-4 rounded-2xl border border-[#b7955b]/35 bg-[#b7955b]/5 p-4">
-              <p className="font-semibold text-[#e5d2ae]">ارسال عکس رسید واریز</p>
+              <p className="font-semibold text-[#e5d2ae]">
+                {stage === "receipt_fix" ? "ارسال رسید اصلاح‌شده" : "ارسال عکس رسید واریز"}
+              </p>
               <p className="mt-1 text-xs leading-6 text-white/50">
                 عکس رسید را از گالری گوشی انتخاب کنید؛ سپس دکمه ارسال را بزنید.
               </p>
