@@ -13,7 +13,10 @@ function androidBridge(): AndroidBridge | null {
 }
 
 export function inStudioApp() {
-  return Boolean(androidBridge());
+  if (typeof window === "undefined") return false;
+  if (androidBridge()) return true;
+  const ua = window.navigator.userAgent || "";
+  return /TattooApp\//.test(ua) || /; wv\)/.test(ua);
 }
 
 function readSeen(): string[] {

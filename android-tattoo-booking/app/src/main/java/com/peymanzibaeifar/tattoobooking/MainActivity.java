@@ -63,7 +63,8 @@ public class MainActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua.replace("; wv", "").replace(" Version/4.0", ""));
+            settings.setUserAgentString(
+                    ua.replace("; wv", "").replace(" Version/4.0", "") + " TattooApp/1.1");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -158,6 +159,12 @@ public class MainActivity extends Activity {
     }
 
     private String openUrlFromIntent(Intent intent) {
+        if (intent != null && intent.getData() != null) {
+            Uri data = intent.getData();
+            if ("https".equals(data.getScheme()) && data.getHost() != null && data.getHost().endsWith("kasbokarapp.com")) {
+                return data.toString();
+            }
+        }
         if (intent != null && intent.getStringExtra("open") != null) {
             return intent.getStringExtra("open");
         }

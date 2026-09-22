@@ -8,6 +8,7 @@ import { authClient, authEnabled } from "@/lib/auth/client";
 import { getAuthMethods } from "@/lib/auth/status";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { safeNextPath } from "@/lib/format";
+import { inStudioApp } from "@/lib/studio-notices";
 
 export const Route = createFileRoute("/login")({
   loader: async () => getAuthMethods().catch(() => ({ google: false })),
@@ -59,6 +60,13 @@ function persistEmailSession(data: unknown) {
 
 function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: boolean; resetToken?: string }) {
   const authMethods = Route.useLoaderData();
+  const inApp = inStudioApp();
+  const hideGoogle =
+    inApp ||
+    (dest.startsWith("/studio") &&
+      typeof window !== "undefined" &&
+      (/Android|iPhone|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768));
+  const googleOk = Boolean(authMethods.google) && !hideGoogle;
   const [mode, setMode] = useState<"in" | "up" | "forgot" | "reset">(resetToken ? "reset" : "up");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -66,8 +74,9 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
   const [busy, setBusy] = useState(false);
 
   async function signInWithGoogle() {
-    if (busy || !authMethods.google) return;
+    if (busy || !googleOk) return;
     setBusy(true);
+    const giveUp = window.setTimeout(() => setBusy(false), 12000);
     try {
       const res = await authClient.signIn.social({
         provider: "google",
@@ -78,6 +87,8 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
     } catch (err) {
       toast.error(err instanceof Error ? persianAuthError(err.message) || err.message : "ورود گوگل انجام نشد.");
       setBusy(false);
+    } finally {
+      window.clearTimeout(giveUp);
     }
   }
 
@@ -153,27 +164,29 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
           </span>
           <span>
             <strong className="block">کسب‌وکار</strong>
-            <small className="text-muted">ورود سریع با حساب گوگل</small>
+            <small className="text-muted">{hideGoogle ? "ورود با ایمیل داخل اپ" : "ورود سریع با حساب گوگل"}</small>
           </span>
         </Link>
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-1 text-sm text-muted">
           {dest.startsWith("/studio/admin")
-            ? "بعد از ورود، پنل ادمین تاتو و تقویم داخل همین اپ باز می‌شود."
+            ? "بعد از ورود، پنل ادمین تاتو و تقویم داخل همین صفحه باز می‌شود."
             : dest.startsWith("/studio")
-              ? "ورود داخل همین اپ می‌ماند. بعد از ورود، فرم یا وضعیت نوبت باز می‌شود؛ به مرورگر نمی‌رود."
+              ? "داخل اپ فقط با ایمیل وارد شو. گوگل روی گوشی به مرورگر می‌رود و برنمی‌گردد."
             : mode === "forgot"
             ? "ایمیل حساب را بنویسید. پیوند بازیابی به همان ایمیل می‌رود."
             : mode === "reset"
               ? "رمز جدید را حداقل ۸ کاراکتر بنویسید."
-              : authMethods.google
+              : googleOk
                 ? "حساب گوگل گوشی را انتخاب کنید؛ نیازی به نوشتن ایمیل و ساخت رمز نیست."
                 : "ایمیل و یک رمز حداقل ۸ حرفی بنویسید."}
         </p>
 
-        {bounced ? (
+        {bounced || hideGoogle ? (
           <div className="mt-4 rounded-xl border border-border bg-bg px-3 py-3 text-sm">
-            ورود گوگل روی گوشی قطع می‌شود. از فرم ایمیل همین صفحه استفاده کنید.
+            {hideGoogle
+              ? "اینجا فقط ایمیل و رمز کار می‌کند. بعد از ورود، فرم داخل همین اپ باز می‌شود."
+              : "ورود گوگل روی گوشی قطع می‌شود. از فرم ایمیل همین صفحه استفاده کنید."}
           </div>
         ) : mode === "in" || mode === "up" ? (
           <div className="mt-4 rounded-xl border border-accent/20 bg-accent/10 px-3 py-3 text-sm text-accent">
@@ -183,7 +196,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
 
         {authEnabled ? (
           <>
-            {authMethods.google && (mode === "in" || mode === "up") ? (
+            {googleOk && (mode === "in" || mode === "up") ? (
               <>
                 <Button
                   type="button"
@@ -202,7 +215,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
                 </div>
               </>
             ) : null}
-            <form onSubmit={(e) => void submit(e)} className={authMethods.google ? "space-y-3" : "mt-5 space-y-3"}>
+            <form onSubmit={(e) => void submit(e)} className={googleOk ? "space-y-3" : "mt-5 space-y-3"}>
               {mode === "up" ? (
                 <Input
                   id="name"

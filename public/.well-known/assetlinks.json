@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.peymanzibaeifar.tattoobooking",
+      "sha256_cert_fingerprints": [
+        "C1:18:53:70:1C:01:BA:18:15:C9:59:4D:93:BB:89:4F:6C:D2:4F:50:64:0F:E1:F3:0A:D6:86:AA:68:A8:1F:3F"
+      ]
+    }
+  }
+]
