@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "../tattoo-flow.ts";
+import { TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, tattooBalance, tattooStage } from "../tattoo-flow.ts";
 import {
   expireTattooHoldSql,
   TATTOO_OVERDUE_REVIEW_SQL,
@@ -362,5 +362,30 @@ describe("tattoo request → calendar lock", () => {
     const bookings = await db.query(`select id, status from bookings`);
     assert.equal(bookings.rows.length, 1);
     assert.equal((bookings.rows[0] as { id: string }).id, "b-a");
+  });
+});
+
+describe("tattooBalance and bank presets", () => {
+  it("shows paid, remaining and settled for installment work", () => {
+    assert.deepEqual(tattooBalance(10_000_000, 2_000_000), {
+      total: 10_000_000,
+      paid: 2_000_000,
+      remaining: 8_000_000,
+      settled: false,
+    });
+    assert.equal(tattooBalance(5_000_000, 5_000_000).settled, true);
+    assert.equal(tattooBalance(5_000_000, 6_000_000).remaining, 0);
+    assert.equal(tattooBalance(null, 0).settled, false);
+    assert.equal(tattooBalance(0, 0).settled, false);
+  });
+
+  it("fills both IBAN and card from each titled bank", () => {
+    assert.equal(TATTOO_SETTLEMENT_PRESETS.length, 2);
+    assert.equal(TATTOO_SETTLEMENT_PRESETS[0].title, "پیمان زیبائی‌فر کارت بانک مهر ایران");
+    assert.equal(TATTOO_SETTLEMENT_PRESETS[1].title, "پیمان زیبائی‌فر بانک مسکن");
+    for (const preset of TATTOO_SETTLEMENT_PRESETS) {
+      assert.equal(preset.iban, "IR160140040000152900013417");
+      assert.equal(preset.card, "6280231566846282");
+    }
   });
 });

@@ -69,3 +69,40 @@ export const TATTOO_ADMIN_STAGE_LABEL: Record<TattooStage, string> = {
   booked: "رزرو قطعی",
   rejected: "ردشده",
 };
+
+export const TATTOO_SETTLEMENT_PRESETS = [
+  {
+    id: "mehr",
+    title: "پیمان زیبائی‌فر کارت بانک مهر ایران",
+    iban: "IR160140040000152900013417",
+    card: "6280231566846282",
+  },
+  {
+    id: "maskan",
+    title: "پیمان زیبائی‌فر بانک مسکن",
+    iban: "IR160140040000152900013417",
+    card: "6280231566846282",
+  },
+] as const;
+
+export function tattooBalance(priceToman: number | null | undefined, paidToman: number | null | undefined) {
+  const total = Math.max(0, Number(priceToman) || 0);
+  const paid = Math.max(0, Number(paidToman) || 0);
+  const remaining = Math.max(0, total - paid);
+  return {
+    total,
+    paid,
+    remaining,
+    settled: total > 0 && paid >= total,
+  };
+}
+
+export function formatTattooToman(value: number) {
+  return `${new Intl.NumberFormat("fa-IR").format(Math.max(0, Math.round(Number(value) || 0)))} تومان`;
+}
+
+export function formatCardNumber(card: string) {
+  return card.replace(/\D/g, "").replace(/(\d{4})(?=\d)/g, "$1-");
+}
+
+

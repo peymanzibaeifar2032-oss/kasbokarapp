@@ -166,7 +166,9 @@ export function OwnerCalendar({
               className="h-10"
             >
               <option value="">{t("allResources")}</option>
-              {resources.map((r) => (
+              {resources
+                .filter((r) => !/مهرداد/.test(r.name))
+                .map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
@@ -498,26 +500,47 @@ function StaffRoster({
       <p className="mt-1 text-sm text-muted">{t("staffHint")}</p>
       {resources.length ? (
         <ul className="mt-2 space-y-1 text-sm">
-          {resources.map((r) => (
+          {resources
+            .filter((r) => !/مهرداد/.test(r.name))
+            .map((r) => (
             <li key={r.id} className="flex items-center justify-between gap-2">
               <span>
                 {r.name}
                 {r.active ? "" : " (غیرفعال)"}
               </span>
-              <button
-                type="button"
-                className="text-xs text-muted"
-                onClick={() => {
-                  void saveAction<{ resources: BusinessResource[] }>("upsertResource", {
-                    businessId,
-                    id: r.id,
-                    name: r.name,
-                    active: !r.active,
-                  }).then((res) => onChange(res.resources));
-                }}
-              >
-                {r.active ? "توقف" : "فعال"}
-              </button>
+              <span className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="min-h-11 text-xs text-muted"
+                  onClick={() => {
+                    void saveAction<{ resources: BusinessResource[] }>("upsertResource", {
+                      businessId,
+                      id: r.id,
+                      name: r.name,
+                      active: !r.active,
+                    }).then((res) => onChange(res.resources));
+                  }}
+                >
+                  {r.active ? "توقف" : "فعال"}
+                </button>
+                <button
+                  type="button"
+                  className="min-h-11 text-xs text-danger"
+                  onClick={() => {
+                    void saveAction<{ resources: BusinessResource[] }>("deleteResource", {
+                      businessId,
+                      id: r.id,
+                    })
+                      .then((res) => {
+                        onChange(res.resources);
+                        toast.success("از فهرست همکاران برداشته شد.");
+                      })
+                      .catch((err) => toast.error(friendlyError(err)));
+                  }}
+                >
+                  حذف
+                </button>
+              </span>
             </li>
           ))}
         </ul>
@@ -572,6 +595,11 @@ function QuickCreate({
   useEffect(() => {
     if (!businessId && businesses[0]) setBusinessId(businesses[0].id);
   }, [businesses, businessId]);
+
+  useEffect(() => {
+    const active = resources.filter((r) => r.active !== false && !/مهرداد/.test(r.name));
+    if (active.length === 1) setResourceId(active[0].id);
+  }, [resources]);
 
   async function submit() {
     if (!day || !businessId) {
@@ -655,7 +683,7 @@ function QuickCreate({
           <NativeSelect value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
             <option value="">{mode === "block" ? t("globalBlock") : t("pickResource")}</option>
             {resources
-              .filter((r) => r.active !== false)
+              .filter((r) => r.active !== false && !/مهرداد/.test(r.name))
               .map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}

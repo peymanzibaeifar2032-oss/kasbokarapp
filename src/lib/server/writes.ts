@@ -4,7 +4,7 @@ import { getSql } from "@/lib/db";
 import { env } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
-import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey } from "@/lib/hours";
+import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import {
   RESOURCE_KINDS,
   assignResourceAtIso,
@@ -17,6 +17,8 @@ import {
   type BusinessResource,
   type OccupancyHit,
 } from "@/lib/calendar/resources";
+import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
+import { tattooBalance } from "@/lib/tattoo-flow";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -38,7 +40,7 @@ import {
   TATTOO_PENDING_PROPOSAL_OVERLAP_SQL,
   TATTOO_SLOT_OVERLAP_SQL,
 } from "@/lib/server/tattoo-holds";
-import type { MehrLoanLead, OwnerStats, PriceItem, Profile, TattooRequest, WorkHour } from "@/lib/types";
+import type { MehrLoanLead, OwnerStats, PriceItem, Profile, TattooPayment, TattooRequest, WorkHour } from "@/lib/types";
 
 const hoursSchema = z.array(
   z.object({
@@ -249,12 +251,25 @@ type TattooRequestRow = {
   payment_card_number: string | null;
   proposed_slot_start: string | null;
   proposed_slot_end: string | null;
+  paid_toman: number | null;
+  settled: boolean | null;
   created_at: string;
   updated_at: string;
 };
 
-function mapTattooRequest(row: TattooRequestRow): TattooRequest {
+function mapTattooPayments(rows: { id: string; request_id: string; amount_toman: number | string; note: string | null; created_at: string }[]): TattooPayment[] {
+  return rows.map((row) => ({
+    id: row.id,
+    requestId: row.request_id,
+    amountToman: Number(row.amount_toman) || 0,
+    note: row.note,
+    createdAt: row.created_at,
+  }));
+}
+
+function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = []): TattooRequest {
   const images = (value: unknown) => Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
+  const paid = row.paid_toman == null ? 0 : Number(row.paid_toman);
   return {
     id: row.id,
     customerId: row.customer_id,
@@ -287,9 +302,39 @@ function mapTattooRequest(row: TattooRequestRow): TattooRequest {
     paymentCardNumber: row.payment_card_number,
     proposedSlotStart: row.proposed_slot_start,
     proposedSlotEnd: row.proposed_slot_end,
+    paidToman: paid,
+    settled: Boolean(row.settled) || tattooBalance(row.price_min_toman, paid).settled,
+    payments,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+async function loadTattooPayments(sql: Awaited<ReturnType<typeof getSql>>, requestIds: string[]) {
+  if (!requestIds.length) return new Map<string, TattooPayment[]>();
+  try {
+    const rows = await sql.query<{
+      id: string; request_id: string; amount_toman: number | string; note: string | null; created_at: string;
+    }>(
+      `select id, request_id, amount_toman, note, created_at from tattoo_payments
+        where request_id = any($1::text[]) order by created_at`,
+      [requestIds],
+    );
+    const map = new Map<string, TattooPayment[]>();
+    for (const payment of mapTattooPayments(rows)) {
+      const list = map.get(payment.requestId) ?? [];
+      list.push(payment);
+      map.set(payment.requestId, list);
+    }
+    return map;
+  } catch {
+    return new Map<string, TattooPayment[]>();
+  }
+}
+
+async function mapTattooRequestRows(sql: Awaited<ReturnType<typeof getSql>>, rows: TattooRequestRow[]) {
+  const payments = await loadTattooPayments(sql, rows.map((row) => row.id));
+  return rows.map((row) => mapTattooRequest(row, payments.get(row.id) ?? []));
 }
 
 const tattooRequestSelect = `select id, customer_id, business_id, booking_id, customer_name, customer_phone,
@@ -297,7 +342,8 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   reference_images, body_images, status, price_min_toman, price_max_toman,
   session_minutes, session_count, deposit_toman, artist_message, payment_status, payment_hold_until,
   payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number,
-  proposed_slot_start, proposed_slot_end, created_at, updated_at
+  proposed_slot_start, proposed_slot_end, coalesce(paid_toman,0) as paid_toman, coalesce(settled,false) as settled,
+  created_at, updated_at
   from tattoo_requests`;
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -346,12 +392,13 @@ async function performMyTattooRequests(userId: string) {
   const sql = await getSql();
   await expireOpenTattooHolds(sql, userId);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where customer_id = $1 order by created_at desc`, [userId]);
-  return rows.map(mapTattooRequest);
+  return mapTattooRequestRows(sql, rows);
 }
 
 async function performStudioTattooRequests(userId: string) {
   await requireAdmin(userId);
   const sql = await getSql();
+  await removeRetiredCollaborators(sql, userId);
   await expireOpenTattooHolds(sql);
   await remindOverdueTattooReviews(sql);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} order by
@@ -365,7 +412,7 @@ async function performStudioTattooRequests(userId: string) {
       when status='approved' then 6
       else 7
     end, created_at desc`);
-  return rows.map(mapTattooRequest);
+  return mapTattooRequestRows(sql, rows);
 }
 
 async function performDecideTattooRequest(userId: string, raw: unknown) {
@@ -527,8 +574,27 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
   if (!r || r.payment_status !== "receipt_submitted") throw new Error("رسید قابل بررسی نیست.");
   if (data.approved) {
     if (!r.booking_id) throw new Error("ابتدا زمان رزرو باید انتخاب شود.");
-    await sql.query(`update tattoo_requests set status='booked', payment_status='approved', artist_message=$2, updated_at=now() where id=$1`, [data.requestId, data.message]);
-    await sql.query(`update bookings set status='confirmed', finance_status='deposit_paid' where id=$1`, [r.booking_id]);
+    const current = await sql.query<{ deposit_toman: number | null; paid_toman: number | null; price_min_toman: number | null }>(
+      `select deposit_toman, coalesce(paid_toman,0) as paid_toman, price_min_toman from tattoo_requests where id=$1`,
+      [data.requestId],
+    );
+    const deposit = Number(current[0]?.deposit_toman) || 0;
+    const paid = (Number(current[0]?.paid_toman) || 0) + deposit;
+    const settled = tattooBalance(current[0]?.price_min_toman, paid).settled;
+    await sql.query(
+      `update tattoo_requests set status='booked', payment_status='approved', paid_toman=$3, settled=$4, artist_message=$2, updated_at=now() where id=$1`,
+      [data.requestId, data.message, paid, settled],
+    );
+    if (deposit > 0) {
+      await sql.query(
+        `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
+        [crypto.randomUUID(), data.requestId, deposit, "بیعانه"],
+      );
+    }
+    await sql.query(`update bookings set status='confirmed', finance_status=$2 where id=$1`, [
+      r.booking_id,
+      settled ? "fully_paid" : "deposit_paid",
+    ]);
   } else {
     await sql.query(
       `update tattoo_requests set payment_status='rejected', payment_hold_until=now()+interval '6 hours',
@@ -711,6 +777,23 @@ async function loadOccupancy(sql: Sql, businessId: string, untilIso: string): Pr
 }
 
 export async function loadResources(sql: Sql, businessId: string): Promise<BusinessResource[]> {
+  try {
+    await sql.query(
+      `update bookings set status='cancelled'
+        where business_id = $1
+          and status in ('requested','confirmed')
+          and resource_id in (
+            select id from business_resources where business_id = $1 and name ilike '%مهرداد%'
+          )`,
+      [businessId],
+    );
+    await sql.query(
+      `delete from business_resources where business_id = $1 and name ilike '%مهرداد%'`,
+      [businessId],
+    );
+  } catch {
+    /* preview/old schema: staff list still loads */
+  }
   const rows = await sql.query<{
     id: string;
     business_id: string;
@@ -1100,6 +1183,8 @@ async function performManualAppointment(userId: string, raw: unknown) {
   const resources = await loadResources(sql, data.businessId);
   const staffed = hasActiveResources(resources);
   let resourceId = data.resourceId?.trim() || null;
+  const active = resources.filter((r) => r.active !== false);
+  if (staffed && !resourceId && active.length === 1) resourceId = active[0].id;
   if (staffed) {
     if (!resourceId) throw new Error("منبع را انتخاب کنید.");
     if (!resources.some((r) => r.id === resourceId && r.active !== false)) {
@@ -1507,6 +1592,7 @@ async function performMine(userId: string) {
 
 async function performOwnerBookings(userId: string) {
   const sql = await getSql();
+  await removeRetiredCollaborators(sql, userId);
   const rows = await sql.query<BookingRow>(
     `select ${BOOKING_SELECT}
      from bookings k
@@ -1673,6 +1759,217 @@ async function performUpsertResource(userId: string, raw: unknown) {
   return { id, resources: await loadResources(sql, data.businessId) };
 }
 
+async function removeRetiredCollaborators(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
+  await sql.query(
+    `update bookings set status='cancelled'
+      where status in ('requested','confirmed')
+        and resource_id in (
+          select id from business_resources
+           where name ilike '%مهرداد%'
+             and business_id in (select id from businesses where owner_id = $1)
+        )`,
+    [userId],
+  );
+  await sql.query(
+    `delete from business_resources
+      where name ilike '%مهرداد%'
+        and business_id in (select id from businesses where owner_id = $1)`,
+    [userId],
+  );
+}
+
+async function performDeleteResource(userId: string, raw: unknown) {
+  const data = z.object({ businessId: z.string(), id: z.string() }).parse(raw);
+  const sql = await getSql();
+  const owned = await sql.query(`select id from businesses where id = $1 and owner_id = $2`, [data.businessId, userId]);
+  if (!owned[0]) throw new Error("دسترسی ندارید.");
+  await sql.query(`delete from business_resources where id = $1 and business_id = $2`, [data.id, data.businessId]);
+  return { resources: await loadResources(sql, data.businessId) };
+}
+
+function jalaliMonthRange(jy: number, jm: number) {
+  const start = jalaliToGregorian(jy, jm, 1);
+  const last = jalaliToGregorian(jy, jm, jalaliMonthLength(jy, jm));
+  const next = new Date(Date.UTC(last.gy, last.gm - 1, last.gd + 1));
+  return {
+    start: tehranLocalToIso(start.gy, start.gm, start.gd, 0, 0),
+    end: tehranLocalToIso(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate(), 0, 0),
+  };
+}
+
+async function performStudioMonthJobs(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({ jy: z.number().int(), jm: z.number().int().min(1).max(12) }).parse(raw);
+  const sql = await getSql();
+  await removeRetiredCollaborators(sql, userId);
+  const range = jalaliMonthRange(data.jy, data.jm);
+  const rows = await sql.query<TattooRequestRow>(
+    `${tattooRequestSelect}
+      where booking_id in (
+        select id from bookings
+         where status not in ('cancelled')
+           and kind = 'booking'
+           and slot_start >= $1 and slot_start < $2
+      )
+      order by coalesce(proposed_slot_start, created_at)`,
+    [range.start, range.end],
+  );
+  return mapTattooRequestRows(sql, rows);
+}
+
+async function performUpdateStudioJob(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({
+    id: z.string(),
+    customerName: z.string().trim().min(2).max(80).optional(),
+    style: z.string().trim().min(2).max(80).optional(),
+    idea: z.string().trim().max(1500).optional(),
+    placement: z.string().trim().min(2).max(120).optional(),
+    sizeCm: z.string().trim().max(60).optional(),
+    priceMinToman: z.number().int().min(0).max(2_000_000_000).optional(),
+    settled: z.boolean().optional(),
+  }).parse(raw);
+  const sql = await getSql();
+  const current = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
+  if (!current[0]) throw new Error("کار پیدا نشد.");
+  const price = data.priceMinToman ?? current[0].price_min_toman;
+  const settled = data.settled ?? tattooBalance(price, current[0].paid_toman).settled;
+  await sql.query(
+    `update tattoo_requests set
+       customer_name=coalesce($2, customer_name),
+       style=coalesce($3, style),
+       idea=coalesce($4, idea),
+       placement=coalesce($5, placement),
+       size_cm=coalesce($6, size_cm),
+       price_min_toman=coalesce($7, price_min_toman),
+       settled=$8,
+       updated_at=now()
+     where id=$1`,
+    [data.id, data.customerName ?? null, data.style ?? null, data.idea ?? null, data.placement ?? null, data.sizeCm ?? null, data.priceMinToman ?? null, settled],
+  );
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
+  const mapped = await mapTattooRequestRows(sql, rows);
+  return mapped[0];
+}
+
+async function performAddStudioPayment(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({
+    requestId: z.string(),
+    amountToman: z.number().int().min(1).max(2_000_000_000),
+    note: z.string().trim().max(200).optional(),
+  }).parse(raw);
+  const sql = await getSql();
+  const current = await sql.query<{ id: string; paid_toman: number | null; price_min_toman: number | null; booking_id: string | null }>(
+    `select id, coalesce(paid_toman,0) as paid_toman, price_min_toman, booking_id from tattoo_requests where id=$1`,
+    [data.requestId],
+  );
+  if (!current[0]) throw new Error("کار پیدا نشد.");
+  await sql.query(
+    `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
+    [crypto.randomUUID(), data.requestId, data.amountToman, data.note?.trim() || "واریز بعدی"],
+  );
+  const paid = (Number(current[0].paid_toman) || 0) + data.amountToman;
+  const settled = tattooBalance(current[0].price_min_toman, paid).settled;
+  await sql.query(`update tattoo_requests set paid_toman=$2, settled=$3, updated_at=now() where id=$1`, [data.requestId, paid, settled]);
+  if (current[0].booking_id) {
+    await sql.query(`update bookings set finance_status=$2 where id=$1`, [current[0].booking_id, settled ? "fully_paid" : "deposit_paid"]);
+  }
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.requestId]);
+  const mapped = await mapTattooRequestRows(sql, rows);
+  return mapped[0];
+}
+
+async function performCreateStudioJob(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({
+    businessId: z.string(),
+    customerName: z.string().trim().min(2).max(80),
+    customerPhone: z.string().trim().max(40).optional(),
+    style: z.string().trim().min(2).max(80),
+    idea: z.string().trim().max(1500).optional(),
+    placement: z.string().trim().min(2).max(120),
+    sizeCm: z.string().trim().max(60).optional(),
+    priceMinToman: z.number().int().min(0).max(2_000_000_000),
+    paidToman: z.number().int().min(0).max(2_000_000_000).optional(),
+    sessionMinutes: z.number().int().min(10).max(4320).optional(),
+    slotStart: z.string(),
+    resourceId: z.string().max(80).optional().nullable(),
+  }).parse(raw);
+  const sql = await getSql();
+  await removeRetiredCollaborators(sql, userId);
+  const owned = await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [data.businessId, userId]);
+  if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
+  const start = new Date(data.slotStart);
+  if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
+  const minutes = data.sessionMinutes ?? 180;
+  const slotEnd = new Date(start.getTime() + minutes * 60000).toISOString();
+  const resources = await loadResources(sql, data.businessId);
+  const staffed = hasActiveResources(resources);
+  const active = resources.filter((row) => row.active !== false);
+  let resourceId = data.resourceId?.trim() || null;
+  if (staffed && !resourceId && active.length === 1) resourceId = active[0].id;
+  if (staffed) {
+    if (!resourceId) throw new Error("منبع را انتخاب کنید.");
+    if (!resources.some((row) => row.id === resourceId && row.active !== false)) {
+      throw new Error("این منبع در دسترس نیست.");
+    }
+  } else {
+    resourceId = null;
+  }
+  let phone = "09000000000";
+  if (data.customerPhone?.trim()) {
+    phone = normalizeIranPhone(data.customerPhone);
+    if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
+  }
+  const bookingId = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
+  const paid = data.paidToman ?? 0;
+  const settled = tattooBalance(data.priceMinToman, paid).settled;
+  try {
+    await sql.query(
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status)
+       values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,$9,$9,$10)`,
+      [bookingId, data.businessId, data.customerName, data.customerPhone ? phone : null, start.toISOString(), slotEnd, data.idea || null, data.style, resourceId, settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required"],
+    );
+  } catch (err) {
+    if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
+    throw err;
+  }
+  await sql.query(
+    `insert into tattoo_requests
+      (id, customer_id, business_id, booking_id, customer_name, customer_phone, request_type, style, idea, placement,
+       size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
+       payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled)
+     values ($1,$2,$3,$4,$5,$6,'new',$7,$8,$9,$10,'booked',$11,$12,1,$13,'ثبت دستی از تقویم کاری','approved',$14,$15,$16,$17)`,
+    [requestId, userId, data.businessId, bookingId, data.customerName, phone, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled],
+  );
+  if (paid > 0) {
+    await sql.query(`insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`, [crypto.randomUUID(), requestId, paid, "واریز ثبت‌شده هنگام ورود دستی"]);
+  }
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [requestId]);
+  const mapped = await mapTattooRequestRows(sql, rows);
+  return mapped[0];
+}
+
+async function performClearStudioCalendar(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  z.object({ confirm: z.literal("پاک شود") }).parse(raw);
+  const sql = await getSql();
+  await sql.query(
+    `update bookings set status='cancelled'
+      where business_id in (select id from businesses where owner_id=$1)
+        and status in ('requested','confirmed')`,
+    [userId],
+  );
+  await sql.query(
+    `update tattoo_requests set booking_id=null, updated_at=now()
+      where business_id in (select id from businesses where owner_id=$1)
+        and booking_id is not null`,
+    [userId],
+  );
+  return { ok: true as const };
+}
 
 async function performFavorites(userId: string) {
   const sql = await getSql();
@@ -1783,6 +2080,18 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performListResources(payload);
     case "upsertResource":
       return performUpsertResource(userId, payload);
+    case "deleteResource":
+      return performDeleteResource(userId, payload);
+    case "studioMonthJobs":
+      return performStudioMonthJobs(userId, payload);
+    case "updateStudioJob":
+      return performUpdateStudioJob(userId, payload);
+    case "addStudioPayment":
+      return performAddStudioPayment(userId, payload);
+    case "createStudioJob":
+      return performCreateStudioJob(userId, payload);
+    case "clearStudioCalendar":
+      return performClearStudioCalendar(userId, payload);
     case "favorites":
       return performFavorites(userId);
     case "favoriteToggle":

@@ -176,6 +176,14 @@ export type BusyInterval = {
 export type TattooRequestStatus = "submitted" | "needs_info" | "approved" | "rejected" | "booked";
 export type TattooPaymentStatus = "not_required" | "proposal_pending" | "awaiting_payment" | "receipt_submitted" | "approved" | "rejected" | "expired";
 
+export type TattooPayment = {
+  id: string;
+  requestId: string;
+  amountToman: number;
+  note: string | null;
+  createdAt: string;
+};
+
 export type TattooRequest = {
   id: string;
   customerId: string;
@@ -208,6 +216,9 @@ export type TattooRequest = {
   paymentCardNumber: string | null;
   proposedSlotStart: string | null;
   proposedSlotEnd: string | null;
+  paidToman: number;
+  settled: boolean;
+  payments: TattooPayment[];
   createdAt: string;
   updatedAt: string;
 };
