@@ -3,6 +3,7 @@ import { CheckCircle2, ChevronLeft, Download, ImagePlus, Loader2, ShieldCheck, S
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { StudioTopBar } from "@/components/studio/top-bar";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -79,6 +80,16 @@ function StudioRequestPage() {
               >
                 ورود / ثبت‌نام
               </a>
+              <a
+                href="/login?next=%2Fstudio%2Fadmin"
+                className="inline-flex h-11 items-center rounded-full border border-[#b7955b]/45 px-5 text-sm text-[#e5d2ae]"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.assign("/login?next=/studio/admin");
+                }}
+              >
+                ورود مدیر
+              </a>
             </div>
           </section>
         </main>
@@ -144,6 +155,15 @@ function StudioRequestPage() {
             ابتدا طرح و محل بدن بررسی می‌شود. بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های
             مناسب برای شما فعال می‌شود.
           </p>
+          {profile?.isAdmin ? (
+            <Link
+              to="/studio/admin"
+              className="mt-5 flex h-12 items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-bold text-black"
+            >
+              رفتن به مدیریت تاتو و تقویم
+              <ChevronLeft className="size-4" />
+            </Link>
+          ) : null}
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             <Field label="نام و نام خانوادگی">
@@ -284,16 +304,7 @@ function StudioRequestPage() {
 function StudioRequestChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-      <header className="border-b border-white/10 bg-[#0b0b0c]/95">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-          <Link to="/studio" className="font-bold">
-            پیمان زیبائی‌فر
-          </Link>
-          <Link to="/studio" className="flex items-center gap-1 text-sm text-white/60">
-            بازگشت <ChevronLeft className="size-4" />
-          </Link>
-        </div>
-      </header>
+      <StudioTopBar compact />
       <div className="border-b border-[#b7955b]/30 bg-[#b7955b]/12">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="flex items-center gap-2 text-sm leading-6 text-[#e5d2ae]">

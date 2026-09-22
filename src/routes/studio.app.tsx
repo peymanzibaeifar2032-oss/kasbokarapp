@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Download, ShieldCheck, Smartphone } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { Download, ShieldCheck, Smartphone } from "lucide-react";
+import { StudioTopBar } from "@/components/studio/top-bar";
 
 export const Route = createFileRoute("/studio/app")({
   component: StudioAppDownload,
@@ -17,17 +18,7 @@ export const Route = createFileRoute("/studio/app")({
 function StudioAppDownload() {
   return (
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-      <header className="border-b border-white/10">
-        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
-          <Link to="/studio" className="text-sm font-bold">
-            پیمان زیبائی‌فر
-          </Link>
-          <Link to="/studio/request" className="flex items-center gap-1 text-sm text-white/55">
-            فرم وب
-            <ArrowLeft className="size-4" />
-          </Link>
-        </div>
-      </header>
+      <StudioTopBar compact />
 
       <main className="mx-auto max-w-3xl px-4 py-12">
         <p className="text-xs tracking-[.2em] text-[#b7955b]">ANDROID APP</p>

@@ -12,6 +12,7 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
+import { StudioTopBar } from "@/components/studio/top-bar";
 
 export const Route = createFileRoute("/studio")({
   component: StudioLanding,
@@ -43,30 +44,7 @@ function StudioLanding() {
 
   return (
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0c]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <a href="#top" className="leading-tight">
-            <strong className="block text-sm tracking-wide">پیمان زیبائی‌فر</strong>
-            <span className="text-[11px] text-white/45">TATTOO ARTIST · KERMANSHAH</span>
-          </a>
-          <nav className="hidden items-center gap-7 text-sm text-white/70 md:flex">
-            <a href="#work">سبک‌ها</a>
-            <a href="#process">روند رزرو</a>
-            <a href="#care">مراقبت</a>
-            <a href="#faq">سؤالات متداول</a>
-            <Link to="/studio/admin" className="text-[#dbc08d]">
-              ورود مدیر
-            </Link>
-          </nav>
-          <Link
-            to="/studio/request"
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-semibold text-black transition hover:bg-[#d0ae70]"
-          >
-            ثبت درخواست
-            <ArrowLeft className="size-4" />
-          </Link>
-        </div>
-      </header>
+      <StudioTopBar />
 
       <main id="top">
         <section className="relative isolate overflow-hidden border-b border-white/10">
