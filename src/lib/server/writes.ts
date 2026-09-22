@@ -19,6 +19,7 @@ import {
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
 import { tattooBalance, STUDIO_OWNER_STAFF_NAME } from "@/lib/tattoo-flow";
+import { STUDIO_EXPENSE_CATEGORIES, studioMonthSummary, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -1891,6 +1892,194 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
   return mapTattooRequestRows(sql, rows);
 }
 
+const expenseCategoryIds = STUDIO_EXPENSE_CATEGORIES.map((row) => row.id) as [StudioExpenseCategory, ...StudioExpenseCategory[]];
+
+function mapStudioExpense(row: {
+  id: string;
+  category: string;
+  title: string;
+  amount_toman: number | string;
+  month_jy: number;
+  month_jm: number;
+  recurring: boolean;
+  note: string | null;
+  created_at: string;
+}) {
+  return {
+    id: row.id,
+    category: row.category as StudioExpenseCategory,
+    title: row.title,
+    amountToman: Number(row.amount_toman) || 0,
+    monthJy: row.month_jy,
+    monthJm: row.month_jm,
+    recurring: Boolean(row.recurring),
+    note: row.note || "",
+    createdAt: row.created_at,
+  };
+}
+
+async function applyStudioExpenseTemplates(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  userId: string,
+  jy: number,
+  jm: number,
+) {
+  const templates = await sql.query<{
+    category: string;
+    title: string;
+    amount_toman: number | string;
+  }>(
+    `select category, title, amount_toman from studio_expense_templates where user_id=$1 and active=true`,
+    [userId],
+  );
+  if (!templates.length) return;
+  const existing = await sql.query<{ category: string; title: string }>(
+    `select category, title from studio_expenses where user_id=$1 and month_jy=$2 and month_jm=$3`,
+    [userId, jy, jm],
+  );
+  const have = new Set(existing.map((row) => `${row.category}\0${row.title}`));
+  for (const template of templates) {
+    const key = `${template.category}\0${template.title}`;
+    if (have.has(key)) continue;
+    await sql.query(
+      `insert into studio_expenses (id, user_id, category, title, amount_toman, month_jy, month_jm, recurring)
+       values ($1,$2,$3,$4,$5,$6,$7,true)`,
+      [crypto.randomUUID(), userId, template.category, template.title, Number(template.amount_toman) || 0, jy, jm],
+    );
+  }
+}
+
+async function performStudioMonthFinance(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({ jy: z.number().int(), jm: z.number().int().min(1).max(12) }).parse(raw);
+  const sql = await getSql();
+  const range = jalaliMonthRange(data.jy, data.jm);
+  await applyStudioExpenseTemplates(sql, userId, data.jy, data.jm);
+  const [payments, monthRemain, allRemain, expenses] = await Promise.all([
+    sql.query<{
+      id: string;
+      amount_toman: number | string;
+      note: string | null;
+      created_at: string;
+      customer_name: string;
+      style: string;
+      placement: string;
+    }>(
+      `select p.id, p.amount_toman, p.note, p.created_at, r.customer_name, r.style, r.placement
+         from tattoo_payments p
+         join tattoo_requests r on r.id = p.request_id
+        where p.created_at >= $1 and p.created_at < $2
+        order by p.created_at desc`,
+      [range.start, range.end],
+    ),
+    sql.query<{ remaining: number | string }>(
+      `select coalesce(sum(greatest(coalesce(price_min_toman,0) - coalesce(paid_toman,0), 0)), 0) as remaining
+         from tattoo_requests
+        where status not in ('rejected')
+          and booking_id in (
+            select id from bookings
+             where status not in ('cancelled')
+               and kind = 'booking'
+               and slot_start >= $1 and slot_start < $2
+          )`,
+      [range.start, range.end],
+    ),
+    sql.query<{ remaining: number | string }>(
+      `select coalesce(sum(greatest(coalesce(price_min_toman,0) - coalesce(paid_toman,0), 0)), 0) as remaining
+         from tattoo_requests
+        where status not in ('rejected')`,
+    ),
+    sql.query<{
+      id: string;
+      category: string;
+      title: string;
+      amount_toman: number | string;
+      month_jy: number;
+      month_jm: number;
+      recurring: boolean;
+      note: string | null;
+      created_at: string;
+    }>(
+      `select id, category, title, amount_toman, month_jy, month_jm, recurring, note, created_at
+         from studio_expenses
+        where user_id=$1 and month_jy=$2 and month_jm=$3
+        order by created_at`,
+      [userId, data.jy, data.jm],
+    ),
+  ]);
+  const mappedExpenses = expenses.map(mapStudioExpense);
+  const mappedPayments = payments.map((row) => ({
+    id: row.id,
+    amountToman: Number(row.amount_toman) || 0,
+    note: row.note,
+    createdAt: row.created_at,
+    customerName: row.customer_name,
+    style: row.style,
+    placement: row.placement,
+  }));
+  const paid = mappedPayments.reduce((sum, row) => sum + row.amountToman, 0);
+  return {
+    payments: mappedPayments,
+    expenses: mappedExpenses,
+    summary: studioMonthSummary(
+      paid,
+      Number(monthRemain[0]?.remaining) || 0,
+      Number(allRemain[0]?.remaining) || 0,
+      mappedExpenses,
+    ),
+  };
+}
+
+async function performAddStudioExpense(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({
+    category: z.enum(expenseCategoryIds),
+    title: z.string().trim().min(2).max(80),
+    amountToman: z.number().int().min(1).max(2_000_000_000),
+    jy: z.number().int(),
+    jm: z.number().int().min(1).max(12),
+    recurring: z.boolean().optional(),
+    note: z.string().trim().max(200).optional(),
+  }).parse(raw);
+  const sql = await getSql();
+  const id = crypto.randomUUID();
+  await sql.query(
+    `insert into studio_expenses (id, user_id, category, title, amount_toman, month_jy, month_jm, recurring, note)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [id, userId, data.category, data.title, data.amountToman, data.jy, data.jm, Boolean(data.recurring), data.note || null],
+  );
+  if (data.recurring) {
+    await sql.query(
+      `insert into studio_expense_templates (id, user_id, category, title, amount_toman, active)
+       values ($1,$2,$3,$4,$5,true)
+       on conflict (user_id, category, title) do update set amount_toman=excluded.amount_toman, active=true`,
+      [crypto.randomUUID(), userId, data.category, data.title, data.amountToman],
+    );
+  }
+  return { id };
+}
+
+async function performDeleteStudioExpense(userId: string, raw: unknown) {
+  await requireAdmin(userId);
+  const data = z.object({
+    id: z.string(),
+    stopRecurring: z.boolean().optional(),
+  }).parse(raw);
+  const sql = await getSql();
+  const row = await sql.query<{ category: string; title: string }>(
+    `delete from studio_expenses where id=$1 and user_id=$2 returning category, title`,
+    [data.id, userId],
+  );
+  if (!row[0]) throw new Error("هزینه پیدا نشد.");
+  if (data.stopRecurring) {
+    await sql.query(
+      `update studio_expense_templates set active=false where user_id=$1 and category=$2 and title=$3`,
+      [userId, row[0].category, row[0].title],
+    );
+  }
+  return { ok: true as const };
+}
+
 async function performUpdateStudioJob(userId: string, raw: unknown) {
   await requireAdmin(userId);
   const data = z.object({
@@ -2205,6 +2394,12 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performDeleteResource(userId, payload);
     case "studioMonthJobs":
       return performStudioMonthJobs(userId, payload);
+    case "studioMonthFinance":
+      return performStudioMonthFinance(userId, payload);
+    case "addStudioExpense":
+      return performAddStudioExpense(userId, payload);
+    case "deleteStudioExpense":
+      return performDeleteStudioExpense(userId, payload);
     case "updateStudioJob":
       return performUpdateStudioJob(userId, payload);
     case "addStudioPayment":

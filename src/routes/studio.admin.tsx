@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, FileDown, RefreshCw } from "lucide-react";
+import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, FileDown, RefreshCw, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { StudioJobForm } from "@/components/studio/job-form";
+import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { SignedOutPanel } from "@/components/layout/auth-required";
 import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +32,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/studio/admin")({ component: StudioAdminPage });
 
-type PanelTab = "requests" | "jobs" | "calendar";
+type PanelTab = "requests" | "jobs" | "calendar" | "money";
 type RequestFilter = "active" | "receipt" | "booked" | "all";
 
 function StudioAdminPage() {
@@ -144,7 +145,7 @@ function StudioAdminPage() {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-1 rounded-2xl border border-border bg-surface p-1.5">
+      <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-surface p-1.5 sm:grid-cols-4">
         <button
           type="button"
           onClick={() => setTab("requests")}
@@ -175,6 +176,16 @@ function StudioAdminPage() {
         >
           <CalendarDays className="ml-1 inline size-4" /> تقویم کاری
         </button>
+        <button
+          type="button"
+          onClick={() => setTab("money")}
+          className={cn(
+            "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
+            tab === "money" ? "bg-primary text-primary-fg" : "text-muted",
+          )}
+        >
+          <Wallet className="ml-1 inline size-4" /> درآمد ماه
+        </button>
       </div>
 
       {error ? (
@@ -194,6 +205,8 @@ function StudioAdminPage() {
       {!loading && !error && tab === "jobs" ? (
         <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} />
       ) : null}
+
+      {!loading && !error && tab === "money" ? <StudioMonthFinance /> : null}
 
       {!loading && !error && tab === "requests" ? (
         <div className="mt-5">
