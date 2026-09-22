@@ -90,12 +90,12 @@ function StudioLanding() {
                   <CalendarDays className="size-5" />
                   شروع ثبت نوبت
                 </Link>
-                <a
-                  href="#work"
-                  className="inline-flex h-12 items-center rounded-full border border-white/15 px-6 text-sm text-white/80"
+                <Link
+                  to="/studio/app"
+                  className="inline-flex h-12 items-center gap-2 rounded-full border border-white/15 px-6 text-sm text-white/80"
                 >
-                  آشنایی با سبک‌ها
-                </a>
+                  دانلود اپ اندروید
+                </Link>
               </div>
               <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/45">
                 <span className="inline-flex items-center gap-2"><MapPin className="size-4 text-[#b7955b]" />کرمانشاه</span>

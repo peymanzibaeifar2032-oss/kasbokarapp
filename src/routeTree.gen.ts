@@ -31,6 +31,7 @@ import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
+import { Route as StudioAppRouteImport } from './routes/studio.app'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
@@ -147,6 +148,11 @@ const StudioAdminRoute = StudioAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioAppRoute = StudioAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioRequestRoute = StudioRequestRouteImport.update({
   id: '/request',
   path: '/request',
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
+  '/studio/app': typeof StudioAppRoute
   '/studio/request': typeof StudioRequestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
@@ -225,6 +232,7 @@ export interface FileRoutesByTo {
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
+  '/studio/app': typeof StudioAppRoute
   '/studio/request': typeof StudioRequestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
@@ -255,6 +263,7 @@ export interface FileRoutesById {
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
+  '/studio/app': typeof StudioAppRoute
   '/studio/request': typeof StudioRequestRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
+    | '/studio/app'
     | '/studio/request'
     | '/api/auth/$'
     | '/api/payments/callback'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
+    | '/studio/app'
     | '/studio/request'
     | '/api/auth/$'
     | '/api/payments/callback'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
+    | '/studio/app'
     | '/studio/request'
     | '/api/auth/$'
     | '/api/payments/callback'
@@ -534,6 +546,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioAdminRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/app': {
+      id: '/studio/app'
+      path: '/app'
+      fullPath: '/studio/app'
+      preLoaderRoute: typeof StudioAppRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/request': {
       id: '/studio/request'
       path: '/request'
@@ -586,11 +605,13 @@ const KharidVamMehrRouteWithChildren = KharidVamMehrRoute._addFileChildren(
 
 interface StudioRouteChildren {
   StudioAdminRoute: typeof StudioAdminRoute
+  StudioAppRoute: typeof StudioAppRoute
   StudioRequestRoute: typeof StudioRequestRoute
 }
 
 const StudioRouteChildren: StudioRouteChildren = {
   StudioAdminRoute: StudioAdminRoute,
+  StudioAppRoute: StudioAppRoute,
   StudioRequestRoute: StudioRequestRoute,
 }
 

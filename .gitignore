@@ -30,4 +30,11 @@ deploy/le-bundle.enc
 .project_id
 .node_modules.lock
 .netlify
-.deploy-sha
+android-tattoo-booking/.gradle
+android-tattoo-booking/build
+android-tattoo-booking/app/build
+android-tattoo-booking/local.properties
+android-tattoo-booking/keystore.properties
+android-tattoo-booking/release.jks
+android-tattoo-booking/*.jks
+
