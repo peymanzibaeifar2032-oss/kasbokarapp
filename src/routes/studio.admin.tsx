@@ -38,7 +38,6 @@ type RequestFilter = "active" | "receipt" | "booked" | "all";
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
   const userId = user?.id;
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
@@ -68,10 +67,19 @@ function StudioAdminPage() {
 
   useEffect(() => {
     if (!userId) return;
-    void saveAction<Profile>("profile").then((next) => {
-      setProfile(next);
-      if (next.isAdmin) void refresh();
-    });
+    let cancelled = false;
+    void (async () => {
+      try {
+        await saveAction<Profile>("profile");
+        if (cancelled) return;
+        await refresh();
+      } catch (err) {
+        if (!cancelled) setError(friendlyError(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   const filtered = useMemo(() => {
@@ -113,28 +121,6 @@ function StudioAdminPage() {
         error={sessionError}
         onRetry={retry}
       />
-    );
-  if (profile && !profile.isAdmin)
-    return (
-      <Shell>
-        <div className="rounded-2xl border border-border bg-surface p-5">
-          <p className="font-bold">در حال فعال کردن پنل ادمین این حساب…</p>
-          <p className="mt-2 text-sm leading-7 text-muted">
-            حساب «{profile.displayName}» باید پنل استودیو را باز کند. یک‌بار دکمه زیر را بزن.
-          </p>
-          <Button
-            className="mt-4"
-            onClick={() => {
-              void saveAction<Profile>("profile").then((next) => {
-                setProfile(next);
-                if (next.isAdmin) void refresh();
-              });
-            }}
-          >
-            باز کردن پنل ادمین
-          </Button>
-        </div>
-      </Shell>
     );
 
   return (

@@ -1,3 +1,7 @@
+import { isStudioOwnerName } from "../studio-owner.ts";
+
+export { isStudioOwnerName };
+
 /** Admin is never granted just because the profiles table is empty. */
 
 const STUDIO_OWNER_EMAILS = ["peyman.zibaeifar2032@gmail.com"];
@@ -19,14 +23,6 @@ function allowedAdminEmails(getEnv: (key: string) => string | undefined) {
     .filter(Boolean);
   const owners = STUDIO_OWNER_EMAILS.map((email) => normalizeAdminEmail(email));
   return new Set([...owners, ...fromEnv]);
-}
-
-export function isStudioOwnerName(name: string | null | undefined) {
-  const raw = name || "";
-  const fa = raw.replace(/[\s\u200c\u200d]+/g, "").replace(/ي/g, "ی").replace(/ك/g, "ک");
-  if (fa.includes("پیمان") && (fa.includes("زیبائیفر") || fa.includes("زیبایفر"))) return true;
-  const ascii = raw.toLowerCase().replace(/[^a-z]/g, "");
-  return ascii.includes("peyman") && ascii.includes("zibaeifar");
 }
 
 export function shouldGrantBootstrapAdmin(
