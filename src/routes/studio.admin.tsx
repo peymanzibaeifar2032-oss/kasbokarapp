@@ -23,7 +23,9 @@ import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import {
   TATTOO_ADMIN_STAGE_LABEL,
   TATTOO_SETTLEMENT_PRESETS,
+  digitsOnly,
   formatCardNumber,
+  formatGroupedDigits,
   formatTattooToman,
   isTattooReviewOverdue,
   studioVisitText,
@@ -472,8 +474,8 @@ function TattooAdminCard({
       {showProposalForm ? (
         <>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <NumberField label="قیمت نهایی" hint="تومان" value={price} onChange={setPrice} />
-            <NumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} />
+            <NumberField label="قیمت نهایی" hint="تومان" value={price} onChange={setPrice} money />
+            <NumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} money />
             <NumberField
               label="تعداد جلسات"
               hint="مثلاً ۱"
@@ -673,18 +675,22 @@ function NumberField({
   hint,
   value,
   onChange,
+  money = false,
 }: {
   label: string;
   hint: string;
   value: string;
   onChange: (value: string) => void;
+  money?: boolean;
 }) {
   return (
     <Field label={label}>
       <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+        value={money ? formatGroupedDigits(value) : value}
+        onChange={(e) => onChange(money ? digitsOnly(e.target.value) : e.target.value.replace(/\D/g, ""))}
         inputMode="numeric"
+        dir={money ? "ltr" : undefined}
+        className={money ? "text-left tracking-wide" : undefined}
         placeholder={hint}
       />
     </Field>
@@ -784,11 +790,15 @@ function MonthJobsPanel({
             disabled={!jobs.length}
             onClick={() => {
               try {
-                downloadStudioJobsPdf(
+                const mode = downloadStudioJobsPdf(
                   jobs,
                   `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
                 );
-                toast.success("فایل لیست روی گوشی ذخیره شد. اگر PDF خواستی از چاپ، ذخیره به‌صورت PDF را بزن.");
+                toast.success(
+                  mode === "apk"
+                    ? "در حال ذخیره PDF در پوشه دانلود گوشی."
+                    : "پنجره چاپ باز شد. ذخیره به‌صورت PDF را بزن.",
+                );
               } catch (err) {
                 toast.error(friendlyError(err));
               }
@@ -1101,7 +1111,7 @@ function MonthJobCard({
             <Field label="اندازه">
               <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} />
             </Field>
-            <NumberField label="مبلغ کل" hint="تومان" value={price} onChange={setPrice} />
+            <NumberField label="مبلغ کل" hint="تومان" value={price} onChange={setPrice} money />
             <Field label="توضیح طرح">
               <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} />
             </Field>
@@ -1118,7 +1128,7 @@ function MonthJobCard({
           <div className="mt-4 rounded-2xl border border-border bg-bg p-3">
             <p className="text-sm font-semibold">ثبت واریز بعدی</p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <NumberField label="مبلغ واریز" hint="تومان" value={amount} onChange={setAmount} />
+              <NumberField label="مبلغ واریز" hint="تومان" value={amount} onChange={setAmount} money />
               <Field label="یادداشت">
                 <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً واریز دوم" />
               </Field>

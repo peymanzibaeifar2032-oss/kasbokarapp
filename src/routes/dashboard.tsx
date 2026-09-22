@@ -17,6 +17,7 @@ import { profileCompleteness, tehranLocalToIso } from "@/lib/hours";
 import { t, type MessageKey } from "@/lib/i18n";
 import type { CompletenessField } from "@/lib/search/completeness";
 import { friendlyError, saveAction } from "@/lib/save";
+import { digitsOnly, formatGroupedDigits } from "@/lib/tattoo-flow";
 import type { Booking, Business, Category, OwnerStats, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -416,11 +417,11 @@ function TattooRequestReview({ request, businesses, onChange }: { request: Tatto
     {[...request.referenceImages, ...request.bodyImages].length ? <div className="mt-4 flex gap-2 overflow-x-auto">{[...request.referenceImages, ...request.bodyImages].map((src, i) => <a key={`${request.id}-${i}`} href={src} target="_blank" rel="noreferrer"><img src={src} alt="عکس درخواست" className="size-24 rounded-xl border border-border object-cover" /></a>)}</div> : null}
     <div className="mt-4 grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1.5 text-sm"><span className="font-medium">صفحه کسب‌وکار</span><NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)} aria-label="صفحه کسب‌وکار"><option value="">انتخاب صفحه کسب‌وکار</option>{businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</NativeSelect></label>
-      <ReviewNumberField label="حداقل قیمت" hint="تومان" value={priceMin} onChange={setPriceMin} />
-      <ReviewNumberField label="حداکثر قیمت" hint="تومان؛ اختیاری" value={priceMax} onChange={setPriceMax} />
+      <ReviewNumberField label="حداقل قیمت" hint="تومان" value={priceMin} onChange={setPriceMin} money />
+      <ReviewNumberField label="حداکثر قیمت" hint="تومان؛ اختیاری" value={priceMax} onChange={setPriceMax} money />
       <ReviewNumberField label="تعداد جلسات" hint="مثلاً ۱ یا ۲ جلسه" value={sessions} onChange={setSessions} />
       <ReviewNumberField label="مدت هر جلسه" hint="به دقیقه؛ مثلاً ۱۸۰" value={minutes} onChange={setMinutes} />
-      <ReviewNumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} />
+      <ReviewNumberField label="مبلغ بیعانه" hint="تومان" value={deposit} onChange={setDeposit} money />
     </div>
     <label className="mt-3 grid gap-1.5 text-sm"><span className="font-medium">پیام برای مشتری</span><Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="نتیجه بررسی، شرایط اجرا یا توضیح بیعانه را بنویسید" /></label>
     {request.paymentStatus === "receipt_submitted" ? <ReceiptReview request={request} onChange={onChange} /> : null}
@@ -440,8 +441,8 @@ function ReceiptReview({ request, onChange }: { request: TattooRequest; onChange
   return <div className="mt-4 rounded-2xl border border-accent/30 bg-accent/5 p-3"><p className="font-semibold">رسید پرداخت برای بررسی</p>{request.paymentReviewDeadline ? <p className="mt-1 text-xs text-muted">مهلت بررسی: {formatFaDateTime(request.paymentReviewDeadline)}</p> : null}{request.receiptImage ? <a href={request.receiptImage} target="_blank" rel="noreferrer"><img src={request.receiptImage} alt="رسید پرداخت مشتری" className="mt-3 max-h-64 rounded-xl object-contain" /></a> : null}<Textarea className="mt-3" value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="پیام نتیجه بررسی" /><div className="mt-3 flex gap-2"><Button disabled={busy} onClick={() => void decide(true)}>تأیید رسید و قطعی‌کردن</Button><Button disabled={busy} variant="outline" onClick={() => void decide(false)}>رد رسید</Button></div></div>;
 }
 
-function ReviewNumberField({ label, hint, value, onChange }: { label: string; hint: string; value: string; onChange: (value: string) => void }) {
-  return <label className="grid gap-1.5 text-sm"><span className="font-medium">{label}</span><Input value={value} onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))} placeholder={hint} inputMode="numeric" /></label>;
+function ReviewNumberField({ label, hint, value, onChange, money = false }: { label: string; hint: string; value: string; onChange: (value: string) => void; money?: boolean }) {
+  return <label className="grid gap-1.5 text-sm"><span className="font-medium">{label}</span><Input value={money ? formatGroupedDigits(value) : value} onChange={(e) => onChange(money ? digitsOnly(e.target.value) : e.target.value.replace(/\D/g, ""))} placeholder={hint} inputMode="numeric" dir={money ? "ltr" : undefined} className={money ? "text-left" : undefined} /></label>;
 }
 
 function OwnerBookings({

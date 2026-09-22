@@ -120,6 +120,35 @@ export function formatTattooToman(value: number) {
   return `${new Intl.NumberFormat("fa-IR").format(Math.max(0, Math.round(Number(value) || 0)))} تومان`;
 }
 
+const PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+const ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
+
+/** Keep only digits so amounts can be stored and summed without separators. */
+export function digitsOnly(value: string) {
+  let out = "";
+  for (const ch of value) {
+    const persian = PERSIAN_DIGITS.indexOf(ch);
+    if (persian >= 0) {
+      out += String(persian);
+      continue;
+    }
+    const arabic = ARABIC_DIGITS.indexOf(ch);
+    if (arabic >= 0) {
+      out += String(arabic);
+      continue;
+    }
+    if (ch >= "0" && ch <= "9") out += ch;
+  }
+  return out.replace(/^0+(?=\d)/, "").slice(0, 12);
+}
+
+/** Show ۲۲٬۰۰۰٬۰۰۰ while the stored value stays 22000000. */
+export function formatGroupedDigits(value: string) {
+  const digits = digitsOnly(value);
+  if (!digits) return "";
+  return new Intl.NumberFormat("fa-IR").format(Number(digits));
+}
+
 export function formatCardNumber(card: string) {
   return card.replace(/\D/g, "").replace(/(\d{4})(?=\d)/g, "$1-");
 }

@@ -13,7 +13,7 @@ import {
   type StudioExpense,
   type StudioMonthPayment,
 } from "@/lib/studio-finance";
-import { formatTattooToman } from "@/lib/tattoo-flow";
+import { digitsOnly, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
 
 type Summary = ReturnType<typeof studioMonthSummary>;
 
@@ -152,9 +152,11 @@ export function StudioMonthFinance() {
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">مبلغ</span>
             <Input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+              value={formatGroupedDigits(amount)}
+              onChange={(e) => setAmount(digitsOnly(e.target.value))}
               inputMode="numeric"
+              dir="ltr"
+              className="text-left tracking-wide"
               placeholder="تومان"
             />
           </label>

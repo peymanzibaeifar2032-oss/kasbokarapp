@@ -8,7 +8,7 @@ import type { BusinessResource } from "@/lib/calendar/resources";
 import { tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { isRetiredCollaborator } from "@/lib/tattoo-flow";
+import { digitsOnly, formatGroupedDigits, isRetiredCollaborator } from "@/lib/tattoo-flow";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { Booking, Business } from "@/lib/types";
 
@@ -184,11 +184,11 @@ export function StudioJobForm({
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">قیمت کل طرح</span>
-          <Input value={price} onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="تومان" />
+          <Input value={formatGroupedDigits(price)} onChange={(e) => setPrice(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">مقدار واریزی</span>
-          <Input value={paid} onChange={(e) => setPaid(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="تومان" />
+          <Input value={formatGroupedDigits(paid)} onChange={(e) => setPaid(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">مدت جلسه</span>

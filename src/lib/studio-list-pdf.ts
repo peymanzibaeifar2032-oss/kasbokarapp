@@ -2,18 +2,6 @@ import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle } from 
 import { formatTattooToman, tattooBalance } from "./tattoo-flow.ts";
 import type { TattooRequest } from "./types.ts";
 
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-
 function esc(value: string) {
   return value
     .replace(/&/g, "\u0026amp;")
@@ -22,13 +10,15 @@ function esc(value: string) {
     .replace(/"/g, "\u0026quot;");
 }
 
-function jobHtml(job: TattooRequest) {
+function jobHtml(job: TattooRequest, includeImages: boolean) {
   const when = job.proposedSlotStart || job.createdAt;
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
   const insta = normalizeInstagramHandle(job.customerInstagram);
   const instaUrl = instagramProfileUrl(job.customerInstagram);
   const phones = [job.customerPhone, job.customerPhone2].filter((p) => p && p !== "09000000000");
-  const images = [...(job.referenceImages ?? []), ...(job.bodyImages ?? [])].slice(0, 4);
+  const images = includeImages
+    ? [...(job.referenceImages ?? []), ...(job.bodyImages ?? [])].slice(0, 4)
+    : [];
   return `<article class="card">
     <h2>${esc(job.customerName)}</h2>
     <p class="meta">${esc(formatFaDateTime(when))} · ${esc(job.placement || "—")} · ${esc(job.sizeCm || "—")}</p>
@@ -44,15 +34,16 @@ function jobHtml(job: TattooRequest) {
   </article>`;
 }
 
-export function studioJobsReportHtml(jobs: TattooRequest[], title: string) {
+export function studioJobsReportHtml(jobs: TattooRequest[], title: string, includeImages = true) {
   const stamped = new Date().toLocaleString("fa-IR", { timeZone: "Asia/Tehran" });
   return `<!doctype html>
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="utf-8"/>
+<meta name="color-scheme" content="light"/>
 <title>${esc(title)}</title>
 <style>
-  body{font-family:Tahoma,Vazirmatn,sans-serif;background:#fff;color:#111;margin:24px;line-height:1.7}
+  body{font-family:sans-serif;background:#fff;color:#111;margin:24px;line-height:1.7}
   h1{font-size:22px;margin:0 0 8px}
   .sub{color:#555;margin-bottom:20px}
   .card{border:1px solid #ddd;border-radius:16px;padding:16px;margin:0 0 16px;page-break-inside:avoid}
@@ -66,16 +57,32 @@ export function studioJobsReportHtml(jobs: TattooRequest[], title: string) {
 <body>
   <h1>${esc(title)}</h1>
   <p class="sub">پیمان زیبائی‌فر · ${esc(stamped)} · ${new Intl.NumberFormat("fa-IR").format(jobs.length)} مشتری</p>
-  ${jobs.map(jobHtml).join("\n")}
+  ${jobs.map((job) => jobHtml(job, includeImages)).join("\n")}
 </body>
 </html>`;
 }
 
-export function downloadStudioJobsPdf(jobs: TattooRequest[], title: string) {
+type AndroidSave = { saveReport?: (filename: string, html: string) => void };
+
+export function downloadStudioJobsPdf(jobs: TattooRequest[], title: string): "apk" | "print" {
   if (!jobs.length) throw new Error("لیستی برای دانلود نیست.");
-  const html = studioJobsReportHtml(jobs, title);
   const stamp = new Date().toISOString().slice(0, 10);
-  downloadBlob(new Blob([html], { type: "text/html;charset=utf-8" }), `list-moshtari-${stamp}.html`);
+  const filename = `list-moshtari-${stamp}.pdf`;
+  const bridge =
+    typeof window !== "undefined"
+      ? (window as Window & { AndroidApp?: AndroidSave }).AndroidApp
+      : undefined;
+  if (typeof bridge?.saveReport === "function") {
+    let html = studioJobsReportHtml(jobs, title, true);
+    if (html.length > 350_000) html = studioJobsReportHtml(jobs, title, false);
+    bridge.saveReport(filename, html);
+    return "apk";
+  }
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (/TattooApp\//.test(ua)) {
+    throw new Error("برای ذخیره PDF، از صفحه دانلود اپ نسخه ۱.۵ را نصب کن. بعد فایل در پوشه دانلود گوشی می‌آید.");
+  }
+  const html = studioJobsReportHtml(jobs, title, true);
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.style.position = "fixed";
@@ -88,7 +95,7 @@ export function downloadStudioJobsPdf(jobs: TattooRequest[], title: string) {
   const doc = frame.contentDocument;
   if (!doc) {
     frame.remove();
-    return;
+    throw new Error("پنجره چاپ باز نشد.");
   }
   doc.open();
   doc.write(html);
@@ -98,8 +105,9 @@ export function downloadStudioJobsPdf(jobs: TattooRequest[], title: string) {
       frame.contentWindow?.focus();
       frame.contentWindow?.print();
     } catch {
-      /* Android WebView may block print; HTML file is already saved */
+      /* browser blocked print */
     }
     window.setTimeout(() => frame.remove(), 1500);
   }, 350);
+  return "print";
 }

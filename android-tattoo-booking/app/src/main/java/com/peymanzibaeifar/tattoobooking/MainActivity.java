@@ -6,11 +6,23 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.pdf.PdfDocument;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Message;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextDirectionHeuristics;
+import android.text.TextPaint;
+import android.provider.MediaStore;
 import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -23,6 +35,13 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 public class MainActivity extends Activity {
     private static final String HOME = "https://kasbokarapp.com/studio";
     private static final String ADMIN = "https://kasbokarapp.com/studio/admin";
@@ -31,6 +50,9 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private ValueCallback<Uri[]> fileCallback;
+    private boolean savingPdf;
+    private String pendingPdfName;
+    private String pendingPdfHtml;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,7 +94,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.4");
+            settings.setUserAgentString(ua + " TattooApp/1.5");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -239,6 +261,11 @@ public class MainActivity extends Activity {
         public void showNotice(String title, String body) {
             runOnUiThread(() -> postNotice(title, body));
         }
+
+        @JavascriptInterface
+        public void saveReport(String filename, String html) {
+            runOnUiThread(() -> beginSaveReport(filename, html));
+        }
     }
 
     @Override
@@ -280,5 +307,198 @@ public class MainActivity extends Activity {
         if (webView != null) {
             webView.saveState(outState);
         }
+    }
+
+    private void beginSaveReport(String filename, String html) {
+        if (html == null || html.trim().isEmpty()) {
+            Toast.makeText(this, "لیستی برای ذخیره نیست", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (Build.VERSION.SDK_INT < 29
+                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            pendingPdfName = filename;
+            pendingPdfHtml = html;
+            requestPermissions(new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE }, 2003);
+            return;
+        }
+        renderReportPdf(filename, html);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode == 2003) {
+            String html = pendingPdfHtml;
+            String name = pendingPdfName;
+            pendingPdfHtml = null;
+            pendingPdfName = null;
+            if (html != null && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                renderReportPdf(name, html);
+            } else {
+                Toast.makeText(this, "بدون اجازه ذخیره، PDF در دانلود نمی‌آید", Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
+    private void renderReportPdf(String filename, String html) {
+        if (savingPdf) {
+            Toast.makeText(this, "PDF قبلی هنوز در حال ذخیره است", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        savingPdf = true;
+        try {
+            File dir = new File(getCacheDir(), "reports");
+            if (!dir.exists() && !dir.mkdirs()) throw new IOException("cache");
+            File out = new File(dir, "report.pdf");
+            writeTextPdf(htmlToText(html), out);
+            Uri uri = copyToDownloads(out, safePdfName(filename));
+            Toast.makeText(this, "لیست در پوشه دانلود گوشی ذخیره شد", Toast.LENGTH_LONG).show();
+            if (uri != null && !"file".equals(uri.getScheme())) {
+                Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+                viewIntent.setDataAndType(uri, "application/pdf");
+                viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try {
+                    startActivity(Intent.createChooser(viewIntent, "باز کردن PDF"));
+                } catch (Exception ignored) {
+                    /* file is already in Downloads */
+                }
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "ذخیره PDF نشد", Toast.LENGTH_LONG).show();
+        } finally {
+            savingPdf = false;
+        }
+    }
+
+    private static String htmlToText(String html) {
+        String text = html
+                .replaceAll("(?is)<style[^>]*>.*?</style>", "")
+                .replaceAll("(?is)<script[^>]*>.*?</script>", "")
+                .replaceAll("(?i)<br\\s*/?>", "\n")
+                .replaceAll("(?i)</(p|h1|h2|div)>", "\n")
+                .replaceAll("(?i)</article>", "\n\n")
+                .replaceAll("(?i)<[^>]+>", "");
+        text = text.replace("\u0026nbsp;", " ")
+                .replace("\u0026amp;", "\u0026")
+                .replace("\u0026lt;", "<")
+                .replace("\u0026gt;", ">")
+                .replace("\u0026quot;", "\"")
+                .replace("\u0026#39;", "'");
+        return text.replace("\r", "").replaceAll("[ \\t]+\\n", "\n").replaceAll("[ \\t]{2,}", " ").replaceAll("\n{3,}", "\n\n").trim();
+    }
+
+    private static void writeTextPdf(String text, File out) throws IOException {
+        final int pageWidth = 595;
+        final int pageHeight = 842;
+        final int margin = 36;
+        TextPaint paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        paint.setColor(Color.BLACK);
+        paint.setTextSize(12f);
+        PdfDocument pdf = new PdfDocument();
+        int pageNumber = 1;
+        PdfDocument.Page page = startPdfPage(pdf, pageNumber, pageWidth, pageHeight);
+        Canvas canvas = page.getCanvas();
+        int y = margin;
+        String[] lines = text.split("\n", -1);
+        for (String line : lines) {
+            String row = line.trim();
+            if (row.isEmpty()) {
+                y += 10;
+                if (y > pageHeight - margin) {
+                    pdf.finishPage(page);
+                    pageNumber++;
+                    page = startPdfPage(pdf, pageNumber, pageWidth, pageHeight);
+                    canvas = page.getCanvas();
+                    y = margin;
+                }
+                continue;
+            }
+            StaticLayout layout = StaticLayout.Builder.obtain(row, 0, row.length(), paint, pageWidth - margin * 2)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setTextDirection(TextDirectionHeuristics.RTL)
+                    .setIncludePad(false)
+                    .build();
+            if (y + layout.getHeight() > pageHeight - margin) {
+                pdf.finishPage(page);
+                pageNumber++;
+                page = startPdfPage(pdf, pageNumber, pageWidth, pageHeight);
+                canvas = page.getCanvas();
+                y = margin;
+            }
+            canvas.save();
+            canvas.translate(margin, y);
+            layout.draw(canvas);
+            canvas.restore();
+            y += layout.getHeight() + 6;
+        }
+        pdf.finishPage(page);
+        try (OutputStream os = new FileOutputStream(out)) {
+            pdf.writeTo(os);
+        } finally {
+            pdf.close();
+        }
+    }
+
+    private static PdfDocument.Page startPdfPage(PdfDocument pdf, int number, int width, int height) {
+        PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(width, height, number).create();
+        return pdf.startPage(info);
+    }
+
+    private Uri copyToDownloads(File cacheFile, String displayName) throws IOException {
+        if (Build.VERSION.SDK_INT >= 29) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, displayName);
+            values.put(MediaStore.Downloads.MIME_TYPE, "application/pdf");
+            values.put(MediaStore.Downloads.IS_PENDING, 1);
+            Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (uri == null) throw new IOException("downloads");
+            try (OutputStream os = getContentResolver().openOutputStream(uri);
+                 InputStream in = new FileInputStream(cacheFile)) {
+                if (os == null) throw new IOException("stream");
+                copyStream(in, os);
+            }
+            values.clear();
+            values.put(MediaStore.Downloads.IS_PENDING, 0);
+            getContentResolver().update(uri, values, null, null);
+            return uri;
+        }
+        File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        if (!downloads.exists() && !downloads.mkdirs()) throw new IOException("downloads");
+        File dest = uniqueFile(downloads, displayName);
+        try (InputStream in = new FileInputStream(cacheFile);
+             OutputStream os = new FileOutputStream(dest)) {
+            copyStream(in, os);
+        }
+        return Uri.fromFile(dest);
+    }
+
+    private static void copyStream(InputStream in, OutputStream os) throws IOException {
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            os.write(buf, 0, n);
+        }
+    }
+
+    private static File uniqueFile(File dir, String name) {
+        File dest = new File(dir, name);
+        if (!dest.exists()) return dest;
+        int dot = name.lastIndexOf('.');
+        String base = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
+        for (int i = 2; i < 50; i++) {
+            File next = new File(dir, base + "-" + i + ext);
+            if (!next.exists()) return next;
+        }
+        return dest;
+    }
+
+    private static String safePdfName(String filename) {
+        String name = filename == null ? "" : filename.trim().replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "-");
+        if (name.isEmpty()) name = "list-moshtari.pdf";
+        if (!name.toLowerCase().endsWith(".pdf")) name = name + ".pdf";
+        if (name.length() > 80) name = name.substring(0, 76) + ".pdf";
+        return name;
     }
 }
