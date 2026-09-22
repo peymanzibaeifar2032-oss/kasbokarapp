@@ -365,7 +365,6 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     placement: z.string().trim().min(2, "محل اجرا را بنویسید.").max(120),
     sizeCm: z.string().trim().min(1, "اندازه تقریبی را بنویسید.").max(60),
     preferredDates: z.string().trim().max(200).optional(),
-    budgetToman: z.number().int().min(0).max(2_000_000_000).optional().nullable(),
     referenceImages: z.array(imageDataSchema).max(3).default([]),
     bodyImages: z.array(imageDataSchema).max(2).default([]),
   }).parse(raw);
@@ -386,7 +385,7 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
        size_cm, preferred_dates, budget_toman, reference_images, body_images)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb)`,
     [id, userId, data.customerName, phone, phone2, data.requestType, data.style, data.idea, data.placement,
-      data.sizeCm, data.preferredDates || null, data.budgetToman ?? null,
+      data.sizeCm, data.preferredDates || null, null,
       JSON.stringify(data.referenceImages), JSON.stringify(data.bodyImages)],
   );
   const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin = true");

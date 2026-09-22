@@ -394,7 +394,6 @@ function TattooAdminCard({
           </a>
         ) : null}
         {request.preferredDates ? <span>زمان مناسب مشتری: {request.preferredDates}</span> : null}
-        {request.budgetToman ? <span>بودجه: {formatTattooToman(request.budgetToman)}</span> : null}
       </div>
       <DesignThumbs
         images={[...request.referenceImages, ...request.bodyImages]}

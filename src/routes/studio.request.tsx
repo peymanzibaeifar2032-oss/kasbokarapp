@@ -29,7 +29,6 @@ function StudioRequestPage() {
   const [placement, setPlacement] = useState("");
   const [sizeCm, setSizeCm] = useState("");
   const [preferredDates, setPreferredDates] = useState("");
-  const [budget, setBudget] = useState("");
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [bodyImages, setBodyImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -90,7 +89,6 @@ function StudioRequestPage() {
         placement,
         sizeCm,
         preferredDates,
-        budgetToman: budget ? Number(budget.replace(/\D/g, "")) : null,
         referenceImages,
         bodyImages,
       });
@@ -99,7 +97,6 @@ function StudioRequestPage() {
       setPlacement("");
       setSizeCm("");
       setPreferredDates("");
-      setBudget("");
       setReferenceImages([]);
       setBodyImages([]);
       refresh();
@@ -201,13 +198,6 @@ function StudioRequestPage() {
                 value={preferredDates}
                 onChange={(e) => setPreferredDates(e.target.value)}
                 placeholder="مثلاً شنبه و دوشنبه بعدازظهر"
-              />
-            </Field>
-            <Field label="بودجه تقریبی (تومان، اختیاری)">
-              <Input
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                inputMode="numeric"
               />
             </Field>
           </div>

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { SignedOutPanel } from "@/components/layout/auth-required";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { formatFaDate, formatFaDateTime, formatToman, toWhatsAppLink } from "@/lib/format";
+import { formatFaDate, formatFaDateTime, toWhatsAppLink } from "@/lib/format";
 import { profileCompleteness, tehranLocalToIso } from "@/lib/hours";
 import { t, type MessageKey } from "@/lib/i18n";
 import type { CompletenessField } from "@/lib/search/completeness";
@@ -407,7 +407,7 @@ function TattooRequestReview({ request, businesses, onChange }: { request: Tatto
   return <article className="rounded-2xl border border-border bg-surface p-4">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold">{request.customerName}</h3><p className="text-sm text-muted">{type} · {request.style} · {request.placement}</p></div><Badge>{request.status === "submitted" ? "در انتظار" : request.status === "needs_info" ? "اطلاعات بیشتر" : request.status === "approved" ? "تأییدشده" : request.status === "rejected" ? "ردشده" : "رزرو قطعی"}</Badge></div>
     <p className="mt-3 text-sm leading-7">{request.idea}</p>
-    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted"><span>اندازه: {request.sizeCm}</span><a className="text-accent" href={`tel:${request.customerPhone}`}>{request.customerPhone}</a>{request.preferredDates ? <span>زمان مناسب: {request.preferredDates}</span> : null}{request.budgetToman ? <span>بودجه: {formatToman(request.budgetToman)}</span> : null}</div>
+    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted"><span>اندازه: {request.sizeCm}</span><a className="text-accent" href={`tel:${request.customerPhone}`}>{request.customerPhone}</a>{request.preferredDates ? <span>زمان مناسب: {request.preferredDates}</span> : null}</div>
     {[...request.referenceImages, ...request.bodyImages].length ? <div className="mt-4 flex gap-2 overflow-x-auto">{[...request.referenceImages, ...request.bodyImages].map((src, i) => <a key={`${request.id}-${i}`} href={src} target="_blank" rel="noreferrer"><img src={src} alt="عکس درخواست" className="size-24 rounded-xl border border-border object-cover" /></a>)}</div> : null}
     <div className="mt-4 grid gap-3 sm:grid-cols-3">
       <label className="grid gap-1.5 text-sm"><span className="font-medium">صفحه کسب‌وکار</span><NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)} aria-label="صفحه کسب‌وکار"><option value="">انتخاب صفحه کسب‌وکار</option>{businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</NativeSelect></label>
