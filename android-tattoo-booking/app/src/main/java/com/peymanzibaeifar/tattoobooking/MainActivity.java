@@ -11,6 +11,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Message;
+import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -24,6 +25,7 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private static final String HOME = "https://kasbokarapp.com/studio";
+    private static final String ADMIN = "https://kasbokarapp.com/studio/admin";
     private static final String CHANNEL = "tattoo-notices";
     private static final int FILE_CHOOSER = 1001;
 
@@ -33,9 +35,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        webView = new WebView(this);
+        setContentView(R.layout.activity_main);
+        webView = findViewById(R.id.web);
         webView.setBackgroundColor(0xFF0B0B0C);
-        setContentView(webView);
+
+        View adminBar = findViewById(R.id.adminBar);
+        View homeBar = findViewById(R.id.homeBar);
+        adminBar.setOnClickListener(v -> webView.loadUrl(ADMIN));
+        homeBar.setOnClickListener(v -> webView.loadUrl(HOME));
 
         ensureNoticeChannel();
         if (Build.VERSION.SDK_INT >= 33) {
@@ -61,10 +68,11 @@ public class MainActivity extends Activity {
         settings.setSupportMultipleWindows(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(
-                    ua.replace("; wv", "").replace(" Version/4.0", "") + " TattooApp/1.1");
+            settings.setUserAgentString(ua + " TattooApp/1.2");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");

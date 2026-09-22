@@ -32,7 +32,7 @@ function StudioAppDownload() {
           />
           <div>
             <h1 className="text-3xl font-black leading-[1.4] sm:text-4xl">رزرو وقت تاتو</h1>
-            <p className="mt-2 text-sm text-white/50">نسخه ۱.۲ · نصب مستقیم روی گوشی</p>
+            <p className="mt-2 text-sm text-white/50">نسخه ۱.۳ · نصب مستقیم روی گوشی · دکمه پنل ادمین داخل اپ</p>
           </div>
         </div>
 
