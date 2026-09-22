@@ -328,6 +328,12 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
               دانلود اپ
             </a>
             <Link
+              to="/studio/guide"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-[#b7955b]/40 px-4 text-sm text-[#e5d2ae]"
+            >
+              آموزش فرم
+            </Link>
+            <Link
               to="/studio/app"
               className="inline-flex h-11 items-center justify-center rounded-full border border-[#b7955b]/40 px-4 text-sm text-[#e5d2ae]"
             >

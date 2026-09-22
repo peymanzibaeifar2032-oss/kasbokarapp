@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { StudioTopBar } from "@/components/studio/top-bar";
+import { STUDIO_GUIDE_CARDS } from "@/lib/studio-guide";
 
 export const Route = createFileRoute("/studio")({
   component: StudioLanding,
@@ -31,6 +32,7 @@ const steps = [
 ];
 
 const faqs = [
+  ["فرم را چطور پر کنم؟", "بخش آموزش را باز کن. همان عکس‌ها ورود، فرم، عکس طرح، بررسی و بیعانه را نشان می‌دهند."],
   ["برای رزرو چه اطلاعاتی لازم است؟", "عکس واضح محل بدن، تصویر یا توضیح ایده، اندازه تقریبی و زمان‌های مناسب خودت را بفرست."],
   ["قیمت تاتو چطور مشخص می‌شود؟", "قیمت به اندازه، جزئیات، محل اجرا، وضعیت پوست و تعداد جلسه بستگی دارد و پس از بررسی اعلام می‌شود."],
   ["قبل از تاتو چه کار کنم؟", "خواب کافی داشته باش، آب بنوش، غذای مناسب بخور و از مصرف الکل و آفتاب‌سوختگی پرهیز کن."],
@@ -76,6 +78,12 @@ function StudioLanding() {
                   className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
                 >
                   بررسی وضعیت
+                </Link>
+                <Link
+                  to="/studio/guide"
+                  className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
+                >
+                  آموزش فرم رزرو
                 </Link>
                 <Link
                   to="/studio/app"
@@ -142,6 +150,36 @@ function StudioLanding() {
               <Mini icon={Clock3} label="تأیید زمان پیشنهادی پیمان" />
               <Mini icon={CircleDollarSign} label="پرداخت بیعانه و رسید" />
             </div>
+          </div>
+        </section>
+
+        <section id="guide" className="mx-auto max-w-6xl px-4 py-20">
+          <p className="text-xs tracking-[.22em] text-[#b7955b]">آموزش</p>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+            <h2 className="text-3xl font-black sm:text-4xl">قبل از پیام دادن، این عکس‌ها را ببین</h2>
+            <Link to="/studio/guide" className="text-sm text-[#e5d2ae]">
+              مشاهده کامل آموزش
+            </Link>
+          </div>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-white/50">
+            مراحل ورود، پر کردن فرم، ارسال عکس طرح و محل بدن، بررسی پیمان و واریز بیعانه اینجاست تا
+            لازم نباشد از استودیو بپرسی.
+          </p>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {STUDIO_GUIDE_CARDS.map((card) => (
+              <Link
+                key={card.slug}
+                to="/studio/guide"
+                className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[.03]"
+              >
+                <img
+                  src={`/studio-guide/${card.slug}.png`}
+                  alt={card.title}
+                  className="aspect-[4/5] w-full object-cover"
+                />
+                <span className="block p-4 text-sm font-bold">{card.title}</span>
+              </Link>
+            ))}
           </div>
         </section>
 

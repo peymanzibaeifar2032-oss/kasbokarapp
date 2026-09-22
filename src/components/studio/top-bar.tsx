@@ -28,6 +28,12 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
             ) : null}
           </Link>
           <Link
+            to="/studio/guide"
+            className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/80"
+          >
+            آموزش
+          </Link>
+          <Link
             to="/studio/admin"
             className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/70"
           >
