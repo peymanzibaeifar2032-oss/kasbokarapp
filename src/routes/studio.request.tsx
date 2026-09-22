@@ -128,13 +128,6 @@ function StudioRequestPage() {
             ابتدا طرح و محل بدن بررسی می‌شود. بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های
             مناسب برای شما فعال می‌شود.
           </p>
-          <Link
-            to="/studio/guide"
-            className="mt-4 inline-flex h-11 items-center gap-2 rounded-full border border-[#b7955b]/35 bg-[#b7955b]/10 px-4 text-sm text-[#e5d2ae]"
-          >
-            اگر بار اول است، آموزش تصویری فرم را ببین
-            <ChevronLeft className="size-4" />
-          </Link>
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             <Field label="نام و نام خانوادگی">
@@ -249,10 +242,10 @@ function StudioRequestPage() {
             <h2 className="font-bold">روند بررسی</h2>
             <ol className="mt-4 space-y-4 text-sm text-white/60">
               {[
-                "ورود به حساب و پر کردن نام، شماره و طرح",
-                "آپلود عکس رفرنس و عکس محل بدن",
-                "بررسی پیمان و اعلام قیمت، جلسه و زمان",
-                "تأیید زمان، واریز بیعانه تا ۶ ساعت و ارسال رسید",
+                "ارسال اطلاعات و عکس‌ها",
+                "بررسی توسط پیمان",
+                "اعلام قیمت، زمان پیشنهادی و بیعانه",
+                "تأیید شما، واریز و رزرو قطعی",
               ].map((x, i) => (
                 <li key={x} className="flex gap-3">
                   <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#b7955b] text-xs font-bold text-black">
@@ -262,12 +255,6 @@ function StudioRequestPage() {
                 </li>
               ))}
             </ol>
-            <Link
-              to="/studio/guide"
-              className="mt-5 inline-flex text-sm text-[#dbc08d] underline-offset-4 hover:underline"
-            >
-              مشاهده کارت‌های آموزشی
-            </Link>
           </div>
           {requests.map((request) => (
             <RequestCard key={request.id} request={request} onChange={refresh} />
