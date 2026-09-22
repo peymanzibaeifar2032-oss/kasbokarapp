@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { saveAction } from "@/lib/save";
 import {
+  ensureStudioPhoneNotices,
   markStudioNoticesSeen,
   showStudioOsNotice,
   unseenStudioNoticeIds,
@@ -18,6 +19,7 @@ export function useStudioNotices() {
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
+    void ensureStudioPhoneNotices().catch(() => undefined);
     async function tick() {
       try {
         const r = await saveAction<{ items: NotificationItem[]; unread: number }>("notifications");

@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Store } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -30,10 +30,9 @@ function Login() {
 }
 
 function GoNext({ dest }: { dest: string }) {
-  const router = useRouter();
   useEffect(() => {
-    router.history.push(dest);
-  }, [dest, router]);
+    window.location.replace(dest);
+  }, [dest]);
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-4 text-sm text-muted">
       در حال بازگشت…
@@ -60,7 +59,6 @@ function persistEmailSession(data: unknown) {
 
 function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: boolean; resetToken?: string }) {
   const authMethods = Route.useLoaderData();
-  const router = useRouter();
   const [mode, setMode] = useState<"in" | "up" | "forgot" | "reset">(resetToken ? "reset" : "up");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -129,7 +127,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
         /* session store recovers on next fetch */
       }
       toast.success(mode === "up" ? "حساب ساخته شد." : "وارد شدید.");
-      router.history.push(dest);
+      window.location.replace(dest);
     } catch (err) {
       toast.error(err instanceof Error ? persianAuthError(err.message) || err.message : "خطا در ورود با ایمیل");
     } finally {
@@ -161,7 +159,9 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="mt-1 text-sm text-muted">
           {dest.startsWith("/studio/admin")
-            ? "بعد از ورود، پنل مدیریت تاتو و تقویم باز می‌شود."
+            ? "بعد از ورود، پنل ادمین تاتو و تقویم داخل همین اپ باز می‌شود."
+            : dest.startsWith("/studio")
+              ? "ورود داخل همین اپ می‌ماند. بعد از ورود، فرم یا وضعیت نوبت باز می‌شود؛ به مرورگر نمی‌رود."
             : mode === "forgot"
             ? "ایمیل حساب را بنویسید. پیوند بازیابی به همان ایمیل می‌رود."
             : mode === "reset"

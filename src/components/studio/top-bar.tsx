@@ -31,7 +31,7 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
             to="/studio/admin"
             className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/70"
           >
-            پنل من
+            پنل ادمین
           </Link>
           <Link
             to="/studio/request"

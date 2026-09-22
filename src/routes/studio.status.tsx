@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Bell, CalendarPlus, Loader2 } from "lucide-react";
+import { CalendarPlus, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { StudioTopBar } from "@/components/studio/top-bar";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addBookingToPhoneCalendar, formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { enableStudioPhoneNotices, phoneNoticesEnabled } from "@/lib/studio-notices";
+import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled } from "@/lib/studio-notices";
 import { tattooStage } from "@/lib/tattoo-flow";
 import type { NotificationItem, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
@@ -44,10 +44,20 @@ function StudioStatusPage() {
   }
 
   useEffect(() => {
-    setPhoneOn(phoneNoticesEnabled());
+    setPhoneOn(phoneNoticesEnabled() || inStudioApp());
     if (!user) return;
+    void ensureAutoNotices();
     refresh();
   }, [user]);
+
+  async function ensureAutoNotices() {
+    try {
+      await ensureStudioPhoneNotices();
+      setPhoneOn(true);
+    } catch {
+      setPhoneOn(phoneNoticesEnabled() || inStudioApp());
+    }
+  }
 
   if (!user) {
     return (
@@ -104,20 +114,11 @@ function StudioStatusPage() {
             زمان را به تقویم گوشی اضافه کن.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button
-              className="h-11 bg-[#b7955b] text-black hover:bg-[#cfad70]"
-              onClick={() => {
-                void enableStudioPhoneNotices()
-                  .then(() => {
-                    setPhoneOn(true);
-                    toast.success("اعلان گوشی فعال شد.");
-                  })
-                  .catch((err) => toast.error(friendlyError(err)));
-              }}
-            >
-              <Bell className="size-4" />
-              {phoneOn ? "اعلان گوشی فعال است" : "فعال کردن اعلان گوشی"}
-            </Button>
+            <p className="rounded-2xl border border-[#b7955b]/30 bg-[#b7955b]/10 px-4 py-3 text-sm leading-7 text-[#e5d2ae]">
+              {phoneOn || inStudioApp()
+                ? "اعلان گوشی از داخل خود اپ روشن است. بعد از هر تأیید، بالای صفحه و نوار اعلان گوشی خبر می‌دهد."
+                : "اگر اعلان نیامد، اجازه اعلان را در پنجره گوشی تأیید کن. لازم نیست از تنظیمات جداگانه چیزی را دستی روشن کنی."}
+            </p>
             <Button variant="outline" className="h-11 border-white/15 bg-transparent text-[#e5d2ae]" onClick={refresh}>
               تازه کردن وضعیت
             </Button>

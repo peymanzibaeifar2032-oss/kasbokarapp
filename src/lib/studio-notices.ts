@@ -1,6 +1,21 @@
 export const STUDIO_PHONE_NOTICES_KEY = "studio-phone-notices";
 export const STUDIO_SEEN_NOTICES_KEY = "studio-seen-notices";
 
+type AndroidBridge = {
+  showNotice?: (title: string, body: string) => void;
+  noticesReady?: () => boolean;
+};
+
+function androidBridge(): AndroidBridge | null {
+  if (typeof window === "undefined") return null;
+  const bridge = (window as Window & { AndroidApp?: AndroidBridge }).AndroidApp;
+  return bridge ?? null;
+}
+
+export function inStudioApp() {
+  return Boolean(androidBridge());
+}
+
 function readSeen(): string[] {
   try {
     const raw = localStorage.getItem(STUDIO_SEEN_NOTICES_KEY);
@@ -26,6 +41,7 @@ export function unseenStudioNoticeIds(ids: string[]) {
 }
 
 export function phoneNoticesEnabled() {
+  if (inStudioApp()) return true;
   return (
     typeof window !== "undefined" &&
     "Notification" in window &&
@@ -34,15 +50,26 @@ export function phoneNoticesEnabled() {
   );
 }
 
-export async function enableStudioPhoneNotices() {
-  if (typeof window === "undefined" || !("Notification" in window)) {
-    throw new Error("این دستگاه اعلان سیستم را پشتیبانی نمی‌کند.");
+export async function ensureStudioPhoneNotices() {
+  if (inStudioApp()) {
+    localStorage.setItem(STUDIO_PHONE_NOTICES_KEY, "1");
+    return true;
   }
+  if (typeof window === "undefined" || !("Notification" in window)) return false;
+  if (Notification.permission === "granted") {
+    localStorage.setItem(STUDIO_PHONE_NOTICES_KEY, "1");
+    return true;
+  }
+  if (Notification.permission === "denied") return false;
   const perm = await Notification.requestPermission();
-  if (perm !== "granted") {
-    throw new Error("اجازه اعلان داده نشد. از تنظیمات گوشی برای این اپ اجازه بده.");
-  }
+  if (perm !== "granted") return false;
   localStorage.setItem(STUDIO_PHONE_NOTICES_KEY, "1");
+  return true;
+}
+
+export async function enableStudioPhoneNotices() {
+  const ok = await ensureStudioPhoneNotices();
+  if (!ok) throw new Error("اجازه اعلان داده نشد.");
   showStudioOsNotice(
     "اعلان نوبت تاتو فعال شد",
     "بعد از هر تأیید یا پیام پیمان، وضعیت در اعلان گوشی می‌آید.",
@@ -51,6 +78,15 @@ export async function enableStudioPhoneNotices() {
 }
 
 export function showStudioOsNotice(title: string, body: string, id: string) {
+  const app = androidBridge();
+  if (app?.showNotice) {
+    try {
+      app.showNotice(title, body);
+    } catch {
+      /* ignore bridge errors */
+    }
+    return;
+  }
   if (!phoneNoticesEnabled()) return;
   try {
     new Notification(title, {
