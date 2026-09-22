@@ -85,6 +85,12 @@ export const TATTOO_SETTLEMENT_PRESETS = [
   },
 ] as const;
 
+export const STUDIO_OWNER_STAFF_NAME = "پیمان زیبائی‌فر";
+
+export function isRetiredCollaborator(name: string) {
+  return /مهر+داد/.test(name.replace(/\s/g, ""));
+}
+
 export function tattooBalance(priceToman: number | null | undefined, paidToman: number | null | undefined) {
   const total = Math.max(0, Number(priceToman) || 0);
   const paid = Math.max(0, Number(paidToman) || 0);
@@ -104,5 +110,3 @@ export function formatTattooToman(value: number) {
 export function formatCardNumber(card: string) {
   return card.replace(/\D/g, "").replace(/(\d{4})(?=\d)/g, "$1-");
 }
-
-

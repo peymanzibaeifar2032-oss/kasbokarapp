@@ -18,7 +18,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
-import { tattooBalance } from "@/lib/tattoo-flow";
+import { tattooBalance, STUDIO_OWNER_STAFF_NAME } from "@/lib/tattoo-flow";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -226,6 +226,7 @@ type TattooRequestRow = {
   booking_id: string | null;
   customer_name: string;
   customer_phone: string;
+  customer_phone_2: string | null;
   request_type: "new" | "coverup" | "consultation";
   style: string;
   idea: string;
@@ -277,6 +278,7 @@ function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = [])
     bookingId: row.booking_id,
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
+    customerPhone2: row.customer_phone_2 || "",
     requestType: row.request_type,
     style: row.style,
     idea: row.idea,
@@ -338,6 +340,7 @@ async function mapTattooRequestRows(sql: Awaited<ReturnType<typeof getSql>>, row
 }
 
 const tattooRequestSelect = `select id, customer_id, business_id, booking_id, customer_name, customer_phone,
+  coalesce(customer_phone_2,'') as customer_phone_2,
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
   reference_images, body_images, status, price_min_toman, price_max_toman,
   session_minutes, session_count, deposit_toman, artist_message, payment_status, payment_hold_until,
@@ -355,6 +358,7 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
   const data = z.object({
     customerName: z.string().trim().min(2, "نام را کامل بنویسید.").max(80),
     customerPhone: z.string().trim().max(40),
+    customerPhone2: z.string().trim().max(40).optional(),
     requestType: z.enum(["new", "coverup", "consultation"]),
     style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(80),
     idea: z.string().trim().min(10, "ایده را کمی کامل‌تر توضیح دهید.").max(1500),
@@ -367,16 +371,21 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
   }).parse(raw);
   const phone = normalizeIranPhone(data.customerPhone);
   if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
+  let phone2: string | null = null;
+  if (data.customerPhone2?.trim()) {
+    phone2 = normalizeIranPhone(data.customerPhone2);
+    if (!isIranMobile(phone2)) throw new Error("شماره موبایل دوم معتبر نیست.");
+  }
   const bytes = [...data.referenceImages, ...data.bodyImages].reduce((sum, value) => sum + value.length, 0);
   if (bytes > 3_500_000) throw new Error("حجم مجموع عکس‌ها زیاد است. عکس‌های کم‌حجم‌تر بفرستید.");
   const sql = await getSql();
   const id = crypto.randomUUID();
   await sql.query(
     `insert into tattoo_requests
-      (id, customer_id, customer_name, customer_phone, request_type, style, idea, placement,
+      (id, customer_id, customer_name, customer_phone, customer_phone_2, request_type, style, idea, placement,
        size_cm, preferred_dates, budget_toman, reference_images, body_images)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb)`,
-    [id, userId, data.customerName, phone, data.requestType, data.style, data.idea, data.placement,
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb)`,
+    [id, userId, data.customerName, phone, phone2, data.requestType, data.style, data.idea, data.placement,
       data.sizeCm, data.preferredDates || null, data.budgetToman ?? null,
       JSON.stringify(data.referenceImages), JSON.stringify(data.bodyImages)],
   );
@@ -777,23 +786,6 @@ async function loadOccupancy(sql: Sql, businessId: string, untilIso: string): Pr
 }
 
 export async function loadResources(sql: Sql, businessId: string): Promise<BusinessResource[]> {
-  try {
-    await sql.query(
-      `update bookings set status='cancelled'
-        where business_id = $1
-          and status in ('requested','confirmed')
-          and resource_id in (
-            select id from business_resources where business_id = $1 and name ilike '%مهرداد%'
-          )`,
-      [businessId],
-    );
-    await sql.query(
-      `delete from business_resources where business_id = $1 and name ilike '%مهرداد%'`,
-      [businessId],
-    );
-  } catch {
-    /* preview/old schema: staff list still loads */
-  }
   const rows = await sql.query<{
     id: string;
     business_id: string;
@@ -807,6 +799,8 @@ export async function loadResources(sql: Sql, businessId: string): Promise<Busin
     `select r.id, r.business_id, r.kind, r.name, r.color, r.active, r.sort_order, r.capacity
        from business_resources r
       where r.business_id = $1
+        and r.name not ilike '%مهرداد%'
+        and r.name not ilike '%مهررداد%'
       order by r.sort_order, r.created_at`,
     [businessId],
   );
@@ -1723,9 +1717,11 @@ async function performBusy(raw: unknown) {
   return rows.map((r) => ({ start: r.slot_start, end: r.slot_end, resourceId: r.resource_id }));
 }
 
-async function performListResources(raw: unknown) {
+async function performListResources(userId: string, raw: unknown) {
   const data = z.object({ businessId: z.string() }).parse(raw);
   const sql = await getSql();
+  const owned = await sql.query(`select id from businesses where id = $1 and owner_id = $2`, [data.businessId, userId]);
+  if (owned[0]) await removeRetiredCollaborators(sql, userId);
   return loadResources(sql, data.businessId);
 }
 
@@ -1765,17 +1761,34 @@ async function removeRetiredCollaborators(sql: Awaited<ReturnType<typeof getSql>
       where status in ('requested','confirmed')
         and resource_id in (
           select id from business_resources
-           where name ilike '%مهرداد%'
+           where (name ilike '%مهرداد%' or name ilike '%مهررداد%')
              and business_id in (select id from businesses where owner_id = $1)
         )`,
     [userId],
   );
   await sql.query(
     `delete from business_resources
-      where name ilike '%مهرداد%'
+      where (name ilike '%مهرداد%' or name ilike '%مهررداد%')
         and business_id in (select id from businesses where owner_id = $1)`,
     [userId],
   );
+  const shops = await sql.query<{ id: string }>(
+    `select id from businesses where owner_id = $1`,
+    [userId],
+  );
+  for (const shop of shops) {
+    const named = await sql.query<{ id: string }>(
+      `select id from business_resources where business_id = $1 and name ilike '%پیمان%' limit 1`,
+      [shop.id],
+    );
+    if (!named[0]) {
+      await sql.query(
+        `insert into business_resources (id, business_id, kind, name, active, capacity, sort_order)
+         values ($1,$2,'staff',$3,true,1,0)`,
+        [crypto.randomUUID(), shop.id, STUDIO_OWNER_STAFF_NAME],
+      );
+    }
+  }
 }
 
 async function performDeleteResource(userId: string, raw: unknown) {
@@ -1822,30 +1835,59 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
   const data = z.object({
     id: z.string(),
     customerName: z.string().trim().min(2).max(80).optional(),
+    customerPhone: z.string().trim().max(40).optional(),
+    customerPhone2: z.string().trim().max(40).optional().nullable(),
     style: z.string().trim().min(2).max(80).optional(),
     idea: z.string().trim().max(1500).optional(),
     placement: z.string().trim().min(2).max(120).optional(),
     sizeCm: z.string().trim().max(60).optional(),
     priceMinToman: z.number().int().min(0).max(2_000_000_000).optional(),
     settled: z.boolean().optional(),
+    referenceImages: z.array(imageDataSchema).max(3).optional(),
   }).parse(raw);
   const sql = await getSql();
   const current = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   if (!current[0]) throw new Error("کار پیدا نشد.");
   const price = data.priceMinToman ?? current[0].price_min_toman;
   const settled = data.settled ?? tattooBalance(price, current[0].paid_toman).settled;
+  let phone: string | null = null;
+  if (data.customerPhone?.trim()) {
+    phone = normalizeIranPhone(data.customerPhone);
+    if (!isIranMobile(phone)) throw new Error("شماره موبایل معتبر نیست.");
+  }
+  let phone2: string | null | undefined = data.customerPhone2 === undefined ? undefined : null;
+  if (data.customerPhone2?.trim()) {
+    phone2 = normalizeIranPhone(data.customerPhone2);
+    if (!isIranMobile(phone2)) throw new Error("شماره موبایل دوم معتبر نیست.");
+  }
   await sql.query(
     `update tattoo_requests set
        customer_name=coalesce($2, customer_name),
-       style=coalesce($3, style),
-       idea=coalesce($4, idea),
-       placement=coalesce($5, placement),
-       size_cm=coalesce($6, size_cm),
-       price_min_toman=coalesce($7, price_min_toman),
-       settled=$8,
+       customer_phone=coalesce($3, customer_phone),
+       customer_phone_2=case when $11 then $4 else customer_phone_2 end,
+       style=coalesce($5, style),
+       idea=coalesce($6, idea),
+       placement=coalesce($7, placement),
+       size_cm=coalesce($8, size_cm),
+       price_min_toman=coalesce($9, price_min_toman),
+       settled=$10,
+       reference_images=coalesce($12::jsonb, reference_images),
        updated_at=now()
      where id=$1`,
-    [data.id, data.customerName ?? null, data.style ?? null, data.idea ?? null, data.placement ?? null, data.sizeCm ?? null, data.priceMinToman ?? null, settled],
+    [
+      data.id,
+      data.customerName ?? null,
+      phone,
+      phone2 === undefined ? null : phone2,
+      data.style ?? null,
+      data.idea ?? null,
+      data.placement ?? null,
+      data.sizeCm ?? null,
+      data.priceMinToman ?? null,
+      settled,
+      data.customerPhone2 !== undefined,
+      data.referenceImages ? JSON.stringify(data.referenceImages) : null,
+    ],
   );
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const mapped = await mapTattooRequestRows(sql, rows);
@@ -1886,6 +1928,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     businessId: z.string(),
     customerName: z.string().trim().min(2).max(80),
     customerPhone: z.string().trim().max(40).optional(),
+    customerPhone2: z.string().trim().max(40).optional(),
     style: z.string().trim().min(2).max(80),
     idea: z.string().trim().max(1500).optional(),
     placement: z.string().trim().min(2).max(120),
@@ -1895,6 +1938,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     sessionMinutes: z.number().int().min(10).max(4320).optional(),
     slotStart: z.string(),
     resourceId: z.string().max(80).optional().nullable(),
+    referenceImages: z.array(imageDataSchema).max(3).default([]),
   }).parse(raw);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
@@ -1922,6 +1966,14 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     phone = normalizeIranPhone(data.customerPhone);
     if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
   }
+  let phone2: string | null = null;
+  if (data.customerPhone2?.trim()) {
+    phone2 = normalizeIranPhone(data.customerPhone2);
+    if (!isIranMobile(phone2)) throw new Error("شماره موبایل دوم معتبر نیست.");
+  }
+  const images = data.referenceImages ?? [];
+  const bytes = images.reduce((sum, value) => sum + value.length, 0);
+  if (bytes > 3_500_000) throw new Error("حجم عکس‌ها زیاد است. عکس کم‌حجم‌تر بفرستید.");
   const bookingId = crypto.randomUUID();
   const requestId = crypto.randomUUID();
   const paid = data.paidToman ?? 0;
@@ -1938,11 +1990,11 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   }
   await sql.query(
     `insert into tattoo_requests
-      (id, customer_id, business_id, booking_id, customer_name, customer_phone, request_type, style, idea, placement,
+      (id, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, request_type, style, idea, placement,
        size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
-       payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled)
-     values ($1,$2,$3,$4,$5,$6,'new',$7,$8,$9,$10,'booked',$11,$12,1,$13,'ثبت دستی از تقویم کاری','approved',$14,$15,$16,$17)`,
-    [requestId, userId, data.businessId, bookingId, data.customerName, phone, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled],
+       payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images)
+     values ($1,$2,$3,$4,$5,$6,$7,'new',$8,$9,$10,$11,'booked',$12,$13,1,$14,'ثبت دستی از تقویم کاری','approved',$15,$16,$17,$18,$19::jsonb)`,
+    [requestId, userId, data.businessId, bookingId, data.customerName, phone, phone2, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images)],
   );
   if (paid > 0) {
     await sql.query(`insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`, [crypto.randomUUID(), requestId, paid, "واریز ثبت‌شده هنگام ورود دستی"]);
@@ -2077,7 +2129,7 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     case "busySlots":
       return performBusy(payload);
     case "listResources":
-      return performListResources(payload);
+      return performListResources(userId, payload);
     case "upsertResource":
       return performUpsertResource(userId, payload);
     case "deleteResource":

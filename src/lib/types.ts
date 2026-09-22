@@ -191,6 +191,7 @@ export type TattooRequest = {
   bookingId: string | null;
   customerName: string;
   customerPhone: string;
+  customerPhone2: string;
   requestType: "new" | "coverup" | "consultation";
   style: string;
   idea: string;

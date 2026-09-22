@@ -23,10 +23,11 @@ describe("i18n foundation", () => {
     assert.equal(t("intentOpenNow"), "الان باز است");
     assert.equal(t("intentFreeToday"), "وقت آزاد امروز");
     assert.equal(t("nearMeUse"), "استفاده از موقعیت");
-    assert.equal(t("blockInterval"), "بستن بازه");
+    assert.equal(t("blockInterval"), "بستن ساعت خالی");
     assert.equal(t("anyStaff"), "هر کدام");
     assert.equal(t("globalBlock"), "کل کسب‌وکار");
     assert.equal(t("pickResource"), "منبع را انتخاب کنید");
+    assert.equal(t("manualAppt"), "ثبت اجرا");
   });
 
   it("english catalog falls back to Persian until translations exist", () => {

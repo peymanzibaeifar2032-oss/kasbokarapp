@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, tattooBalance, tattooStage } from "../tattoo-flow.ts";
+import { STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, isRetiredCollaborator, tattooBalance, tattooStage } from "../tattoo-flow.ts";
 import {
   expireTattooHoldSql,
   TATTOO_OVERDUE_REVIEW_SQL,
@@ -387,5 +387,12 @@ describe("tattooBalance and bank presets", () => {
       assert.equal(preset.iban, "IR160140040000152900013417");
       assert.equal(preset.card, "6280231566846282");
     }
+  });
+
+  it("keeps only Peyman as studio staff and drops Mehrdad spellings", () => {
+    assert.equal(STUDIO_OWNER_STAFF_NAME, "پیمان زیبائی‌فر");
+    assert.equal(isRetiredCollaborator("مهرداد"), true);
+    assert.equal(isRetiredCollaborator("مهررداد"), true);
+    assert.equal(isRetiredCollaborator("پیمان زیبائی‌فر"), false);
   });
 });

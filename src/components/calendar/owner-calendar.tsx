@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MonthGrid } from "@/components/calendar/month-grid";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
+import { StudioJobForm } from "@/components/studio/job-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/hours";
 import { t } from "@/lib/i18n";
 import { friendlyError, saveAction } from "@/lib/save";
+import { isRetiredCollaborator } from "@/lib/tattoo-flow";
 import type { Booking, Business } from "@/lib/types";
 import type { BusinessResource } from "@/lib/calendar/resources";
 import { cn } from "@/lib/utils";
@@ -135,6 +137,7 @@ export function OwnerCalendar({
     setCursor(new Date(next.getTime() + 12 * 3600000));
   }
 
+  const visibleStaff = resources.filter((r) => r.active !== false && !isRetiredCollaborator(r.name));
   const dayKey = gregKey(clock.y, clock.m, clock.day);
   const dayRows = byDay.get(dayKey) ?? [];
 
@@ -159,16 +162,14 @@ export function OwnerCalendar({
               ))}
             </NativeSelect>
           ) : null}
-          {resources.length ? (
+          {visibleStaff.length > 1 ? (
             <NativeSelect
               value={resourceFilter}
               onChange={(e) => setResourceFilter(e.target.value)}
               className="h-10"
             >
               <option value="">{t("allResources")}</option>
-              {resources
-                .filter((r) => !/مهرداد/.test(r.name))
-                .map((r) => (
+              {visibleStaff.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}
                 </option>
@@ -197,7 +198,7 @@ export function OwnerCalendar({
         resources={resources}
         onChange={(rows) => setResources(rows)}
       />
-      <QuickCreate businesses={businesses} resources={resources} onChange={onChange} />
+      <QuickCreate businesses={businesses} resources={resources} bookings={items} onChange={onChange} />
 
       {view === "month" ? (
         <MonthGrid
@@ -501,7 +502,7 @@ function StaffRoster({
       {resources.length ? (
         <ul className="mt-2 space-y-1 text-sm">
           {resources
-            .filter((r) => !/مهرداد/.test(r.name))
+            .filter((r) => !isRetiredCollaborator(r.name))
             .map((r) => (
             <li key={r.id} className="flex items-center justify-between gap-2">
               <span>
@@ -575,21 +576,21 @@ function QuickCreate({
   businesses,
   resources,
   onChange,
+  bookings,
 }: {
   businesses: Business[];
   resources: BusinessResource[];
+  bookings: Booking[];
   onChange: () => void;
 }) {
-  const [mode, setMode] = useState<"block" | "manual">("block");
+  const [mode, setMode] = useState<"manual" | "block">("manual");
   const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
   const [resourceId, setResourceId] = useState("");
   const [day, setDay] = useState("");
   const [start, setStart] = useState("12:00");
   const [end, setEnd] = useState("13:00");
   const [note, setNote] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [eventType, setEventType] = useState<"block" | "break" | "personal" | "holiday">("block");
+  const [eventType, setEventType] = useState<"block" | "break" | "personal" | "holiday">("break");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -597,13 +598,13 @@ function QuickCreate({
   }, [businesses, businessId]);
 
   useEffect(() => {
-    const active = resources.filter((r) => r.active !== false && !/مهرداد/.test(r.name));
+    const active = resources.filter((r) => r.active !== false && !isRetiredCollaborator(r.name));
     if (active.length === 1) setResourceId(active[0].id);
   }, [resources]);
 
-  async function submit() {
+  async function submitBlock() {
     if (!day || !businessId) {
-      toast.error("روز و کسب‌وکار را انتخاب کنید.");
+      toast.error("روز را انتخاب کنید.");
       return;
     }
     const [y, m, d] = day.split("-").map(Number);
@@ -613,32 +614,15 @@ function QuickCreate({
     const slotEnd = tehranLocalToIso(y, m, d, eh, em);
     setBusy(true);
     try {
-      if (mode === "block") {
-        await saveAction("blockInterval", {
-          businessId,
-          slotStart,
-          slotEnd,
-          note,
-          eventType,
-          resourceId: resourceId || null,
-        });
-        toast.success("بازه بسته شد.");
-      } else {
-        if (name.trim().length < 2) throw new Error("نام مشتری را بنویسید.");
-        if (name.trim().length < 2) throw new Error("نام مشتری را بنویسید.");
-        const staffed = resources.some((r) => r.active !== false);
-        if (staffed && !resourceId) throw new Error(t("pickResource"));
-        await saveAction("manualAppointment", {
-          businessId,
-          slotStart,
-          slotEnd,
-          customerName: name,
-          customerPhone: phone || undefined,
-          note,
-          resourceId: resourceId || null,
-        });
-        toast.success("نوبت دستی ثبت شد.");
-      }
+      await saveAction("blockInterval", {
+        businessId,
+        slotStart,
+        slotEnd,
+        note,
+        eventType,
+        resourceId: resourceId || null,
+      });
+      toast.success("این ساعت در تقویم بسته شد.");
       onChange();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -649,80 +633,71 @@ function QuickCreate({
 
   return (
     <article className="rounded-2xl border border-dashed border-border bg-surface p-4">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           className={cn(
-            "h-10 rounded-full border px-3 text-sm",
-            mode === "block" ? "border-primary bg-primary text-primary-fg" : "border-border",
-          )}
-          onClick={() => setMode("block")}
-        >
-          {t("blockInterval")}
-        </button>
-        <button
-          type="button"
-          className={cn(
-            "h-10 rounded-full border px-3 text-sm",
+            "h-11 rounded-full border px-4 text-sm font-semibold",
             mode === "manual" ? "border-primary bg-primary text-primary-fg" : "border-border",
           )}
           onClick={() => setMode("manual")}
         >
-          {t("manualAppt")}
+          ثبت اجرا
+        </button>
+        <button
+          type="button"
+          className={cn(
+            "h-11 rounded-full border px-4 text-sm",
+            mode === "block" ? "border-primary bg-primary text-primary-fg" : "border-border",
+          )}
+          onClick={() => setMode("block")}
+        >
+          بستن ساعت خالی
         </button>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
-          {businesses.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </NativeSelect>
-        {resources.length ? (
-          <NativeSelect value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
-            <option value="">{mode === "block" ? t("globalBlock") : t("pickResource")}</option>
-            {resources
-              .filter((r) => r.active !== false && !/مهرداد/.test(r.name))
-              .map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-          </NativeSelect>
-        ) : null}
-        {mode === "block" ? (
-          <NativeSelect
-            value={eventType}
-            onChange={(e) => setEventType(e.target.value as typeof eventType)}
-          >
-            <option value="block">بستن</option>
-            <option value="break">استراحت</option>
-            <option value="personal">شخصی</option>
-            <option value="holiday">تعطیلی</option>
-          </NativeSelect>
-        ) : null}
-        <JalaliDatePicker value={day} onChange={setDay} label="تاریخ شمسی" />
-        <div className="grid grid-cols-2 gap-2">
-          <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-          <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-        </div>
-        {mode === "manual" ? (
-          <>
-            <Input placeholder="نام مشتری" value={name} onChange={(e) => setName(e.target.value)} />
-            <Input
-              placeholder="موبایل"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              dir="ltr"
-            />
-          </>
-        ) : null}
-        <Textarea placeholder="یادداشت" value={note} onChange={(e) => setNote(e.target.value)} />
-      </div>
-      <Button className="mt-3" disabled={busy} onClick={() => void submit()}>
-        {mode === "block" ? t("blockSubmit") : "ثبت نوبت دستی"}
-      </Button>
+      {mode === "manual" ? (
+        <>
+          <p className="mt-3 text-sm leading-7 text-muted">
+            اجرای تاتو را اینجا ذخیره کنید: نام، طرح، محل اجرا، ابعاد، قیمت، واریزی، عکس و شماره تماس.
+          </p>
+          <StudioJobForm businesses={businesses} bookings={bookings} onCreated={onChange} embedded />
+        </>
+      ) : (
+        <>
+          <p className="mt-3 text-sm leading-7 text-muted">
+            این بخش برای اجرای کار نیست. وقتی آن ساعت کار نمی‌کنید — استراحت، کار شخصی یا تعطیلی — ساعت را ببندید تا کسی رزرو نکند.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {businesses.length > 1 ? (
+              <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            ) : null}
+            <NativeSelect
+              value={eventType}
+              onChange={(e) => setEventType(e.target.value as typeof eventType)}
+            >
+              <option value="break">استراحت</option>
+              <option value="personal">کار شخصی</option>
+              <option value="holiday">تعطیلی</option>
+              <option value="block">بستن فروشگاه</option>
+            </NativeSelect>
+            <JalaliDatePicker value={day} onChange={setDay} label="تاریخ شمسی" />
+            <div className="grid grid-cols-2 gap-2">
+              <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+              <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            </div>
+            <Textarea placeholder="یادداشت اختیاری" value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          <Button className="mt-3" disabled={busy} onClick={() => void submitBlock()}>
+            بستن این ساعت‌ها
+          </Button>
+        </>
+      )}
     </article>
   );
 }

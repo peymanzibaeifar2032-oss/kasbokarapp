@@ -3,36 +3,17 @@ import { CheckCircle2, ChevronLeft, ImagePlus, Loader2, ShieldCheck } from "luci
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SignedOutPanel } from "@/components/layout/auth-required";
+import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { compressImage, designFileName, downloadImage } from "@/lib/design-images";
 import { formatFaDate, formatFaDateTime, formatToman } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 import type { Profile, TattooRequest } from "@/lib/types";
 
 export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
-
-async function compressImage(file: File): Promise<string> {
-  if (!file.type.startsWith("image/")) throw new Error("فقط فایل تصویری انتخاب کنید.");
-  const url = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.src = url;
-    await image.decode();
-    const max = 1280;
-    const scale = Math.min(1, max / Math.max(image.width, image.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("پردازش عکس انجام نشد.");
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.76);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 function StudioRequestPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
@@ -41,6 +22,7 @@ function StudioRequestPage() {
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [phone2, setPhone2] = useState("");
   const [requestType, setRequestType] = useState<"new" | "coverup" | "consultation">("new");
   const [style, setStyle] = useState("رئال و بلک‌اندگری");
   const [idea, setIdea] = useState("");
@@ -101,6 +83,7 @@ function StudioRequestPage() {
       await saveAction("createTattooRequest", {
         customerName: name,
         customerPhone: phone,
+        customerPhone2: phone2.trim() || undefined,
         requestType,
         style,
         idea,
@@ -159,6 +142,15 @@ function StudioRequestPage() {
                 onChange={(e) => setPhone(e.target.value)}
                 inputMode="tel"
                 dir="ltr"
+              />
+            </Field>
+            <Field label="شماره دوم (اختیاری)">
+              <Input
+                value={phone2}
+                onChange={(e) => setPhone2(e.target.value)}
+                inputMode="tel"
+                dir="ltr"
+                placeholder="اگر دو تا شماره دارید"
               />
             </Field>
             <Field label="نوع درخواست">
@@ -322,15 +314,25 @@ function ImageField({
       {images.length ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {images.map((src, i) => (
-            <button
-              type="button"
-              key={`${src.slice(-20)}-${i}`}
-              onClick={() => onRemove(i)}
-              className="relative aspect-square overflow-hidden rounded-lg border border-white/10"
-            >
+            <div key={`${src.slice(-20)}-${i}`} className="relative aspect-square overflow-hidden rounded-lg border border-white/10">
               <img src={src} alt="تصویر انتخابی" className="size-full object-cover" />
-              <span className="absolute inset-x-0 bottom-0 bg-black/70 py-1 text-[10px]">حذف</span>
-            </button>
+              <div className="absolute inset-x-0 bottom-0 flex">
+                <button
+                  type="button"
+                  className="flex-1 bg-black/70 py-1 text-[10px]"
+                  onClick={() => downloadImage(src, designFileName(title, i))}
+                >
+                  دانلود
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 bg-black/80 py-1 text-[10px]"
+                  onClick={() => onRemove(i)}
+                >
+                  حذف
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       ) : null}
@@ -407,6 +409,11 @@ function RequestCard({ request, onChange }: { request: TattooRequest; onChange: 
           {TATTOO_CUSTOMER_STAGE_LABEL[stage]}
         </span>
       </div>
+      <DesignThumbs
+        images={[...request.referenceImages, ...request.bodyImages]}
+        filePrefix={request.style}
+        tone="dark"
+      />
       {request.artistMessage ? (
         <p className="mt-4 text-sm leading-7 text-white/65">{request.artistMessage}</p>
       ) : null}

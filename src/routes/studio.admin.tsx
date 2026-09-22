@@ -1,9 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, Images, RefreshCw } from "lucide-react";
+import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
+import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { StudioJobForm } from "@/components/studio/job-form";
 import { SignedOutPanel } from "@/components/layout/auth-required";
 import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import type { BusinessResource } from "@/lib/calendar/resources";
 import { formatFaDateTime } from "@/lib/format";
 import { tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
@@ -387,23 +388,18 @@ function TattooAdminCard({
         <a className="text-accent" href={`tel:${request.customerPhone}`}>
           {request.customerPhone}
         </a>
+        {request.customerPhone2 ? (
+          <a className="text-accent" href={`tel:${request.customerPhone2}`}>
+            دوم: {request.customerPhone2}
+          </a>
+        ) : null}
         {request.preferredDates ? <span>زمان مناسب مشتری: {request.preferredDates}</span> : null}
         {request.budgetToman ? <span>بودجه: {formatTattooToman(request.budgetToman)}</span> : null}
       </div>
-      {[...request.referenceImages, ...request.bodyImages].length ? (
-        <div className="mt-4 flex gap-2 overflow-x-auto">
-          <Images className="mt-7 size-5 shrink-0 text-muted" />
-          {[...request.referenceImages, ...request.bodyImages].map((src, index) => (
-            <a key={`${request.id}-${index}`} href={src} target="_blank" rel="noreferrer">
-              <img
-                src={src}
-                alt="عکس درخواست"
-                className="size-24 rounded-xl border border-border object-cover"
-              />
-            </a>
-          ))}
-        </div>
-      ) : null}
+      <DesignThumbs
+        images={[...request.referenceImages, ...request.bodyImages]}
+        filePrefix={`${request.customerName}-${request.style}`}
+      />
 
       {request.paymentStatus === "expired" ? (
         <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
@@ -765,7 +761,7 @@ function MonthJobsPanel({
         </div>
       </div>
 
-      <ManualJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} />
+      <StudioJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} />
 
       {error ? (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -792,172 +788,6 @@ function MonthJobsPanel({
   );
 }
 
-function ManualJobForm({
-  businesses,
-  bookings,
-  onCreated,
-}: {
-  businesses: Business[];
-  bookings: Booking[];
-  onCreated: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [style, setStyle] = useState("");
-  const [placement, setPlacement] = useState("");
-  const [idea, setIdea] = useState("");
-  const [sizeCm, setSizeCm] = useState("");
-  const [price, setPrice] = useState("");
-  const [paid, setPaid] = useState("");
-  const [day, setDay] = useState("");
-  const [time, setTime] = useState("12:00");
-  const [minutes, setMinutes] = useState("180");
-  const [resourceId, setResourceId] = useState("");
-  const [resources, setResources] = useState<BusinessResource[]>([]);
-  const [busy, setBusy] = useState(false);
-  const busyKeys = useMemo(
-    () =>
-      bookings
-        .filter((booking) => booking.businessId === businessId && booking.status !== "cancelled")
-        .map((booking) => tehranDayKey(new Date(booking.slotStart))),
-    [bookings, businessId],
-  );
-
-  useEffect(() => {
-    if (!businessId && businesses[0]) setBusinessId(businesses[0].id);
-  }, [businesses, businessId]);
-
-  useEffect(() => {
-    if (!businessId) return;
-    void saveAction<BusinessResource[]>("listResources", { businessId })
-      .then((rows) => {
-        const active = rows.filter((row) => row.active !== false && !/مهرداد/.test(row.name));
-        setResources(active);
-        if (active.length === 1) setResourceId(active[0].id);
-      })
-      .catch(() => setResources([]));
-  }, [businessId]);
-
-  async function submit() {
-    if (name.trim().length < 2) return toast.error("نام مشتری را بنویسید.");
-    if (style.trim().length < 2) return toast.error("طرح را بنویسید.");
-    if (placement.trim().length < 2) return toast.error("محل اجرا را بنویسید.");
-    if (!price) return toast.error("مبلغ کل را بنویسید.");
-    if (!day || !time) return toast.error("تاریخ و ساعت را انتخاب کنید.");
-    if (!businessId) return toast.error("صفحه کسب‌وکار را انتخاب کنید.");
-    const [y, m, d] = day.split("-").map(Number);
-    const [hh, mm] = time.split(":").map(Number);
-    setBusy(true);
-    try {
-      await saveAction("createStudioJob", {
-        businessId,
-        customerName: name.trim(),
-        customerPhone: phone.trim() || undefined,
-        style: style.trim(),
-        idea: idea.trim() || style.trim(),
-        placement: placement.trim(),
-        sizeCm: sizeCm.trim() || undefined,
-        priceMinToman: Number(price),
-        paidToman: paid ? Number(paid) : 0,
-        sessionMinutes: minutes ? Number(minutes) : 180,
-        slotStart: tehranLocalToIso(y, m, d, hh, mm),
-        resourceId: resourceId || undefined,
-      });
-      toast.success("کار به تقویم و لیست ماه اضافه شد.");
-      setName("");
-      setPhone("");
-      setStyle("");
-      setPlacement("");
-      setIdea("");
-      setSizeCm("");
-      setPrice("");
-      setPaid("");
-      setDay("");
-      setOpen(false);
-      onCreated();
-    } catch (err) {
-      toast.error(friendlyError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <article className="rounded-2xl border border-dashed border-border bg-surface p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="font-semibold">ثبت دستی کار عقب‌افتاده</h3>
-          <p className="mt-1 text-sm text-muted">برای نوبت‌هایی که از لیست گوشی دارید و هنوز در تقویم نیستند.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => setOpen((value) => !value)}>
-          {open ? "بستن فرم" : "افزودن به تقویم کاری"}
-        </Button>
-      </div>
-      {open ? (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {businesses.length > 1 ? (
-              <Field label="صفحه کسب‌وکار">
-                <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
-                  {businesses.map((business) => (
-                    <option key={business.id} value={business.id}>
-                      {business.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-            ) : null}
-            {resources.length > 1 ? (
-              <Field label="کارشناس">
-                <NativeSelect value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
-                  <option value="">انتخاب کنید</option>
-                  {resources.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {row.name}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-            ) : null}
-            <Field label="نام مشتری">
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً محمد محمدی" />
-            </Field>
-            <Field label="موبایل">
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" placeholder="اختیاری" />
-            </Field>
-            <Field label="طرح">
-              <Input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="طرح انتخابی" />
-            </Field>
-            <Field label="محل اجرا">
-              <Input value={placement} onChange={(e) => setPlacement(e.target.value)} placeholder="ساعد، بازو…" />
-            </Field>
-            <Field label="اندازه">
-              <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="اختیاری" />
-            </Field>
-            <NumberField label="مبلغ کل" hint="تومان" value={price} onChange={setPrice} />
-            <NumberField label="واریز شده تا الان" hint="تومان" value={paid} onChange={setPaid} />
-            <NumberField label="مدت جلسه" hint="دقیقه" value={minutes} onChange={setMinutes} />
-            <Field label="تاریخ اجرا">
-              <JalaliDatePicker value={day} onChange={setDay} label="انتخاب روز شمسی" busyKeys={busyKeys} />
-            </Field>
-            <Field label="ساعت">
-              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-            </Field>
-          </div>
-          <Field label="توضیح طرح">
-            <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} placeholder="اختیاری" />
-          </Field>
-          <Button className="mt-3" disabled={busy} onClick={() => void submit()}>
-            ثبت در تقویم و لیست ماه
-          </Button>
-        </>
-      ) : null}
-    </article>
-  );
-}
-
 function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(job.customerName);
@@ -966,12 +796,17 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
   const [idea, setIdea] = useState(job.idea);
   const [sizeCm, setSizeCm] = useState(job.sizeCm);
   const [price, setPrice] = useState(job.priceMinToman?.toString() ?? "");
+  const [phoneEdit, setPhoneEdit] = useState(job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "");
+  const [phone2Edit, setPhone2Edit] = useState(job.customerPhone2 || "");
+  const [images, setImages] = useState<string[]>([...(job.referenceImages ?? [])]);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
   const when = job.proposedSlotStart || job.updatedAt;
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
+  const phone2 = job.customerPhone2 || "";
+  const designs = [...(job.referenceImages ?? []), ...(job.bodyImages ?? [])];
 
   async function save() {
     setBusy(true);
@@ -979,11 +814,14 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
       await saveAction("updateStudioJob", {
         id: job.id,
         customerName: name.trim(),
+        customerPhone: phoneEdit.trim() || undefined,
+        customerPhone2: phone2Edit.trim() || "",
         style: style.trim(),
         placement: placement.trim(),
         idea: idea.trim() || undefined,
         sizeCm: sizeCm.trim() || undefined,
         priceMinToman: price ? Number(price) : undefined,
+        referenceImages: images,
       });
       toast.success("کار به‌روز شد.");
       setEditing(false);
@@ -1030,9 +868,15 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
               {phone}
             </a>
           ) : null}
+          {phone2 ? (
+            <a className="mt-1 mr-3 inline-block text-sm text-accent" href={`tel:${phone2}`}>
+              دوم: {phone2}
+            </a>
+          ) : null}
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
+      <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
         <div className="rounded-2xl border border-border bg-bg p-3">
           <dt className="text-muted">مجموع واریزی</dt>
@@ -1069,6 +913,12 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
             <Field label="نام">
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
+            <Field label="شماره تماس">
+              <Input value={phoneEdit} onChange={(e) => setPhoneEdit(e.target.value)} dir="ltr" />
+            </Field>
+            <Field label="شماره دوم">
+              <Input value={phone2Edit} onChange={(e) => setPhone2Edit(e.target.value)} dir="ltr" />
+            </Field>
             <Field label="طرح">
               <Input value={style} onChange={(e) => setStyle(e.target.value)} />
             </Field>
@@ -1083,6 +933,12 @@ function MonthJobCard({ job, onChange }: { job: TattooRequest; onChange: () => v
               <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} />
             </Field>
           </div>
+          <DesignThumbs
+            images={images}
+            filePrefix={`${name}-${style}`}
+            onFiles={(urls) => setImages((current) => [...current, ...urls].slice(0, 3))}
+            onRemove={(index) => setImages((current) => current.filter((_, i) => i !== index))}
+          />
           <Button className="mt-3" disabled={busy} onClick={() => void save()}>
             ذخیره تغییرات
           </Button>
