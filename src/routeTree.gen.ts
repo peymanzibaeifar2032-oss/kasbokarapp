@@ -28,6 +28,7 @@ import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiMehrLoanLeadsRouteImport } from './routes/api/mehr-loan-leads'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
+import { Route as ApiTattooApkRouteImport } from './routes/api/tattoo-apk'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
@@ -134,6 +135,11 @@ const ApiSearchTraceRoute = ApiSearchTraceRouteImport.update({
   path: '/api/search-trace',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTattooApkRoute = ApiTattooApkRouteImport.update({
+  id: '/api/tattoo-apk',
+  path: '/api/tattoo-apk',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -236,6 +243,7 @@ export interface FileRoutesByTo {
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -301,6 +310,7 @@ export interface FileRouteTypes {
     | '/api/mehr-loan-leads'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/tattoo-apk'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/api/mehr-loan-leads'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/tattoo-apk'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -363,6 +374,7 @@ export interface FileRouteTypes {
     | '/api/mehr-loan-leads'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/tattoo-apk'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -395,6 +407,7 @@ export interface RootRouteChildren {
   ApiMehrLoanLeadsRoute: typeof ApiMehrLoanLeadsRoute
   ApiSaveRoute: typeof ApiSaveRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
+  ApiTattooApkRoute: typeof ApiTattooApkRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPaymentsCallbackRoute: typeof ApiPaymentsCallbackRoute
@@ -537,6 +550,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSearchTraceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tattoo-apk': {
+      id: '/api/tattoo-apk'
+      path: '/api/tattoo-apk'
+      fullPath: '/api/tattoo-apk'
+      preLoaderRoute: typeof ApiTattooApkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/business/$id': {
       id: '/business/$id'
       path: '/business/$id'
@@ -659,6 +679,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMehrLoanLeadsRoute: ApiMehrLoanLeadsRoute,
   ApiSaveRoute: ApiSaveRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
+  ApiTattooApkRoute: ApiTattooApkRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPaymentsCallbackRoute: ApiPaymentsCallbackRoute,

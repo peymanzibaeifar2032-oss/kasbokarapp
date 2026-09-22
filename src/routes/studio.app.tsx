@@ -42,8 +42,8 @@ function StudioAppDownload() {
         </p>
 
         <a
-          href="/apps/rezerv-vaght-tatoo-v3.apk"
-          download="rezerv-vaght-tatoo-v3.apk"
+          href="/apps/rezerv-vaght-tatoo.apk"
+          download="rezerv-vaght-tatoo.apk"
           className="mt-8 inline-flex h-14 items-center gap-2 rounded-full bg-[#b7955b] px-6 text-base font-black text-black"
         >
           <Download className="size-5" />
