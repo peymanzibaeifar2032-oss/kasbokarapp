@@ -63,7 +63,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
   const inApp = inStudioApp();
   const hideGoogle = dest.startsWith("/studio/admin") ? false : inApp || dest.startsWith("/studio");
   const googleOk = Boolean(authMethods.google) && !hideGoogle;
-  const [mode, setMode] = useState<"in" | "up" | "forgot" | "reset">(resetToken ? "reset" : "up");
+  const [mode, setMode] = useState<"in" | "up" | "forgot" | "reset">(resetToken ? "reset" : "in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -94,12 +94,14 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
     setBusy(true);
     try {
       if (mode === "forgot") {
-        const res = await authClient.requestPasswordReset({
-          email,
-          redirectTo: "/login",
+        const res = await fetch("/api/password-reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
         });
-        if (res.error) throw new Error(persianAuthError(res.error.message) || "ارسال پیوند بازیابی انجام نشد.");
-        toast.success("اگر این ایمیل ثبت شده باشد، پیوند بازیابی فرستاده شد.");
+        const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+        if (!res.ok) throw new Error(data?.error || "ارسال پیوند بازیابی انجام نشد.");
+        toast.success(data?.message || "پیوند بازیابی فرستاده شد. پوشهٔ هرزنامه را هم ببین.");
         setMode("in");
         return;
       }
@@ -170,7 +172,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
             : dest.startsWith("/studio")
               ? "داخل اپ فقط با ایمیل وارد شو. گوگل روی گوشی به مرورگر می‌رود و برنمی‌گردد."
             : mode === "forgot"
-            ? "ایمیل حساب را بنویسید. پیوند بازیابی به همان ایمیل می‌رود."
+            ? "اگر نامه نرسید، در مرورگر کروم با گوگل وارد شو و از صفحه حساب رمز اپ را بگذار."
             : mode === "reset"
               ? "رمز جدید را حداقل ۸ کاراکتر بنویسید."
               : googleOk

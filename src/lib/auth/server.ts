@@ -30,6 +30,7 @@
  * a verified id via `@/lib/auth/middleware`.
  */
 import { betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
@@ -37,6 +38,7 @@ import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
+import { findStoredEmail } from "./stored-email";
 import { GATE_PROVIDER_ID, gateIdentitySessions } from "./gate-session.server";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
@@ -256,6 +258,17 @@ export const auth = betterAuth({
   // local loopback variants, or clients get "Invalid origin".
   trustedOrigins,
 
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-in/email" && ctx.path !== "/request-password-reset") return;
+      const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+      if (!email.includes("@")) return;
+      const stored = await findStoredEmail(email).catch(() => null);
+      if (!stored || stored.toLowerCase() === email.trim().toLowerCase()) return;
+      return { context: { body: { ...ctx.body, email: stored } } };
+    }),
+  },
+
   rateLimit: {
     enabled: true,
     window: 60,
@@ -311,7 +324,7 @@ export const auth = betterAuth({
             const { sendAuthMail } = await import("../mail");
             await sendAuthMail({
               to: user.email,
-              subject: "بازیابی رمز عبور کسب‌وکار",
+              subject: "بازیابی رمز ورود رزرو وقت تاتو",
               text: `برای انتخاب رمز جدید این پیوند را باز کنید:\n${url}\n\nاگر این درخواست از شما نبود، نادیده بگیرید.`,
             });
           },

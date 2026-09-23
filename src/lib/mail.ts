@@ -48,10 +48,24 @@ async function sendResend(opts: { to: string; subject: string; text: string; fro
   return true;
 }
 
+let lastAuthMailError: string | null = null;
+
+export function takeAuthMailError() {
+  const error = lastAuthMailError;
+  lastAuthMailError = null;
+  return error;
+}
+
 export async function sendAuthMail(opts: { to: string; subject: string; text: string }) {
+  lastAuthMailError = null;
   const from =
-    env("AUTH_FROM_EMAIL") || env("SMTP_FROM") || env("BUG_NOTIFY_FROM_EMAIL") || "کسب‌وکار <noreply@kasbokarapp.com>";
-  if (await sendSmtp({ ...opts, from })) return;
-  if (await sendResend({ ...opts, from })) return;
-  throw new Error("بازیابی رمز هنوز روی این سرور تنظیم نشده.");
+    env("AUTH_FROM_EMAIL") || env("SMTP_FROM") || env("BUG_NOTIFY_FROM_EMAIL") || "رزرو وقت تاتو <noreply@kasbokarapp.com>";
+  try {
+    if (await sendSmtp({ ...opts, from })) return;
+    if (await sendResend({ ...opts, from })) return;
+    throw new Error("سرور ایمیل تنظیم نشده و پیوند بازیابی فرستاده نمی‌شود.");
+  } catch (err) {
+    lastAuthMailError = err instanceof Error ? err.message : "ارسال ایمیل انجام نشد.";
+    throw err;
+  }
 }
