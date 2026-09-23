@@ -19,10 +19,9 @@ import type { Profile, TattooRequest } from "@/lib/types";
 export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
 
 function StudioRequestPage() {
-  const { user, isPending, sessionError, retry } = useCurrentUserState();
+  const { user } = useCurrentUserState();
   const { showAdmin } = useStudioAdminEntry();
   const userId = user?.id;
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -52,50 +51,11 @@ function StudioRequestPage() {
   useEffect(() => {
     if (!userId) return;
     void saveAction<Profile>("profile").then((p) => {
-      setProfile(p);
       setName(p.displayName || user.displayName || "");
       setPhone(p.phone || "");
     });
     refresh();
   }, [userId]);
-
-  if (!user) {
-    return (
-      <StudioRequestChrome>
-        <main className="mx-auto max-w-5xl px-4 py-10">
-          <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6 sm:p-8">
-            <h1 className="text-2xl font-black">درخواست تاتو</h1>
-            <p className="mt-3 text-sm leading-7 text-white/55">
-              {sessionError
-                ? "بارگذاری پنل انجام نشد."
-                : "برای پر کردن فرم با ایمیل وارد شو. گوگل را نزن."}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {sessionError && retry ? (
-                <button
-                  type="button"
-                  className="inline-flex h-11 items-center rounded-full border border-white/15 px-4 text-sm"
-                  onClick={retry}
-                >
-                  تلاش دوباره
-                </button>
-              ) : null}
-              <a
-                href="/login?next=%2Fstudio%2Frequest"
-                className="inline-flex h-11 items-center rounded-full bg-[#b7955b] px-5 text-sm font-bold text-black"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.location.assign("/login?next=/studio/request");
-                }}
-              >
-                ورود / ثبت‌نام
-              </a>
-            </div>
-          </section>
-        </main>
-      </StudioRequestChrome>
-    );
-  }
 
   async function addImages(files: FileList | null, target: "reference" | "body") {
     if (!files?.length) return;
@@ -117,21 +77,44 @@ function StudioRequestPage() {
   async function submit() {
     setBusy(true);
     try {
-      await saveAction("createTattooRequest", {
-        customerName: name,
-        customerPhone: phone,
-        customerPhone2: phone2.trim() || undefined,
-        customerInstagram: instagram.trim() || undefined,
-        requestType,
-        style,
-        idea,
-        placement,
-        sizeCm,
-        preferredDates,
-        referenceImages,
-        bodyImages,
-      });
-      toast.success("درخواست برای بررسی پیمان ارسال شد.");
+      if (userId) {
+        await saveAction("createTattooRequest", {
+          customerName: name,
+          customerPhone: phone,
+          customerPhone2: phone2.trim() || undefined,
+          customerInstagram: instagram.trim() || undefined,
+          requestType,
+          style,
+          idea,
+          placement,
+          sizeCm,
+          preferredDates,
+          referenceImages,
+          bodyImages,
+        });
+      } else {
+        const res = await fetch("/api/tattoo-public", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: name,
+            customerPhone: phone,
+            customerPhone2: phone2.trim() || undefined,
+            customerInstagram: instagram.trim() || undefined,
+            requestType,
+            style,
+            idea,
+            placement,
+            sizeCm,
+            preferredDates,
+            referenceImages,
+            bodyImages,
+          }),
+        });
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        if (!res.ok) throw new Error(data?.error || "ثبت انجام نشد.");
+      }
+      toast.success("درخواست برای بررسی پیمان ارسال شد. وضعیت را با همین شماره ببین.");
       setIdea("");
       setPlacement("");
       setSizeCm("");
@@ -153,8 +136,8 @@ function StudioRequestPage() {
           <p className="text-xs tracking-[.18em] text-[#b7955b]">PROJECT REQUEST</p>
           <h1 className="mt-2 text-3xl font-black">درخواست بررسی پروژه تاتو</h1>
           <p className="mt-3 text-sm leading-7 text-white/55">
-            ابتدا طرح و محل بدن بررسی می‌شود. بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های
-            مناسب برای شما فعال می‌شود.
+            ابتدا طرح و محل بدن بررسی می‌شود. ایمیل و ساخت حساب لازم نیست؛ نام و شماره کافی است.
+            بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های مناسب برای شما فعال می‌شود.
           </p>
           {showAdmin ? (
             <Link

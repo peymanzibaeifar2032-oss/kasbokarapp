@@ -62,7 +62,7 @@ function persistEmailSession(data: unknown) {
 function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: boolean; resetToken?: string }) {
   const authMethods = Route.useLoaderData();
   const inApp = inStudioApp();
-  const hideGoogle = dest.startsWith("/studio/admin") ? false : inApp || dest.startsWith("/studio");
+  const hideGoogle = inApp && !dest.startsWith("/studio/admin");
   const googleOk = Boolean(authMethods.google) && !hideGoogle;
   const [mode, setMode] = useState<"in" | "up" | "forgot" | "reset">(resetToken ? "reset" : "in");
   const [name, setName] = useState("");
@@ -181,7 +181,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
           {dest.startsWith("/studio/admin")
             ? "برای مدیریت با جیمیل وارد شو. پنل تاتو و تقویم داخل همین صفحه باز می‌شود."
             : dest.startsWith("/studio")
-              ? "داخل اپ فقط با ایمیل وارد شو. گوگل روی گوشی به مرورگر می‌رود و برنمی‌گردد."
+              ? "اگر فقط می‌خواهی وقت بگیری، برگرد به فرم. ایمیل لازم نیست. گوگل فقط برای ورود به حساب است."
             : mode === "forgot"
             ? "اگر نامه نرسید، در مرورگر کروم با گوگل وارد شو و از صفحه حساب رمز اپ را بگذار."
             : mode === "reset"

@@ -5,13 +5,26 @@ import { toast } from "sonner";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addBookingToPhoneCalendar, formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled, scheduleTattooPrepNotices } from "@/lib/studio-notices";
-import { STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
+import { STUDIO_ADDRESS, TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 import type { NotificationItem, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
+
+type GuestStatus = {
+  id: string;
+  customerName: string;
+  style: string;
+  placement: string;
+  status: string;
+  artistMessage: string | null;
+  paymentStatus: string | null;
+  proposedSlotStart: string | null;
+  createdAt: string;
+};
 
 export const Route = createFileRoute("/studio/status")({
   component: StudioStatusPage,
@@ -21,7 +34,7 @@ export const Route = createFileRoute("/studio/status")({
 });
 
 function StudioStatusPage() {
-  const { user, isPending, sessionError, retry } = useCurrentUserState();
+  const { user } = useCurrentUserState();
   const { showAdmin } = useStudioAdminEntry();
   const userId = user?.id;
   const [requests, setRequests] = useState<TattooRequest[]>([]);
@@ -31,6 +44,28 @@ function StudioStatusPage() {
   const [loadError, setLoadError] = useState("");
   const inFlight = useRef(false);
   const loadedOnce = useRef(false);
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [guestItems, setGuestItems] = useState<GuestStatus[]>([]);
+  const [lookupBusy, setLookupBusy] = useState(false);
+
+  async function lookupStatus() {
+    setLookupBusy(true);
+    try {
+      const res = await fetch("/api/tattoo-public?op=status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: lookupPhone }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string; items?: GuestStatus[] } | null;
+      if (!res.ok) throw new Error(data?.error || "وضعیت پیدا نشد.");
+      setGuestItems(data?.items ?? []);
+      if (!data?.items?.length) toast.message("با این شماره هنوز درخواستی ثبت نشده.");
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setLookupBusy(false);
+    }
+  }
 
   function refresh() {
     if (!userId || inFlight.current) return;
@@ -94,32 +129,45 @@ function StudioStatusPage() {
           <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6">
             <h1 className="text-2xl font-black">بررسی وضعیت نوبت</h1>
             <p className="mt-3 text-sm leading-7 text-white/55">
-              {sessionError
-                ? "بارگذاری وضعیت انجام نشد."
-                : isPending
-                  ? "در حال بررسی ورود…"
-                  : "برای دیدن تأییدها، پیام‌ها و زمان قطعی وارد حساب شو."}
+              همان شماره‌ای را بنویس که در فرم درخواست وارد کردی. ایمیل لازم نیست.
             </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              {sessionError && retry ? (
-                <button
-                  type="button"
-                  className="inline-flex h-11 items-center rounded-full border border-white/15 px-4 text-sm"
-                  onClick={retry}
-                >
-                  تلاش دوباره
-                </button>
-              ) : null}
-              <a
-                href="/login?next=%2Fstudio%2Fstatus"
-                className="inline-flex h-11 items-center rounded-full bg-[#b7955b] px-5 text-sm font-bold text-black"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.location.assign("/login?next=/studio/status");
-                }}
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Input
+                value={lookupPhone}
+                onChange={(e) => setLookupPhone(e.target.value)}
+                inputMode="tel"
+                dir="ltr"
+                placeholder="۰۹…"
+                className="h-12"
+              />
+              <Button
+                className="h-12 bg-[#b7955b] text-black"
+                disabled={lookupBusy}
+                onClick={() => void lookupStatus()}
               >
-                ورود / ثبت‌نام
-              </a>
+                {lookupBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+                دیدن وضعیت
+              </Button>
+            </div>
+            <div className="mt-5 grid gap-3">
+              {guestItems.map((item) => (
+                <article key={item.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <strong>{item.customerName}</strong>
+                    <span className="text-xs text-[#e5d2ae]">
+                      {TATTOO_CUSTOMER_STAGE_LABEL[tattooStage({ status: item.status, paymentStatus: item.paymentStatus || "not_required" })]}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm text-white/60">
+                    {item.style}
+                    {item.placement ? ` · ${item.placement}` : ""}
+                  </p>
+                  {item.artistMessage ? <p className="mt-2 text-sm leading-7 text-white/75">{item.artistMessage}</p> : null}
+                  {item.proposedSlotStart ? (
+                    <p className="mt-2 text-sm text-[#e5d2ae]">{formatFaDateTime(item.proposedSlotStart)}</p>
+                  ) : null}
+                </article>
+              ))}
             </div>
           </section>
         </main>

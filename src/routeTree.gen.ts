@@ -32,6 +32,7 @@ import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
 import { Route as ApiSetAppPasswordRouteImport } from './routes/api/set-app-password'
 import { Route as ApiTattooApkRouteImport } from './routes/api/tattoo-apk'
+import { Route as ApiTattooPublicRouteImport } from './routes/api/tattoo-public'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
@@ -159,6 +160,11 @@ const ApiTattooApkRoute = ApiTattooApkRouteImport.update({
   path: '/api/tattoo-apk',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTattooPublicRoute = ApiTattooPublicRouteImport.update({
+  id: '/api/tattoo-public',
+  path: '/api/tattoo-public',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
@@ -239,6 +245,7 @@ export interface FileRoutesByFullPath {
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
+  '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByTo {
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
+  '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -312,6 +320,7 @@ export interface FileRoutesById {
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
+  '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -350,6 +359,7 @@ export interface FileRouteTypes {
     | '/api/search-trace'
     | '/api/set-app-password'
     | '/api/tattoo-apk'
+    | '/api/tattoo-public'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -386,6 +396,7 @@ export interface FileRouteTypes {
     | '/api/search-trace'
     | '/api/set-app-password'
     | '/api/tattoo-apk'
+    | '/api/tattoo-public'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -422,6 +433,7 @@ export interface FileRouteTypes {
     | '/api/search-trace'
     | '/api/set-app-password'
     | '/api/tattoo-apk'
+    | '/api/tattoo-public'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -459,6 +471,7 @@ export interface RootRouteChildren {
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
   ApiSetAppPasswordRoute: typeof ApiSetAppPasswordRoute
   ApiTattooApkRoute: typeof ApiTattooApkRoute
+  ApiTattooPublicRoute: typeof ApiTattooPublicRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPaymentsCallbackRoute: typeof ApiPaymentsCallbackRoute
@@ -629,6 +642,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTattooApkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tattoo-public': {
+      id: '/api/tattoo-public'
+      path: '/api/tattoo-public'
+      fullPath: '/api/tattoo-public'
+      preLoaderRoute: typeof ApiTattooPublicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/business/$id': {
       id: '/business/$id'
       path: '/business/$id'
@@ -764,6 +784,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSearchTraceRoute: ApiSearchTraceRoute,
   ApiSetAppPasswordRoute: ApiSetAppPasswordRoute,
   ApiTattooApkRoute: ApiTattooApkRoute,
+  ApiTattooPublicRoute: ApiTattooPublicRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPaymentsCallbackRoute: ApiPaymentsCallbackRoute,
