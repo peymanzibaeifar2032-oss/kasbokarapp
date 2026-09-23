@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Bell } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -11,10 +11,28 @@ import {
 } from "@/lib/studio-notices";
 import type { NotificationItem } from "@/lib/types";
 
+let noticesClearedAt = 0;
+
 export function useStudioNotices() {
   const { user } = useCurrentUserState();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const onStatus = pathname.startsWith("/studio/status");
   const [banner, setBanner] = useState<NotificationItem | null>(null);
   const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id || !onStatus) return;
+    let cancelled = false;
+    void saveAction("notificationsRead", {})
+      .then(() => {
+        noticesClearedAt = Date.now();
+        if (!cancelled) setUnread(0);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, onStatus]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -24,14 +42,17 @@ export function useStudioNotices() {
     async function tick() {
       if (busy) return;
       busy = true;
+      const started = Date.now();
       try {
         const r = await saveAction<{ items: NotificationItem[]; unread: number }>("notifications");
         if (cancelled) return;
         const items = r.items ?? [];
-        setUnread(r.unread || 0);
+        const studioUnread = items.filter((n) => n.kind?.startsWith("tattoo") && !n.readAt).length;
+        if (onStatus) setUnread(0);
+        else if (started >= noticesClearedAt) setUnread(studioUnread);
         const freshIds = unseenStudioNoticeIds(items.map((n) => n.id));
         const latest = items.find((n) => freshIds.includes(n.id));
-        if (latest) {
+        if (latest && !onStatus) {
           setBanner(latest);
           showStudioOsNotice(latest.title, latest.body, latest.id);
           markStudioNoticesSeen(freshIds);
@@ -48,9 +69,9 @@ export function useStudioNotices() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [user?.id]);
+  }, [user?.id, onStatus]);
 
-  return { unread, banner, dismiss: () => setBanner(null) };
+  return { unread: onStatus ? 0 : unread, banner, dismiss: () => setBanner(null) };
 }
 
 export function StudioNoticeBanner({

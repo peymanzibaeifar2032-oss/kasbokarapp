@@ -55,9 +55,8 @@ function StudioStatusPage() {
           }
         }
         const tattoo = (n.items ?? []).filter((item) => item.kind.startsWith("tattoo"));
-        setNotices(tattoo);
-        const unreadIds = tattoo.filter((item) => !item.readAt).map((item) => item.id);
-        if (unreadIds.length) void saveAction("notificationsRead", { ids: unreadIds });
+        setNotices(tattoo.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() })));
+        void saveAction("notificationsRead", {});
       })
       .catch((err) => {
         const message = friendlyError(err);
