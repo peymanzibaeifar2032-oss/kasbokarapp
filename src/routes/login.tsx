@@ -9,6 +9,7 @@ import { getAuthMethods } from "@/lib/auth/status";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { safeNextPath } from "@/lib/format";
 import { inStudioApp } from "@/lib/studio-notices";
+import { lastDeviceLogin, rememberDeviceLogin, savedDevicePassword } from "@/lib/device-login";
 
 export const Route = createFileRoute("/login")({
   loader: async () => getAuthMethods().catch(() => ({ google: false })),
@@ -69,6 +70,14 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (mode !== "in" || email || password) return;
+    const saved = lastDeviceLogin();
+    if (!saved) return;
+    setEmail(saved.email);
+    setPassword(saved.password);
+  }, [mode, email, password]);
+
   async function signInWithGoogle() {
     if (busy || !googleOk) return;
     setBusy(true);
@@ -113,6 +122,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
         });
         if (res.error) throw new Error(persianAuthError(res.error.message) || "تغییر رمز انجام نشد.");
         toast.success("رمز عوض شد. با رمز جدید وارد شوید.");
+        if (email) rememberDeviceLogin(email, password);
         setMode("in");
         setPassword("");
         return;
@@ -136,6 +146,7 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
         /* session store recovers on next fetch */
       }
       toast.success(mode === "up" ? "حساب ساخته شد." : "وارد شدید.");
+      rememberDeviceLogin(email, password);
       window.location.replace(dest);
     } catch (err) {
       toast.error(err instanceof Error ? persianAuthError(err.message) || err.message : "خطا در ورود با ایمیل");
@@ -213,7 +224,11 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
                 </div>
               </>
             ) : null}
-            <form onSubmit={(e) => void submit(e)} className={googleOk ? "space-y-3" : "mt-5 space-y-3"}>
+            <form
+              onSubmit={(e) => void submit(e)}
+              autoComplete="on"
+              className={googleOk ? "space-y-3" : "mt-5 space-y-3"}
+            >
               {mode === "up" ? (
                 <Input
                   id="name"
@@ -226,18 +241,27 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
               {mode !== "reset" ? (
                 <Input
                   id="email"
+                  name="username"
                   type="email"
                   required
                   placeholder="ایمیل"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEmail(value);
+                    if (mode !== "in") return;
+                    const found = savedDevicePassword(value);
+                    if (found) setPassword(found);
+                  }}
+                  autoComplete="username"
+                  inputMode="email"
                   dir="ltr"
                 />
               ) : null}
               {mode === "in" || mode === "up" || mode === "reset" ? (
                 <Input
                   id="password"
+                  name="password"
                   type="password"
                   required
                   minLength={8}

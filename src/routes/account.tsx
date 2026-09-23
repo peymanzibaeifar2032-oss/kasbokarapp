@@ -5,6 +5,7 @@ import { Shell } from "@/components/layout/shell";
 import { SignedOutPanel } from "@/components/layout/auth-required";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
+import { rememberDeviceLogin } from "@/lib/device-login";
 
 export const Route = createFileRoute("/account")({ component: Account });
 
@@ -34,7 +35,8 @@ function Account() {
       });
       const data = (await res.json().catch(() => null)) as { error?: string; message?: string; email?: string } | null;
       if (!res.ok) throw new Error(data?.error || "ذخیرهٔ رمز انجام نشد.");
-      toast.success(data?.message || "رمز ذخیره شد.");
+      if (user?.primaryEmail) rememberDeviceLogin(user.primaryEmail, password);
+      toast.success(data?.message || "رمز ذخیره شد. دفعهٔ بعد در همین گوشی خودش پر می‌شود.");
       setPassword("");
       setAgain("");
     } catch (err) {
