@@ -313,7 +313,7 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="flex items-center gap-2 text-sm leading-6 text-[#e5d2ae]">
             <Smartphone className="size-4 shrink-0" />
-            اپ اندروید «رزرو وقت تاتو» را روی گوشی نصب کن؛ همان فرم روی صفحه اصلی می‌آید.
+            اپ را روی صفحه اصلی بگذار؛ اندروید با دانلود، آیفون از سافاری.
           </p>
           <div className="flex flex-wrap gap-2">
             <a
@@ -322,8 +322,15 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
             >
               <Download className="size-4" />
-              دانلود اپ
+              دانلود اندروید
             </a>
+            <Link
+              to="/studio/app"
+              hash="iphone-steps"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-[#b7955b]/40 px-4 text-sm text-[#e5d2ae]"
+            >
+              نصب آیفون
+            </Link>
             <Link
               to="/studio/guide"
               className="inline-flex h-11 items-center justify-center rounded-full border border-[#b7955b]/40 px-4 text-sm text-[#e5d2ae]"

@@ -107,7 +107,7 @@ function StudioLanding() {
                   to="/studio/app"
                   className="inline-flex h-12 items-center gap-2 rounded-full border border-white/15 px-6 text-sm text-white/80"
                 >
-                  دانلود اپ اندروید
+                  دانلود اندروید و نصب آیفون
                 </Link>
               </div>
               <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/45">

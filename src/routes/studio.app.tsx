@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, ShieldCheck, Smartphone } from "lucide-react";
+import { Download, Share, ShieldCheck, Smartphone } from "lucide-react";
 import { StudioTopBar } from "@/components/studio/top-bar";
 
 export const Route = createFileRoute("/studio/app")({
   component: StudioAppDownload,
   head: () => ({
     meta: [
-      { title: "دانلود اپ رزرو وقت تاتو | پیمان زیبائی‌فر" },
+      { title: "نصب اپ رزرو وقت تاتو | پیمان زیبائی‌فر" },
       {
         name: "description",
-        content: "دانلود مستقیم اپ اندروید رزرو وقت تاتو برای نصب روی گوشی، بدون فروشگاه.",
+        content: "دانلود اپ اندروید یا افزودن به صفحه اصلی آیفون از سافاری.",
       },
     ],
   }),
@@ -21,7 +21,7 @@ function StudioAppDownload() {
       <StudioTopBar compact />
 
       <main className="mx-auto max-w-3xl px-4 py-12">
-        <p className="text-xs tracking-[.2em] text-[#b7955b]">ANDROID APP</p>
+        <p className="text-xs tracking-[.2em] text-[#b7955b]">INSTALL</p>
         <div className="mt-5 flex items-start gap-4">
           <img
             src="/apps/tattoo-app-icon.png"
@@ -32,37 +32,68 @@ function StudioAppDownload() {
           />
           <div>
             <h1 className="text-3xl font-black leading-[1.4] sm:text-4xl">رزرو وقت تاتو</h1>
-            <p className="mt-2 text-sm text-white/50">نسخه ۱.۸ · آخرین نسخه · نصب مستقیم روی گوشی</p>
+            <p className="mt-2 text-sm text-white/50">اندروید با فایل نصب · آیفون از سافاری، افزودن به صفحه اصلی</p>
           </div>
         </div>
 
-        <p className="mt-6 max-w-xl text-sm leading-8 text-white/62">
-          این اپ همان فرم رزرو استودیو را روی صفحه اصلی گوشی می‌گذارد. از پلی‌استور نیست؛ فایل را از
-          همین صفحه دانلود و نصب کن. نسخه ۱.۸ ایمیل و رمز موفق را روی همین گوشی نگه می‌دارد و دفعهٔ بعد خودش پر می‌کند.
-        </p>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <section className="rounded-3xl border border-white/10 bg-white/[.03] p-5">
+            <h2 className="font-black">اندروید</h2>
+            <p className="mt-2 text-sm leading-7 text-white/55">فایل نصب را دانلود کن. از پلی‌استور نیست.</p>
+            <a
+              href="/api/tattoo-apk?v=9"
+              download="rezerv-vaght-tatoo.apk"
+              className="mt-5 inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-5 text-sm font-black text-black"
+            >
+              <Download className="size-4" />
+              دانلود فایل نصب اندروید
+            </a>
+          </section>
+          <section id="iphone" className="rounded-3xl border border-[#b7955b]/30 bg-[#b7955b]/10 p-5">
+            <h2 className="font-black">آیفون</h2>
+            <p className="mt-2 text-sm leading-7 text-white/70">فروشگاه اپل لازم نیست. از سافاری به صفحه اصلی اضافه کن.</p>
+            <a
+              href="#iphone-steps"
+              className="mt-5 inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/50 px-5 text-sm font-bold text-[#f0e2c4]"
+            >
+              <Share className="size-4" />
+              افزودن به صفحه اصلی
+            </a>
+          </section>
+        </div>
 
-        <a
-          href="/api/tattoo-apk?v=9"
-          download="rezerv-vaght-tatoo.apk"
-          className="mt-8 inline-flex h-14 items-center gap-2 rounded-full bg-[#b7955b] px-6 text-base font-black text-black"
-        >
-          <Download className="size-5" />
-          دانلود فایل نصب اندروید
-        </a>
-        <p className="mt-3 text-xs text-white/40">حجم کم · اندروید ۸ به بالا</p>
-
-        <ol className="mt-10 grid gap-4">
+        <h2 className="mt-10 text-lg font-black">نصب اندروید</h2>
+        <ol className="mt-4 grid gap-4">
           {[
-            ["۱", "دانلود", "دکمه طلایی را بزن. اگر مرورگر گفت فایل ناشناس است، گزینه دانلود را تأیید کن."],
+            ["۱", "دانلود", "دکمه دانلود اندروید را بزن. اگر مرورگر گفت فایل ناشناس است، دانلود را تأیید کن."],
             ["۲", "اجازه نصب", "روی فایل بزن. اگر گوشی گفت «منبع ناشناس»، برای همین مرورگر اجازه نصب بده."],
-            ["۳", "ورود و فرم", "اپ «رزرو وقت تاتو» باز می‌شود. وارد حساب شو، عکس طرح و محل بدن را بفرست."],
+            ["۳", "فرم", "اپ «رزرو وقت تاتو» باز می‌شود. عکس طرح و محل بدن را بفرست."],
           ].map(([n, title, text]) => (
             <li key={n} className="flex gap-4 rounded-3xl border border-white/10 bg-white/[.03] p-5">
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#b7955b] font-black text-black">
                 {n}
               </span>
               <div>
-                <h2 className="font-bold">{title}</h2>
+                <h3 className="font-bold">{title}</h3>
+                <p className="mt-1 text-sm leading-7 text-white/55">{text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <h2 id="iphone-steps" className="mt-10 text-lg font-black">نصب آیفون با سافاری</h2>
+        <ol className="mt-4 grid gap-4">
+          {[
+            ["۱", "سافاری", "این صفحه را در Safari باز کن. اگر از اینستاگرام آمده‌ای، منو را بزن و «Open in Safari» را انتخاب کن."],
+            ["۲", "اشتراک", "دکمه اشتراک‌گذاری را بزن؛ مربع با فلش رو به بالا، پایین صفحه."],
+            ["۳", "صفحه اصلی", "در فهرست، «Add to Home Screen» یا «افزودن به صفحه اصلی» را بزن و اضافه کردن را تأیید کن."],
+          ].map(([n, title, text]) => (
+            <li key={`ios-${n}`} className="flex gap-4 rounded-3xl border border-white/10 bg-white/[.03] p-5">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#b7955b] font-black text-black">
+                {n}
+              </span>
+              <div>
+                <h3 className="font-bold">{title}</h3>
                 <p className="mt-1 text-sm leading-7 text-white/55">{text}</p>
               </div>
             </li>
@@ -72,7 +103,7 @@ function StudioAppDownload() {
         <div className="mt-8 grid gap-3 text-sm text-white/45 sm:grid-cols-2">
           <p className="flex items-center gap-2">
             <Smartphone className="size-4 text-[#b7955b]" />
-            فقط اندروید؛ برای آیفون از نسخه وب استفاده کنید
+            آیفون فروشگاه ندارد؛ فقط افزودن به صفحه اصلی
           </p>
           <p className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-[#b7955b]" />
