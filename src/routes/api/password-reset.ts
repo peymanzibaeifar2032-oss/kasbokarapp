@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth, authConfigured } from "@/lib/auth/server";
 import { findStoredEmail } from "@/lib/auth/stored-email";
+import { getSql } from "@/lib/db";
 import { takeAuthMailError } from "@/lib/mail";
 
 function json(data: unknown, status = 200) {
@@ -8,6 +9,28 @@ function json(data: unknown, status = 200) {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+async function tellOwner(email: string) {
+  const sql = await getSql();
+  const owners = await sql.query<{ id: string }>(
+    `select id from "user"
+      where split_part(lower(email), '@', 2) in ('gmail.com', 'googlemail.com')
+        and replace(split_part(lower(email), '@', 1), '.', '') = 'peymanzibaeifar2032'
+      limit 1`,
+  );
+  const ownerId = owners[0]?.id;
+  if (!ownerId) return;
+  await sql.query(
+    `insert into notifications (id, user_id, title, body, kind)
+     values ($1,$2,$3,$4,'password_help')`,
+    [
+      crypto.randomUUID(),
+      ownerId,
+      "رمز مشتری فراموش شده",
+      `${email} نمی‌تواند وارد شود. در پنل مدیریت، بخش رمز موقت، برایش رمز جدید بگذار و به خودش بگو.`,
+    ],
+  );
 }
 
 async function handle(request: Request) {
@@ -39,10 +62,11 @@ async function handle(request: Request) {
   });
   const mailError = takeAuthMailError();
   if (mailError) {
+    await tellOwner(stored).catch(() => undefined);
     return json(
       {
         error:
-          "پیوند به ایمیل نرفت. سرور نامه نمی‌فرستد. در مرورگر کروم با گوگل وارد شو، برو به حساب، و همان‌جا رمز ورود اپ را تعیین کن.",
+          "پیوند به ایمیل نرفت. درخواست برای استودیو ثبت شد. به پیمان بگو تا یک رمز موقت برایت بگذارد.",
       },
       503,
     );

@@ -300,6 +300,6 @@ function persianAuthError(message?: string | null) {
   if (m.includes("invalid origin")) return "این صفحه برای ورود شناخته نشد. از همین برنامه وارد شوید.";
   if (m.includes("بازیابی رمز هنوز")) return message;
   if (m.includes("invalid") || m.includes("credential") || m.includes("password")) return "ایمیل یا رمز درست نیست.";
-  if (m.includes("exist")) return "این ایمیل قبلاً ثبت شده. وارد شوید.";
+  if (m.includes("exist")) return "این ایمیل قبلاً ثبت شده. رمز را فراموش کرده‌ای؟ همان پایین «رمز را فراموش کرده‌ام» را بزن. اگر نامه نرسید، به استودیو بگو تا رمز موقت بگذارد.";
   return message;
 }

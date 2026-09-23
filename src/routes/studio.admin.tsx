@@ -245,6 +245,7 @@ function StudioAdminPage() {
 
       {!loading && !error && tab === "requests" ? (
         <div className="mt-5">
+          <CustomerTempPassword />
           <div className="flex gap-2 overflow-x-auto pb-2">
             {(
               [
@@ -776,6 +777,53 @@ function customerQueryMatch(query: string, request: Pick<TattooRequest, "custome
   const fold = (value: string) =>
     value.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
   return fold(hay).includes(fold(needle));
+}
+
+function CustomerTempPassword() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/customer-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "ذخیره نشد.");
+      toast.success(data?.message || "رمز موقت ذخیره شد.");
+      setPassword("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ذخیره نشد.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      className="mb-4 rounded-2xl border border-border bg-surface p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
+      <h2 className="text-sm font-semibold">رمز موقت مشتری</h2>
+      <p className="mt-1 text-xs leading-6 text-muted">
+        اگر مشتری گفت ایمیل ثبت است ولی رمز را ندارد و نامهٔ بازیابی هم نرسیده، همین‌جا رمز جدید بگذار و به خودش بگو. نوبت‌ها و لیست پاک نمی‌شود.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ایمیل مشتری" dir="ltr" />
+        <Input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="رمز موقت، حداقل ۸ حرف" dir="ltr" />
+        <Button type="submit" disabled={busy}>
+          {busy ? "..." : "ذخیره"}
+        </Button>
+      </div>
+    </form>
+  );
 }
 
 function MonthJobsPanel({

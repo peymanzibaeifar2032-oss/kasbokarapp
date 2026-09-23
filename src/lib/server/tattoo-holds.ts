@@ -35,8 +35,16 @@ export const TATTOO_OVERDUE_REVIEW_SQL = `select id, customer_id, business_id, b
     and payment_review_deadline <= now()`;
 
 export const TATTOO_SLOT_OVERLAP_SQL = `select id from bookings
-  where business_id=$1 and status in ('requested','confirmed')
+  where status in ('requested','confirmed')
     and slot_end is not null and slot_start < $3 and slot_end > $2
+    and (
+      business_id = $1
+      or business_id in (
+        select b2.id from businesses b2
+        join businesses b1 on b1.owner_id = b2.owner_id
+        where b1.id = $1
+      )
+    )
   limit 1`;
 
 export const TATTOO_PENDING_PROPOSAL_OVERLAP_SQL = `select id from tattoo_requests

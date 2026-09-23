@@ -23,7 +23,7 @@ import {
 import { t } from "@/lib/i18n";
 import { friendlyError, saveAction } from "@/lib/save";
 import { isRetiredCollaborator } from "@/lib/tattoo-flow";
-import type { Booking, Business } from "@/lib/types";
+import type { Booking, Business, TattooRequest } from "@/lib/types";
 import type { BusinessResource } from "@/lib/calendar/resources";
 import { cn } from "@/lib/utils";
 
@@ -66,45 +66,97 @@ export function OwnerCalendar({
   const [selected, setSelected] = useState<Booking | null>(null);
   const [resourceFilter, setResourceFilter] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
-  const [selectedBusinessId, setSelectedBusinessId] = useState(businesses[0]?.id ?? "");
+  const [selectedBusinessId, setSelectedBusinessId] = useState("");
+  const [monthJobs, setMonthJobs] = useState<TattooRequest[]>([]);
   const clock = tehranClock(cursor);
   const todayKey = tehranDayKey();
-  const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
-  const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
-  const businessId = selectedBusinessId || businesses[0]?.id || "";
+  const cursorJ = gregorianToJalali(clock.y, clock.m, clock.day);
+  const [month, setMonth] = useState({ jy: cursorJ.jy, jm: cursorJ.jm });
+  const formBusinessId = selectedBusinessId || businesses[0]?.id || "";
+  const businessId = selectedBusinessId;
 
   useEffect(() => {
-    if (!selectedBusinessId && businesses[0]) setSelectedBusinessId(businesses[0].id);
-    if (selectedBusinessId && !businesses.some((b) => b.id === selectedBusinessId))
-      setSelectedBusinessId(businesses[0]?.id ?? "");
+    const focus = view === "month" ? month : cursorJ;
+    let cancelled = false;
+    void saveAction<TattooRequest[]>("studioMonthJobs", { jy: focus.jy, jm: focus.jm })
+      .then((rows) => {
+        if (!cancelled) setMonthJobs(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setMonthJobs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, month.jy, month.jm, cursorJ.jy, cursorJ.jm, items]);
+
+  useEffect(() => {
+    if (selectedBusinessId && !businesses.some((b) => b.id === selectedBusinessId)) {
+      setSelectedBusinessId("");
+    }
   }, [businesses, selectedBusinessId]);
 
   useEffect(() => {
-    if (!businessId) return;
-    void saveAction<BusinessResource[]>("listResources", { businessId })
+    if (!formBusinessId) return;
+    void saveAction<BusinessResource[]>("listResources", { businessId: formBusinessId })
       .then(setResources)
       .catch(() => setResources([]));
-  }, [businessId]);
+  }, [formBusinessId]);
 
   const visibleItems = useMemo(() => {
-    const businessRows = items.filter((b) => b.businessId === businessId);
-    if (!resourceFilter) return businessRows;
-    return businessRows.filter((b) => !b.resourceId || b.resourceId === resourceFilter);
+    const open = items.filter((b) => b.status !== "cancelled");
+    const scoped = businessId ? open.filter((b) => b.businessId === businessId) : open;
+    if (!resourceFilter) return scoped;
+    return scoped.filter((b) => !b.resourceId || b.resourceId === resourceFilter);
   }, [businessId, items, resourceFilter]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, Booking[]>();
+    const push = (key: string, row: Booking) => {
+      const arr = map.get(key) ?? [];
+      if (arr.some((item) => item.id === row.id || (row.tattooRequestId && item.tattooRequestId === row.tattooRequestId))) return;
+      arr.push(row);
+      map.set(key, arr);
+    };
     for (const b of visibleItems) {
       const c = tehranClock(new Date(b.slotStart));
-      const key = gregKey(c.y, c.m, c.day);
-      const arr = map.get(key) ?? [];
-      arr.push(b);
-      map.set(key, arr);
+      if (!c.y || !c.m || !c.day) continue;
+      push(gregKey(c.y, c.m, c.day), b);
     }
-    for (const arr of map.values())
-      arr.sort((a, b) => +new Date(a.slotStart) - +new Date(b.slotStart));
+    for (const job of monthJobs) {
+      if (!job.proposedSlotStart || job.status === "rejected") continue;
+      const c = tehranClock(new Date(job.proposedSlotStart));
+      if (!c.y || !c.m || !c.day) continue;
+      push(gregKey(c.y, c.m, c.day), {
+        id: job.bookingId || `job-${job.id}`,
+        businessId: job.businessId || "",
+        businessName: "",
+        customerId: job.customerId,
+        customerName: job.customerName,
+        customerPhone: job.customerPhone,
+        slotStart: job.proposedSlotStart,
+        slotEnd: job.proposedSlotEnd,
+        kind: "booking",
+        source: "manual",
+        eventType: "manual",
+        bufferBefore: 0,
+        bufferAfter: 0,
+        note: job.idea,
+        serviceTitle: job.style,
+        partySize: 1,
+        status: job.status === "booked" ? "confirmed" : "requested",
+        createdAt: job.createdAt,
+        tattooRequestId: job.id,
+        tattooStyle: job.style,
+        tattooPlacement: job.placement,
+        tattooSizeCm: job.sizeCm,
+        tattooPriceMinToman: job.priceMinToman,
+        tattooPriceMaxToman: job.priceMaxToman,
+      });
+    }
+    for (const arr of map.values()) arr.sort((a, b) => +new Date(a.slotStart) - +new Date(b.slotStart));
     return map;
-  }, [visibleItems]);
+  }, [monthJobs, visibleItems]);
 
   const weekDays = useMemo(() => {
     const satOffset = (clock.weekday + 1) % 7;
@@ -155,6 +207,7 @@ export function OwnerCalendar({
               }}
               className="h-10"
             >
+              <option value="">همه نوبت‌های ثبت‌شده</option>
               {businesses.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -194,7 +247,7 @@ export function OwnerCalendar({
         </div>
       </div>
       <StaffRoster
-        businessId={businessId}
+        businessId={formBusinessId}
         resources={resources}
         onChange={(rows) => setResources(rows)}
       />
@@ -279,8 +332,15 @@ export function OwnerCalendar({
             </button>
           </div>
           {!dayRows.length ? (
-            <p className="mt-3 text-sm text-muted">نوبتی در این روز نیست</p>
-          ) : null}
+            <div className="mt-3 text-sm leading-7 text-muted">
+              <p>در این روز نوبت ثبت‌شده‌ای نیست. لیست مشتری‌ها پاک نشده.</p>
+              <MonthBusyHint byDay={byDay} except={dayKey} />
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted">
+              {toFaDigits(dayRows.length)} نوبت در این روز، همان لیست ماه
+            </p>
+          )}
           <ul className="mt-3 space-y-2">
             {dayRows.map((b) => (
               <li key={b.id}>
@@ -480,6 +540,22 @@ function AppointmentCard({
         </div>
       ) : null}
     </article>
+  );
+}
+
+function MonthBusyHint({ byDay, except }: { byDay: Map<string, Booking[]>; except: string }) {
+  const days = [...byDay.entries()]
+    .filter(([key, rows]) => key !== except && rows.length > 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+  if (!days.length) return <p className="mt-1">برای این ماه هنوز کاری در تقویم نیست.</p>;
+  return (
+    <p className="mt-1">
+      روزهای پر همین ماه:{" "}
+      {days.slice(0, 10).map(([key, rows]) => {
+        const [y, m, d] = key.split("-").map(Number);
+        return `${jalaliDayLabel(y, m, d)} (${toFaDigits(rows.length)})`;
+      }).join("، ")}
+    </p>
   );
 }
 
