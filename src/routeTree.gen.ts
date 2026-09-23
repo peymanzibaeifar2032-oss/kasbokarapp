@@ -21,13 +21,16 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ApiCustomerPasswordRouteImport } from './routes/api/customer-password'
 import { Route as ApiGeoStatsRouteImport } from './routes/api/geo-stats'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiMehrLoanLeadsRouteImport } from './routes/api/mehr-loan-leads'
+import { Route as ApiPasswordResetRouteImport } from './routes/api/password-reset'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
+import { Route as ApiSetAppPasswordRouteImport } from './routes/api/set-app-password'
 import { Route as ApiTattooApkRouteImport } from './routes/api/tattoo-apk'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
@@ -101,6 +104,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCustomerPasswordRoute = ApiCustomerPasswordRouteImport.update({
+  id: '/api/customer-password',
+  path: '/api/customer-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGeoStatsRoute = ApiGeoStatsRouteImport.update({
   id: '/api/geo-stats',
   path: '/api/geo-stats',
@@ -126,6 +134,11 @@ const ApiMehrLoanLeadsRoute = ApiMehrLoanLeadsRouteImport.update({
   path: '/api/mehr-loan-leads',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPasswordResetRoute = ApiPasswordResetRouteImport.update({
+  id: '/api/password-reset',
+  path: '/api/password-reset',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSaveRoute = ApiSaveRouteImport.update({
   id: '/api/save',
   path: '/api/save',
@@ -134,6 +147,11 @@ const ApiSaveRoute = ApiSaveRouteImport.update({
 const ApiSearchTraceRoute = ApiSearchTraceRouteImport.update({
   id: '/api/search-trace',
   path: '/api/search-trace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSetAppPasswordRoute = ApiSetAppPasswordRouteImport.update({
+  id: '/api/set-app-password',
+  path: '/api/set-app-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTattooApkRoute = ApiTattooApkRouteImport.update({
@@ -210,13 +228,16 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
   '/terms': typeof TermsRoute
+  '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
+  '/api/password-reset': typeof ApiPasswordResetRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
@@ -243,13 +264,16 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
   '/terms': typeof TermsRoute
+  '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
+  '/api/password-reset': typeof ApiPasswordResetRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
@@ -277,13 +301,16 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
   '/terms': typeof TermsRoute
+  '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
   '/api/health': typeof ApiHealthRoute
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
+  '/api/password-reset': typeof ApiPasswordResetRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
+  '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
@@ -312,13 +339,16 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/studio'
     | '/terms'
+    | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
     | '/api/mehr-loan-leads'
+    | '/api/password-reset'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/set-app-password'
     | '/api/tattoo-apk'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
@@ -345,13 +375,16 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/studio'
     | '/terms'
+    | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
     | '/api/mehr-loan-leads'
+    | '/api/password-reset'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/set-app-password'
     | '/api/tattoo-apk'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
@@ -378,13 +411,16 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/studio'
     | '/terms'
+    | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
     | '/api/health'
     | '/api/map-config'
     | '/api/mehr-loan-leads'
+    | '/api/password-reset'
     | '/api/save'
     | '/api/search-trace'
+    | '/api/set-app-password'
     | '/api/tattoo-apk'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
@@ -412,13 +448,16 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   StudioRoute: typeof StudioRouteWithChildren
   TermsRoute: typeof TermsRoute
+  ApiCustomerPasswordRoute: typeof ApiCustomerPasswordRoute
   ApiGeoStatsRoute: typeof ApiGeoStatsRoute
   ApiGuideRoute: typeof ApiGuideRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiMapConfigRoute: typeof ApiMapConfigRoute
   ApiMehrLoanLeadsRoute: typeof ApiMehrLoanLeadsRoute
+  ApiPasswordResetRoute: typeof ApiPasswordResetRoute
   ApiSaveRoute: typeof ApiSaveRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
+  ApiSetAppPasswordRoute: typeof ApiSetAppPasswordRoute
   ApiTattooApkRoute: typeof ApiTattooApkRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -513,6 +552,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/customer-password': {
+      id: '/api/customer-password'
+      path: '/api/customer-password'
+      fullPath: '/api/customer-password'
+      preLoaderRoute: typeof ApiCustomerPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/geo-stats': {
       id: '/api/geo-stats'
       path: '/api/geo-stats'
@@ -548,6 +594,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMehrLoanLeadsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/password-reset': {
+      id: '/api/password-reset'
+      path: '/api/password-reset'
+      fullPath: '/api/password-reset'
+      preLoaderRoute: typeof ApiPasswordResetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/save': {
       id: '/api/save'
       path: '/api/save'
@@ -560,6 +613,13 @@ declare module '@tanstack/react-router' {
       path: '/api/search-trace'
       fullPath: '/api/search-trace'
       preLoaderRoute: typeof ApiSearchTraceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/set-app-password': {
+      id: '/api/set-app-password'
+      path: '/api/set-app-password'
+      fullPath: '/api/set-app-password'
+      preLoaderRoute: typeof ApiSetAppPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tattoo-apk': {
@@ -693,13 +753,16 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   StudioRoute: StudioRouteWithChildren,
   TermsRoute: TermsRoute,
+  ApiCustomerPasswordRoute: ApiCustomerPasswordRoute,
   ApiGeoStatsRoute: ApiGeoStatsRoute,
   ApiGuideRoute: ApiGuideRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiMapConfigRoute: ApiMapConfigRoute,
   ApiMehrLoanLeadsRoute: ApiMehrLoanLeadsRoute,
+  ApiPasswordResetRoute: ApiPasswordResetRoute,
   ApiSaveRoute: ApiSaveRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
+  ApiSetAppPasswordRoute: ApiSetAppPasswordRoute,
   ApiTattooApkRoute: ApiTattooApkRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

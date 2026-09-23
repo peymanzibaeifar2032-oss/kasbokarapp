@@ -43,8 +43,11 @@ COPY --from=build /app/migrations ./migrations
 COPY --from=build /app/data ./data
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/.grok/app-env.json ./.grok/app-env.json
+COPY --from=build --chown=kasb:kasb /app/public/apps/rezerv-vaght-tatoo.apk /app/apps/rezerv-vaght-tatoo.apk
+COPY --from=build --chown=kasb:kasb /app/public/apps/rezerv-vaght-tatoo.apk /app/.output/public/apps/rezerv-vaght-tatoo.apk
 # Baked SHA is the only Production identity. Runtime env must not fake it.
 RUN printf '%s\n' "$GIT_SHA" > /app/BUILD_SHA && chmod 644 /app/BUILD_SHA \
+  && test -f /app/apps/rezerv-vaght-tatoo.apk \
   && test -f /app/migrations/0014_calendar.sql \
   && test -f /app/migrations/0015_finance.sql \
   && test -f /app/migrations/0016_resources.sql
