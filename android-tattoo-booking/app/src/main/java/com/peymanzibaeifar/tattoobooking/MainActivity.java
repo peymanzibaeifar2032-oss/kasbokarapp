@@ -34,6 +34,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.content.SharedPreferences;
+import org.json.JSONObject;
 import android.widget.Toast;
 
 import java.io.File;
@@ -97,7 +99,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.7");
+            settings.setUserAgentString(ua + " TattooApp/1.8");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -282,6 +284,80 @@ public class MainActivity extends Activity {
         public void saveReport(String filename, String html) {
             runOnUiThread(() -> beginSaveReport(filename, html));
         }
+
+        @JavascriptInterface
+        public void saveLogin(String email, String password) {
+            if (email == null || password == null || password.length() < 8) return;
+            SharedPreferences prefs = logins();
+            try {
+                JSONObject map = new JSONObject(prefs.getString("map", "{}"));
+                putLoginKeys(map, email, password);
+                prefs.edit()
+                        .putString("map", map.toString())
+                        .putString("last", email.trim().toLowerCase())
+                        .apply();
+            } catch (Exception ignored) {
+            }
+        }
+
+        @JavascriptInterface
+        public String savedLogin(String email) {
+            if (email == null) return "";
+            try {
+                JSONObject map = new JSONObject(logins().getString("map", "{}"));
+                return lookupLogin(map, email);
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
+        public String lastLogin() {
+            try {
+                SharedPreferences prefs = logins();
+                String email = prefs.getString("last", "");
+                if (email == null || email.isEmpty()) return "";
+                JSONObject map = new JSONObject(prefs.getString("map", "{}"));
+                String password = lookupLogin(map, email);
+                if (password.isEmpty()) return "";
+                JSONObject out = new JSONObject();
+                out.put("email", email);
+                out.put("password", password);
+                return out.toString();
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+    }
+
+    private SharedPreferences logins() {
+        return getSharedPreferences("tattoo_device_logins", MODE_PRIVATE);
+    }
+
+    private void putLoginKeys(JSONObject map, String email, String password) throws Exception {
+        String raw = email.trim().toLowerCase();
+        if (!raw.contains("@")) return;
+        map.put(raw, password);
+        int at = raw.lastIndexOf('@');
+        String domain = raw.substring(at + 1);
+        if ("googlemail.com".equals(domain)) domain = "gmail.com";
+        if ("gmail.com".equals(domain)) {
+            String local = raw.substring(0, at).replace(".", "").split("\\+")[0];
+            if (!local.isEmpty()) map.put(local + "@gmail.com", password);
+        }
+    }
+
+    private String lookupLogin(JSONObject map, String email) {
+        String raw = email.trim().toLowerCase();
+        String found = map.optString(raw, "");
+        if (!found.isEmpty()) return found;
+        int at = raw.lastIndexOf('@');
+        if (at <= 0) return "";
+        String domain = raw.substring(at + 1);
+        if ("googlemail.com".equals(domain)) domain = "gmail.com";
+        if (!"gmail.com".equals(domain)) return "";
+        String local = raw.substring(0, at).replace(".", "").split("\\+")[0];
+        return map.optString(local + "@gmail.com", "");
     }
 
     private void schedulePrepNotice(String id, String title, String body, long whenMs) {

@@ -32,17 +32,17 @@ function StudioAppDownload() {
           />
           <div>
             <h1 className="text-3xl font-black leading-[1.4] sm:text-4xl">رزرو وقت تاتو</h1>
-            <p className="mt-2 text-sm text-white/50">نسخه ۱.۷ · آخرین نسخه · نصب مستقیم روی گوشی</p>
+            <p className="mt-2 text-sm text-white/50">نسخه ۱.۸ · آخرین نسخه · نصب مستقیم روی گوشی</p>
           </div>
         </div>
 
         <p className="mt-6 max-w-xl text-sm leading-8 text-white/62">
           این اپ همان فرم رزرو استودیو را روی صفحه اصلی گوشی می‌گذارد. از پلی‌استور نیست؛ فایل را از
-          همین صفحه دانلود و نصب کن. با نسخه ۱.۷، یادآوری روز قبل از تاتو روی اعلان گوشی می‌آید.
+          همین صفحه دانلود و نصب کن. نسخه ۱.۸ ایمیل و رمز موفق را روی همین گوشی نگه می‌دارد و دفعهٔ بعد خودش پر می‌کند.
         </p>
 
         <a
-          href="/apps/rezerv-vaght-tatoo.apk?v=8"
+          href="/apps/rezerv-vaght-tatoo.apk?v=9"
           download="rezerv-vaght-tatoo.apk"
           className="mt-8 inline-flex h-14 items-center gap-2 rounded-full bg-[#b7955b] px-6 text-base font-black text-black"
         >
