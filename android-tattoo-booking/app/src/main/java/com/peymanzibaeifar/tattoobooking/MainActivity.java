@@ -214,6 +214,7 @@ public class MainActivity extends Activity {
         String host = uri.getHost() == null ? "" : uri.getHost();
         if (host.endsWith("kasbokarapp.com")) return true;
         if ("calendar.google.com".equals(host)) return false;
+        if (host.equals("pin.it") || host.endsWith("pinterest.com") || host.endsWith("pinimg.com")) return true;
         return host.endsWith("google.com")
                 || host.endsWith("googleusercontent.com")
                 || host.endsWith("gstatic.com")

@@ -92,6 +92,12 @@ function StudioLanding() {
                   بررسی وضعیت
                 </Link>
                 <Link
+                  to="/studio/designs"
+                  className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
+                >
+                  انتخاب طرح
+                </Link>
+                <Link
                   to="/studio/guide"
                   className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
                 >

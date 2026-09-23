@@ -265,6 +265,13 @@ function StudioRequestPage() {
 
         <aside className="space-y-4">
           <Link
+            to="/studio/designs"
+            className="flex h-12 items-center justify-between rounded-2xl border border-[#b7955b]/40 px-4 text-sm font-bold text-[#e5d2ae]"
+          >
+            انتخاب طرح
+            <ChevronLeft className="size-4" />
+          </Link>
+          <Link
             to="/studio/status"
             className="flex h-12 items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-bold text-black"
           >
