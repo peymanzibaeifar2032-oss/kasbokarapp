@@ -128,6 +128,38 @@ function StudioLanding() {
           </div>
         </section>
 
+        <section id="about" className="border-y border-white/10 bg-white/[.025]">
+          <div className="mx-auto grid max-w-6xl gap-8 px-4 py-20 lg:grid-cols-[.8fr_1.2fr]">
+            <div>
+              <p className="text-xs tracking-[.22em] text-[#b7955b]">معرفی</p>
+              <h2 className="mt-3 text-3xl font-black sm:text-4xl">پیمان زیبائی‌فر</h2>
+              <p className="mt-4 text-sm leading-8 text-white/60">
+                تاتوآرتیست. اجرای اختصاصی در کرمانشاه، و سابقهٔ کار و مسابقه در ترکیه.
+              </p>
+            </div>
+            <div className="grid gap-3">
+              <p className="text-sm leading-8 text-white/70">
+                طرح را برای همان بدن می‌سازم: رئال، بلک‌اندگری، پرتره، فول کالر و مینیمال.
+                نوبت، بیعانه و زمان جلسه از همین‌جا قطعی می‌شود.
+              </p>
+              <ul className="grid gap-2 text-sm leading-7 text-white/75">
+                <li>مقام سوم مسابقات آسیایی آلانیا، ۲۰۲۱، سبک مینیمال.</li>
+                <li>حضور در مسابقات بین‌المللی تاتو مارماریس.</li>
+                <li>سابقهٔ اجرا در استودیو کلئوپاترا اینک.</li>
+                <li>استودیو فعلی: کرمانشاه، چهارراه بسیج، مجتمع ارشاد، طبقه ۴، واحد ۱۶.</li>
+              </ul>
+              <a
+                href="https://www.instagram.com/peyman_zibaeifar_tattoo/"
+                className="text-sm text-[#e5d2ae]"
+                target="_blank"
+                rel="noreferrer"
+              >
+                اینستاگرام @peyman_zibaeifar_tattoo
+              </a>
+            </div>
+          </div>
+        </section>
+
         <section id="work" className="mx-auto max-w-6xl px-4 py-20">
           <p className="text-xs tracking-[.22em] text-[#b7955b]">تخصص‌ها</p>
           <div className="mt-3 flex flex-wrap items-end justify-between gap-4">

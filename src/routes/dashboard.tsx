@@ -29,14 +29,33 @@ export const Route = createFileRoute("/dashboard")({
     if (Number.isFinite(lat) && Number.isFinite(lng)) return { lat, lng };
     return {};
   },
-  component: Dashboard,
+  component: StudioDoor,
   pendingComponent: function DashboardPending() {
-    return <SignedOutPanel title="پنل کسب‌وکار" next="/dashboard" loading />;
+    return <SignedOutPanel title="پنل تاتو" next="/studio/admin" loading />;
   },
   errorComponent: function DashboardError() {
-    return <SignedOutPanel title="پنل کسب‌وکار" next="/dashboard" error />;
+    return <SignedOutPanel title="پنل تاتو" next="/studio/admin" error />;
   },
 });
+
+function StudioDoor() {
+  const { user, isPending } = useCurrentUserState();
+  const owner = isStudioOwnerEmail(user?.primaryEmail);
+  useEffect(() => {
+    if (isPending) return;
+    window.location.replace(owner ? "/studio/admin" : "/studio");
+  }, [isPending, owner]);
+  return (
+    <main className="grid min-h-dvh place-items-center px-4 text-center" dir="rtl">
+      <div>
+        <p className="text-sm text-muted">بخش ثبت کسب‌وکار آرشیو شده. رزرو تاتو سر جایش است.</p>
+        <Link to={owner ? "/studio/admin" : "/studio"} className="mt-4 inline-flex h-11 items-center rounded-full bg-primary px-4 text-sm text-primary-fg">
+          {owner ? "پنل مدیریت تاتو" : "استودیو تاتو"}
+        </Link>
+      </div>
+    </main>
+  );
+}
 
 function Dashboard() {
   const pin = Route.useSearch();

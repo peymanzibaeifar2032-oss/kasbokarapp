@@ -1,11 +1,10 @@
 import { Component, useEffect, type ReactNode } from "react";
-import { createRootRoute, HeadContent, Outlet, Scripts, useRouterState } from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
-import { GuideWidget } from "@/components/guide/widget";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "کسب‌وکار";
+const APP_NAME = "رزرو وقت تاتو";
 
 class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -15,12 +14,6 @@ class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean
   render() {
     return this.state.failed ? null : this.props.children;
   }
-}
-
-function ProductGuide() {
-  const path = useRouterState({ select: (state) => state.location.pathname });
-  if (path.startsWith("/studio")) return null;
-  return <GuideWidget />;
 }
 
 function CanonicalHost() {
@@ -49,12 +42,12 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
-      { name: "description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
+      { name: "description", content: "رزرو وقت تاتو نزد پیمان زیبائی‌فر در کرمانشاه" },
       { name: "theme-color", content: "#1C3D52" },
       { name: "kasb-build", content: "map-nav-v1" },
       { property: "og:title", content: APP_NAME },
       { property: "og:site_name", content: APP_NAME },
-      { property: "og:description", content: "کشف، رزرو و مدیریت کسب‌وکارهای نزدیک روی نقشه" },
+      { property: "og:description", content: "رزرو وقت تاتو نزد پیمان زیبائی‌فر در کرمانشاه" },
       { property: "og:type", content: "website" },
       { property: "og:image", content: "https://kasbokarapp.com/og.jpg" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -77,9 +70,6 @@ export const Route = createRootRoute({
         <CanonicalHost />
         <AuthProvider>
           <Outlet />
-          <QuietBoundary>
-            <ProductGuide />
-          </QuietBoundary>
           <QuietBoundary>
             <Toaster position="bottom-center" dir="rtl" richColors />
           </QuietBoundary>

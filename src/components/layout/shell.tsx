@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, CalendarDays, LayoutGrid, MapPinned, Store, UserRound } from "lucide-react";
+import { Bell, BookOpen, CalendarDays, PenLine, UserRound } from "lucide-react";
 import { SignedIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { t } from "@/lib/i18n";
 import { saveAction } from "@/lib/save";
+import { isStudioOwnerEmail } from "@/lib/studio-owner";
 
 function NoticeBell() {
   const { user } = useCurrentUserState();
@@ -18,9 +18,9 @@ function NoticeBell() {
   if (!user) return null;
   return (
     <Link
-      to="/notifications"
+      to="/studio/status"
       className="relative inline-flex size-11 items-center justify-center rounded-md border border-border bg-surface"
-      aria-label={t("notifications")}
+      aria-label="وضعیت نوبت"
     >
       <Bell className="size-5" />
       {unread > 0 ? (
@@ -38,9 +38,10 @@ function AuthSlot() {
   return (
     <Link
       to="/login"
+      search={{ next: "/studio/request" }}
       className="inline-flex h-10 shrink-0 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-fg"
     >
-      {t("navSignIn")}
+      ورود
     </Link>
   );
 }
@@ -51,26 +52,30 @@ const tabClass =
   "flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted";
 
 export function Shell({ children }: { children: ReactNode }) {
+  const { user } = useCurrentUserState();
+  const owner = isStudioOwnerEmail(user?.primaryEmail);
   return (
     <div className="min-h-dvh bg-bg text-fg">
       <header className="sticky top-0 z-40 border-b border-border bg-bg">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2">
-          <Link to="/" reloadDocument className="flex shrink-0 items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-fg">
-              <Store className="size-5" />
+          <Link to="/studio" className="flex shrink-0 items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-fg text-xs font-black">
+              تاتو
             </span>
-            <strong className="text-sm font-semibold">{t("appName")}</strong>
+            <strong className="text-sm font-semibold">رزرو وقت تاتو</strong>
           </Link>
           <nav className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto">
-            <Link to="/account" className={headerLink}>
-              {t("navBookings")}
+            <Link to="/studio/request" className={headerLink}>
+              درخواست
             </Link>
-            <Link to="/dashboard" search={{}} className={headerLink}>
-              {t("navCreate")}
+            <Link to="/studio/status" className={headerLink}>
+              وضعیت
             </Link>
-            <Link to="/dashboard" search={{}} className={headerLink}>
-              {t("navAccount")}
-            </Link>
+            {owner ? (
+              <Link to="/studio/admin" className={headerLink}>
+                پنل مدیریت
+              </Link>
+            ) : null}
             <SignedIn>
               <NoticeBell />
             </SignedIn>
@@ -81,27 +86,26 @@ export function Shell({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
         <div className="grid grid-cols-5">
-          <Link to="/" reloadDocument className={tabClass}>
-            <MapPinned className="size-5" />
-            {t("navMap")}
+          <Link to="/studio" className={tabClass}>
+            <span className="text-[11px] font-bold">استودیو</span>
           </Link>
-          <Link to="/" hash="cats" reloadDocument className={tabClass}>
-            <LayoutGrid className="size-5" />
-            {t("navCategories")}
+          <Link to="/studio/guide" className={tabClass}>
+            <BookOpen className="size-5" />
+            آموزش
           </Link>
-          <Link to="/dashboard" search={{}} className={`${tabClass} text-primary`}>
+          <Link to="/studio/request" className={`${tabClass} text-primary`}>
             <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-fg shadow-md">
-              <Store className="size-5" />
+              <PenLine className="size-5" />
             </span>
-            {t("navCreate")}
+            درخواست
           </Link>
-          <Link to="/account" className={tabClass}>
+          <Link to="/studio/status" className={tabClass}>
             <CalendarDays className="size-5" />
-            {t("navBookings")}
+            وضعیت
           </Link>
-          <Link to="/dashboard" search={{}} className={tabClass}>
+          <Link to={owner ? "/studio/admin" : "/account"} className={tabClass}>
             <UserRound className="size-5" />
-            {t("navAccount")}
+            {owner ? "مدیریت" : "حساب"}
           </Link>
         </div>
       </nav>

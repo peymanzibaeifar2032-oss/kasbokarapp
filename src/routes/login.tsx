@@ -159,8 +159,8 @@ function LoginForm({ dest, bounced, resetToken }: { dest: string; bounced?: bool
             <Store className="size-5" />
           </span>
           <span>
-            <strong className="block">کسب‌وکار</strong>
-            <small className="text-muted">{hideGoogle ? "ورود با ایمیل داخل اپ" : "ورود سریع با حساب گوگل"}</small>
+            <strong className="block">رزرو وقت تاتو</strong>
+            <small className="text-muted">پیمان زیبائی‌فر</small>
           </span>
         </Link>
         <h1 className="text-xl font-semibold">{title}</h1>
