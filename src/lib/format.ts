@@ -49,6 +49,16 @@ export function toTelLink(raw: string | null | undefined) {
   return `tel:${toEnDigits(raw).replace(/\s/g, "")}`;
 }
 
+/** Opens the phone's own SMS app with the customer number and a ready text. */
+export function toSmsLink(raw: string | null | undefined, text: string) {
+  if (!raw) return null;
+  const digits = toEnDigits(raw).replace(/[^\d]/g, "");
+  if (digits.length < 10) return null;
+  const local = digits.startsWith("98") ? `0${digits.slice(2)}` : digits.startsWith("0") ? digits : `0${digits}`;
+  const ios = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  return `sms:${local}${ios ? "&" : "?"}body=${encodeURIComponent(text)}`;
+}
+
 export function toWebsiteHref(raw: string | null | undefined) {
   const t = raw?.trim();
   if (!t) return null;

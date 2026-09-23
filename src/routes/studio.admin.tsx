@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle } from "@/lib/format";
+import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink } from "@/lib/format";
 import { tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
@@ -24,6 +24,7 @@ import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import {
   TATTOO_ADMIN_STAGE_LABEL,
   TATTOO_SETTLEMENT_PRESETS,
+  bookingConfirmSms,
   digitsOnly,
   formatCardNumber,
   formatGroupedDigits,
@@ -964,6 +965,70 @@ function MonthJobsPanel({
   );
 }
 
+function usablePhone(raw: string | null | undefined) {
+  const phone = (raw || "").trim();
+  return phone && phone !== "09000000000" ? phone : "";
+}
+
+function BookingSmsActions({ request }: { request: TattooRequest }) {
+  const phone = usablePhone(request.customerPhone);
+  const phone2 = usablePhone(request.customerPhone2);
+  if (!phone && !phone2) return null;
+  const paid = (request.paidToman ?? 0) > 0 ? request.paidToman : request.depositToman;
+
+  function open(honorific: "آقای" | "خانم", raw: string) {
+    if (!request.proposedSlotStart) {
+      toast.error("اول تاریخ و ساعت اجرا را ثبت کن، بعد پیامک را بفرست.");
+      return;
+    }
+    const href = toSmsLink(
+      raw,
+      bookingConfirmSms({
+        honorific,
+        name: request.customerName,
+        when: request.proposedSlotStart,
+        paidToman: paid,
+      }),
+    );
+    if (!href) {
+      toast.error("شماره برای پیامک معتبر نیست.");
+      return;
+    }
+    window.location.assign(href);
+  }
+
+  return (
+    <div className="mb-3 rounded-2xl border border-border bg-bg p-3">
+      <p className="text-sm font-semibold">پیامک قطعی نوبت از گوشی خودت</p>
+      <p className="mt-1 text-xs leading-6 text-muted">
+        متن آماده است: نام، روز، تاریخ، ساعت، محل اجرا و مبلغ واریزی. ارسال را خودت در پیامک تأیید می‌کنی.
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {phone ? (
+          <>
+            <Button type="button" size="sm" onClick={() => open("آقای", phone)}>
+              پیامک برای آقا
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => open("خانم", phone)}>
+              پیامک برای خانم
+            </Button>
+          </>
+        ) : null}
+        {phone2 ? (
+          <>
+            <Button type="button" size="sm" variant="outline" onClick={() => open("آقای", phone2)}>
+              شماره دوم، آقا
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => open("خانم", phone2)}>
+              شماره دوم، خانم
+            </Button>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function BookedSlotActions({
   request,
   busyKeys,
@@ -1044,6 +1109,7 @@ function BookedSlotActions({
 
   return (
     <div className="mt-3">
+      <BookingSmsActions request={request} />
       {editing ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="تاریخ جدید">

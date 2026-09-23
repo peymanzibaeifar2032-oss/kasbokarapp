@@ -115,6 +115,34 @@ export function withStudioVisitDetails(message: string) {
   return `${trimmed}\n\n${studioVisitText()}`;
 }
 
+export function bookingConfirmSms(opts: {
+  honorific: "آقای" | "خانم";
+  name: string;
+  when?: string | null;
+  paidToman?: number | null;
+}) {
+  const when = opts.when ? new Date(opts.when) : null;
+  const valid = Boolean(when && !Number.isNaN(when.getTime()));
+  const weekday = valid
+    ? when!.toLocaleDateString("fa-IR", { weekday: "long", timeZone: "Asia/Tehran" })
+    : "ثبت نشده";
+  const date = valid
+    ? when!.toLocaleDateString("fa-IR", { year: "numeric", month: "long", day: "numeric", timeZone: "Asia/Tehran" })
+    : "ثبت نشده";
+  const time = valid
+    ? when!.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
+    : "";
+  return [
+    `${opts.honorific} ${opts.name.trim() || "مشتری"}`,
+    "نوبت تاتو شما قطعی شد.",
+    `روز اجرا: ${weekday}`,
+    `تاریخ اجرا: ${date}${time ? `، ساعت ${time}` : ""}`,
+    `محل اجرا: ${STUDIO_ADDRESS}`,
+    `مبلغ واریزی: ${formatTattooToman(opts.paidToman ?? 0)}`,
+    `تلفن استودیو: ${STUDIO_CONTACT_PHONE}`,
+  ].join("\n");
+}
+
 export function isRetiredCollaborator(name: string) {
   return /مهر+داد/.test(name.replace(/\s/g, ""));
 }
