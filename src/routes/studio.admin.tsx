@@ -315,6 +315,12 @@ function tehranTimeInput(iso: string | null) {
   return `${String(clock.hh).padStart(2, "0")}:${String(clock.mm).padStart(2, "0")}`;
 }
 
+function oneMonthLaterKey(iso: string | null) {
+  const clock = tehranClock(iso ? new Date(iso) : new Date());
+  const next = new Date(Date.UTC(clock.y, clock.m, clock.day));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
+
 function requestBadge(request: TattooRequest) {
   return TATTOO_ADMIN_STAGE_LABEL[tattooStage(request)];
 }
@@ -968,9 +974,12 @@ function BookedSlotActions({
   onChange: () => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [follow, setFollow] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [day, setDay] = useState(tehranDateInput(request.proposedSlotStart));
   const [time, setTime] = useState(tehranTimeInput(request.proposedSlotStart));
+  const [followDay, setFollowDay] = useState(oneMonthLaterKey(request.proposedSlotStart));
+  const [followTime, setFollowTime] = useState(tehranTimeInput(request.proposedSlotStart));
   const [minutes, setMinutes] = useState(request.sessionMinutes?.toString() ?? "180");
   const [busy, setBusy] = useState(false);
 
@@ -987,6 +996,27 @@ function BookedSlotActions({
       });
       toast.success("زمان نوبت عوض شد و به مشتری خبر داده شد.");
       setEditing(false);
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveFollow() {
+    if (!followDay || !followTime) return toast.error("تاریخ و ساعت جلسه دوم را انتخاب کنید.");
+    const [y, m, d] = followDay.split("-").map(Number);
+    const [hh, mm] = followTime.split(":").map(Number);
+    setBusy(true);
+    try {
+      await saveAction("followUpStudioJob", {
+        id: request.id,
+        slotStart: tehranLocalToIso(y, m, d, hh, mm),
+        sessionMinutes: minutes ? Number(minutes) : undefined,
+      });
+      toast.success("جلسه دوم با همان مشخصات ثبت شد.");
+      setFollow(false);
       onChange();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -1032,10 +1062,34 @@ function BookedSlotActions({
             </Button>
           </div>
         </div>
+      ) : follow ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <p className="text-sm leading-7 text-muted sm:col-span-3">
+            نام، شماره، اینستاگرام، طرح، محل، ابعاد، عکس، قیمت و واریزی همین کار می‌آید. فقط تاریخ جلسه دوم را عوض کن.
+          </p>
+          <Field label="تاریخ جلسه دوم">
+            <JalaliDatePicker value={followDay} onChange={setFollowDay} label="انتخاب روز" busyKeys={busyKeys} />
+          </Field>
+          <Field label="ساعت شروع">
+            <Input type="time" value={followTime} onChange={(e) => setFollowTime(e.target.value)} />
+          </Field>
+          <NumberField label="مدت جلسه" hint="دقیقه" value={minutes} onChange={setMinutes} />
+          <div className="flex flex-wrap gap-2 sm:col-span-3">
+            <Button disabled={busy} size="sm" onClick={() => void saveFollow()}>
+              ثبت جلسه دوم
+            </Button>
+            <Button disabled={busy} size="sm" variant="outline" onClick={() => setFollow(false)}>
+              انصراف
+            </Button>
+          </div>
+        </div>
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button disabled={busy} size="sm" variant="outline" onClick={() => setEditing(true)}>
             ویرایش زمان
+          </Button>
+          <Button disabled={busy} size="sm" variant="outline" onClick={() => setFollow(true)}>
+            ثبت جلسه دوم
           </Button>
           <Button
             disabled={busy}
@@ -1137,6 +1191,9 @@ function MonthJobCard({
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
           <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
+          {job.artistMessage === "جلسه دوم" ? (
+            <p className="mt-1 text-xs font-semibold text-accent">جلسه دوم · مشخصات از جلسه قبل</p>
+          ) : null}
           <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} />
           {phone ? (
             <a className="mt-1 inline-block text-sm text-accent" href={`tel:${phone}`}>
