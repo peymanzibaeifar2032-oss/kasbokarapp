@@ -18,7 +18,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
-import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, withStudioVisitDetails } from "@/lib/tattoo-flow";
+import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
   performAssignApprenticeSlot,
@@ -2419,9 +2419,11 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   await removeRetiredCollaborators(sql, userId);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const src = rows[0];
-  if (!src?.business_id) throw new Error("این کار پیدا نشد.");
-  const owned = await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [src.business_id, userId]);
-  if (!owned[0]) throw new Error("دسترسی ندارید.");
+  if (!src) throw new Error("این کار پیدا نشد.");
+  const owned = src.business_id
+    ? await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [src.business_id, userId])
+    : [];
+  const businessId = owned[0] ? src.business_id! : await ensureStudioShop(sql, userId);
   const start = new Date(data.slotStart);
   if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
   rejectCustomerThursday(start.toISOString());
@@ -2433,13 +2435,12 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
     : [];
   const minutes = data.sessionMinutes ?? src.session_minutes ?? 180;
   const slotEnd = new Date(start.getTime() + minutes * 60000).toISOString();
-  const resources = await loadResources(sql, src.business_id);
-  const active = resources.filter((row) => row.active !== false);
+  const resources = await loadResources(sql, businessId);
+  const active = resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name));
   let resourceId = previous[0]?.resource_id ?? null;
   if (hasActiveResources(resources)) {
     if (resourceId && !active.some((row) => row.id === resourceId)) resourceId = null;
-    if (!resourceId && active.length === 1) resourceId = active[0].id;
-    if (!resourceId) throw new Error("منبع را انتخاب کنید.");
+    if (!resourceId && active.length >= 1) resourceId = active[0].id;
   } else {
     resourceId = null;
   }
@@ -2454,7 +2455,7 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
        values ($1,$2,$3,$4,$5,$6,$7,'booking','manual','manual',$8,'confirmed',$9,1,$10,$10,$11)`,
       [
         bookingId,
-        src.business_id,
+        businessId,
         previous[0]?.customer_id ?? null,
         src.customer_name,
         src.customer_phone && src.customer_phone !== "09000000000" ? src.customer_phone : null,
@@ -2477,12 +2478,12 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
        session_minutes, session_count, deposit_toman, artist_message, payment_status,
        proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, body_images
      )
-     select $1, customer_id, business_id, $2, customer_name, customer_phone, customer_phone_2, customer_instagram,
+     select $1, customer_id, $7, $2, customer_name, customer_phone, customer_phone_2, customer_instagram,
        request_type, style, idea, placement, size_cm, 'booked', price_min_toman, price_max_toman,
        $3, coalesce(session_count, 1), deposit_toman, 'جلسه دوم', payment_status,
        $4, $5, paid_toman, settled, reference_images, body_images
        from tattoo_requests where id=$6`,
-    [requestId, bookingId, minutes, start.toISOString(), slotEnd, src.id],
+    [requestId, bookingId, minutes, start.toISOString(), slotEnd, src.id, businessId],
   );
   const created = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [requestId]);
   const mapped = await mapTattooRequestRows(sql, created);
