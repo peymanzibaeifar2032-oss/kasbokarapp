@@ -186,7 +186,7 @@ export type TattooPayment = {
 
 export type TattooRequest = {
   id: string;
-  trackingCode: string;
+  trackingCode?: string;
   customerId: string;
   businessId: string | null;
   bookingId: string | null;
