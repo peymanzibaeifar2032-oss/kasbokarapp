@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarPlus, ChevronLeft, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { GuestPayCard, type GuestStatus } from "@/components/studio/guest-pay-card";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
 import { Button } from "@/components/ui/button";
@@ -10,21 +11,9 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { addBookingToPhoneCalendar, formatFaDateTime } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { ensureStudioPhoneNotices, inStudioApp, phoneNoticesEnabled, scheduleTattooPrepNotices } from "@/lib/studio-notices";
-import { STUDIO_ADDRESS, TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
+import { STUDIO_ADDRESS, TATTOO_REPLY_WAIT_NOTE, tattooStage } from "@/lib/tattoo-flow";
 import type { NotificationItem, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
-
-type GuestStatus = {
-  id: string;
-  customerName: string;
-  style: string;
-  placement: string;
-  status: string;
-  artistMessage: string | null;
-  paymentStatus: string | null;
-  proposedSlotStart: string | null;
-  createdAt: string;
-};
 
 export const Route = createFileRoute("/studio/status")({
   component: StudioStatusPage,
@@ -129,8 +118,10 @@ function StudioStatusPage() {
           <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6">
             <h1 className="text-2xl font-black">بررسی وضعیت نوبت</h1>
             <p className="mt-3 text-sm leading-7 text-white/55">
-              همان شماره‌ای را بنویس که در فرم درخواست وارد کردی. ایمیل لازم نیست.
+              همان شماره‌ای را بنویس که در فرم درخواست وارد کردی. ورود با ایمیل لازم نیست. از همین صفحه
+              زمان را تأیید کن و عکس رسید را بفرست.
             </p>
+            <p className="mt-3 text-sm leading-7 text-[#e5d2ae]">{TATTOO_REPLY_WAIT_NOTE}</p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Input
                 value={lookupPhone}
@@ -151,22 +142,7 @@ function StudioStatusPage() {
             </div>
             <div className="mt-5 grid gap-3">
               {guestItems.map((item) => (
-                <article key={item.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <strong>{item.customerName}</strong>
-                    <span className="text-xs text-[#e5d2ae]">
-                      {TATTOO_CUSTOMER_STAGE_LABEL[tattooStage({ status: item.status, paymentStatus: item.paymentStatus || "not_required" })]}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-white/60">
-                    {item.style}
-                    {item.placement ? ` · ${item.placement}` : ""}
-                  </p>
-                  {item.artistMessage ? <p className="mt-2 text-sm leading-7 text-white/75">{item.artistMessage}</p> : null}
-                  {item.proposedSlotStart ? (
-                    <p className="mt-2 text-sm text-[#e5d2ae]">{formatFaDateTime(item.proposedSlotStart)}</p>
-                  ) : null}
-                </article>
+                <GuestPayCard key={item.id} item={item} phone={lookupPhone} onRefresh={() => void lookupStatus()} />
               ))}
             </div>
           </section>
