@@ -5,52 +5,70 @@
     android:background="#0B0B0C"
     android:orientation="vertical">
 
-    <LinearLayout
+    <ScrollView
         android:id="@+id/ownerChrome"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:background="#B7955B"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:visibility="visible">
+        android:layout_height="292dp"
+        android:background="#111113"
+        android:fillViewport="true">
 
-        <TextView
-            android:id="@+id/loginBar"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="ورود"
-            android:textColor="#000000"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="8dp">
 
-        <TextView
-            android:id="@+id/logoutBar"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="خروج"
-            android:textColor="#000000"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="6dp"
+                android:text="منوی استودیو"
+                android:textColor="#B7955B"
+                android:textSize="12sp" />
 
-        <TextView
-            android:id="@+id/adminBar"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="6dp"
-            android:layout_weight="1.4"
-            android:background="#000000"
-            android:gravity="center"
-            android:text="پنل ادمین"
-            android:textColor="#B7955B"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/menuHome"
+                style="@style/StudioMenuItem"
+                android:text="صفحه استودیو" />
+
+            <TextView
+                android:id="@+id/menuRequest"
+                style="@style/StudioMenuItem"
+                android:text="درخواست نوبت" />
+
+            <TextView
+                android:id="@+id/menuStatus"
+                style="@style/StudioMenuItem"
+                android:text="وضعیت نوبت" />
+
+            <TextView
+                android:id="@+id/menuDesigns"
+                style="@style/StudioMenuItem"
+                android:text="انتخاب طرح" />
+
+            <TextView
+                android:id="@+id/menuGuide"
+                style="@style/StudioMenuItem"
+                android:text="آموزش و مراقبت" />
+
+            <TextView
+                android:id="@+id/adminBar"
+                style="@style/StudioMenuItem"
+                android:text="پنل ادمین · در مرورگر" />
+
+            <TextView
+                android:id="@+id/loginBar"
+                style="@style/StudioMenuItem"
+                android:text="ورود" />
+
+            <TextView
+                android:id="@+id/logoutBar"
+                style="@style/StudioMenuItem"
+                android:text="خروج" />
+        </LinearLayout>
+    </ScrollView>
 
     <WebView
         android:id="@+id/web"

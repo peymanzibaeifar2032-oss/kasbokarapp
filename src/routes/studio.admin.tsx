@@ -169,12 +169,12 @@ function StudioAdminPage() {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl border border-border bg-surface p-1.5 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mt-5 flex flex-col gap-2">
         <button
           type="button"
           onClick={() => setTab("requests")}
           className={cn(
-            "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
             tab === "requests" ? "bg-primary text-primary-fg" : "text-muted",
           )}
         >
@@ -184,7 +184,7 @@ function StudioAdminPage() {
           type="button"
           onClick={() => setTab("jobs")}
           className={cn(
-            "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
             tab === "jobs" ? "bg-primary text-primary-fg" : "text-muted",
           )}
         >
@@ -194,7 +194,7 @@ function StudioAdminPage() {
           type="button"
           onClick={() => setTab("calendar")}
           className={cn(
-            "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
             tab === "calendar" ? "bg-primary text-primary-fg" : "text-muted",
           )}
         >
@@ -204,7 +204,7 @@ function StudioAdminPage() {
           type="button"
           onClick={() => setTab("apprentices")}
           className={cn(
-            "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
             tab === "apprentices" ? "bg-primary text-primary-fg" : "text-muted",
           )}
         >
@@ -214,7 +214,7 @@ function StudioAdminPage() {
           type="button"
           onClick={() => setTab("money")}
           className={cn(
-            "h-12 rounded-xl px-1 text-xs font-semibold sm:text-sm",
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
             tab === "money" ? "bg-primary text-primary-fg" : "text-muted",
           )}
         >

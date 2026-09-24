@@ -68,6 +68,11 @@ public class MainActivity extends Activity {
 
         View ownerChrome = findViewById(R.id.ownerChrome);
         ownerChrome.setVisibility(View.VISIBLE);
+        findViewById(R.id.menuHome).setOnClickListener(v -> webView.loadUrl(HOME));
+        findViewById(R.id.menuRequest).setOnClickListener(v -> webView.loadUrl(HOME + "/request"));
+        findViewById(R.id.menuStatus).setOnClickListener(v -> webView.loadUrl(HOME + "/status"));
+        findViewById(R.id.menuDesigns).setOnClickListener(v -> webView.loadUrl(HOME + "/designs"));
+        findViewById(R.id.menuGuide).setOnClickListener(v -> webView.loadUrl(HOME + "/guide"));
         findViewById(R.id.loginBar).setOnClickListener(v -> openOutside(LOGIN));
         findViewById(R.id.logoutBar).setOnClickListener(v -> signOutOfApp());
         findViewById(R.id.adminBar).setOnClickListener(v -> openOutside(ADMIN));
@@ -100,7 +105,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.9");
+            settings.setUserAgentString(ua + " TattooApp/1.10");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
