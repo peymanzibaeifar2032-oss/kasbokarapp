@@ -140,13 +140,13 @@ function StudioRequestPage() {
             بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های مناسب برای شما فعال می‌شود.
           </p>
           {showAdmin ? (
-            <Link
-              to="/studio/admin"
+            <a
+              href="https://kasbokarapp.com/studio/admin"
               className="mt-5 flex h-12 items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-bold text-black"
             >
               رفتن به مدیریت تاتو و تقویم
               <ChevronLeft className="size-4" />
-            </Link>
+            </a>
           ) : null}
 
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -317,7 +317,7 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
           </p>
           <div className="flex flex-wrap gap-2">
             <a
-              href="/api/tattoo-apk?v=9"
+              href="/api/tattoo-apk?v=10"
               download="rezerv-vaght-tatoo.apk"
               className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
             >

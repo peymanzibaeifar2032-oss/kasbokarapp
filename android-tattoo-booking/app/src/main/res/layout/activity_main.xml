@@ -14,23 +14,36 @@
         android:orientation="horizontal"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:visibility="gone">
+        android:visibility="visible">
 
         <TextView
-            android:id="@+id/homeBar"
+            android:id="@+id/loginBar"
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="صفحه اصلی"
+            android:text="ورود"
             android:textColor="#000000"
-            android:textSize="14sp" />
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/logoutBar"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="خروج"
+            android:textColor="#000000"
+            android:textSize="15sp"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/adminBar"
             android:layout_width="0dp"
             android:layout_height="40dp"
-            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1.4"
             android:background="#000000"
             android:gravity="center"
             android:text="پنل ادمین"

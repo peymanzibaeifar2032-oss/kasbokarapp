@@ -69,12 +69,12 @@ function StudioLanding() {
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
                 {showAdmin ? (
-                  <Link
-                    to="/studio/admin"
+                  <a
+                    href="https://kasbokarapp.com/studio/admin"
                     className="inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-6 font-black text-black"
                   >
                     ورود به پنل ادمین من
-                  </Link>
+                  </a>
                 ) : null}
                 <Link
                   to="/studio/request"

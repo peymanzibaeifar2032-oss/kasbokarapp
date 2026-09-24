@@ -1,22 +1,39 @@
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronLeft } from "lucide-react";
+import { useEffect, useState } from "react";
 import { StudioNoticeBanner, useStudioNotices } from "@/components/studio/notice-watcher";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
+import { inStudioApp } from "@/lib/studio-notices";
+
+const ADMIN_URL = "https://kasbokarapp.com/studio/admin";
+const LOGIN_URL = "https://kasbokarapp.com/login?next=/studio/admin";
+const LOGOUT_URL = "https://kasbokarapp.com/login?out=1";
 
 export function StudioTopBar({ compact }: { compact?: boolean }) {
   const { unread, banner, dismiss } = useStudioNotices();
   const { showAdmin } = useStudioAdminEntry();
+  const [inApp, setInApp] = useState(false);
+  useEffect(() => setInApp(inStudioApp()), []);
   return (
     <>
       {banner ? <StudioNoticeBanner item={banner} onDismiss={dismiss} /> : null}
       <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0c]/95 backdrop-blur-xl">
-        {showAdmin ? (
-          <Link
-            to="/studio/admin"
-            className="block bg-[#b7955b] px-4 py-3.5 text-center text-[15px] font-black text-black"
-          >
+        {inApp ? (
+          <div className="grid grid-cols-3 bg-[#b7955b] text-center text-[15px] font-black text-black">
+            <a href={LOGIN_URL} className="px-2 py-3.5">
+              ورود
+            </a>
+            <a href={LOGOUT_URL} className="px-2 py-3.5">
+              خروج
+            </a>
+            <a href={ADMIN_URL} className="bg-black px-2 py-3.5 text-[#b7955b]">
+              پنل ادمین
+            </a>
+          </div>
+        ) : showAdmin ? (
+          <a href={ADMIN_URL} className="block bg-[#b7955b] px-4 py-3.5 text-center text-[15px] font-black text-black">
             پنل ادمین من · درخواست‌ها، تقویم، درآمد
-          </Link>
+          </a>
         ) : null}
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4">
           <Link to="/studio" className="min-w-0 flex-1 leading-tight">

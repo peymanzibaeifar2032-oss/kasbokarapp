@@ -48,6 +48,8 @@ import java.io.OutputStream;
 public class MainActivity extends Activity {
     private static final String HOME = "https://kasbokarapp.com/studio";
     private static final String ADMIN = "https://kasbokarapp.com/studio/admin";
+    private static final String LOGIN = "https://kasbokarapp.com/login?next=/studio/admin";
+    private static final String LOGOUT = "https://kasbokarapp.com/login?out=1";
     private static final String CHANNEL = "tattoo-notices";
     private static final int FILE_CHOOSER = 1001;
 
@@ -65,11 +67,10 @@ public class MainActivity extends Activity {
         webView.setBackgroundColor(0xFF0B0B0C);
 
         View ownerChrome = findViewById(R.id.ownerChrome);
-        ownerChrome.setVisibility(View.GONE);
-        View adminBar = findViewById(R.id.adminBar);
-        View homeBar = findViewById(R.id.homeBar);
-        adminBar.setOnClickListener(v -> webView.loadUrl(ADMIN));
-        homeBar.setOnClickListener(v -> webView.loadUrl(HOME));
+        ownerChrome.setVisibility(View.VISIBLE);
+        findViewById(R.id.loginBar).setOnClickListener(v -> openOutside(LOGIN));
+        findViewById(R.id.logoutBar).setOnClickListener(v -> signOutOfApp());
+        findViewById(R.id.adminBar).setOnClickListener(v -> openOutside(ADMIN));
 
         ensureNoticeChannel();
         if (Build.VERSION.SDK_INT >= 33) {
@@ -99,7 +100,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.8");
+            settings.setUserAgentString(ua + " TattooApp/1.9");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -212,7 +213,16 @@ public class MainActivity extends Activity {
             return false;
         }
         String host = uri.getHost() == null ? "" : uri.getHost();
-        if (host.endsWith("kasbokarapp.com")) return true;
+        if (host.endsWith("kasbokarapp.com")) {
+            String path = uri.getPath() == null ? "" : uri.getPath();
+            if (path.startsWith("/studio/admin")) return false;
+            if ("/login".equals(path) || path.startsWith("/login/")) {
+                String next = uri.getQueryParameter("next");
+                if ("1".equals(uri.getQueryParameter("out"))) return false;
+                if (next != null && next.contains("/studio/admin")) return false;
+            }
+            return true;
+        }
         if ("calendar.google.com".equals(host)) return false;
         if (host.equals("pin.it") || host.endsWith("pinterest.com") || host.endsWith("pinimg.com")) return true;
         return host.endsWith("google.com")
@@ -222,6 +232,23 @@ public class MainActivity extends Activity {
                 || host.endsWith("youtube.com")
                 || host.endsWith("ytimg.com")
                 || host.endsWith("ggpht.com");
+    }
+
+    private void openOutside(String url) {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception ignored) {
+            Toast.makeText(this, "مرورگر باز نشد", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void signOutOfApp() {
+        CookieManager cookies = CookieManager.getInstance();
+        cookies.removeAllCookies(ok -> cookies.flush());
+        if (webView != null) webView.loadUrl(HOME);
+        openOutside(LOGOUT);
     }
 
     private void ensureNoticeChannel() {
@@ -277,8 +304,14 @@ public class MainActivity extends Activity {
         public void setOwnerChrome(boolean show) {
             runOnUiThread(() -> {
                 View bar = findViewById(R.id.ownerChrome);
-                if (bar != null) bar.setVisibility(show ? View.VISIBLE : View.GONE);
+                if (bar != null) bar.setVisibility(View.VISIBLE);
             });
+        }
+
+        @JavascriptInterface
+        public void openExternal(String url) {
+            if (url == null || url.isEmpty()) return;
+            runOnUiThread(() -> openOutside(url));
         }
 
         @JavascriptInterface

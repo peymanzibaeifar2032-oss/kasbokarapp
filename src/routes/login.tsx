@@ -4,7 +4,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { authClient, authEnabled } from "@/lib/auth/client";
+import { authClient, authEnabled, signOut } from "@/lib/auth/client";
 import { getAuthMethods } from "@/lib/auth/status";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { safeNextPath } from "@/lib/format";
@@ -13,22 +13,37 @@ import { lastDeviceLogin, rememberDeviceLogin, savedDevicePassword } from "@/lib
 
 export const Route = createFileRoute("/login")({
   loader: async () => getAuthMethods().catch(() => ({ google: false })),
-  validateSearch: (s: Record<string, unknown>): { next?: string; error?: string; token?: string } => {
+  validateSearch: (s: Record<string, unknown>): { next?: string; error?: string; token?: string; out?: boolean } => {
     const next = safeNextPath(s.next);
     const err =
       typeof s.error === "string" ? s.error : typeof s.error_description === "string" ? s.error_description : undefined;
     const token = typeof s.token === "string" && s.token.trim() ? s.token.trim() : undefined;
-    return { ...(next ? { next } : {}), ...(err ? { error: err } : {}), ...(token ? { token } : {}) };
+    const out = s.out === "1" || s.out === "true" || s.out === true;
+    return { ...(next ? { next } : {}), ...(err ? { error: err } : {}), ...(token ? { token } : {}), ...(out ? { out } : {}) };
   },
   component: Login,
 });
 
 function Login() {
-  const { next, error, token } = Route.useSearch();
+  const { next, error, token, out } = Route.useSearch();
+  if (out) return <SignOutNow />;
   const dest = next || "/";
   const { user } = useCurrentUserState();
   if (user && !token) return <GoNext dest={dest} />;
   return <LoginForm dest={dest} bounced={Boolean(error)} resetToken={token} />;
+}
+
+function SignOutNow() {
+  useEffect(() => {
+    void signOut("/studio").catch(() => {
+      window.location.replace("/studio");
+    });
+  }, []);
+  return (
+    <main className="grid min-h-dvh place-items-center bg-bg px-4 text-sm text-muted" dir="rtl">
+      در حال خروج…
+    </main>
+  );
 }
 
 function GoNext({ dest }: { dest: string }) {
