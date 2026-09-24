@@ -3,6 +3,7 @@ import { z, ZodError } from "zod";
 import { getSql } from "@/lib/db";
 import { isIranMobile, normalizeInstagramHandle, normalizeIranPhone } from "@/lib/format";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
+import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -39,34 +40,69 @@ function sameOrigin(request: Request) {
 
 type StatusRow = {
   id: string;
-  tracking_code: string;
+  tracking_code?: string | null;
   customer_name: string;
   style: string;
   placement: string;
   status: string;
   artist_message: string | null;
   payment_status: string | null;
+  payment_hold_until?: string | null;
+  payment_review_deadline?: string | null;
+  price_min_toman?: number | null;
+  session_minutes?: number | null;
+  session_count?: number | null;
+  deposit_toman?: number | null;
+  payment_iban?: string | null;
+  payment_card_number?: string | null;
   proposed_slot_start: string | null;
+  proposed_slot_end?: string | null;
   created_at: string;
 };
 
 function mapStatus(row: StatusRow) {
   return {
     id: row.id,
-    trackingCode: row.tracking_code,
+    trackingCode: row.tracking_code || "",
     customerName: row.customer_name,
     style: row.style,
     placement: row.placement,
     status: row.status,
     artistMessage: row.artist_message,
     paymentStatus: row.payment_status,
+    paymentHoldUntil: row.payment_hold_until || null,
+    paymentReviewDeadline: row.payment_review_deadline || null,
+    priceMinToman: row.price_min_toman == null ? null : Number(row.price_min_toman),
+    sessionMinutes: row.session_minutes == null ? null : Number(row.session_minutes),
+    sessionCount: row.session_count == null ? null : Number(row.session_count),
+    depositToman: row.deposit_toman == null ? null : Number(row.deposit_toman),
+    paymentIban: row.payment_iban || null,
+    paymentCardNumber: row.payment_card_number || null,
     proposedSlotStart: row.proposed_slot_start,
+    proposedSlotEnd: row.proposed_slot_end || null,
     createdAt: row.created_at,
   };
 }
 
-const statusSelect = `select id, tracking_code, customer_name, style, placement, status, artist_message, payment_status, proposed_slot_start, created_at
+const statusSelect = `select id, tracking_code, customer_name, style, placement, status, artist_message, payment_status,
+         payment_hold_until, payment_review_deadline, price_min_toman, session_minutes, session_count,
+         deposit_toman, payment_iban, payment_card_number, proposed_slot_start, proposed_slot_end, created_at
        from tattoo_requests`;
+
+const statusSelectLegacy = `select id, customer_name, style, placement, status, artist_message, payment_status,
+         payment_hold_until, payment_review_deadline, price_min_toman, session_minutes, session_count,
+         deposit_toman, payment_iban, payment_card_number, proposed_slot_start, proposed_slot_end, created_at
+       from tattoo_requests`;
+
+async function queryStatus(sql: Awaited<ReturnType<typeof getSql>>, where: string, params: unknown[]) {
+  try {
+    return await sql.query<StatusRow>(`${statusSelect} ${where}`, params);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!/tracking_code/i.test(message)) throw error;
+    return sql.query<StatusRow>(`${statusSelectLegacy} ${where}`, params);
+  }
+}
 
 async function createGuest(request: Request) {
   if (!allowRate(`tattoo-guest:${clientKey(request)}`, 8, 60 * 60 * 1000)) {
@@ -143,15 +179,13 @@ async function lookup(request: Request) {
   const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
   const sql = await getSql();
   if (code.length === 6) {
-    const rows = await sql.query<StatusRow>(`${statusSelect} where tracking_code = $1 limit 1`, [code]);
+    const rows = await queryStatus(sql, "where tracking_code = $1 limit 1", [code]);
     return json({ items: rows.map(mapStatus) });
   }
   if (isIranMobile(phone)) {
-    const rows = await sql.query<StatusRow>(
-      `${statusSelect}
-      where customer_phone = $1 or customer_phone_2 = $1
-      order by created_at desc
-      limit 20`,
+    const rows = await queryStatus(
+      sql,
+      "where customer_phone = $1 or customer_phone_2 = $1 order by created_at desc limit 20",
       [phone],
     );
     return json({ items: rows.map(mapStatus) });
@@ -163,7 +197,10 @@ async function handle(request: Request) {
   try {
     if (!sameOrigin(request)) return json({ error: "این درخواست مجاز نیست." }, 403);
     const url = new URL(request.url);
-    if (url.searchParams.get("op") === "status") return await lookup(request);
+    const op = url.searchParams.get("op");
+    if (op === "status") return await lookup(request);
+    if (op === "accept") return await acceptGuestByPhone(request);
+    if (op === "receipt") return await submitGuestReceiptByPhone(request);
     return await createGuest(request);
   } catch (err) {
     if (err instanceof ZodError) return json({ error: err.issues[0]?.message || "اطلاعات را کامل کنید." }, 400);
