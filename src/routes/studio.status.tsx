@@ -37,24 +37,46 @@ function StudioStatusPage() {
   const [guestItems, setGuestItems] = useState<GuestStatus[]>([]);
   const [lookupBusy, setLookupBusy] = useState(false);
 
-  async function lookupStatus() {
+  async function lookupStatus(phone = lookupPhone) {
     setLookupBusy(true);
     try {
       const res = await fetch("/api/tattoo-public?op=status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: lookupPhone }),
+        body: JSON.stringify({ phone }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string; items?: GuestStatus[] } | null;
       if (!res.ok) throw new Error(data?.error || "وضعیت پیدا نشد.");
-      setGuestItems(data?.items ?? []);
-      if (!data?.items?.length) toast.message("با این شماره هنوز درخواستی ثبت نشده.");
+      const items = data?.items ?? [];
+      setGuestItems(items);
+      try {
+        localStorage.setItem("studio-status-phone", phone);
+      } catch {
+        /* private mode */
+      }
+      for (const item of items) {
+        if (tattooStage({ status: item.status, paymentStatus: item.paymentStatus || "not_required" }) === "booked" && item.proposedSlotStart) {
+          scheduleTattooPrepNotices(item.proposedSlotStart, item.customerName || "مشتری");
+        }
+      }
+      if (!items.length) toast.message("با این شماره هنوز درخواستی ثبت نشده.");
     } catch (err) {
       toast.error(friendlyError(err));
     } finally {
       setLookupBusy(false);
     }
   }
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("studio-status-phone");
+      if (!saved) return;
+      setLookupPhone(saved);
+      void lookupStatus(saved);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   function refresh() {
     if (!userId || inFlight.current) return;
@@ -157,6 +179,31 @@ function StudioStatusPage() {
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
       <StudioTopBar compact />
       <main className="mx-auto grid max-w-3xl gap-5 px-4 py-8">
+        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-7">
+          <h2 className="text-xl font-black">وضعیت با شماره موبایل</h2>
+          <p className="mt-2 text-sm leading-7 text-white/55">
+            همان شماره‌ای را بزن که موقع درخواست نوشتی. تأیید نهایی و زمان قطعی همین‌جا می‌آید.
+          </p>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <Input
+              value={lookupPhone}
+              onChange={(e) => setLookupPhone(e.target.value)}
+              inputMode="tel"
+              dir="ltr"
+              placeholder="۰۹…"
+              className="h-12"
+            />
+            <Button className="h-12 bg-[#b7955b] text-black" disabled={lookupBusy} onClick={() => void lookupStatus()}>
+              {lookupBusy ? <Loader2 className="size-4 animate-spin" /> : null}
+              دیدن وضعیت
+            </Button>
+          </div>
+          <div className="mt-5 grid gap-3">
+            {guestItems.map((item) => (
+              <GuestPayCard key={item.id} item={item} phone={lookupPhone} onRefresh={() => void lookupStatus()} />
+            ))}
+          </div>
+        </section>
         {showAdmin ? (
           <Link
             to="/studio/admin"

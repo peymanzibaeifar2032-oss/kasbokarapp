@@ -1,12 +1,13 @@
-import { ImagePlus } from "lucide-react";
+import { CalendarPlus, ImagePlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { StudioVisitNote } from "@/components/studio/visit-note";
 import { Button } from "@/components/ui/button";
 import { compressImage } from "@/lib/design-images";
-import { formatFaDateTime, formatToman } from "@/lib/format";
+import { addBookingToPhoneCalendar, formatFaDateTime, formatToman } from "@/lib/format";
 import { friendlyError } from "@/lib/save";
-import { TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
+import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
+import { STUDIO_ADDRESS, TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 
 export type GuestStatus = {
   id: string;
@@ -26,6 +27,7 @@ export type GuestStatus = {
   paymentIban?: string | null;
   paymentCardNumber?: string | null;
   proposedSlotStart: string | null;
+  proposedSlotEnd?: string | null;
   createdAt: string;
 };
 
@@ -46,6 +48,23 @@ export function GuestPayCard({
     paymentReviewDeadline: item.paymentReviewDeadline,
   });
   const canPay = item.paymentStatus === "awaiting_payment" || item.paymentStatus === "rejected";
+  const booked = stage === "booked";
+
+  function addToCalendar() {
+    if (!item.proposedSlotStart) return;
+    const end = item.proposedSlotEnd ? new Date(item.proposedSlotEnd).getTime() : NaN;
+    const start = new Date(item.proposedSlotStart).getTime();
+    const minutes = Number.isFinite(end) && end > start ? Math.max(10, Math.round((end - start) / 60000)) : item.sessionMinutes || 120;
+    scheduleTattooPrepNotices(item.proposedSlotStart, item.customerName || "مشتری");
+    addBookingToPhoneCalendar({
+      title: "نوبت تاتو · پیمان زیبائی‌فر",
+      startIso: item.proposedSlotStart,
+      minutes,
+      location: STUDIO_ADDRESS,
+      description: [item.style, item.artistMessage].filter(Boolean).join(" — "),
+      fileName: `tattoo-${item.id}.ics`,
+    });
+  }
 
   async function post(op: "accept" | "receipt") {
     setBusy(true);
@@ -85,8 +104,11 @@ export function GuestPayCard({
       {item.depositToman != null ? <p className="text-sm text-white/65">بیعانه: {formatToman(item.depositToman)}</p> : null}
       {item.proposedSlotStart ? (
         <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-sm text-[#e5d2ae]">
-          <p className="font-semibold">زمان پیشنهادی پیمان</p>
+          <p className="font-semibold">{booked ? "زمان نوبت قطعی شد" : "زمان پیشنهادی پیمان"}</p>
           <p className="mt-1">{formatFaDateTime(item.proposedSlotStart)}</p>
+          {booked ? (
+            <p className="mt-2 text-sm leading-7 text-white/80">رسید تأیید شد. این زمان در تقویم کاری ثبت شده است.</p>
+          ) : null}
           {item.paymentIban ? (
             <p className="mt-2" dir="ltr">
               شبا: {item.paymentIban}
@@ -97,6 +119,12 @@ export function GuestPayCard({
           {item.paymentStatus === "proposal_pending" ? (
             <Button disabled={busy} className="mt-3 h-11 w-full bg-[#b7955b] text-black" onClick={() => void post("accept")}>
               تأیید این زمان و شروع مهلت پرداخت
+            </Button>
+          ) : null}
+          {booked ? (
+            <Button className="mt-3 h-11 w-full bg-[#b7955b] text-black" onClick={addToCalendar}>
+              <CalendarPlus className="size-5" />
+              افزودن این زمان به تقویم گوشی
             </Button>
           ) : null}
         </div>

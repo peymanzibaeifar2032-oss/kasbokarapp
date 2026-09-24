@@ -13,14 +13,24 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
   const { unread, banner, dismiss } = useStudioNotices();
   const { showAdmin } = useStudioAdminEntry();
   const [inApp, setInApp] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => setInApp(inStudioApp()), []);
   return (
     <>
       {banner ? <StudioNoticeBanner item={banner} onDismiss={dismiss} /> : null}
       <header className={inApp ? "border-b border-white/10 bg-[#0b0b0c]" : "sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0c]/95 backdrop-blur-xl"}>
         {inApp ? (
-          <nav className="grid gap-2 px-4 py-3" aria-label="منوی استودیو">
-            <p className="text-xs text-[#b7955b]">منوی استودیو</p>
+          <div className="px-4 py-3">
+            <button
+              type="button"
+              className="flex h-12 w-full items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-black text-black"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              منوی استودیو
+              <span>{menuOpen ? "بستن" : "باز کردن"}</span>
+            </button>
+            {menuOpen ? (
+          <nav className="mt-2 grid gap-2" aria-label="منوی استودیو">
             <Link to="/studio" className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
               صفحه استودیو
             </Link>
@@ -46,6 +56,8 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
               خروج
             </a>
           </nav>
+            ) : null}
+          </div>
         ) : (
           <>
             {showAdmin ? (
