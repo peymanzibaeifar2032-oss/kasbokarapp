@@ -18,7 +18,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
-import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, withStudioVisitDetails } from "@/lib/tattoo-flow";
+import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
   performAssignApprenticeSlot,
@@ -26,6 +26,11 @@ import {
   performSetApprenticeProgress,
   performStudioApprenticeBoard,
 } from "@/lib/server/studio-apprentices";
+import {
+  performAddStudioFillIn,
+  performListStudioFillIns,
+  performSetStudioFillIn,
+} from "@/lib/server/studio-fill-ins";
 import { STUDIO_EXPENSE_CATEGORIES, studioMonthSummary, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
@@ -488,21 +493,30 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
   if (bytes > 3_500_000) throw new Error("حجم مجموع عکس‌ها زیاد است. عکس‌های کم‌حجم‌تر بفرستید.");
   const sql = await getSql();
   const id = crypto.randomUUID();
-  await sql.query(
-    `insert into tattoo_requests
-      (id, customer_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
-       size_cm, preferred_dates, budget_toman, reference_images, body_images)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb)`,
-    [id, userId, data.customerName, phone, phone2, instagram || null, data.requestType, data.style, data.idea, data.placement,
-      data.sizeCm, data.preferredDates || null, null,
-      JSON.stringify(data.referenceImages), JSON.stringify(data.bodyImages)],
-  );
+  let trackingCode = "";
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    trackingCode = makeTattooTrackingCode();
+    try {
+      await sql.query(
+        `insert into tattoo_requests
+          (id, tracking_code, customer_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
+           size_cm, preferred_dates, budget_toman, reference_images, body_images)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb,$16::jsonb)`,
+        [id, trackingCode, userId, data.customerName, phone, phone2, instagram || null, data.requestType, data.style, data.idea, data.placement,
+          data.sizeCm, data.preferredDates || null, null,
+          JSON.stringify(data.referenceImages), JSON.stringify(data.bodyImages)],
+      );
+      break;
+    } catch (error) {
+      if (attempt === 5 || !/unique|duplicate/i.test(error instanceof Error ? error.message : "")) throw error;
+    }
+  }
   const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin = true");
   for (const admin of admins) {
     await notify(sql, admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} دریافت شد.`, "tattoo_request_new");
   }
   await notify(sql, userId, "درخواست تاتو ثبت شد", "درخواست شما برای بررسی پیمان زیبائی‌فر ارسال شد.", "tattoo_request_created");
-  return { id };
+  return { id, trackingCode };
 }
 
 async function performMyTattooRequests(userId: string) {
@@ -2648,6 +2662,12 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performAssignApprenticeSlot(userId, payload, { requireAdmin, ensureStudioShop });
     case "clearStudioCalendar":
       return performClearStudioCalendar(userId, payload);
+    case "listStudioFillIns":
+      return performListStudioFillIns(userId, requireAdmin);
+    case "addStudioFillIn":
+      return performAddStudioFillIn(userId, payload, requireAdmin);
+    case "setStudioFillIn":
+      return performSetStudioFillIn(userId, payload, requireAdmin);
     case "favorites":
       return performFavorites(userId);
     case "favoriteToggle":

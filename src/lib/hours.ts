@@ -34,6 +34,12 @@ export function tehranDayKey(date = new Date()) {
   return `${clock.y}-${String(clock.m).padStart(2, "0")}-${String(clock.day).padStart(2, "0")}`;
 }
 
+export function shiftTehranDayKey(dayKey: string, days: number) {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const next = new Date(Date.UTC(y, (m || 1) - 1, (d || 1) + days));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
+
 /** Inclusive civil-day start (00:00) through exclusive next-day start, Tehran. */
 export function tehranDayBounds(date = new Date(), days = 1) {
   const clock = tehranClock(date);

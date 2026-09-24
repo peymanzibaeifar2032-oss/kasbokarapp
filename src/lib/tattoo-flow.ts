@@ -159,6 +159,44 @@ export function bookingConfirmSms(opts: {
   ].join("\n");
 }
 
+export function bookingReminderSms(opts: {
+  honorific: "آقای" | "خانم";
+  name: string;
+  when?: string | null;
+  remainingToman?: number | null;
+}) {
+  const when = opts.when ? new Date(opts.when) : null;
+  const valid = Boolean(when && !Number.isNaN(when.getTime()));
+  const weekday = valid ? when!.toLocaleDateString("fa-IR", { weekday: "long", timeZone: "Asia/Tehran" }) : "فردا";
+  const time = valid
+    ? when!.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
+    : "";
+  const remaining = Math.max(0, Number(opts.remainingToman) || 0);
+  return [
+    `${opts.honorific} ${opts.name.trim() || "مشتری"}`,
+    "یادآوری نوبت تاتو.",
+    `فردا ${weekday}${time ? ` ساعت ${time}` : ""} وقت شماست.`,
+    "شب قبل استراحت کنید و برای جلسه آماده باشید.",
+    `آدرس: ${STUDIO_ADDRESS}`,
+    remaining > 0 ? `مانده پرداخت در استودیو: ${formatTattooToman(remaining)}` : "بیعانه ثبت شده است.",
+    `تلفن استودیو: ${STUDIO_CONTACT_PHONE}`,
+  ].join("\n");
+}
+
+export function fillInOfferSms(name: string, idea: string) {
+  return [
+    `سلام ${name.trim() || ""}`.trim(),
+    "امروز یک جا برای تاتو خالی شد.",
+    "اگر می‌توانی همین امروز بیایی، به این شماره جواب بده یا زنگ بزن.",
+    idea.trim() ? `طرح: ${idea.trim()}` : "",
+    "هزینه همان روز در استودیو، با کارت‌خوان، دریافت می‌شود.",
+    STUDIO_ADDRESS,
+    `تلفن: ${STUDIO_CONTACT_PHONE}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function isRetiredCollaborator(name: string) {
   return /مهر+داد/.test(name.replace(/\s/g, ""));
 }

@@ -6,6 +6,8 @@ import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
+import { StudioFillInBoard } from "@/components/studio/fill-in-board";
+import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { SignedOutPanel } from "@/components/layout/auth-required";
@@ -39,7 +41,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/studio/admin")({ component: StudioAdminPage });
 
-type PanelTab = "requests" | "jobs" | "calendar" | "money" | "apprentices";
+type PanelTab = "requests" | "jobs" | "calendar" | "money" | "apprentices" | "fill";
 type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
 
 function StudioAdminPage() {
@@ -169,6 +171,16 @@ function StudioAdminPage() {
         </div>
       </div>
 
+      {!loading && !error ? (
+        <StudioTomorrowDesk
+          requests={requests}
+          onOpenReceipts={() => {
+            setTab("requests");
+            setFilter("receipt");
+          }}
+        />
+      ) : null}
+
       <div className="mt-5 flex flex-col gap-2">
         <button
           type="button"
@@ -189,6 +201,16 @@ function StudioAdminPage() {
           )}
         >
           <ClipboardList className="ml-1 inline size-4" /> لیست این ماه
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("fill")}
+          className={cn(
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
+            tab === "fill" ? "bg-primary text-primary-fg" : "text-muted",
+          )}
+        >
+          پر کردن کنسلی
         </button>
         <button
           type="button"
@@ -239,6 +261,8 @@ function StudioAdminPage() {
       {!loading && !error && tab === "jobs" ? (
         <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} />
       ) : null}
+
+      {!loading && !error && tab === "fill" ? <StudioFillInBoard onPlaced={() => void refresh()} /> : null}
 
       {!loading && !error && tab === "apprentices" ? <StudioApprenticeBoard /> : null}
 

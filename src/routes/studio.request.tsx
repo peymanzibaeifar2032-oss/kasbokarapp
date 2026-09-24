@@ -36,6 +36,7 @@ function StudioRequestPage() {
   const [referenceImages, setReferenceImages] = useState<string[]>([]);
   const [bodyImages, setBodyImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState<{ code: string; phone: string } | null>(null);
 
   function refresh() {
     void saveAction<TattooRequest[]>("myTattooRequests").then((rows) => {
@@ -78,7 +79,7 @@ function StudioRequestPage() {
     setBusy(true);
     try {
       if (userId) {
-        await saveAction("createTattooRequest", {
+        const created = await saveAction<{ id: string; trackingCode?: string }>("createTattooRequest", {
           customerName: name,
           customerPhone: phone,
           customerPhone2: phone2.trim() || undefined,
@@ -92,6 +93,7 @@ function StudioRequestPage() {
           referenceImages,
           bodyImages,
         });
+        setSent({ code: created.trackingCode || "", phone });
       } else {
         const res = await fetch("/api/tattoo-public", {
           method: "POST",
@@ -111,10 +113,10 @@ function StudioRequestPage() {
             bodyImages,
           }),
         });
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string } | null;
         if (!res.ok) throw new Error(data?.error || "ثبت انجام نشد.");
+        setSent({ code: data?.trackingCode || "", phone });
       }
-      toast.success("درخواست برای بررسی پیمان ارسال شد. وضعیت را با همین شماره ببین.");
       setIdea("");
       setPlacement("");
       setSizeCm("");
@@ -133,6 +135,29 @@ function StudioRequestPage() {
     <StudioRequestChrome>
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[1fr_19rem]">
         <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-8">
+          {sent ? (
+            <div>
+              <p className="text-xs text-[#b7955b]">درخواست ثبت شد</p>
+              <h1 className="mt-2 text-3xl font-black">درخواستت رسید</h1>
+              <p className="mt-3 text-sm leading-7 text-white/70">هنوز وقت قطعی نیست. پیمان طرح را نگاه می‌کند و بعد قیمت و زمان را همین‌جا می‌بینی.</p>
+              {sent.code ? (
+                <p className="mt-6 text-center text-4xl font-black tracking-[0.2em] text-[#e5d2ae]" dir="ltr">
+                  {sent.code}
+                </p>
+              ) : null}
+              <p className="mt-3 text-center text-sm text-white/55">کد پیگیری را نگه دار. وضعیت را با شماره {sent.phone} ببین.</p>
+              <Link
+                to="/studio/status"
+                className="mt-6 flex h-12 items-center justify-center rounded-2xl bg-[#b7955b] text-sm font-bold text-black"
+              >
+                دیدن وضعیت با همین شماره
+              </Link>
+              <button type="button" className="mt-3 h-12 w-full text-sm text-[#e5d2ae]" onClick={() => setSent(null)}>
+                درخواست دیگری بفرست
+              </button>
+            </div>
+          ) : (
+          <>
           <p className="text-xs text-[#b7955b]">نوبت تاتو</p>
           <h1 className="mt-2 text-3xl font-black">درخواست بررسی پروژه تاتو</h1>
           <p className="mt-3 text-sm leading-7 text-white/55">
@@ -275,6 +300,8 @@ function StudioRequestPage() {
             )}{" "}
             ارسال برای بررسی
           </Button>
+          </>
+          )}
         </section>
 
         <aside className="space-y-4">
