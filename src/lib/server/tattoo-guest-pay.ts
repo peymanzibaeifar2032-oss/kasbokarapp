@@ -84,7 +84,8 @@ export async function acceptGuestByPhone(request: Request) {
     );
   } catch (err) {
     if (isOccupancyConflict(err)) return json({ error: "این زمان همین الان رزرو شد. از پیمان زمان تازه بخواه." }, 409);
-    throw err;
+    console.error("[tattoo] guest accept failed", err);
+    return json({ error: "تأیید زمان انجام نشد. یک‌بار دیگر بزن." }, 500);
   }
   await sql.query(
     `update tattoo_requests
