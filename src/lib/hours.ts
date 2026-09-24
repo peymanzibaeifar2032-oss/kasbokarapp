@@ -40,6 +40,18 @@ export function shiftTehranDayKey(dayKey: string, days: number) {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
+/** First day with no tattoo job and no apprentice Thursday. */
+export function firstOpenCustomerDay(occupied: Iterable<string>, thursdays: Iterable<string>, from = new Date()) {
+  const busy = new Set(occupied);
+  const thu = new Set(thursdays);
+  let key = tehranDayKey(from);
+  for (let i = 0; i < 90; i += 1) {
+    if (!busy.has(key) && !thu.has(key)) return key;
+    key = shiftTehranDayKey(key, 1);
+  }
+  return tehranDayKey(from);
+}
+
 /** Inclusive civil-day start (00:00) through exclusive next-day start, Tehran. */
 export function tehranDayBounds(date = new Date(), days = 1) {
   const clock = tehranClock(date);
@@ -139,7 +151,7 @@ export type SlotOption = {
   state: "free" | "full";
 };
 
-export type DayStatus = "free" | "limited" | "full" | "closed" | "past" | "beyond";
+export type DayStatus = "free" | "limited" | "full" | "booked" | "thursday" | "closed" | "past" | "beyond";
 
 export type AvailabilityOptions = {
   specialDays?: SpecialDay[];

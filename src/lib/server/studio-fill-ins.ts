@@ -12,6 +12,8 @@ export type StudioFillIn = {
   placement: string;
   sizeCm: string;
   note: string;
+  priceToman: number;
+  designImage: string;
   status: "waiting" | "filled" | "dropped";
   createdAt: string;
 };
@@ -26,6 +28,8 @@ type Row = {
   placement: string;
   size_cm: string | null;
   note: string | null;
+  price_toman: number | null;
+  design_image: string | null;
   status: "waiting" | "filled" | "dropped";
   created_at: string;
 };
@@ -41,6 +45,8 @@ function mapRow(row: Row): StudioFillIn {
     placement: row.placement,
     sizeCm: row.size_cm || "",
     note: row.note || "",
+    priceToman: Number(row.price_toman) || 0,
+    designImage: row.design_image || "",
     status: row.status,
     createdAt: row.created_at,
   };
@@ -50,7 +56,7 @@ export async function performListStudioFillIns(userId: string, requireAdmin: (us
   await requireAdmin(userId);
   const sql = await getSql();
   const rows = await sql.query<Row>(
-    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, status, created_at
+    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, status, created_at
        from studio_fill_ins
       where owner_id = $1 and status <> 'dropped'
       order by case when status = 'waiting' then 0 else 1 end, created_at desc
@@ -68,10 +74,12 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       customerPhone: z.string().trim().max(40),
       customerPhone2: z.string().trim().max(40).optional(),
       customerInstagram: z.string().trim().max(80).optional(),
-      idea: z.string().trim().min(2).max(500),
+      idea: z.string().trim().max(500).optional(),
       placement: z.string().trim().max(120).optional(),
       sizeCm: z.string().trim().max(60).optional(),
       note: z.string().trim().max(300).optional(),
+      priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      designImage: z.string().max(1_400_000).optional(),
     })
     .parse(raw);
   const phone = normalizeIranPhone(data.customerPhone);
@@ -81,12 +89,15 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
     phone2 = normalizeIranPhone(data.customerPhone2);
     if (!isIranMobile(phone2)) throw new Error("شماره دوم معتبر نیست.");
   }
+  if (data.designImage && !/^data:image\/(jpeg|png|webp);base64,/i.test(data.designImage)) {
+    throw new Error("فرمت تصویر طرح معتبر نیست.");
+  }
   const sql = await getSql();
   const id = crypto.randomUUID();
   await sql.query(
     `insert into studio_fill_ins
-      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       id,
       userId,
@@ -94,10 +105,12 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       phone,
       phone2,
       normalizeInstagramHandle(data.customerInstagram) || null,
-      data.idea,
+      data.idea?.trim() || "",
       data.placement?.trim() || "هماهنگ در استودیو",
       data.sizeCm?.trim() || null,
       data.note?.trim() || null,
+      data.priceToman ?? 0,
+      data.designImage || null,
     ],
   );
   return { id };

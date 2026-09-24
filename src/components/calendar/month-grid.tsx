@@ -9,9 +9,11 @@ export type MonthCellState = {
 };
 
 const STATUS_TEXT: Record<DayStatus, string> = {
-  free: "آزاد",
+  free: "خالی",
   limited: "کم",
   full: "پر",
+  booked: "مشتری",
+  thursday: "آموزش",
   closed: "تعطیل",
   past: "گذشته",
   beyond: "خارج",
@@ -101,8 +103,10 @@ export function MonthGrid({
                   !cell.inMonth && "invisible",
                   today && "ring-2 ring-accent ring-offset-1 ring-offset-bg",
                   selected && "border-primary bg-primary text-primary-fg",
-                  !selected && status === "free" && "border-border bg-surface",
+                  !selected && status === "free" && "border-emerald-600/40 bg-emerald-50 text-emerald-950",
                   !selected && status === "limited" && "border-border bg-surface",
+                  !selected && status === "booked" && "border-amber-500/70 bg-amber-100 text-amber-950",
+                  !selected && status === "thursday" && "border-violet-400/70 bg-violet-100 text-violet-950",
                   !selected && status === "full" && "border-dashed border-border bg-surface",
                   !selected && status === "closed" && "border-transparent bg-transparent text-muted",
                   !selected && (status === "past" || status === "beyond") && "border-transparent text-muted",

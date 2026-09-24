@@ -5,7 +5,7 @@ import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import type { BusinessResource } from "@/lib/calendar/resources";
-import { tehranDayKey, tehranLocalToIso } from "@/lib/hours";
+import { firstOpenCustomerDay, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { digitsOnly, formatGroupedDigits, isRetiredCollaborator } from "@/lib/tattoo-flow";
@@ -36,6 +36,7 @@ export function StudioJobForm({
   const [price, setPrice] = useState("");
   const [paid, setPaid] = useState("");
   const [day, setDay] = useState("");
+  const [dayTouched, setDayTouched] = useState(false);
   const [time, setTime] = useState("12:00");
   const [minutes, setMinutes] = useState("180");
   const [resourceId, setResourceId] = useState("");
@@ -43,7 +44,7 @@ export function StudioJobForm({
   const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const busyKeys = useMemo(() => {
-    const keys = new Set(thursdayBusyKeys());
+    const keys = new Set<string>();
     for (const booking of bookings) {
       if (booking.businessId === businessId && booking.status !== "cancelled") {
         keys.add(tehranDayKey(new Date(booking.slotStart)));
@@ -51,6 +52,10 @@ export function StudioJobForm({
     }
     return [...keys];
   }, [bookings, businessId]);
+  useEffect(() => {
+    if (dayTouched) return;
+    setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));
+  }, [busyKeys, dayTouched]);
   const visibleStaff = resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name));
 
   useEffect(() => {
@@ -196,7 +201,7 @@ export function StudioJobForm({
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">تاریخ اجرا</span>
-          <JalaliDatePicker value={day} onChange={setDay} label="انتخاب روز شمسی" busyKeys={busyKeys} />
+          <JalaliDatePicker value={day} onChange={(next) => { setDayTouched(true); setDay(next); }} label="اولین روز خالی" busyKeys={busyKeys} />
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">ساعت شروع</span>

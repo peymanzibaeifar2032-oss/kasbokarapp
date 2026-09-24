@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
+import { compressImage } from "@/lib/design-images";
 import { parseToman, toSmsLink, toTelLink } from "@/lib/format";
-import { tehranClock, tehranLocalToIso } from "@/lib/hours";
+import { firstOpenCustomerDay, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
-import { fillInOfferSms, formatGroupedDigits } from "@/lib/tattoo-flow";
+import { thursdayBusyKeys } from "@/lib/studio-apprentices";
+import { fillInOfferSms, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
+import type { Booking } from "@/lib/types";
 
 type StudioFillIn = {
   id: string;
@@ -15,24 +19,27 @@ type StudioFillIn = {
   placement: string;
   sizeCm: string;
   note: string;
+  priceToman: number;
+  designImage: string;
   status: "waiting" | "filled" | "dropped";
 };
 
-function todaySlot(hour: number, minute: number) {
-  const clock = tehranClock();
-  return tehranLocalToIso(clock.y, clock.m, clock.day, hour, minute);
-}
-
-export function StudioFillInBoard({ onPlaced }: { onPlaced: () => void }) {
+export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[]; onPlaced: () => void }) {
   const [rows, setRows] = useState<StudioFillIn[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [idea, setIdea] = useState("");
   const [note, setNote] = useState("");
+  const [sizeCm, setSizeCm] = useState("");
+  const [price, setPrice] = useState("");
+  const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<string | null>(null);
-  const [price, setPrice] = useState("");
-  const [hour, setHour] = useState(() => String(Math.min(20, tehranClock().hh + 1)).padStart(2, "0"));
+  const [day, setDay] = useState("");
+  const [time, setTime] = useState("12:00");
+  const bookedKeys = useMemo(
+    () => bookings.filter((booking) => booking.status !== "cancelled").map((booking) => tehranDayKey(new Date(booking.slotStart))),
+    [bookings],
+  );
 
   async function load() {
     const next = await saveAction<StudioFillIn[]>("listStudioFillIns");
@@ -43,15 +50,31 @@ export function StudioFillInBoard({ onPlaced }: { onPlaced: () => void }) {
     void load().catch((err) => toast.error(friendlyError(err)));
   }, []);
 
+  function openPlace(id: string) {
+    setPlacing(id);
+    setDay(firstOpenCustomerDay(bookedKeys, thursdayBusyKeys()));
+    setTime("12:00");
+  }
+
   async function add() {
     setBusy(true);
     try {
-      await saveAction("addStudioFillIn", { customerName: name, customerPhone: phone, idea, note });
+      await saveAction("addStudioFillIn", {
+        customerName: name,
+        customerPhone: phone,
+        idea: note.trim() || (image ? "طرح آپلود شده" : ""),
+        note,
+        sizeCm,
+        priceToman: parseToman(price),
+        designImage: image || undefined,
+      });
       setName("");
       setPhone("");
-      setIdea("");
       setNote("");
-      toast.success("به لیست کنسلی اضافه شد. تا روز اجرا پولی نمی‌گیرد.");
+      setSizeCm("");
+      setPrice("");
+      setImage("");
+      toast.success("در لیست پر کردن کنسلی ذخیره شد.");
       await load();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -63,24 +86,25 @@ export function StudioFillInBoard({ onPlaced }: { onPlaced: () => void }) {
   async function place(row: StudioFillIn) {
     setBusy(true);
     try {
-      const hh = Number(hour);
-      if (!Number.isInteger(hh) || hh < 8 || hh > 21) throw new Error("ساعت را بین ۸ تا ۲۱ بنویس.");
+      const [y, m, d] = day.split("-").map(Number);
+      const [hh, mm] = time.split(":").map(Number);
+      if (!y || !m || !d || Number.isNaN(hh)) throw new Error("روز و ساعت را انتخاب کن.");
       await saveAction("createStudioJob", {
         customerName: row.customerName,
         customerPhone: row.customerPhone,
         style: "سایر",
-        idea: row.idea,
+        idea: row.note || row.idea || "پر کردن کنسلی",
         placement: row.placement || "هماهنگ در استودیو",
         sizeCm: row.sizeCm || undefined,
-        priceMinToman: parseToman(price),
+        priceMinToman: row.priceToman || 0,
         paidToman: 0,
         sessionMinutes: 180,
-        slotStart: todaySlot(hh, 0),
+        slotStart: tehranLocalToIso(y, m, d, hh || 12, mm || 0),
+        referenceImages: row.designImage ? [row.designImage] : [],
       });
       await saveAction("setStudioFillIn", { id: row.id, status: "filled" });
       setPlacing(null);
-      setPrice("");
-      toast.success("برای امروز در تقویم نشست. هزینه را همان روز با کارت‌خوان می‌گیری.");
+      toast.success("به تقویم اضافه شد. هزینه را همان روز با کارت‌خوان می‌گیری.");
       await load();
       onPlaced();
     } catch (err) {
@@ -97,58 +121,89 @@ export function StudioFillInBoard({ onPlaced }: { onPlaced: () => void }) {
       <section className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-bold">لیست پر کردن کنسلی</h2>
         <p className="mt-2 text-sm leading-7 text-muted">
-          کسانی که می‌خواهند زودتر بیایند. پولی نمی‌گیرند تا روز اجرا. اگر کسی کنسل کرد، از اینجا انتخاب‌شان کن؛ همان روز می‌آیند و هزینه را با کارت‌خوان می‌دهند.
+          کسانی که می‌خواهند زودتر بیایند. تا روز اجرا پولی نمی‌گیرند. اگر جا خالی شد، پیام بفرست و همان روز یا این هفته به تقویم اضافه‌شان کن.
         </p>
         <div className="mt-4 grid gap-3">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام" className="h-12" />
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شماره موبایل" inputMode="tel" dir="ltr" className="h-12" />
-          <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="طرحی که می‌خواهد" rows={3} />
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت، اختیاری" className="h-12" />
-          <Button className="h-12" disabled={busy} onClick={() => void add()}>افزودن به لیست</Button>
+          <label className="flex h-12 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm font-bold">
+            {image ? "طرح انتخاب شد · تغییر" : "آپلود طرح از گالری، اختیاری"}
+            <input
+              className="sr-only"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                void compressImage(file).then(setImage).catch((err) => toast.error(friendlyError(err)));
+              }}
+            />
+          </label>
+          {image ? <img src={image} alt="" className="mx-auto max-h-36 rounded-xl object-contain" /> : null}
+          <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۲۰ × ۱۲" className="h-12" />
+          <Input
+            value={price}
+            onChange={(e) => setPrice(formatGroupedDigits(e.target.value))}
+            inputMode="numeric"
+            dir="ltr"
+            placeholder="قیمت طرح"
+            className="h-12"
+          />
+          <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت، اختیاری" rows={2} />
+          <Button className="h-12" disabled={busy} onClick={() => void add()}>
+            ذخیره در لیست پر کردن کنسلی
+          </Button>
         </div>
       </section>
 
       {!waiting.length ? <p className="text-sm text-muted">هنوز کسی در لیست انتظار کنسلی نیست.</p> : null}
       {waiting.map((row) => {
-        const sms = toSmsLink(row.customerPhone, fillInOfferSms(row.customerName, row.idea));
+        const sms = toSmsLink(row.customerPhone, fillInOfferSms(row.customerName, row.note || row.idea));
         const tel = toTelLink(row.customerPhone);
         return (
           <article key={row.id} className="rounded-2xl border border-border p-4">
             <strong>{row.customerName}</strong>
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
-            <p className="mt-2 text-sm leading-7">{row.idea}</p>
-            {row.note ? <p className="mt-1 text-sm text-muted">{row.note}</p> : null}
+            {row.designImage ? <img src={row.designImage} alt="" className="mt-3 max-h-40 rounded-xl object-contain" /> : null}
+            <p className="mt-2 text-sm text-muted">
+              {row.sizeCm ? `ابعاد ${row.sizeCm}` : "ابعاد ثبت نشده"}
+              {row.priceToman ? ` · ${formatTattooToman(row.priceToman)}` : ""}
+            </p>
+            {row.note ? <p className="mt-1 text-sm leading-7">{row.note}</p> : null}
             <div className="mt-3 grid grid-cols-2 gap-2">
-              {tel ? <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={tel}>تماس</a> : null}
-              {sms ? <a className="inline-flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={sms}>پیام جا خالی شد</a> : null}
+              {tel ? (
+                <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={tel}>
+                  تماس
+                </a>
+              ) : null}
+              {sms ? (
+                <a className="inline-flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={sms}>
+                  ارسال پیام
+                </a>
+              ) : null}
             </div>
             {placing === row.id ? (
               <div className="mt-3 grid gap-2">
-                <label className="text-sm">
-                  ساعت امروز
-                  <Input value={hour} onChange={(e) => setHour(e.target.value)} inputMode="numeric" dir="ltr" className="mt-1 h-12" />
-                </label>
-                <label className="text-sm">
-                  قیمت کل، اگر از قبل معلوم است
-                  <Input
-                    value={price}
-                    onChange={(e) => setPrice(formatGroupedDigits(e.target.value))}
-                    inputMode="numeric"
-                    dir="ltr"
-                    placeholder="۰"
-                    className="mt-1 h-12"
-                  />
-                </label>
-                <Button className="h-12" disabled={busy} onClick={() => void place(row)}>ثبت برای امروز</Button>
+                <JalaliDatePicker value={day} onChange={setDay} label="روز جا خالی" busyKeys={bookedKeys} />
+                <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-12" />
+                <Button className="h-12" disabled={busy} onClick={() => void place(row)}>
+                  افزودن به تقویم
+                </Button>
               </div>
             ) : (
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <Button className="h-11" onClick={() => setPlacing(row.id)}>همین امروز بگذار</Button>
+                <Button className="h-11" onClick={() => openPlace(row.id)}>
+                  افزودن به تقویم
+                </Button>
                 <Button
                   variant="outline"
                   className="h-11"
                   disabled={busy}
-                  onClick={() => void saveAction("setStudioFillIn", { id: row.id, status: "dropped" }).then(load).catch((err) => toast.error(friendlyError(err)))}
+                  onClick={() =>
+                    void saveAction("setStudioFillIn", { id: row.id, status: "dropped" })
+                      .then(load)
+                      .catch((err) => toast.error(friendlyError(err)))
+                  }
                 >
                   حذف از لیست
                 </Button>

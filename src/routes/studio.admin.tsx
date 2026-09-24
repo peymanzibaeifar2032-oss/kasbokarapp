@@ -18,7 +18,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink } from "@/lib/format";
-import { tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
+import { firstOpenCustomerDay, tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
@@ -262,7 +262,7 @@ function StudioAdminPage() {
         <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} />
       ) : null}
 
-      {!loading && !error && tab === "fill" ? <StudioFillInBoard onPlaced={() => void refresh()} /> : null}
+      {!loading && !error && tab === "fill" ? <StudioFillInBoard bookings={bookings} onPlaced={() => void refresh()} /> : null}
 
       {!loading && !error && tab === "apprentices" ? <StudioApprenticeBoard /> : null}
 
@@ -382,7 +382,7 @@ function TattooAdminCard({
   const showProposalForm =
     request.status !== "booked" && request.status !== "rejected" && !slotLocked;
   const busyKeys = useMemo(() => {
-    const keys = new Set<string>(thursdayBusyKeys());
+    const keys = new Set<string>();
     for (const booking of bookings) {
       if (booking.businessId !== businessId || booking.status === "cancelled") continue;
       keys.add(tehranDayKey(new Date(booking.slotStart)));
@@ -394,6 +394,10 @@ function TattooAdminCard({
     }
     return [...keys];
   }, [bookings, businessId, request.id, requests]);
+  useEffect(() => {
+    if (day) return;
+    setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));
+  }, [busyKeys, day]);
   const sameDayBookings = useMemo(
     () =>
       !day
