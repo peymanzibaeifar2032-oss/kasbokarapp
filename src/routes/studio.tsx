@@ -67,48 +67,50 @@ function StudioLanding() {
                 طراحی و اجرای تخصصی تاتوهای رئال، بلک‌اندگری و کاور توسط پیمان زیبائی‌فر در کرمانشاه.
                 مشاوره، ثبت نوبت و پیگیری کار در یک مسیر روشن و امن.
               </p>
-              <div className="mt-9 flex flex-wrap gap-3">
+              <div className="mt-9 grid gap-3 sm:max-w-xl">
                 {showAdmin ? (
                   <a
                     href="https://kasbokarapp.com/studio/admin"
-                    className="inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-6 font-black text-black"
+                    className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#b7955b] px-6 text-base font-black text-black"
                   >
                     ورود به پنل ادمین من
                   </a>
                 ) : null}
                 <Link
                   to="/studio/request"
-                  className={`inline-flex h-12 items-center gap-2 rounded-full px-6 font-bold ${
+                  className={`inline-flex h-14 items-center justify-center gap-2 rounded-2xl px-6 text-base font-bold ${
                     showAdmin ? "border border-[#b7955b]/40 text-[#e5d2ae]" : "bg-[#b7955b] text-black"
                   }`}
                 >
                   <CalendarDays className="size-5" />
                   شروع ثبت نوبت
                 </Link>
-                <Link
-                  to="/studio/status"
-                  className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
-                >
-                  بررسی وضعیت
-                </Link>
-                <Link
-                  to="/studio/designs"
-                  className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
-                >
-                  انتخاب طرح
-                </Link>
-                <Link
-                  to="/studio/guide"
-                  className="inline-flex h-12 items-center gap-2 rounded-full border border-[#b7955b]/40 px-6 text-sm text-[#e5d2ae]"
-                >
-                  آموزش فرم رزرو
-                </Link>
-                <Link
-                  to="/studio/app"
-                  className="inline-flex h-12 items-center gap-2 rounded-full border border-white/15 px-6 text-sm text-white/80"
-                >
-                  دانلود اندروید و نصب آیفون
-                </Link>
+                <div className="grid grid-cols-2 gap-3">
+                  <Link
+                    to="/studio/status"
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
+                  >
+                    بررسی وضعیت
+                  </Link>
+                  <Link
+                    to="/studio/designs"
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
+                  >
+                    انتخاب طرح
+                  </Link>
+                  <Link
+                    to="/studio/guide"
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
+                  >
+                    آموزش فرم
+                  </Link>
+                  <Link
+                    to="/studio/app"
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
+                  >
+                    دانلود اپ
+                  </Link>
+                </div>
               </div>
               <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/45">
                 <span className="inline-flex items-center gap-2"><MapPin className="size-4 text-[#b7955b]" />کرمانشاه</span>

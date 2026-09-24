@@ -133,12 +133,26 @@ function StudioRequestPage() {
     <StudioRequestChrome>
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[1fr_19rem]">
         <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-8">
-          <p className="text-xs tracking-[.18em] text-[#b7955b]">PROJECT REQUEST</p>
+          <p className="text-xs text-[#b7955b]">نوبت تاتو</p>
           <h1 className="mt-2 text-3xl font-black">درخواست بررسی پروژه تاتو</h1>
           <p className="mt-3 text-sm leading-7 text-white/55">
             ابتدا طرح و محل بدن بررسی می‌شود. ایمیل و ساخت حساب لازم نیست؛ نام و شماره کافی است.
             بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های مناسب برای شما فعال می‌شود.
           </p>
+          <div className="mt-5 grid grid-cols-2 gap-2">
+            <Link
+              to="/studio/status"
+              className="flex h-12 items-center justify-center rounded-2xl bg-[#b7955b] px-3 text-sm font-bold text-black"
+            >
+              وضعیت نوبت
+            </Link>
+            <Link
+              to="/studio/designs"
+              className="flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm font-bold text-[#e5d2ae]"
+            >
+              انتخاب طرح
+            </Link>
+          </div>
           {showAdmin ? (
             <a
               href="https://kasbokarapp.com/studio/admin"
@@ -354,8 +368,10 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-2 block text-white/70">{label}</span>
-      {children}
+      <span className="mb-2 block font-medium text-white/75">{label}</span>
+      <div className="[&_input]:h-12 [&_input]:rounded-xl [&_select]:h-12 [&_select]:rounded-xl [&_textarea]:rounded-xl">
+        {children}
+      </div>
     </label>
   );
 }

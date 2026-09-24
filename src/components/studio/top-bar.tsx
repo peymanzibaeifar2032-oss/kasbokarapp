@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell, ChevronLeft } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useEffect, useState } from "react";
 import { StudioNoticeBanner, useStudioNotices } from "@/components/studio/notice-watcher";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
@@ -30,32 +30,32 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
               <span>{menuOpen ? "بستن" : "باز کردن"}</span>
             </button>
             {menuOpen ? (
-          <nav className="mt-2 grid gap-2" aria-label="منوی استودیو">
-            <Link to="/studio" className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
-              صفحه استودیو
-            </Link>
-            <Link to="/studio/request" className="rounded-2xl bg-[#b7955b] px-4 py-3 text-sm font-bold text-black">
-              درخواست نوبت
-            </Link>
-            <Link to="/studio/status" className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
-              وضعیت نوبت{unread > 0 ? ` · ${new Intl.NumberFormat("fa-IR").format(unread)}` : ""}
-            </Link>
-            <Link to="/studio/designs" className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
-              انتخاب طرح
-            </Link>
-            <Link to="/studio/guide" className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
-              آموزش و مراقبت
-            </Link>
-            <a href={ADMIN_URL} className="rounded-2xl bg-black px-4 py-3 text-sm font-bold text-[#b7955b]">
-              پنل ادمین · در مرورگر
-            </a>
-            <a href={LOGIN_URL} className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
-              ورود
-            </a>
-            <a href={LOGOUT_URL} className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
-              خروج
-            </a>
-          </nav>
+              <nav className="mt-3 grid grid-cols-2 gap-2" aria-label="منوی استودیو">
+                <Link to="/studio" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
+                  صفحه استودیو
+                </Link>
+                <Link to="/studio/request" className="flex h-14 items-center justify-center rounded-2xl bg-[#b7955b] text-sm font-bold text-black">
+                  درخواست نوبت
+                </Link>
+                <Link to="/studio/status" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
+                  وضعیت نوبت{unread > 0 ? ` · ${new Intl.NumberFormat("fa-IR").format(unread)}` : ""}
+                </Link>
+                <Link to="/studio/designs" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
+                  انتخاب طرح
+                </Link>
+                <Link to="/studio/guide" className="col-span-2 flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
+                  آموزش و مراقبت
+                </Link>
+                <a href={ADMIN_URL} className="col-span-2 flex h-14 items-center justify-center rounded-2xl bg-black text-sm font-bold text-[#b7955b]">
+                  پنل ادمین · در مرورگر
+                </a>
+                <a href={LOGIN_URL} className="flex h-14 items-center justify-center rounded-2xl border border-white/10 text-sm">
+                  ورود
+                </a>
+                <a href={LOGOUT_URL} className="flex h-14 items-center justify-center rounded-2xl border border-white/10 text-sm">
+                  خروج
+                </a>
+              </nav>
             ) : null}
           </div>
         ) : (
@@ -72,10 +72,16 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                   <span className="hidden text-[11px] text-white/45 sm:block">TATTOO ARTIST · KERMANSHAH</span>
                 )}
               </Link>
-              <nav className="grid grid-cols-4 gap-2 sm:flex sm:shrink-0">
+              <nav className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+              <Link
+                to="/studio/request"
+                className="inline-flex h-12 items-center justify-center gap-1 rounded-2xl bg-[#b7955b] px-3 text-sm font-bold text-black"
+              >
+                درخواست
+              </Link>
               <Link
                 to="/studio/status"
-                className="relative inline-flex h-10 items-center justify-center gap-1 rounded-full border border-[#b7955b]/45 px-2 text-xs text-[#e5d2ae] sm:px-3 sm:text-sm"
+                className="relative inline-flex h-12 items-center justify-center gap-1 rounded-2xl border border-[#b7955b]/45 px-3 text-sm text-[#e5d2ae]"
               >
                 <Bell className="size-4" />
                 وضعیت
@@ -87,22 +93,15 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
               </Link>
               <Link
                 to="/studio/designs"
-                className="inline-flex h-10 items-center justify-center rounded-full border border-white/15 px-2 text-xs text-white/80 sm:px-3 sm:text-sm"
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
               >
                 طرح
               </Link>
               <Link
                 to="/studio/guide"
-                className="inline-flex h-10 items-center justify-center rounded-full border border-white/15 px-2 text-xs text-white/80 sm:px-3 sm:text-sm"
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
               >
                 آموزش
-              </Link>
-              <Link
-                to="/studio/request"
-                className="inline-flex h-10 items-center justify-center gap-1 rounded-full bg-[#b7955b] px-2 text-xs font-semibold text-black sm:px-4 sm:text-sm"
-              >
-                درخواست
-                <ChevronLeft className="size-4" />
               </Link>
               </nav>
             </div>
