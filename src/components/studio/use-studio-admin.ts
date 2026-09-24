@@ -1,11 +1,21 @@
 import { useEffect, useState } from "react";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { saveAction } from "@/lib/save";
-import { syncStudioOwnerChrome } from "@/lib/studio-notices";
+import { inStudioApp, syncStudioOwnerChrome } from "@/lib/studio-notices";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
 import type { Profile } from "@/lib/types";
 
-/** Admin entry is the studio mailbox only. The Android bar follows the same rule. */
+const OWNER_DEVICE_KEY = "studio-owner-device";
+
+function rememberedOwnerDevice() {
+  try {
+    return localStorage.getItem(OWNER_DEVICE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Admin entry is this studio phone: the owner mailbox, a phone that already signed in as him, or the studio app. */
 export function useStudioAdminEntry() {
   const { user } = useCurrentUserState();
   const [showAdmin, setShowAdmin] = useState(false);
@@ -13,20 +23,28 @@ export function useStudioAdminEntry() {
 
   useEffect(() => {
     const owner = isStudioOwnerEmail(user?.primaryEmail);
-    setShowAdmin(owner);
+    if (owner) {
+      try {
+        localStorage.setItem(OWNER_DEVICE_KEY, "1");
+      } catch {
+        /* private mode */
+      }
+    }
+    const visible = owner || rememberedOwnerDevice() || inStudioApp();
+    setShowAdmin(visible);
     setIsAdmin(owner);
-    syncStudioOwnerChrome(owner);
+    syncStudioOwnerChrome(visible);
     if (!user?.id || !owner) return;
     void saveAction<Profile>("profile")
       .then((profile) => {
         const admin = Boolean(profile?.isAdmin) && owner;
         setIsAdmin(admin);
-        setShowAdmin(owner);
-        syncStudioOwnerChrome(owner);
+        setShowAdmin(true);
+        syncStudioOwnerChrome(true);
       })
       .catch(() => {
         setIsAdmin(false);
-        setShowAdmin(owner);
+        setShowAdmin(visible);
       });
   }, [user?.id, user?.primaryEmail]);
 
