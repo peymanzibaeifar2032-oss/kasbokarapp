@@ -66,17 +66,6 @@ public class MainActivity extends Activity {
         webView = findViewById(R.id.web);
         webView.setBackgroundColor(0xFF0B0B0C);
 
-        View ownerChrome = findViewById(R.id.ownerChrome);
-        ownerChrome.setVisibility(View.VISIBLE);
-        findViewById(R.id.menuHome).setOnClickListener(v -> webView.loadUrl(HOME));
-        findViewById(R.id.menuRequest).setOnClickListener(v -> webView.loadUrl(HOME + "/request"));
-        findViewById(R.id.menuStatus).setOnClickListener(v -> webView.loadUrl(HOME + "/status"));
-        findViewById(R.id.menuDesigns).setOnClickListener(v -> webView.loadUrl(HOME + "/designs"));
-        findViewById(R.id.menuGuide).setOnClickListener(v -> webView.loadUrl(HOME + "/guide"));
-        findViewById(R.id.loginBar).setOnClickListener(v -> openOutside(LOGIN));
-        findViewById(R.id.logoutBar).setOnClickListener(v -> signOutOfApp());
-        findViewById(R.id.adminBar).setOnClickListener(v -> openOutside(ADMIN));
-
         ensureNoticeChannel();
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 2002);
@@ -105,7 +94,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.10");
+            settings.setUserAgentString(ua + " TattooApp/1.11");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -307,10 +296,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void setOwnerChrome(boolean show) {
-            runOnUiThread(() -> {
-                View bar = findViewById(R.id.ownerChrome);
-                if (bar != null) bar.setVisibility(View.VISIBLE);
-            });
+            if (show) return;
         }
 
         @JavascriptInterface

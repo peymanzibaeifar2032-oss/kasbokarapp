@@ -41,7 +41,7 @@ function StudioAppDownload() {
             <h2 className="font-black">اندروید</h2>
             <p className="mt-2 text-sm leading-7 text-white/55">فایل نصب را دانلود کن. از پلی‌استور نیست.</p>
             <a
-              href="/api/tattoo-apk?v=11"
+              href="/api/tattoo-apk?v=12"
               download="rezerv-vaght-tatoo.apk"
               className="mt-5 inline-flex h-12 items-center gap-2 rounded-full bg-[#b7955b] px-5 text-sm font-black text-black"
             >

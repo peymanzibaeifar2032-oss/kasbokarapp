@@ -33,14 +33,14 @@ export function useStudioAdminEntry() {
     const visible = owner || rememberedOwnerDevice() || inStudioApp();
     setShowAdmin(visible);
     setIsAdmin(owner);
-    syncStudioOwnerChrome(visible);
+    syncStudioOwnerChrome(false);
     if (!user?.id || !owner) return;
     void saveAction<Profile>("profile")
       .then((profile) => {
         const admin = Boolean(profile?.isAdmin) && owner;
         setIsAdmin(admin);
         setShowAdmin(true);
-        syncStudioOwnerChrome(true);
+        syncStudioOwnerChrome(false);
       })
       .catch(() => {
         setIsAdmin(false);

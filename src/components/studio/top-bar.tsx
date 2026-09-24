@@ -9,29 +9,16 @@ const ADMIN_URL = "https://kasbokarapp.com/studio/admin";
 const LOGIN_URL = "https://kasbokarapp.com/login?next=/studio/admin";
 const LOGOUT_URL = "https://kasbokarapp.com/login?out=1";
 
-function nativeMenuCoversPage() {
-  if (typeof navigator === "undefined") return false;
-  const match = navigator.userAgent.match(/TattooApp\/(\d+)\.(\d+)/);
-  if (!match) return false;
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
-  return major > 1 || (major === 1 && minor >= 10);
-}
-
 export function StudioTopBar({ compact }: { compact?: boolean }) {
   const { unread, banner, dismiss } = useStudioNotices();
   const { showAdmin } = useStudioAdminEntry();
   const [inApp, setInApp] = useState(false);
-  const [nativeMenu, setNativeMenu] = useState(false);
-  useEffect(() => {
-    setInApp(inStudioApp());
-    setNativeMenu(nativeMenuCoversPage());
-  }, []);
+  useEffect(() => setInApp(inStudioApp()), []);
   return (
     <>
       {banner ? <StudioNoticeBanner item={banner} onDismiss={dismiss} /> : null}
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0c]/95 backdrop-blur-xl">
-        {inApp && nativeMenu ? null : inApp ? (
+      <header className={inApp ? "border-b border-white/10 bg-[#0b0b0c]" : "sticky top-0 z-40 border-b border-white/10 bg-[#0b0b0c]/95 backdrop-blur-xl"}>
+        {inApp ? (
           <nav className="grid gap-2 px-4 py-3" aria-label="منوی استودیو">
             <p className="text-xs text-[#b7955b]">منوی استودیو</p>
             <Link to="/studio" className="rounded-2xl bg-white/[.04] px-4 py-3 text-sm">
