@@ -3,6 +3,7 @@ import { z, ZodError } from "zod";
 import { getSql } from "@/lib/db";
 import { isIranMobile, normalizeInstagramHandle, normalizeIranPhone } from "@/lib/format";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
+import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
   (value) => /^data:image\/(jpeg|png|webp);base64,/i.test(value),
@@ -36,6 +37,37 @@ function sameOrigin(request: Request) {
   return !site || site === "same-origin" || site === "none";
 }
 
+type StatusRow = {
+  id: string;
+  tracking_code: string;
+  customer_name: string;
+  style: string;
+  placement: string;
+  status: string;
+  artist_message: string | null;
+  payment_status: string | null;
+  proposed_slot_start: string | null;
+  created_at: string;
+};
+
+function mapStatus(row: StatusRow) {
+  return {
+    id: row.id,
+    trackingCode: row.tracking_code,
+    customerName: row.customer_name,
+    style: row.style,
+    placement: row.placement,
+    status: row.status,
+    artistMessage: row.artist_message,
+    paymentStatus: row.payment_status,
+    proposedSlotStart: row.proposed_slot_start,
+    createdAt: row.created_at,
+  };
+}
+
+const statusSelect = `select id, tracking_code, customer_name, style, placement, status, artist_message, payment_status, proposed_slot_start, created_at
+       from tattoo_requests`;
+
 async function createGuest(request: Request) {
   if (!allowRate(`tattoo-guest:${clientKey(request)}`, 8, 60 * 60 * 1000)) {
     return json({ error: "چند درخواست پشت‌سرهم آمد. کمی بعد دوباره بفرست." }, 429);
@@ -53,84 +85,78 @@ async function createGuest(request: Request) {
   const bytes = [...data.referenceImages, ...data.bodyImages].reduce((sum, value) => sum + value.length, 0);
   if (bytes > 3_500_000) return json({ error: "حجم عکس‌ها زیاد است. عکس کم‌حجم‌تر بفرست." }, 400);
   const sql = await getSql();
-  const recent = await sql.query<{ id: string }>(
-    `select id from tattoo_requests
+  const recent = await sql.query<{ id: string; tracking_code: string }>(
+    `select id, tracking_code from tattoo_requests
       where customer_phone = $1 and idea = $2 and created_at > now() - interval '15 minutes'
       order by created_at desc limit 1`,
     [phone, data.idea],
   );
-  if (recent[0]) return json({ id: recent[0].id, duplicate: true });
+  if (recent[0]) return json({ id: recent[0].id, trackingCode: recent[0].tracking_code, duplicate: true });
   const id = crypto.randomUUID();
-  await sql.query(
-    `insert into tattoo_requests
-      (id, customer_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
-       size_cm, preferred_dates, reference_images, body_images)
-     values ($1,null,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb)`,
-    [
-      id,
-      data.customerName,
-      phone,
-      phone2,
-      instagram || null,
-      data.requestType,
-      data.style,
-      data.idea,
-      data.placement,
-      data.sizeCm,
-      data.preferredDates || null,
-      JSON.stringify(data.referenceImages),
-      JSON.stringify(data.bodyImages),
-    ],
-  );
+  let trackingCode = "";
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    trackingCode = makeTattooTrackingCode();
+    try {
+      await sql.query(
+        `insert into tattoo_requests
+          (id, tracking_code, customer_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
+           size_cm, preferred_dates, reference_images, body_images)
+         values ($1,$2,null,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14::jsonb)`,
+        [
+          id,
+          trackingCode,
+          data.customerName,
+          phone,
+          phone2,
+          instagram || null,
+          data.requestType,
+          data.style,
+          data.idea,
+          data.placement,
+          data.sizeCm,
+          data.preferredDates || null,
+          JSON.stringify(data.referenceImages),
+          JSON.stringify(data.bodyImages),
+        ],
+      );
+      break;
+    } catch (error) {
+      if (attempt === 5 || !/unique|duplicate/i.test(error instanceof Error ? error.message : "")) throw error;
+    }
+  }
   const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin = true");
   for (const admin of admins) {
     await sql.query(
       `insert into notifications (id, user_id, title, body, kind) values ($1,$2,$3,$4,'tattoo_request_new')`,
-      [crypto.randomUUID(), admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} دریافت شد.`],
+      [crypto.randomUUID(), admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} · کد ${trackingCode}`],
     );
   }
-  return json({ id });
+  return json({ id, trackingCode });
 }
 
 async function lookup(request: Request) {
   if (!allowRate(`tattoo-status:${clientKey(request)}`, 30, 60 * 60 * 1000)) {
     return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
   }
-  const body = (await request.json().catch(() => null)) as { phone?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { phone?: unknown; code?: unknown } | null;
+  const code = normalizeTattooTrackingCode(typeof body?.code === "string" ? body.code : "");
   const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
-  if (!isIranMobile(phone)) return json({ error: "شماره موبایل را درست بنویس." }, 400);
   const sql = await getSql();
-  const rows = await sql.query<{
-    id: string;
-    customer_name: string;
-    style: string;
-    placement: string;
-    status: string;
-    artist_message: string | null;
-    payment_status: string | null;
-    proposed_slot_start: string | null;
-    created_at: string;
-  }>(
-    `select id, customer_name, style, placement, status, artist_message, payment_status, proposed_slot_start, created_at
-       from tattoo_requests
+  if (code.length === 6) {
+    const rows = await sql.query<StatusRow>(`${statusSelect} where tracking_code = $1 limit 1`, [code]);
+    return json({ items: rows.map(mapStatus) });
+  }
+  if (isIranMobile(phone)) {
+    const rows = await sql.query<StatusRow>(
+      `${statusSelect}
       where customer_phone = $1 or customer_phone_2 = $1
       order by created_at desc
       limit 20`,
-    [phone],
-  );
-  return json({
-    items: rows.map((row) => ({
-      id: row.id,
-      customerName: row.customer_name,
-      style: row.style,
-      placement: row.placement,
-      status: row.status,
-      artistMessage: row.artist_message,
-      paymentStatus: row.payment_status,
-      proposedSlotStart: row.proposed_slot_start,
-      createdAt: row.created_at,
-    })),
-  });
+      [phone],
+    );
+    return json({ items: rows.map(mapStatus) });
+  }
+  return json({ error: "کد پیگیری ۶ رقمی یا شماره موبایل را بنویس." }, 400);
 }
 
 async function handle(request: Request) {
