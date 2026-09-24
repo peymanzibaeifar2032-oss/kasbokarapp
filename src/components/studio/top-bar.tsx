@@ -65,16 +65,17 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                 پنل ادمین من · درخواست‌ها، تقویم، درآمد
               </a>
             ) : null}
-            <div className="mx-auto flex h-16 max-w-6xl items-center gap-2 px-4">
-              <Link to="/studio" className="min-w-0 flex-1 leading-tight">
-                <strong className="block truncate text-sm tracking-wide">پیمان زیبائی‌فر</strong>
+            <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:h-16 sm:flex-row sm:items-center sm:gap-2 sm:py-0">
+              <Link to="/studio" className="leading-tight sm:min-w-0 sm:flex-1">
+                <strong className="block text-sm tracking-wide">پیمان زیبائی‌فر</strong>
                 {compact ? null : (
                   <span className="hidden text-[11px] text-white/45 sm:block">TATTOO ARTIST · KERMANSHAH</span>
                 )}
               </Link>
+              <nav className="grid grid-cols-4 gap-2 sm:flex sm:shrink-0">
               <Link
                 to="/studio/status"
-                className="relative inline-flex h-10 shrink-0 items-center gap-1 rounded-full border border-[#b7955b]/45 px-3 text-sm text-[#e5d2ae]"
+                className="relative inline-flex h-10 items-center justify-center gap-1 rounded-full border border-[#b7955b]/45 px-2 text-xs text-[#e5d2ae] sm:px-3 sm:text-sm"
               >
                 <Bell className="size-4" />
                 وضعیت
@@ -86,23 +87,24 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
               </Link>
               <Link
                 to="/studio/designs"
-                className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/80"
+                className="inline-flex h-10 items-center justify-center rounded-full border border-white/15 px-2 text-xs text-white/80 sm:px-3 sm:text-sm"
               >
                 طرح
               </Link>
               <Link
                 to="/studio/guide"
-                className="inline-flex h-10 shrink-0 items-center rounded-full border border-white/15 px-3 text-sm text-white/80"
+                className="inline-flex h-10 items-center justify-center rounded-full border border-white/15 px-2 text-xs text-white/80 sm:px-3 sm:text-sm"
               >
                 آموزش
               </Link>
               <Link
                 to="/studio/request"
-                className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-[#b7955b] px-3 text-sm font-semibold text-black sm:px-4"
+                className="inline-flex h-10 items-center justify-center gap-1 rounded-full bg-[#b7955b] px-2 text-xs font-semibold text-black sm:px-4 sm:text-sm"
               >
                 درخواست
                 <ChevronLeft className="size-4" />
               </Link>
+              </nav>
             </div>
           </>
         )}

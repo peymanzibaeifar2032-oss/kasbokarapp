@@ -22,6 +22,17 @@ export const Route = createFileRoute("/studio/status")({
   }),
 });
 
+function stageRank(item: GuestStatus) {
+  const stage = tattooStage({
+    status: item.status,
+    paymentStatus: item.paymentStatus || "not_required",
+    paymentReviewDeadline: item.paymentReviewDeadline,
+  });
+  if (stage === "booked") return 0;
+  if (stage === "rejected" || stage === "expired") return 2;
+  return 1;
+}
+
 function AppDownloadBar() {
   return (
     <div className="border-b border-[#b7955b]/30 bg-[#b7955b]/12">
@@ -68,7 +79,7 @@ function StudioStatusPage() {
       });
       const data = (await res.json().catch(() => null)) as { error?: string; items?: GuestStatus[] } | null;
       if (!res.ok) throw new Error(data?.error || "وضعیت پیدا نشد.");
-      const items = data?.items ?? [];
+      const items = (data?.items ?? []).slice().sort((a, b) => stageRank(a) - stageRank(b));
       setGuestItems(items);
       try {
         localStorage.setItem("studio-status-phone", phone);
