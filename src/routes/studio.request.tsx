@@ -3,6 +3,7 @@ import { ChevronLeft, Download, ImagePlus, Loader2, ShieldCheck, Smartphone } fr
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { TattooRequestWizard, type WizardPayload } from "@/components/studio/request-wizard";
 import { StudioVisitNote } from "@/components/studio/visit-note";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
@@ -12,7 +13,8 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { compressImage, designFileName, downloadImage } from "@/lib/design-images";
 import { formatFaDate, formatFaDateTime, formatToman, addBookingToPhoneCalendar } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_STYLES, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
+import { TATTOO_CUSTOMER_STAGE_LABEL, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
+import { formatEstimateRange } from "@/lib/tattoo-estimate";
 import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
 import type { Profile, TattooRequest } from "@/lib/types";
 
@@ -25,18 +27,8 @@ function StudioRequestPage() {
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [phone2, setPhone2] = useState("");
-  const [instagram, setInstagram] = useState("");
-  const [requestType, setRequestType] = useState<"new" | "coverup" | "consultation">("new");
-  const [style, setStyle] = useState<(typeof TATTOO_STYLES)[number]>("رئال");
-  const [idea, setIdea] = useState("");
-  const [placement, setPlacement] = useState("");
-  const [sizeCm, setSizeCm] = useState("");
-  const [preferredDates, setPreferredDates] = useState("");
-  const [referenceImages, setReferenceImages] = useState<string[]>([]);
-  const [bodyImages, setBodyImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState<{ code: string; phone: string } | null>(null);
+  const [sent, setSent] = useState<{ code: string; phone: string; estimate: string } | null>(null);
 
   function refresh() {
     void saveAction<TattooRequest[]>("myTattooRequests").then((rows) => {
@@ -58,71 +50,44 @@ function StudioRequestPage() {
     refresh();
   }, [userId]);
 
-  async function addImages(files: FileList | null, target: "reference" | "body") {
-    if (!files?.length) return;
-    const limit = target === "reference" ? 3 : 2;
-    const current = target === "reference" ? referenceImages : bodyImages;
-    try {
-      const next = await Promise.all(
-        Array.from(files)
-          .slice(0, limit - current.length)
-          .map(compressImage),
-      );
-      if (target === "reference") setReferenceImages([...current, ...next]);
-      else setBodyImages([...current, ...next]);
-    } catch (err) {
-      toast.error(friendlyError(err));
-    }
-  }
-
-  async function submit() {
+  async function submit(payload: WizardPayload) {
     setBusy(true);
     try {
+      const body = {
+        customerName: payload.customerName,
+        customerPhone: payload.customerPhone,
+        customerPhone2: payload.customerPhone2,
+        customerInstagram: payload.customerInstagram,
+        requestType: payload.requestType,
+        style: payload.style,
+        styles: payload.styles,
+        idea: payload.idea,
+        placement: payload.placement,
+        sizeCm: payload.sizeCm,
+        sizeMode: payload.sizeMode,
+        colorMode: payload.colorMode,
+        bodySide: payload.bodySide,
+        preferredDates: payload.preferredDates,
+        images: payload.images,
+        referenceImages: [] as string[],
+        bodyImages: [] as string[],
+      };
+      let estimate = "";
       if (userId) {
-        const created = await saveAction<{ id: string; trackingCode?: string }>("createTattooRequest", {
-          customerName: name,
-          customerPhone: phone,
-          customerPhone2: phone2.trim() || undefined,
-          customerInstagram: instagram.trim() || undefined,
-          requestType,
-          style,
-          idea,
-          placement,
-          sizeCm,
-          preferredDates,
-          referenceImages,
-          bodyImages,
-        });
-        setSent({ code: created.trackingCode || "", phone });
+        const created = await saveAction<{ id: string; trackingCode?: string; estimateMin?: number | null; estimateMax?: number | null }>("createTattooRequest", body);
+        if (created.estimateMin && created.estimateMax) estimate = formatEstimateRange(created.estimateMin, created.estimateMax);
+        setSent({ code: created.trackingCode || "", phone: payload.customerPhone, estimate });
       } else {
         const res = await fetch("/api/tattoo-public", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerName: name,
-            customerPhone: phone,
-            customerPhone2: phone2.trim() || undefined,
-            customerInstagram: instagram.trim() || undefined,
-            requestType,
-            style,
-            idea,
-            placement,
-            sizeCm,
-            preferredDates,
-            referenceImages,
-            bodyImages,
-          }),
+          body: JSON.stringify(body),
         });
-        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string } | null;
+        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string; estimateMin?: number | null; estimateMax?: number | null } | null;
         if (!res.ok) throw new Error(data?.error || "ثبت انجام نشد.");
-        setSent({ code: data?.trackingCode || "", phone });
+        if (data?.estimateMin && data.estimateMax) estimate = formatEstimateRange(data.estimateMin, data.estimateMax);
+        setSent({ code: data?.trackingCode || "", phone: payload.customerPhone, estimate });
       }
-      setIdea("");
-      setPlacement("");
-      setSizeCm("");
-      setPreferredDates("");
-      setReferenceImages([]);
-      setBodyImages([]);
       refresh();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -146,6 +111,14 @@ function StudioRequestPage() {
                 </p>
               ) : null}
               <p className="mt-3 text-center text-sm text-white/55">کد پیگیری را نگه دار. وضعیت را با شماره {sent.phone} ببین.</p>
+              {sent.estimate ? (
+                <div className="mt-5 rounded-2xl border border-[#b7955b]/30 bg-[#b7955b]/10 p-4 text-sm leading-7">
+                  <p className="font-bold">قیمت تقریبی: {sent.estimate}</p>
+                  <p className="mt-1 text-white/70">این مبلغ برآورد اولیه است. قیمت نهایی پس از بررسی طرح و تصاویر توسط آرتیست مشخص می‌شود.</p>
+                </div>
+              ) : (
+                <p className="mt-5 text-sm leading-7 text-white/70">قیمت تقریبی بعد از جمع‌شدن نمونه‌های واقعی قبلی مشخص می‌شود. قیمت نهایی را آرتیست تعیین می‌کند.</p>
+              )}
               <Link
                 to="/studio/status"
                 className="mt-6 flex h-12 items-center justify-center rounded-2xl bg-[#b7955b] text-sm font-bold text-black"
@@ -188,118 +161,7 @@ function StudioRequestPage() {
             </a>
           ) : null}
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
-            <Field label="نام و نام خانوادگی">
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </Field>
-            <Field label="شماره موبایل">
-              <Input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                inputMode="tel"
-                dir="ltr"
-              />
-            </Field>
-            <Field label="شماره دوم (اختیاری)">
-              <Input
-                value={phone2}
-                onChange={(e) => setPhone2(e.target.value)}
-                inputMode="tel"
-                dir="ltr"
-                placeholder="اگر دو تا شماره دارید"
-              />
-            </Field>
-            <Field label="آیدی اینستاگرام (اختیاری)">
-              <Input
-                value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
-                dir="ltr"
-                placeholder="مثلاً sara.tattoo"
-              />
-            </Field>
-            <Field label="نوع درخواست">
-              <NativeSelect
-                value={requestType}
-                onChange={(e) => setRequestType(e.target.value as typeof requestType)}
-              >
-                <option value="new">تاتوی جدید</option>
-                <option value="coverup">کاور یا بازطراحی</option>
-                <option value="consultation">مشاوره تخصصی</option>
-              </NativeSelect>
-            </Field>
-            <Field label="سبک">
-              <NativeSelect value={style} onChange={(e) => setStyle(e.target.value as (typeof TATTOO_STYLES)[number])}>
-                {TATTOO_STYLES.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </NativeSelect>
-            </Field>
-            <Field label="محل اجرا">
-              <Input
-                value={placement}
-                onChange={(e) => setPlacement(e.target.value)}
-                placeholder="مثلاً ساعد دست راست"
-              />
-            </Field>
-            <Field label="اندازه تقریبی">
-              <Input
-                value={sizeCm}
-                onChange={(e) => setSizeCm(e.target.value)}
-                placeholder="مثلاً ۲۰ × ۱۲ سانتی‌متر"
-              />
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="ایده و جزئیات طرح">
-                <Textarea
-                  value={idea}
-                  onChange={(e) => setIdea(e.target.value)}
-                  rows={5}
-                  placeholder="موضوع، عناصر اصلی، تغییرات موردنظر و هر نکته مهم را بنویسید."
-                />
-              </Field>
-            </div>
-            <Field label="روزهای مناسب شما">
-              <Input
-                value={preferredDates}
-                onChange={(e) => setPreferredDates(e.target.value)}
-                placeholder="مثلاً شنبه و دوشنبه بعدازظهر"
-              />
-            </Field>
-          </div>
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <ImageField
-              title="عکس یا رفرنس طرح"
-              hint="حداکثر ۳ عکس"
-              images={referenceImages}
-              onFiles={(f) => void addImages(f, "reference")}
-              onRemove={(i) => setReferenceImages((x) => x.filter((_, n) => n !== i))}
-            />
-            <ImageField
-              title="عکس واضح محل بدن"
-              hint="برای بررسی فرم بدن؛ حداکثر ۲ عکس"
-              images={bodyImages}
-              onFiles={(f) => void addImages(f, "body")}
-              onRemove={(i) => setBodyImages((x) => x.filter((_, n) => n !== i))}
-            />
-          </div>
-
-          <div className="mt-6 rounded-2xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-4 text-sm leading-7 text-[#e5d2ae]">
-            ارسال این فرم به معنی رزرو قطعی نیست. زمان فقط پس از بررسی پروژه و تأیید شرایط نمایش
-            داده می‌شود.
-          </div>
-          <Button
-            className="mt-5 h-12 w-full bg-[#b7955b] text-black hover:bg-[#cfad70]"
-            disabled={busy}
-            onClick={() => void submit()}
-          >
-            {busy ? (
-              <Loader2 className="size-5 animate-spin" />
-            ) : (
-              <ShieldCheck className="size-5" />
-            )}{" "}
-            ارسال برای بررسی
-          </Button>
+          <TattooRequestWizard busy={busy} initialName={name} initialPhone={phone} onSubmit={(payload) => void submit(payload)} />
           </>
           )}
         </section>

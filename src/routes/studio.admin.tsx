@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { PriceBasis } from "@/components/studio/price-basis";
 import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
 import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-board";
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
@@ -22,6 +23,7 @@ import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsL
 import { firstOpenCustomerDay, tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
+import { TATTOO_REQUEST_LABEL } from "@/lib/tattoo-estimate";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
 import type { StudioArtistCard } from "@/lib/studio-artists";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
@@ -526,12 +528,7 @@ function TattooAdminCard({
     }
   }
 
-  const type =
-    request.requestType === "coverup"
-      ? "کاور یا بازطراحی"
-      : request.requestType === "consultation"
-        ? "مشاوره"
-        : "تاتوی جدید";
+  const type = TATTOO_REQUEST_LABEL[request.requestType] || "تاتوی جدید";
   return (
     <article className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -545,6 +542,7 @@ function TattooAdminCard({
       </div>
       <ReplySeen request={request} />
       <p className="mt-3 text-sm leading-7">{request.idea}</p>
+      <PriceBasis request={request} onChange={onChange} />
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
         <span>اندازه: {request.sizeCm}</span>
         <a className="text-accent" href={`tel:${request.customerPhone}`}>

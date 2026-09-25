@@ -5,6 +5,7 @@ import { isIranMobile, normalizeInstagramHandle, normalizeIranPhone } from "@/li
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
+import { finalizeNewTattooRequest } from "@/lib/server/tattoo-estimate";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
   (value) => /^data:image\/(jpeg|png|webp);base64,/i.test(value),
@@ -16,14 +17,19 @@ const requestSchema = z.object({
   customerPhone: z.string().trim().max(40),
   customerPhone2: z.string().trim().max(40).optional(),
   customerInstagram: z.string().trim().max(80).optional(),
-  requestType: z.enum(["new", "coverup", "consultation"]),
-  style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(80),
+  requestType: z.enum(["new", "coverup", "consultation", "custom", "repair", "continuation"]),
+  style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(240),
   idea: z.string().trim().min(10, "ایده را کمی کامل‌تر توضیح دهید.").max(1500),
   placement: z.string().trim().min(2, "محل اجرا را بنویسید.").max(120),
-  sizeCm: z.string().trim().min(1, "اندازه تقریبی را بنویسید.").max(60),
+  sizeCm: z.string().trim().min(1, "اندازه را بنویسید.").max(80),
   preferredDates: z.string().trim().max(200).optional(),
+  colorMode: z.string().trim().max(40).optional(),
+  bodySide: z.string().trim().max(20).optional(),
+  sizeMode: z.string().trim().max(20).optional(),
+  styles: z.array(z.string().trim().max(40)).max(8).optional(),
   referenceImages: z.array(imageDataSchema).max(3).default([]),
   bodyImages: z.array(imageDataSchema).max(2).default([]),
+  images: z.array(z.object({ kind: z.string().max(20), data: imageDataSchema })).max(8).optional(),
 });
 
 function json(data: unknown, status = 200) {
@@ -57,6 +63,8 @@ type StatusRow = {
   payment_card_number?: string | null;
   proposed_slot_start: string | null;
   proposed_slot_end?: string | null;
+  estimate_min_toman?: number | null;
+  estimate_max_toman?: number | null;
   created_at: string;
 };
 
@@ -80,13 +88,16 @@ function mapStatus(row: StatusRow) {
     paymentCardNumber: row.payment_card_number || null,
     proposedSlotStart: row.proposed_slot_start,
     proposedSlotEnd: row.proposed_slot_end || null,
+    estimateMinToman: row.estimate_min_toman == null ? null : Number(row.estimate_min_toman),
+    estimateMaxToman: row.estimate_max_toman == null ? null : Number(row.estimate_max_toman),
     createdAt: row.created_at,
   };
 }
 
 const statusSelect = `select id, tracking_code, customer_name, style, placement, status, artist_message, payment_status,
          payment_hold_until, payment_review_deadline, price_min_toman, session_minutes, session_count,
-         deposit_toman, payment_iban, payment_card_number, proposed_slot_start, proposed_slot_end, created_at
+         deposit_toman, payment_iban, payment_card_number, proposed_slot_start, proposed_slot_end,
+         estimate_min_toman, estimate_max_toman, created_at
        from tattoo_requests`;
 
 const statusSelectLegacy = `select id, customer_name, style, placement, status, artist_message, payment_status,
@@ -128,7 +139,11 @@ async function createGuest(request: Request) {
     if (!isIranMobile(phone2)) return json({ error: "شماره موبایل دوم معتبر نیست." }, 400);
   }
   const instagram = normalizeInstagramHandle(data.customerInstagram);
-  const bytes = [...data.referenceImages, ...data.bodyImages].reduce((sum, value) => sum + value.length, 0);
+  const pictures = data.images || [];
+  if ((data.requestType === "coverup" || data.requestType === "repair") && !pictures.some((image) => image.kind === "current") && !data.bodyImages.length) {
+    return json({ error: "برای کاور یا ترمیم، عکس تاتوی فعلی را اضافه کنید." }, 400);
+  }
+  const bytes = [...data.referenceImages, ...data.bodyImages, ...pictures.map((image) => image.data)].reduce((sum, value) => sum + value.length, 0);
   if (bytes > 3_500_000) return json({ error: "حجم عکس‌ها زیاد است. عکس کم‌حجم‌تر بفرست." }, 400);
   const sql = await getSql();
   const recent = await sql.query<{ id: string; tracking_code: string }>(
@@ -177,7 +192,25 @@ async function createGuest(request: Request) {
       [crypto.randomUUID(), admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} · کد ${trackingCode}`],
     );
   }
-  return json({ id, trackingCode });
+  const priced = await finalizeNewTattooRequest(sql, id, {
+    requestType: data.requestType,
+    placement: data.placement,
+    style: data.style,
+    sizeCm: data.sizeCm,
+    colorMode: data.colorMode || "",
+    idea: data.idea,
+    imageCount: pictures.length + data.referenceImages.length + data.bodyImages.length,
+    bodySide: data.bodySide,
+    sizeMode: data.sizeMode,
+    styles: data.styles,
+    images: pictures.length
+      ? pictures
+      : [
+          ...data.referenceImages.map((item) => ({ kind: "reference", data: item })),
+          ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
+        ],
+  });
+  return json({ id, trackingCode, estimateMin: priced.estimateMin, estimateMax: priced.estimateMax });
 }
 
 async function lookup(request: Request) {

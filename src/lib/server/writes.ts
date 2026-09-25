@@ -31,6 +31,7 @@ import {
   performListStudioFillIns,
   performSetStudioFillIn,
 } from "@/lib/server/studio-fill-ins";
+import { finalizeNewTattooRequest, performExplainTattooPrice, performSaveTattooPriceAnchor, performSaveTattooPriceFeedback, performToggleTattooPriceAnchor } from "@/lib/server/tattoo-estimate";
 import {
   performListStudioArtists,
   performSaveStudioArtist,
@@ -374,6 +375,14 @@ type TattooRequestRow = {
   artist_message: string | null;
   message_seen_at: string | null;
   artist_id: string | null;
+  estimate_min_toman: number | null;
+  estimate_max_toman: number | null;
+  estimate_minutes: number | null;
+  estimate_sessions: number | null;
+  complexity_score: number | null;
+  estimate_confidence: string | null;
+  color_mode: string | null;
+  is_price_anchor: boolean | null;
   payment_status: TattooRequest["paymentStatus"];
   payment_hold_until: string | null;
   payment_submitted_at: string | null;
@@ -428,6 +437,14 @@ function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = [])
     depositToman: row.deposit_toman == null ? null : Number(row.deposit_toman),
     artistMessage: row.artist_message,
     messageSeenAt: row.message_seen_at,
+    estimateMinToman: row.estimate_min_toman == null ? null : Number(row.estimate_min_toman),
+    estimateMaxToman: row.estimate_max_toman == null ? null : Number(row.estimate_max_toman),
+    estimateMinutes: row.estimate_minutes == null ? null : Number(row.estimate_minutes),
+    estimateSessions: row.estimate_sessions == null ? null : Number(row.estimate_sessions),
+    complexityScore: row.complexity_score == null ? null : Number(row.complexity_score),
+    estimateConfidence: row.estimate_confidence,
+    colorMode: row.color_mode,
+    isPriceAnchor: Boolean(row.is_price_anchor),
     paymentStatus: row.payment_status,
     paymentHoldUntil: row.payment_hold_until,
     paymentSubmittedAt: row.payment_submitted_at,
@@ -477,7 +494,9 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   coalesce(customer_instagram,'') as customer_instagram,
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
   reference_images, body_images, status, price_min_toman, price_max_toman,
-  session_minutes, session_count, deposit_toman, artist_message, message_seen_at, artist_id, payment_status, payment_hold_until,
+  session_minutes, session_count, deposit_toman, artist_message, message_seen_at, artist_id,
+  estimate_min_toman, estimate_max_toman, estimate_minutes, estimate_sessions, complexity_score, estimate_confidence,
+  color_mode, coalesce(is_price_anchor,false) as is_price_anchor, payment_status, payment_hold_until,
   payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number,
   proposed_slot_start, proposed_slot_end, coalesce(paid_toman,0) as paid_toman, coalesce(settled,false) as settled,
   created_at, updated_at
@@ -494,14 +513,19 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     customerPhone: z.string().trim().max(40),
     customerPhone2: z.string().trim().max(40).optional(),
     customerInstagram: z.string().trim().max(80).optional(),
-    requestType: z.enum(["new", "coverup", "consultation"]),
-    style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(80),
+    requestType: z.enum(["new", "coverup", "consultation", "custom", "repair", "continuation"]),
+    style: z.string().trim().min(2, "سبک را انتخاب کنید.").max(240),
     idea: z.string().trim().min(10, "ایده را کمی کامل‌تر توضیح دهید.").max(1500),
     placement: z.string().trim().min(2, "محل اجرا را بنویسید.").max(120),
-    sizeCm: z.string().trim().min(1, "اندازه تقریبی را بنویسید.").max(60),
+    sizeCm: z.string().trim().min(1, "اندازه را بنویسید.").max(80),
     preferredDates: z.string().trim().max(200).optional(),
+    colorMode: z.string().trim().max(40).optional(),
+    bodySide: z.string().trim().max(20).optional(),
+    sizeMode: z.string().trim().max(20).optional(),
+    styles: z.array(z.string().trim().max(40)).max(8).optional(),
     referenceImages: z.array(imageDataSchema).max(3).default([]),
     bodyImages: z.array(imageDataSchema).max(2).default([]),
+    images: z.array(z.object({ kind: z.string().max(20), data: imageDataSchema })).max(8).optional(),
   }).parse(raw);
   const phone = normalizeIranPhone(data.customerPhone);
   if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
@@ -511,7 +535,11 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     if (!isIranMobile(phone2)) throw new Error("شماره موبایل دوم معتبر نیست.");
   }
   const instagram = normalizeInstagramHandle(data.customerInstagram);
-  const bytes = [...data.referenceImages, ...data.bodyImages].reduce((sum, value) => sum + value.length, 0);
+  const pictures = data.images || [];
+  if ((data.requestType === "coverup" || data.requestType === "repair") && !pictures.some((image) => image.kind === "current") && !data.bodyImages.length) {
+    throw new Error("برای کاور یا ترمیم، عکس تاتوی فعلی را اضافه کنید.");
+  }
+  const bytes = [...data.referenceImages, ...data.bodyImages, ...pictures.map((image) => image.data)].reduce((sum, value) => sum + value.length, 0);
   if (bytes > 3_500_000) throw new Error("حجم مجموع عکس‌ها زیاد است. عکس‌های کم‌حجم‌تر بفرستید.");
   const sql = await getSql();
   const id = crypto.randomUUID();
@@ -538,7 +566,25 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     await notify(sql, admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} دریافت شد.`, "tattoo_request_new");
   }
   await notify(sql, userId, "درخواست تاتو ثبت شد", "درخواست شما برای بررسی پیمان زیبائی‌فر ارسال شد.", "tattoo_request_created");
-  return { id, trackingCode };
+  const priced = await finalizeNewTattooRequest(sql, id, {
+    requestType: data.requestType,
+    placement: data.placement,
+    style: data.style,
+    sizeCm: data.sizeCm,
+    colorMode: data.colorMode || "",
+    idea: data.idea,
+    imageCount: (data.images?.length || 0) + data.referenceImages.length + data.bodyImages.length,
+    bodySide: data.bodySide,
+    sizeMode: data.sizeMode,
+    styles: data.styles,
+    images: data.images?.length
+      ? data.images
+      : [
+          ...data.referenceImages.map((item) => ({ kind: "reference", data: item })),
+          ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
+        ],
+  });
+  return { id, trackingCode, estimateMin: priced.estimateMin, estimateMax: priced.estimateMax };
 }
 
 async function performMyTattooRequests(userId: string) {
@@ -2734,6 +2780,14 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performSaveStudioArtist(userId, payload);
     case "studioChairLedger":
       return performStudioChairLedger(userId, payload);
+    case "explainTattooPrice":
+      return performExplainTattooPrice(userId, payload, requireAdmin);
+    case "saveTattooPriceFeedback":
+      return performSaveTattooPriceFeedback(userId, payload, requireAdmin);
+    case "saveTattooPriceAnchor":
+      return performSaveTattooPriceAnchor(userId, payload, requireAdmin);
+    case "toggleTattooPriceAnchor":
+      return performToggleTattooPriceAnchor(userId, payload, requireAdmin);
     case "favorites":
       return performFavorites(userId);
     case "favoriteToggle":

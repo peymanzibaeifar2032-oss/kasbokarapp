@@ -194,7 +194,7 @@ export type TattooRequest = {
   customerPhone: string;
   customerPhone2: string;
   customerInstagram: string;
-  requestType: "new" | "coverup" | "consultation";
+  requestType: "new" | "coverup" | "consultation" | "custom" | "repair" | "continuation";
   style: string;
   idea: string;
   placement: string;
@@ -211,6 +211,14 @@ export type TattooRequest = {
   depositToman: number | null;
   artistMessage: string | null;
   messageSeenAt: string | null;
+  estimateMinToman?: number | null;
+  estimateMaxToman?: number | null;
+  estimateMinutes?: number | null;
+  estimateSessions?: number | null;
+  complexityScore?: number | null;
+  estimateConfidence?: string | null;
+  colorMode?: string | null;
+  isPriceAnchor?: boolean;
   paymentStatus: TattooPaymentStatus;
   paymentHoldUntil: string | null;
   paymentSubmittedAt: string | null;
