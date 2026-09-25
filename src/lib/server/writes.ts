@@ -353,6 +353,7 @@ type TattooRequestRow = {
   session_count: number | null;
   deposit_toman: number | null;
   artist_message: string | null;
+  message_seen_at: string | null;
   payment_status: TattooRequest["paymentStatus"];
   payment_hold_until: string | null;
   payment_submitted_at: string | null;
@@ -406,6 +407,7 @@ function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = [])
     sessionCount: row.session_count == null ? null : Number(row.session_count),
     depositToman: row.deposit_toman == null ? null : Number(row.deposit_toman),
     artistMessage: row.artist_message,
+    messageSeenAt: row.message_seen_at,
     paymentStatus: row.payment_status,
     paymentHoldUntil: row.payment_hold_until,
     paymentSubmittedAt: row.payment_submitted_at,
@@ -455,7 +457,7 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   coalesce(customer_instagram,'') as customer_instagram,
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
   reference_images, body_images, status, price_min_toman, price_max_toman,
-  session_minutes, session_count, deposit_toman, artist_message, payment_status, payment_hold_until,
+  session_minutes, session_count, deposit_toman, artist_message, message_seen_at, payment_status, payment_hold_until,
   payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number,
   proposed_slot_start, proposed_slot_end, coalesce(paid_toman,0) as paid_toman, coalesce(settled,false) as settled,
   created_at, updated_at
@@ -522,6 +524,12 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
 async function performMyTattooRequests(userId: string) {
   const sql = await getSql();
   await expireOpenTattooHolds(sql, userId);
+  await sql.query(
+    `update tattoo_requests set message_seen_at = now()
+      where customer_id = $1 and message_seen_at is null
+        and artist_message is not null and btrim(artist_message) <> ''`,
+    [userId],
+  );
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where customer_id = $1 order by created_at desc`, [userId]);
   return mapTattooRequestRows(sql, rows);
 }
@@ -628,7 +636,7 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
        payment_hold_until=null,
        payment_submitted_at=null, payment_review_deadline=null, receipt_image=null,
        payment_iban=$10, payment_card_number=$11,
-       proposed_slot_start=$12, proposed_slot_end=$13, booking_id=null, updated_at=now()
+       proposed_slot_start=$12, proposed_slot_end=$13, booking_id=null, message_seen_at=null, updated_at=now()
      where id=$1 returning customer_id`,
     [data.id, data.status, businessId, data.priceMinToman ?? null, data.priceMaxToman ?? null,
       data.sessionMinutes ?? null, data.sessionCount ?? null, data.depositToman ?? null, artistMessage,
@@ -720,7 +728,7 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
     const paid = (Number(current[0]?.paid_toman) || 0) + deposit;
     const settled = tattooBalance(current[0]?.price_min_toman, paid).settled;
     await sql.query(
-      `update tattoo_requests set status='booked', payment_status='approved', paid_toman=$3, settled=$4, artist_message=$2, updated_at=now() where id=$1`,
+      `update tattoo_requests set status='booked', payment_status='approved', paid_toman=$3, settled=$4, artist_message=$2, message_seen_at=null, updated_at=now() where id=$1`,
       [data.requestId, data.message, paid, settled],
     );
     if (deposit > 0) {
@@ -736,7 +744,7 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
   } else {
     await sql.query(
       `update tattoo_requests set payment_status='rejected', payment_hold_until=now()+interval '6 hours',
-         payment_submitted_at=null, payment_review_deadline=null, artist_message=$2, updated_at=now()
+         payment_submitted_at=null, payment_review_deadline=null, artist_message=$2, message_seen_at=null, updated_at=now()
        where id=$1`,
       [data.requestId, data.message],
     );
@@ -2293,7 +2301,7 @@ async function performCancelStudioJob(userId: string, raw: unknown) {
   await sql.query(
     `update tattoo_requests
         set status='rejected', payment_status='not_required', booking_id=null,
-            artist_message=$2, updated_at=now()
+            artist_message=$2, message_seen_at=null, updated_at=now()
       where id=$1`,
     [data.id, message],
   );

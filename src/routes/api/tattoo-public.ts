@@ -94,6 +94,16 @@ const statusSelectLegacy = `select id, customer_name, style, placement, status, 
          deposit_toman, payment_iban, payment_card_number, proposed_slot_start, proposed_slot_end, created_at
        from tattoo_requests`;
 
+async function markRepliesSeen(sql: Awaited<ReturnType<typeof getSql>>, ids: string[]) {
+  if (!ids.length) return;
+  await sql.query(
+    `update tattoo_requests set message_seen_at = now()
+      where id = any($1::text[]) and message_seen_at is null
+        and artist_message is not null and btrim(artist_message) <> ''`,
+    [ids],
+  );
+}
+
 async function queryStatus(sql: Awaited<ReturnType<typeof getSql>>, where: string, params: unknown[]) {
   try {
     return await sql.query<StatusRow>(`${statusSelect} ${where}`, params);
@@ -180,6 +190,7 @@ async function lookup(request: Request) {
   const sql = await getSql();
   if (code.length === 6) {
     const rows = await queryStatus(sql, "where tracking_code = $1 limit 1", [code]);
+    await markRepliesSeen(sql, rows.map((row) => row.id));
     return json({ items: rows.map(mapStatus) });
   }
   if (isIranMobile(phone)) {
@@ -188,6 +199,7 @@ async function lookup(request: Request) {
       "where customer_phone = $1 or customer_phone_2 = $1 order by created_at desc limit 20",
       [phone],
     );
+    await markRepliesSeen(sql, rows.map((row) => row.id));
     return json({ items: rows.map(mapStatus) });
   }
   return json({ error: "کد پیگیری ۶ رقمی یا شماره موبایل را بنویس." }, 400);

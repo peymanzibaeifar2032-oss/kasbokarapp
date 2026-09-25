@@ -210,6 +210,7 @@ export type TattooRequest = {
   sessionCount: number | null;
   depositToman: number | null;
   artistMessage: string | null;
+  messageSeenAt: string | null;
   paymentStatus: TattooPaymentStatus;
   paymentHoldUntil: string | null;
   paymentSubmittedAt: string | null;

@@ -346,6 +346,19 @@ function oneMonthLaterKey(iso: string | null) {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
+function ReplySeen({ request }: { request: TattooRequest }) {
+  const text = (request.artistMessage || "").trim();
+  if (!text || text === "ثبت دستی از تقویم کاری" || text === "جلسه دوم") return null;
+  if (request.messageSeenAt) {
+    return (
+      <p className="mt-2 text-sm font-semibold text-emerald-700">
+        مشاهده شد · {formatFaDateTime(request.messageSeenAt)}
+      </p>
+    );
+  }
+  return <p className="mt-2 text-sm font-semibold text-amber-700">هنوز مشاهده نشده</p>;
+}
+
 function requestBadge(request: TattooRequest) {
   return TATTOO_ADMIN_STAGE_LABEL[tattooStage(request)];
 }
@@ -478,6 +491,7 @@ function TattooAdminCard({
         </div>
         <Badge>{requestBadge(request)}</Badge>
       </div>
+      <ReplySeen request={request} />
       <p className="mt-3 text-sm leading-7">{request.idea}</p>
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
         <span>اندازه: {request.sizeCm}</span>
@@ -1280,6 +1294,7 @@ function MonthJobCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-bold">{job.customerName}</h3>
+          <ReplySeen request={job} />
           <p className="text-sm text-muted">
             طرح {job.style}
             {job.placement ? ` · ${job.placement}` : ""}

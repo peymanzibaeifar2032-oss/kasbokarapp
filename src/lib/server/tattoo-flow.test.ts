@@ -458,6 +458,7 @@ describe("studio customer list report", () => {
           sessionCount: 1,
           depositToman: 2_000_000,
           artistMessage: null,
+          messageSeenAt: null,
           paymentStatus: "approved",
           paymentHoldUntil: null,
           paymentSubmittedAt: null,
