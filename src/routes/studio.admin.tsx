@@ -6,6 +6,7 @@ import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
+import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-board";
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
 import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
 import { StudioJobForm } from "@/components/studio/job-form";
@@ -22,6 +23,7 @@ import { firstOpenCustomerDay, tehranClock, tehranDayKey, tehranLocalToIso } fro
 import { friendlyError, saveAction } from "@/lib/save";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
+import type { StudioArtistCard } from "@/lib/studio-artists";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import {
   TATTOO_ADMIN_STAGE_LABEL,
@@ -41,13 +43,15 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/studio/admin")({ component: StudioAdminPage });
 
-type PanelTab = "requests" | "jobs" | "calendar" | "money" | "apprentices" | "fill";
+type PanelTab = "requests" | "jobs" | "calendar" | "money" | "apprentices" | "fill" | "artists";
 type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
 
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
   const userId = user?.id;
   const owner = isStudioOwnerEmail(user?.primaryEmail);
+  const [chairArtist, setChairArtist] = useState<StudioArtistCard | null>(null);
+  const [accessReady, setAccessReady] = useState(false);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
@@ -77,7 +81,32 @@ function StudioAdminPage() {
   }
 
   useEffect(() => {
-    if (!userId || !owner) return;
+    if (!userId) return;
+    if (owner) {
+      setChairArtist(null);
+      setAccessReady(true);
+      return;
+    }
+    let cancelled = false;
+    void saveAction<StudioArtistCard | null>("studioWhoami")
+      .then((row) => {
+        if (!cancelled) setChairArtist(row);
+      })
+      .catch(() => {
+        if (!cancelled) setChairArtist(null);
+      })
+      .finally(() => {
+        if (!cancelled) setAccessReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, owner]);
+
+  const staff = owner || Boolean(chairArtist);
+
+  useEffect(() => {
+    if (!userId || !staff) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -91,7 +120,7 @@ function StudioAdminPage() {
     return () => {
       cancelled = true;
     };
-  }, [userId, owner]);
+  }, [userId, staff]);
 
   const filtered = useMemo(() => {
     const rows = requests.filter((request) => {
@@ -136,12 +165,19 @@ function StudioAdminPage() {
       />
     );
 
-  if (!owner)
+  if (!owner && !accessReady)
+    return (
+      <Shell>
+        <p className="text-sm text-muted">در حال بررسی دسترسی…</p>
+      </Shell>
+    );
+
+  if (!staff)
     return (
       <Shell>
         <h1 className="text-2xl font-bold">مدیریت تاتو</h1>
         <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
-          این صفحه فقط با ایمیل مدیر استودیو باز می‌شود. درخواست نوبت از فرم مشتری ثبت می‌شود.
+          این صفحه فقط با ایمیل مدیر استودیو، یا ایمیلی که به‌عنوان همکار صندلی ثبت شده، باز می‌شود.
         </p>
         <Button asChild className="mt-6">
           <Link to="/studio/request">رفتن به فرم درخواست</Link>
@@ -154,7 +190,7 @@ function StudioAdminPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-accent">استودیو پیمان زیبائی‌فر</p>
-          <h1 className="text-2xl font-bold">مدیریت تاتو و تقویم کاری</h1>
+          <h1 className="text-2xl font-bold">{owner ? "مدیریت تاتو و تقویم کاری" : `پنل ${chairArtist?.name || "همکار"}`}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted">
             قیمت و زمان را بفرستید. بعد از تأیید مشتری، همان زمان ۶ ساعت قفل می‌شود. رسید که آمد تا ۱۲ ساعت قفل می‌ماند؛ با تأیید شما در تقویم قطعی می‌شود.
           </p>
@@ -222,6 +258,7 @@ function StudioAdminPage() {
         >
           <CalendarDays className="ml-1 inline size-4" /> تقویم کاری
         </button>
+        {owner ? (
         <button
           type="button"
           onClick={() => setTab("apprentices")}
@@ -232,6 +269,7 @@ function StudioAdminPage() {
         >
           <GraduationCap className="ml-1 inline size-4" /> پنجشنبه‌ها
         </button>
+        ) : null}
         <button
           type="button"
           onClick={() => setTab("money")}
@@ -242,6 +280,18 @@ function StudioAdminPage() {
         >
           <Wallet className="ml-1 inline size-4" /> درآمد ماه
         </button>
+        {owner ? (
+          <button
+            type="button"
+            onClick={() => setTab("artists")}
+            className={cn(
+              "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
+              tab === "artists" ? "bg-primary text-primary-fg" : "text-muted",
+            )}
+          >
+            همکاران و صندلی
+          </button>
+        ) : null}
       </div>
 
       {error ? (
@@ -264,9 +314,11 @@ function StudioAdminPage() {
 
       {!loading && !error && tab === "fill" ? <StudioFillInBoard bookings={bookings} onPlaced={() => void refresh()} /> : null}
 
-      {!loading && !error && tab === "apprentices" ? <StudioApprenticeBoard /> : null}
+      {!loading && !error && tab === "apprentices" && owner ? <StudioApprenticeBoard /> : null}
 
-      {!loading && !error && tab === "money" ? <StudioMonthFinance /> : null}
+      {!loading && !error && tab === "artists" && owner ? <StudioArtistBoard /> : null}
+
+      {!loading && !error && tab === "money" ? (owner ? <StudioMonthFinance /> : <StudioChairShare />) : null}
 
       {!loading && !error && tab === "requests" ? (
         <div className="mt-5">
@@ -896,7 +948,7 @@ function MonthJobsPanel({
     setLoading(true);
     setError("");
     try {
-      const rows = await saveAction<TattooRequest[]>("studioMonthJobs", { jy: month.jy, jm: month.jm });
+      const rows = await saveAction<TattooRequest[]>("studioMonthJobs", { jy: month.jy, jm: month.jm, mine: true });
       setJobs(rows);
     } catch (err) {
       setError(friendlyError(err));

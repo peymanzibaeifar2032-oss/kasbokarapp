@@ -31,6 +31,14 @@ import {
   performListStudioFillIns,
   performSetStudioFillIn,
 } from "@/lib/server/studio-fill-ins";
+import {
+  performListStudioArtists,
+  performSaveStudioArtist,
+  performStudioChairLedger,
+  performStudioWhoami,
+  studioActor,
+  type StudioActor,
+} from "@/lib/server/studio-artists";
 import { STUDIO_EXPENSE_CATEGORIES, studioMonthSummary, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
@@ -105,6 +113,17 @@ const businessInput = z.object({
 async function requireAdmin(userId: string) {
   const me = await performEnsureProfile(userId);
   if (!me.isAdmin) throw new Error("دسترسی مدیریت ندارید.");
+}
+
+async function requireStudioStaff(userId: string) {
+  const actor = await studioActor(userId);
+  if (!actor) throw new Error("دسترسی مدیریت ندارید.");
+  if (actor.role === "owner") await requireAdmin(userId);
+  return actor;
+}
+
+function assertOwnArtistJob(actor: StudioActor, artistId: string | null) {
+  if (actor.role === "artist" && artistId !== actor.artistId) throw new Error("این کار برای تو نیست.");
 }
 
 const PREVIEW_STUDIO_ID = "biz-peyman-studio";
@@ -354,6 +373,7 @@ type TattooRequestRow = {
   deposit_toman: number | null;
   artist_message: string | null;
   message_seen_at: string | null;
+  artist_id: string | null;
   payment_status: TattooRequest["paymentStatus"];
   payment_hold_until: string | null;
   payment_submitted_at: string | null;
@@ -457,7 +477,7 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   coalesce(customer_instagram,'') as customer_instagram,
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
   reference_images, body_images, status, price_min_toman, price_max_toman,
-  session_minutes, session_count, deposit_toman, artist_message, message_seen_at, payment_status, payment_hold_until,
+  session_minutes, session_count, deposit_toman, artist_message, message_seen_at, artist_id, payment_status, payment_hold_until,
   payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number,
   proposed_slot_start, proposed_slot_end, coalesce(paid_toman,0) as paid_toman, coalesce(settled,false) as settled,
   created_at, updated_at
@@ -535,12 +555,14 @@ async function performMyTattooRequests(userId: string) {
 }
 
 async function performStudioTattooRequests(userId: string) {
-  await requireAdmin(userId);
+  const actor = await requireStudioStaff(userId);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
   await expireOpenTattooHolds(sql);
   await remindOverdueTattooReviews(sql);
-  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} order by
+  const scope = actor.role === "artist" ? "where artist_id = $1" : "where artist_id is null";
+  const params = actor.role === "artist" ? [actor.artistId] : [];
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} ${scope} order by
     case
       when payment_status='receipt_submitted' and payment_review_deadline is not null and payment_review_deadline <= now() then 0
       when payment_status='receipt_submitted' then 1
@@ -550,7 +572,7 @@ async function performStudioTattooRequests(userId: string) {
       when payment_status='expired' then 5
       when status='approved' then 6
       else 7
-    end, created_at desc`);
+    end, created_at desc`, params);
   return mapTattooRequestRows(sql, rows);
 }
 
@@ -1738,6 +1760,20 @@ async function performMine(userId: string) {
 async function performOwnerBookings(userId: string) {
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
+  const actor = await studioActor(userId);
+  if (actor?.role === "artist") {
+    const rows = await sql.query<BookingRow>(
+      `select ${BOOKING_SELECT}
+       from bookings k
+       join businesses b on b.id = k.business_id
+       left join business_resources r on r.id = k.resource_id
+       left join tattoo_requests tr on tr.booking_id = k.id
+       where k.artist_id = $1
+       order by k.slot_start desc`,
+      [actor.artistId],
+    );
+    return rows.map(mapBooking);
+  }
   const rows = await sql.query<BookingRow>(
     `select ${BOOKING_SELECT}
      from bookings k
@@ -1962,11 +1998,14 @@ function jalaliMonthRange(jy: number, jm: number) {
 }
 
 async function performStudioMonthJobs(userId: string, raw: unknown) {
-  await requireAdmin(userId);
-  const data = z.object({ jy: z.number().int(), jm: z.number().int().min(1).max(12) }).parse(raw);
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ jy: z.number().int(), jm: z.number().int().min(1).max(12), mine: z.boolean().optional() }).parse(raw);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
   const range = jalaliMonthRange(data.jy, data.jm);
+  const scope =
+    actor.role === "artist" ? "and artist_id = $3" : data.mine ? "and artist_id is null" : "";
+  const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
   const rows = await sql.query<TattooRequestRow>(
     `${tattooRequestSelect}
       where booking_id in (
@@ -1975,8 +2014,9 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
            and kind = 'booking'
            and slot_start >= $1 and slot_start < $2
       )
+      ${scope}
       order by coalesce(proposed_slot_start, created_at)`,
-    [range.start, range.end],
+    params,
   );
   return mapTattooRequestRows(sql, rows);
 }
@@ -2172,7 +2212,7 @@ async function performDeleteStudioExpense(userId: string, raw: unknown) {
 }
 
 async function performUpdateStudioJob(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  const actor = await requireStudioStaff(userId);
   const data = z.object({
     id: z.string(),
     customerName: z.string().trim().min(2).max(80).optional(),
@@ -2192,6 +2232,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
   const sql = await getSql();
   const current = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   if (!current[0]) throw new Error("کار پیدا نشد.");
+  assertOwnArtistJob(actor, current[0].artist_id);
   const price = data.priceMinToman ?? current[0].price_min_toman;
   const settled = data.settled ?? tattooBalance(price, current[0].paid_toman).settled;
   let phone: string | null = null;
@@ -2289,11 +2330,12 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
 }
 
 async function performCancelStudioJob(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  const actor = await requireStudioStaff(userId);
   const data = z.object({ id: z.string() }).parse(raw);
   const sql = await getSql();
   const current = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   if (!current[0]) throw new Error("کار پیدا نشد.");
+  assertOwnArtistJob(actor, current[0].artist_id);
   if (current[0].booking_id) {
     await sql.query(`update bookings set status='cancelled' where id=$1`, [current[0].booking_id]);
   }
@@ -2317,18 +2359,19 @@ async function performCancelStudioJob(userId: string, raw: unknown) {
 }
 
 async function performAddStudioPayment(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  const actor = await requireStudioStaff(userId);
   const data = z.object({
     requestId: z.string(),
     amountToman: z.number().int().min(1).max(2_000_000_000),
     note: z.string().trim().max(200).optional(),
   }).parse(raw);
   const sql = await getSql();
-  const current = await sql.query<{ id: string; paid_toman: number | null; price_min_toman: number | null; booking_id: string | null }>(
-    `select id, coalesce(paid_toman,0) as paid_toman, price_min_toman, booking_id from tattoo_requests where id=$1`,
+  const current = await sql.query<{ id: string; paid_toman: number | null; price_min_toman: number | null; booking_id: string | null; artist_id: string | null }>(
+    `select id, coalesce(paid_toman,0) as paid_toman, price_min_toman, booking_id, artist_id from tattoo_requests where id=$1`,
     [data.requestId],
   );
   if (!current[0]) throw new Error("کار پیدا نشد.");
+  assertOwnArtistJob(actor, current[0].artist_id);
   await sql.query(
     `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
     [crypto.randomUUID(), data.requestId, data.amountToman, data.note?.trim() || "واریز بعدی"],
@@ -2345,7 +2388,6 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
 }
 
 async function performCreateStudioJob(userId: string, raw: unknown) {
-  await requireAdmin(userId);
   const data = z.object({
     businessId: z.string().optional(),
     customerName: z.string().trim().min(2).max(80),
@@ -2365,9 +2407,15 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   }).parse(raw);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
-  const businessId = data.businessId || (await ensureStudioShop(sql, userId));
-  const owned = await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [businessId, userId]);
-  if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
+  const actor = await requireStudioStaff(userId);
+  const businessId =
+    actor.role === "artist"
+      ? await ensureStudioShop(sql, actor.ownerUserId)
+      : data.businessId || (await ensureStudioShop(sql, userId));
+  if (actor.role === "owner") {
+    const owned = await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [businessId, userId]);
+    if (!owned[0]) throw new Error("کسب‌وکار انتخاب‌شده متعلق به شما نیست.");
+  }
   const start = new Date(data.slotStart);
   if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
   rejectCustomerThursday(start.toISOString());
@@ -2406,9 +2454,9 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const settled = tattooBalance(data.priceMinToman, paid).settled;
   try {
     await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status)
-       values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,$9,$9,$10)`,
-      [bookingId, businessId, data.customerName, data.customerPhone ? phone : null, start.toISOString(), slotEnd, data.idea || null, data.style, resourceId, settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required"],
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
+       values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,$9,$9,$10,$11)`,
+      [bookingId, businessId, data.customerName, data.customerPhone ? phone : null, start.toISOString(), slotEnd, data.idea || null, data.style, resourceId, settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required", actor.artistId],
     );
   } catch (err) {
     if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
@@ -2418,9 +2466,9 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     `insert into tattoo_requests
       (id, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
        size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
-       payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,'new',$9,$10,$11,$12,'booked',$13,$14,1,$15,'ثبت دستی از تقویم کاری','approved',$16,$17,$18,$19,$20::jsonb)`,
-    [requestId, userId, businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images)],
+       payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, artist_id)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,'new',$9,$10,$11,$12,'booked',$13,$14,1,$15,'ثبت دستی از تقویم کاری','approved',$16,$17,$18,$19,$20::jsonb,$21)`,
+    [requestId, userId, businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", data.priceMinToman, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images), actor.artistId],
   );
   if (paid > 0) {
     await sql.query(`insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`, [crypto.randomUUID(), requestId, paid, "واریز ثبت‌شده هنگام ورود دستی"]);
@@ -2431,7 +2479,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
 }
 
 async function performFollowUpStudioJob(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  const actor = await requireStudioStaff(userId);
   const data = z.object({
     id: z.string(),
     slotStart: z.string(),
@@ -2442,10 +2490,11 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const src = rows[0];
   if (!src) throw new Error("این کار پیدا نشد.");
+  assertOwnArtistJob(actor, src.artist_id);
   const owned = src.business_id
-    ? await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [src.business_id, userId])
+    ? await sql.query<{ id: string }>("select id from businesses where id=$1 and owner_id=$2", [src.business_id, actor.role === "artist" ? actor.ownerUserId : userId])
     : [];
-  const businessId = owned[0] ? src.business_id! : await ensureStudioShop(sql, userId);
+  const businessId = owned[0] ? src.business_id! : await ensureStudioShop(sql, actor.role === "artist" ? actor.ownerUserId : userId);
   const start = new Date(data.slotStart);
   if (Number.isNaN(start.getTime())) throw new Error("زمان نامعتبر است.");
   rejectCustomerThursday(start.toISOString());
@@ -2473,8 +2522,8 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   const requestId = crypto.randomUUID();
   try {
     await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status)
-       values ($1,$2,$3,$4,$5,$6,$7,'booking','manual','manual',$8,'confirmed',$9,1,$10,$10,$11)`,
+      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
+       values ($1,$2,$3,$4,$5,$6,$7,'booking','manual','manual',$8,'confirmed',$9,1,$10,$10,$11,$12)`,
       [
         bookingId,
         businessId,
@@ -2487,6 +2536,7 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
         src.style,
         resourceId,
         settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required",
+        src.artist_id,
       ],
     );
   } catch (err) {
@@ -2498,12 +2548,12 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
        id, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram,
        request_type, style, idea, placement, size_cm, status, price_min_toman, price_max_toman,
        session_minutes, session_count, deposit_toman, artist_message, payment_status,
-       proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, body_images
+       proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, body_images, artist_id
      )
      select $1, customer_id, $7, $2, customer_name, customer_phone, customer_phone_2, customer_instagram,
        request_type, style, idea, placement, size_cm, 'booked', price_min_toman, price_max_toman,
        $3, coalesce(session_count, 1), deposit_toman, 'جلسه دوم', payment_status,
-       $4, $5, paid_toman, settled, reference_images, body_images
+       $4, $5, paid_toman, settled, reference_images, body_images, artist_id
        from tattoo_requests where id=$6`,
     [requestId, bookingId, minutes, start.toISOString(), slotEnd, src.id, businessId],
   );
@@ -2676,6 +2726,14 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performAddStudioFillIn(userId, payload, requireAdmin);
     case "setStudioFillIn":
       return performSetStudioFillIn(userId, payload, requireAdmin);
+    case "studioWhoami":
+      return performStudioWhoami(userId);
+    case "listStudioArtists":
+      return performListStudioArtists(userId);
+    case "saveStudioArtist":
+      return performSaveStudioArtist(userId, payload);
+    case "studioChairLedger":
+      return performStudioChairLedger(userId, payload);
     case "favorites":
       return performFavorites(userId);
     case "favoriteToggle":

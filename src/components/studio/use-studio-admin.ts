@@ -3,6 +3,7 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { saveAction } from "@/lib/save";
 import { inStudioApp, syncStudioOwnerChrome } from "@/lib/studio-notices";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
+import type { StudioArtistCard } from "@/lib/studio-artists";
 import type { Profile } from "@/lib/types";
 
 const OWNER_DEVICE_KEY = "studio-owner-device";
@@ -34,18 +35,26 @@ export function useStudioAdminEntry() {
     setShowAdmin(visible);
     setIsAdmin(owner);
     syncStudioOwnerChrome(false);
-    if (!user?.id || !owner) return;
-    void saveAction<Profile>("profile")
-      .then((profile) => {
-        const admin = Boolean(profile?.isAdmin) && owner;
-        setIsAdmin(admin);
-        setShowAdmin(true);
-        syncStudioOwnerChrome(false);
+    if (!user?.id || owner) {
+      if (!user?.id || !owner) return;
+      void saveAction<Profile>("profile")
+        .then((profile) => {
+          const admin = Boolean(profile?.isAdmin) && owner;
+          setIsAdmin(admin);
+          setShowAdmin(true);
+          syncStudioOwnerChrome(false);
+        })
+        .catch(() => {
+          setIsAdmin(false);
+          setShowAdmin(visible);
+        });
+      return;
+    }
+    void saveAction<StudioArtistCard | null>("studioWhoami")
+      .then((artist) => {
+        if (artist) setShowAdmin(true);
       })
-      .catch(() => {
-        setIsAdmin(false);
-        setShowAdmin(visible);
-      });
+      .catch(() => undefined);
   }, [user?.id, user?.primaryEmail]);
 
   return { showAdmin, isAdmin, user };
