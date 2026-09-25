@@ -10,3 +10,6 @@ export function normalizeTattooTrackingCode(value: string) {
     .replace(/\D/g, "");
   return fold;
 }
+
+export const TATTOO_REPLY_WAIT_NOTE =
+  "هر جلسه تاتو حدود ۶ ساعت طول می‌کشد و لیست درخواست‌ها دیر‌به‌دیر چک می‌شود. اگر جواب کمی دیر آمد، درخواست گم نشده؛ با کد پیگیری همین صفحه را دوباره باز کن.";
