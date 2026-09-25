@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { toSmsLink } from "@/lib/format";
+import { toWhatsAppLink } from "@/lib/format";
 import { shiftTehranDayKey, tehranDayKey } from "@/lib/hours";
 import { bookingReminderSms, formatTattooToman, tattooBalance } from "@/lib/tattoo-flow";
 import type { TattooRequest } from "@/lib/types";
@@ -50,7 +50,7 @@ export function StudioTomorrowDesk({
 
       <section className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-bold">فردا</h2>
-        <p className="mt-1 text-sm leading-6 text-muted">اسم، شماره، محل اجرا، واریزی و مانده. یادآوری را از پیامک خودت می‌فرستی.</p>
+        <p className="mt-1 text-sm leading-6 text-muted">اسم، شماره، محل اجرا، واریزی و مانده. یادآوری ۲۴ساعته با واتساپ آماده است. پیام ۲ساعته ندارد.</p>
         {!tomorrow.length ? <p className="mt-3 text-sm text-muted">برای فردا نوبت قطعی نیست.</p> : null}
         <div className="mt-3 grid gap-3">
           {tomorrow.map((request) => {
@@ -58,18 +58,14 @@ export function StudioTomorrowDesk({
             const when = request.proposedSlotStart
               ? new Date(request.proposedSlotStart).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
               : "";
-            function remind(honorific: "آقای" | "خانم") {
-              const href = toSmsLink(
-                request.customerPhone,
-                bookingReminderSms({
-                  honorific,
-                  name: request.customerName,
-                  when: request.proposedSlotStart,
-                  remainingToman: money.remaining,
-                }),
-              );
-              if (href) window.location.assign(href);
-            }
+            const href = toWhatsAppLink(
+              request.customerPhone,
+              bookingReminderSms({
+                name: request.customerName,
+                when: request.proposedSlotStart,
+                remainingToman: money.remaining,
+              }),
+            );
             return (
               <article key={request.id} className="rounded-2xl border border-border p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -79,10 +75,13 @@ export function StudioTomorrowDesk({
                 <p className="mt-1 text-sm" dir="ltr">{request.customerPhone}</p>
                 <p className="mt-1 text-sm text-muted">{request.placement}{request.style ? ` · ${request.style}` : ""}</p>
                 <p className="mt-1 text-sm">واریزی {formatTattooToman(money.paid)} · مانده {formatTattooToman(money.remaining)}</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Button type="button" className="h-11" onClick={() => remind("آقای")}>یادآوری آقا</Button>
-                  <Button type="button" variant="outline" className="h-11" onClick={() => remind("خانم")}>یادآوری خانم</Button>
-                </div>
+                {href ? (
+                  <Button type="button" className="mt-3 h-11 w-full" asChild>
+                    <a href={href}>واتساپ یادآوری فردا</a>
+                  </Button>
+                ) : (
+                  <p className="mt-3 text-sm text-muted">شماره واتساپ معتبر نیست.</p>
+                )}
               </article>
             );
           })}
