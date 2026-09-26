@@ -2094,10 +2094,26 @@ function jalaliYearRange(jy: number) {
 
 async function performStudioYearContacts(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
-  const data = z.object({ jy: z.number().int(), mine: z.boolean().optional() }).parse(raw);
+  const data = z
+    .object({
+      jy: z.number().int(),
+      jm: z.number().int().min(1).max(12).optional(),
+      start: z.string().optional(),
+      end: z.string().optional(),
+      mine: z.boolean().optional(),
+    })
+    .parse(raw);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
-  const range = jalaliYearRange(data.jy);
+  let range = jalaliYearRange(data.jy);
+  if (data.start && data.end) {
+    const startMs = Date.parse(data.start);
+    const endMs = Date.parse(data.end);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) throw new Error("بازه هفته درست نیست.");
+    range = { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
+  } else if (data.jm) {
+    range = jalaliMonthRange(data.jy, data.jm);
+  }
   const scope = actor.role === "artist" ? "and t.artist_id = $3" : data.mine ? "and t.artist_id is null" : "";
   const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
   const rows = await sql.query<{

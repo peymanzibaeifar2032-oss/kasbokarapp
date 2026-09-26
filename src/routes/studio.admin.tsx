@@ -984,17 +984,28 @@ function CustomerTempPassword() {
 function YearContactsPanel() {
   const clock = tehranClock();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
+  const [span, setSpan] = useState<"year" | "month" | "week">("year");
   const [year, setYear] = useState(todayJ.jy);
-  const [query, setQuery] = useState("");
+  const [month, setMonth] = useState(todayJ.jm);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [nameQuery, setNameQuery] = useState("");
+  const [phoneQuery, setPhoneQuery] = useState("");
   const [rows, setRows] = useState<YearContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const week = tehranWeekBounds(weekOffset);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
-    void saveAction<YearContact[]>("studioYearContacts", { jy: year, mine: true })
+    const payload =
+      span === "week"
+        ? { jy: year, start: week.start, end: week.end, mine: true }
+        : span === "month"
+          ? { jy: year, jm: month, mine: true }
+          : { jy: year, mine: true };
+    void saveAction<YearContact[]>("studioYearContacts", payload)
       .then((next) => {
         if (!cancelled) setRows(next);
       })
@@ -1007,46 +1018,100 @@ function YearContactsPanel() {
     return () => {
       cancelled = true;
     };
-  }, [year]);
+  }, [span, year, month, weekOffset, week.start, week.end]);
 
-  const needle = query.trim();
-  const digits = digitsOnly(needle);
+  const nameNeedle = nameQuery.trim();
+  const phoneDigits = digitsOnly(phoneQuery);
   const visible = rows.filter((row) => {
-    if (!needle) return true;
-    const hay = [row.name, row.phone, row.phone2, row.instagram, row.placements.join(" "), fileSummary(row.file).join(" "), row.file.notes].join(" ");
-    return hay.includes(needle) || (digits.length >= 3 && `${row.phone}${row.phone2}`.includes(digits));
+    if (phoneDigits.length >= 3 && !`${row.phone}${row.phone2}`.includes(phoneDigits)) return false;
+    if (!nameNeedle) return true;
+    const hay = [row.name, row.instagram, row.placements.join(" "), fileSummary(row.file).join(" "), row.file.notes].join(" ");
+    return hay.includes(nameNeedle);
   });
   const paid = visible.reduce((sum, row) => sum + row.paidToman, 0);
+  const period =
+    span === "week" ? `هفته ${weekRangeLabel(week.startKey)}` : span === "month" ? `${JALALI_MONTHS[month - 1]} ${toFaDigits(year)}` : `سال ${toFaDigits(year)}`;
 
   return (
     <div className="mt-5 grid gap-4">
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="text-lg font-bold">مخاطبین سال</h2>
+        <h2 className="text-lg font-bold">مخاطبین و پرونده</h2>
         <p className="mt-1 text-sm leading-7 text-muted">
-          هر مشتری یک ردیف است: شماره، جلسه‌ها، دریافتی، محل تاتو و پرونده. پوست، گرفتن رنگ، مشروب، خواب و بقیه نکته‌ها را همین‌جا بنویس تا برای کار بعدی بماند.
+          با اسم یا شماره پیدا کن. هفته، ماه یا سال را عوض کن تا فقط مشتری‌های همان بازه بمانند.
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(
+            [
+              ["year", "سال"],
+              ["month", "ماه"],
+              ["week", "هفته"],
+            ] as const
+          ).map(([id, label]) => (
+            <Button key={id} size="sm" variant={span === id ? "default" : "outline"} onClick={() => setSpan(id)}>
+              {label}
+            </Button>
+          ))}
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setYear((value) => value - 1)}>
-            سال قبل
-          </Button>
-          <p className="min-w-16 text-center text-sm font-semibold">{toFaDigits(year)}</p>
-          <Button variant="outline" size="sm" onClick={() => setYear((value) => value + 1)}>
-            سال بعد
-          </Button>
+          {span === "week" ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value - 1)}>
+                هفته قبل
+              </Button>
+              <p className="min-w-28 text-center text-sm font-semibold">{weekRangeLabel(week.startKey)}</p>
+              <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value + 1)}>
+                هفته بعد
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setYear((value) => value - 1)}>
+                سال قبل
+              </Button>
+              <p className="min-w-16 text-center text-sm font-semibold">{toFaDigits(year)}</p>
+              <Button variant="outline" size="sm" onClick={() => setYear((value) => value + 1)}>
+                سال بعد
+              </Button>
+              {span === "month" ? (
+                <label className="text-sm">
+                  <span className="sr-only">ماه</span>
+                  <select
+                    className="h-9 rounded-xl border border-border bg-bg px-3"
+                    value={month}
+                    onChange={(event) => setMonth(Number(event.target.value))}
+                  >
+                    {JALALI_MONTHS.map((name, index) => (
+                      <option key={name} value={index + 1}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
-      <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="جستجوی اسم، شماره یا محل تاتو" />
+      <Input value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} placeholder="جستجو با اسم، اینستاگرام یا محل تاتو" />
+      <Input
+        value={phoneQuery}
+        onChange={(event) => setPhoneQuery(event.target.value)}
+        placeholder="جستجو با شماره تماس یا موبایل"
+        inputMode="tel"
+        dir="ltr"
+      />
       {error ? <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</p> : null}
       {loading ? <p className="text-sm text-muted">در حال جمع کردن مخاطبین…</p> : null}
       {!loading && !error ? (
         <p className="text-sm text-muted">
-          {toFaDigits(visible.length)} مشتری · دریافتی {formatTattooToman(paid)}
+          {toFaDigits(visible.length)} مشتری در {period} · دریافتی {formatTattooToman(paid)}
         </p>
       ) : null}
       {!loading && !rows.length ? (
-        <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">
-          در این سال کار ثبت‌شده‌ای در تقویم نیست.
-        </p>
+        <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">در این بازه مشتری ثبت‌شده‌ای نیست.</p>
+      ) : null}
+      {!loading && rows.length > 0 && !visible.length ? (
+        <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">با این اسم یا شماره کسی پیدا نشد.</p>
       ) : null}
       {visible.map((row) => (
         <ContactCard
