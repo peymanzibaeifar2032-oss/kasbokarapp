@@ -101,23 +101,35 @@ export function StudioApprenticeBoard() {
         </p>
       </div>
 
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-3xl border border-border bg-surface p-4">
+          <p className="text-sm text-muted">مجموع واریزی همه کارآموزها</p>
+          <p className="mt-2 text-2xl font-bold">{formatTattooToman(board.payments.reduce((sum, row) => sum + row.amountToman, 0))}</p>
+          <p className="mt-1 text-xs leading-6 text-muted">همه ماه‌ها. داخل درآمد سالن نیست.</p>
+        </div>
+        <div className="rounded-3xl border border-destructive/30 bg-destructive/5 p-4">
+          <p className="text-sm text-muted">مانده واریزی مجموع کارآموزها</p>
+          <p className={`mt-2 text-2xl font-bold ${board.debtTotal > 0 ? "text-destructive" : ""}`}>{formatTattooToman(board.debtTotal)}</p>
+          <p className="mt-1 text-xs leading-6 text-muted">جمع بدهی‌هایی که برای هر نفر ثبت شده.</p>
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-border bg-surface p-4">
-        <h3 className="font-bold">دریافتی کل هنرجوها</h3>
-        <p className="mt-3 text-2xl font-bold">{formatTattooToman(board.payments.reduce((sum, row) => sum + row.amountToman, 0))}</p>
-        <p className="mt-1 text-sm text-muted">
-          {board.payments.length
-            ? "جمع همه ماه‌ها، از اول تا حالا. داخل درآمد سالن حساب نمی‌شود."
-            : "هنوز واریزی با تاریخ ثبت نشده. عدد پایین فقط مانده بدهی است، دریافتی نیست."}
-        </p>
-        <ul className="mt-3 grid gap-1 text-sm">
-          {paymentMonths(board.payments).map((row) => (
-            <li key={`${row.jy}-${row.jm}`} className="flex items-center justify-between gap-3">
-              <span>{row.label}</span>
-              <span className="font-semibold">{formatTattooToman(row.amount)}</span>
-            </li>
-          ))}
+        <h3 className="font-bold">هر کارآموز</h3>
+        <ul className="mt-3 grid gap-2">
+          {board.roster.map((person) => {
+            const paid = board.payments.filter((row) => row.apprenticeId === person.id).reduce((sum, row) => sum + row.amountToman, 0);
+            return (
+              <li key={person.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-bg px-3 py-2 text-sm">
+                <span className="font-semibold">{person.name}</span>
+                <span className="text-left">
+                  واریزی {formatTattooToman(paid)}
+                  <span className={person.debtToman > 0 ? "text-destructive" : "text-muted"}> · مانده {formatTattooToman(person.debtToman)}</span>
+                </span>
+              </li>
+            );
+          })}
         </ul>
-        <p className="mt-3 text-sm">مانده بدهی همه: {formatTattooToman(board.debtTotal)}</p>
       </section>
 
       <section className="rounded-3xl border border-border bg-surface p-4">
