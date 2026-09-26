@@ -1013,7 +1013,7 @@ function YearContactsPanel() {
   const digits = digitsOnly(needle);
   const visible = rows.filter((row) => {
     if (!needle) return true;
-    const hay = [row.name, row.phone, row.phone2, row.instagram, row.placements.join(" ")].join(" ");
+    const hay = [row.name, row.phone, row.phone2, row.instagram, row.placements.join(" "), fileSummary(row.file).join(" "), row.file.notes].join(" ");
     return hay.includes(needle) || (digits.length >= 3 && `${row.phone}${row.phone2}`.includes(digits));
   });
   const paid = visible.reduce((sum, row) => sum + row.paidToman, 0);
@@ -1023,7 +1023,7 @@ function YearContactsPanel() {
       <div className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="text-lg font-bold">مخاطبین سال</h2>
         <p className="mt-1 text-sm leading-7 text-muted">
-          هر مشتری یک ردیف است: شماره، تعداد جلسه‌های ثبت‌شده در تقویم، مجموع پولی که تا حالا گرفته‌ای و محل‌هایی که تاتو شده.
+          هر مشتری یک ردیف است: شماره، جلسه‌ها، دریافتی، محل تاتو و پرونده. پوست، گرفتن رنگ، مشروب، خواب و بقیه نکته‌ها را همین‌جا بنویس تا برای کار بعدی بماند.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setYear((value) => value - 1)}>
@@ -1049,38 +1049,30 @@ function YearContactsPanel() {
         </p>
       ) : null}
       {visible.map((row) => (
-        <article key={`${row.phone || row.name}-${row.lastSlot}`} className="rounded-2xl border border-border bg-surface p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <h3 className="text-base font-bold">{row.name}</h3>
-            <p className="text-sm font-semibold">{toFaDigits(row.sessions)} جلسه</p>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-3 text-sm">
-            {row.phone ? (
-              <a className="font-semibold text-accent" href={`tel:${row.phone}`} dir="ltr">
-                {row.phone}
-              </a>
-            ) : (
-              <span className="text-muted">شماره ندارد</span>
-            )}
-            {row.phone2 ? (
-              <a className="text-accent" href={`tel:${row.phone2}`} dir="ltr">
-                دوم: {row.phone2}
-              </a>
-            ) : null}
-          </div>
-          {row.instagram ? <p className="mt-1 text-sm text-muted" dir="ltr">{row.instagram}</p> : null}
-          <p className="mt-2 text-sm">دریافتی: {formatTattooToman(row.paidToman)}</p>
-          <p className="mt-1 text-sm leading-7 text-muted">
-            محل تاتو: {row.placements.length ? row.placements.join("، ") : "ثبت نشده"}
-          </p>
-          {row.lastSlot ? <p className="mt-1 text-xs text-muted">آخرین جلسه: {formatFaDateTime(row.lastSlot)}</p> : null}
-        </article>
+        <ContactCard
+          key={row.key}
+          row={row}
+          onSaved={(file) => setRows((list) => list.map((item) => (item.key === row.key ? { ...item, file } : item)))}
+        />
       ))}
     </div>
   );
 }
 
+type CustomerFile = {
+  skinTone: string;
+  inkHold: string;
+  fade: string;
+  alcohol: string;
+  sleepNote: string;
+  arrival: string;
+  pain: string;
+  healing: string;
+  notes: string;
+};
+
 type YearContact = {
+  key: string;
   name: string;
   phone: string;
   phone2: string;
@@ -1089,7 +1081,158 @@ type YearContact = {
   paidToman: number;
   placements: string[];
   lastSlot: string;
+  file: CustomerFile;
 };
+
+function fileSummary(file: CustomerFile) {
+  return [
+    file.skinTone ? `پوست ${file.skinTone}` : "",
+    file.inkHold,
+    file.fade,
+    file.alcohol,
+    file.sleepNote ? `خواب: ${file.sleepNote}` : "",
+    file.arrival,
+    file.pain,
+    file.healing,
+  ].filter(Boolean);
+}
+
+function ContactCard({ row, onSaved }: { row: YearContact; onSaved: (file: CustomerFile) => void }) {
+  const [open, setOpen] = useState(false);
+  const summary = fileSummary(row.file);
+  return (
+    <article className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h3 className="text-base font-bold">{row.name}</h3>
+        <p className="text-sm font-semibold">{toFaDigits(row.sessions)} جلسه</p>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-3 text-sm">
+        {row.phone ? (
+          <a className="font-semibold text-accent" href={`tel:${row.phone}`} dir="ltr">
+            {row.phone}
+          </a>
+        ) : (
+          <span className="text-muted">شماره ندارد</span>
+        )}
+        {row.phone2 ? (
+          <a className="text-accent" href={`tel:${row.phone2}`} dir="ltr">
+            دوم: {row.phone2}
+          </a>
+        ) : null}
+      </div>
+      {row.instagram ? <p className="mt-1 text-sm text-muted" dir="ltr">{row.instagram}</p> : null}
+      <p className="mt-2 text-sm">دریافتی: {formatTattooToman(row.paidToman)}</p>
+      <p className="mt-1 text-sm leading-7 text-muted">
+        محل تاتو: {row.placements.length ? row.placements.join("، ") : "ثبت نشده"}
+      </p>
+      {row.lastSlot ? <p className="mt-1 text-xs text-muted">آخرین جلسه: {formatFaDateTime(row.lastSlot)}</p> : null}
+      <p className="mt-2 text-sm leading-7 text-muted">
+        {summary.length ? summary.join(" · ") : "پرونده هنوز نوشته نشده"}
+      </p>
+      <Button className="mt-3" size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
+        {open ? "بستن پرونده" : "پرونده و ویرایش"}
+      </Button>
+      {open ? <CustomerFileForm contactKey={row.key} file={row.file} onSaved={onSaved} /> : null}
+    </article>
+  );
+}
+
+function CustomerFileForm({
+  contactKey,
+  file,
+  onSaved,
+}: {
+  contactKey: string;
+  file: CustomerFile;
+  onSaved: (file: CustomerFile) => void;
+}) {
+  const [draft, setDraft] = useState(file);
+  const [busy, setBusy] = useState(false);
+
+  function setField(field: keyof CustomerFile, value: string) {
+    setDraft((current) => ({ ...current, [field]: current[field] === value ? "" : value }));
+  }
+
+  async function save() {
+    setBusy(true);
+    try {
+      await saveAction("saveStudioCustomerFile", { contactKey, ...draft });
+      onSaved(draft);
+      toast.success("پرونده ذخیره شد و برای کار بعدی می‌ماند.");
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-border pt-4">
+      <Choice label="رنگ پوست" value={draft.skinTone} options={["روشن", "گندمی", "تیره"]} onChange={(value) => setField("skinTone", value)} />
+      <Choice label="گرفتن رنگ" value={draft.inkHold} options={["خوب رنگ می‌گیرد", "سخت رنگ می‌گیرد", "رنگ نمی‌گیرد"]} onChange={(value) => setField("inkHold", value)} />
+      <Choice label="ماندن رنگ روی بدن" value={draft.fade} options={["ماندگار می‌ماند", "کمی کمرنگ می‌شود", "زود کمرنگ می‌شود"]} onChange={(value) => setField("fade", value)} />
+      <Choice label="مشروب" value={draft.alcohol} options={["مشروب نمی‌خورد", "گاهی می‌خورد", "قبل از جلسه خورده بود"]} onChange={(value) => setField("alcohol", value)} />
+      <label className="mt-3 block text-sm font-semibold">
+        ساعت خواب
+        <Input
+          className="mt-2"
+          value={draft.sleepNote}
+          onChange={(event) => setDraft((current) => ({ ...current, sleepNote: event.target.value }))}
+          placeholder="مثلاً ۵ ساعت، شب قبل دیر خوابیده"
+        />
+      </label>
+      <Choice label="آمدن به استودیو" value={draft.arrival} options={["سر وقت می‌آید", "معمولاً دیر می‌آید", "زودتر می‌آید"]} onChange={(value) => setField("arrival", value)} />
+      <Choice label="تحمل جلسه" value={draft.pain} options={["درد را راحت تحمل می‌کند", "تحمل معمولی", "زود خسته می‌شود"]} onChange={(value) => setField("pain", value)} />
+      <Choice label="ترمیم" value={draft.healing} options={["پوسته را دست نمی‌زند", "می‌خارد یا پوسته را می‌کند", "التهابش طول می‌کشد"]} onChange={(value) => setField("healing", value)} />
+      <label className="mt-3 block text-sm font-semibold">
+        نکته برای کار بعدی
+        <Textarea
+          className="mt-2"
+          rows={3}
+          value={draft.notes}
+          onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
+          placeholder="هر چیزی که جلسه بعد باید یادت بماند"
+        />
+      </label>
+      <Button className="mt-3" disabled={busy} onClick={() => void save()}>
+        {busy ? "در حال ذخیره…" : "ذخیره پرونده"}
+      </Button>
+    </div>
+  );
+}
+
+function Choice({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="mt-3">
+      <p className="text-sm font-semibold">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs",
+              value === option ? "border-primary bg-primary text-primary-fg" : "border-border text-muted",
+            )}
+            onClick={() => onChange(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function MonthJobsPanel({
   businesses,

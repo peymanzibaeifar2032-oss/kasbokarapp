@@ -2122,6 +2122,7 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
     params,
   );
   const grouped = new Map<string, {
+    key: string;
     name: string;
     phone: string;
     phone2: string;
@@ -2130,6 +2131,7 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
     paidToman: number;
     placements: string[];
     lastSlot: string;
+    file: ReturnType<typeof emptyCustomerFile>;
   }>();
   for (const row of rows) {
     const phone = contactPhone(row.customer_phone);
@@ -2137,6 +2139,7 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
     const name = (row.customer_name || "").trim() || "بدون نام";
     const key = phone || `name:${name.replace(/\s+/g, " ")}`;
     const current = grouped.get(key) ?? {
+      key,
       name,
       phone,
       phone2: "",
@@ -2145,6 +2148,7 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
       paidToman: 0,
       placements: [],
       lastSlot: row.slot_start,
+      file: emptyCustomerFile(),
     };
     current.sessions += 1;
     current.paidToman += Number(row.paid_toman) || 0;
@@ -2158,7 +2162,109 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
     if (placement && !current.placements.includes(placement)) current.placements.push(placement);
     grouped.set(key, current);
   }
+  await attachCustomerFiles(sql, userId, grouped);
   return [...grouped.values()].sort((a, b) => b.paidToman - a.paidToman || b.sessions - a.sessions || a.name.localeCompare(b.name, "fa"));
+}
+
+function emptyCustomerFile() {
+  return {
+    skinTone: "",
+    inkHold: "",
+    fade: "",
+    alcohol: "",
+    sleepNote: "",
+    arrival: "",
+    pain: "",
+    healing: "",
+    notes: "",
+  };
+}
+
+async function attachCustomerFiles(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  userId: string,
+  grouped: Map<string, { file: ReturnType<typeof emptyCustomerFile> }>,
+) {
+  const keys = [...grouped.keys()];
+  if (!keys.length) return;
+  try {
+    const files = await sql.query<{
+      contact_key: string;
+      skin_tone: string;
+      ink_hold: string;
+      fade: string;
+      alcohol: string;
+      sleep_note: string;
+      arrival: string;
+      pain: string;
+      healing: string;
+      notes: string;
+    }>(
+      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes
+         from studio_customer_files where user_id=$1 and contact_key = any($2::text[])`,
+      [userId, keys],
+    );
+    for (const file of files) {
+      const row = grouped.get(file.contact_key);
+      if (!row) continue;
+      row.file = {
+        skinTone: file.skin_tone || "",
+        inkHold: file.ink_hold || "",
+        fade: file.fade || "",
+        alcohol: file.alcohol || "",
+        sleepNote: file.sleep_note || "",
+        arrival: file.arrival || "",
+        pain: file.pain || "",
+        healing: file.healing || "",
+        notes: file.notes || "",
+      };
+    }
+  } catch {
+    // The file table arrives with the next migration. The contact list still opens.
+  }
+}
+
+const customerFileSchema = z.object({
+  contactKey: z.string().trim().min(2).max(160),
+  skinTone: z.string().trim().max(40),
+  inkHold: z.string().trim().max(40),
+  fade: z.string().trim().max(40),
+  alcohol: z.string().trim().max(40),
+  sleepNote: z.string().trim().max(160),
+  arrival: z.string().trim().max(40),
+  pain: z.string().trim().max(40),
+  healing: z.string().trim().max(80),
+  notes: z.string().trim().max(1500),
+});
+
+async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
+  await requireStudioStaff(userId);
+  const data = customerFileSchema.parse(raw);
+  const sql = await getSql();
+  await sql.query(
+    `insert into studio_customer_files
+       (id, user_id, contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     on conflict (user_id, contact_key) do update set
+       skin_tone=excluded.skin_tone, ink_hold=excluded.ink_hold, fade=excluded.fade, alcohol=excluded.alcohol,
+       sleep_note=excluded.sleep_note, arrival=excluded.arrival, pain=excluded.pain, healing=excluded.healing,
+       notes=excluded.notes, updated_at=now()`,
+    [
+      crypto.randomUUID(),
+      userId,
+      data.contactKey,
+      data.skinTone,
+      data.inkHold,
+      data.fade,
+      data.alcohol,
+      data.sleepNote,
+      data.arrival,
+      data.pain,
+      data.healing,
+      data.notes,
+    ],
+  );
+  return { ok: true as const };
 }
 
 function contactPhone(raw: string | null | undefined) {
@@ -2886,6 +2992,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioMonthJobs(userId, payload);
     case "studioYearContacts":
       return performStudioYearContacts(userId, payload);
+    case "saveStudioCustomerFile":
+      return performSaveStudioCustomerFile(userId, payload);
     case "studioMonthFinance":
       return performStudioMonthFinance(userId, payload);
     case "addStudioExpense":
