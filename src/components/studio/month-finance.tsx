@@ -122,8 +122,8 @@ export function StudioMonthFinance() {
       {summary ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <MoneyCard label="واریزی این ماه" value={summary.paid} hint="بیعانه و پرداخت دستی" />
-          <MoneyCard label="مانده کارهای این ماه" value={summary.remainingMonth} hint="طلب مشتری برای نوبت همین ماه" />
-          <MoneyCard label="مانده کل مشتریان" value={summary.remainingAll} hint="هنوز نقد نشده" />
+          <MoneyCard label="مانده کارهای این ماه" value={summary.remainingMonth} hint="هر طرح یک بار؛ چند روز همان کار دوباره جمع نمی‌شود" />
+          <MoneyCard label="مانده کل مشتریان" value={summary.remainingAll} hint="طلب واقعی، بدون تکرار قیمت روی جلسه‌های بعدی" />
           <MoneyCard label="هزینه سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
           <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent />
           <MoneyCard label="باقیمانده بعد از زندگی" value={summary.leftover} hint="بعد از کرایه خانه، بیمه و خانه" accent />

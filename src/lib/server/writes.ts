@@ -2617,6 +2617,43 @@ async function applyStudioExpenseTemplates(
   }
 }
 
+function remainingTotalSql(scopedToRange: boolean) {
+  const range = scopedToRange
+    ? `and booking_id in (
+            select id from bookings
+             where status not in ('cancelled')
+               and kind = 'booking'
+               and slot_start >= $1 and slot_start < $2
+          )`
+    : "";
+  return `select coalesce(sum(greatest(price - paid, 0)), 0) as remaining
+    from (
+      select max(price) as price, least(max(price), sum(paid)) as paid
+      from (
+        select
+          case
+            when length(right(regexp_replace(coalesce(customer_phone,''), '\\D', '', 'g'), 10)) >= 10
+             and right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) <> '9000000000'
+              then right(regexp_replace(customer_phone, '\\D', '', 'g'), 10)
+            else lower(btrim(customer_name))
+          end as who,
+          lower(btrim(coalesce(style,''))) as style,
+          lower(btrim(coalesce(placement,''))) as placement,
+          coalesce(price_min_toman,0) as price,
+          coalesce(paid_toman,0) as paid
+        from tattoo_requests
+        where status not in ('rejected','cancelled')
+          and artist_id is null
+          and coalesce(is_continuation, false) = false
+          and coalesce(carry_closed, false) = false
+          and coalesce(artist_message, '') <> 'جلسه دوم'
+          and coalesce(price_min_toman,0) > 0
+          ${range}
+      ) jobs
+      group by who, style, placement, price
+    ) once`;
+}
+
 async function performStudioMonthFinance(userId: string, raw: unknown) {
   await requireAdmin(userId);
   const data = z.object({ jy: z.number().int(), jm: z.number().int().min(1).max(12) }).parse(raw);
@@ -2640,29 +2677,8 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
         order by p.created_at desc`,
       [range.start, range.end],
     ),
-    sql.query<{ remaining: number | string }>(
-      `select coalesce(sum(greatest(coalesce(price_min_toman,0) - coalesce(paid_toman,0), 0)), 0) as remaining
-         from tattoo_requests
-        where status not in ('rejected')
-          and coalesce(is_continuation, false) = false
-          and coalesce(carry_closed, false) = false
-          and coalesce(artist_message, '') <> 'جلسه دوم'
-          and booking_id in (
-            select id from bookings
-             where status not in ('cancelled')
-               and kind = 'booking'
-               and slot_start >= $1 and slot_start < $2
-          )`,
-      [range.start, range.end],
-    ),
-    sql.query<{ remaining: number | string }>(
-      `select coalesce(sum(greatest(coalesce(price_min_toman,0) - coalesce(paid_toman,0), 0)), 0) as remaining
-         from tattoo_requests
-        where status not in ('rejected')
-          and coalesce(is_continuation, false) = false
-          and coalesce(carry_closed, false) = false
-          and coalesce(artist_message, '') <> 'جلسه دوم'`,
-    ),
+    sql.query<{ remaining: number | string }>(remainingTotalSql(true), [range.start, range.end]),
+    sql.query<{ remaining: number | string }>(remainingTotalSql(false)),
     sql.query<{
       id: string;
       category: string;
