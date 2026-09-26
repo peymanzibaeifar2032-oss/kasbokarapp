@@ -255,8 +255,11 @@ function StudioStatusPage() {
           <h1 className="mt-2 text-3xl font-black">بررسی وضعیت نوبت</h1>
           <p className="mt-3 text-sm leading-7 text-white/55">
             اینجا تأیید پیمان، پیام‌ها، مهلت پرداخت و زمان قطعی را می‌بینی. بعد از قطعی شدن وقت، همان
-            زمان را به تقویم گوشی اضافه کن. روز قبل از اجرا، اعلان گوشی یادآوری آمادگی را می‌آورد.
-            مراقبت قبل و بعد در بخش آموزش است.
+            زمان را به تقویم گوشی اضافه کن. روز قبل از اجرا، اعلان گوشی یادآوری آمادگی را می‌آورد.{" "}
+            <Link to="/studio/care" className="text-[#e5d2ae]">
+              مراقبت قبل و بعد
+            </Link>{" "}
+            را جدا بخوان.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <p className="rounded-2xl border border-[#b7955b]/30 bg-[#b7955b]/10 px-4 py-3 text-sm leading-7 text-[#e5d2ae]">

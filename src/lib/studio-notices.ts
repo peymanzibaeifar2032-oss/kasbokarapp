@@ -138,7 +138,7 @@ export function tattooPrepReminders(slotIso: string, name: string, now = Date.no
       id: `prep-am-${slotIso}`,
       at: Date.parse(tehranLocalToIso(day.y, day.m, day.d, 9, 0)),
       title: "فردا وقت تاتو داری",
-      body: `${name}، فردا نوبت تاتو داری. تا شب استراحت کن، آب زیاد بنوش، الکل نخور و بخش آموزش را بخوان.`,
+      body: `${name}، فردا نوبت تاتو داری. تا شب استراحت کن، آب زیاد بنوش، الکل نخور و بخش مراقبت را بخوان.`,
     },
     {
       id: `prep-pm-${slotIso}`,

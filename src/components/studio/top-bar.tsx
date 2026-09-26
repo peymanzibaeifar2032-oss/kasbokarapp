@@ -43,8 +43,11 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                 <Link to="/studio/designs" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
                   انتخاب طرح
                 </Link>
-                <Link to="/studio/guide" className="col-span-2 flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
-                  آموزش و مراقبت
+                <Link to="/studio/guide" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
+                  آموزش فرم
+                </Link>
+                <Link to="/studio/care" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
+                  مراقبت
                 </Link>
                 <a href={ADMIN_URL} className="col-span-2 flex h-14 items-center justify-center rounded-2xl bg-black text-sm font-bold text-[#b7955b]">
                   پنل ادمین · در مرورگر
@@ -102,6 +105,12 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                 className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
               >
                 آموزش
+              </Link>
+              <Link
+                to="/studio/care"
+                className="col-span-2 inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80 sm:col-span-1"
+              >
+                مراقبت قبل و بعد
               </Link>
               </nav>
             </div>

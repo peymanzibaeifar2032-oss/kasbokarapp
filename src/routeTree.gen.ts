@@ -38,6 +38,7 @@ import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
 import { Route as StudioAppRouteImport } from './routes/studio.app'
+import { Route as StudioCareRouteImport } from './routes/studio.care'
 import { Route as StudioDesignsRouteImport } from './routes/studio.designs'
 import { Route as StudioGuideRouteImport } from './routes/studio.guide'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
@@ -192,6 +193,11 @@ const StudioAppRoute = StudioAppRouteImport.update({
   path: '/app',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioCareRoute = StudioCareRouteImport.update({
+  id: '/care',
+  path: '/care',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioDesignsRoute = StudioDesignsRouteImport.update({
   id: '/designs',
   path: '/designs',
@@ -263,6 +269,7 @@ export interface FileRoutesByFullPath {
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
+  '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/request': typeof StudioRequestRoute
@@ -302,6 +309,7 @@ export interface FileRoutesByTo {
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
+  '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/request': typeof StudioRequestRoute
@@ -342,6 +350,7 @@ export interface FileRoutesById {
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
+  '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/request': typeof StudioRequestRoute
@@ -383,6 +392,7 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
     | '/studio/app'
+    | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/request'
@@ -422,6 +432,7 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
     | '/studio/app'
+    | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/request'
@@ -461,6 +472,7 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
     | '/studio/app'
+    | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/request'
@@ -709,6 +721,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioAppRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/care': {
+      id: '/studio/care'
+      path: '/care'
+      fullPath: '/studio/care'
+      preLoaderRoute: typeof StudioCareRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/designs': {
       id: '/studio/designs'
       path: '/designs'
@@ -783,6 +802,7 @@ const KharidVamMehrRouteWithChildren = KharidVamMehrRoute._addFileChildren(
 interface StudioRouteChildren {
   StudioAdminRoute: typeof StudioAdminRoute
   StudioAppRoute: typeof StudioAppRoute
+  StudioCareRoute: typeof StudioCareRoute
   StudioDesignsRoute: typeof StudioDesignsRoute
   StudioGuideRoute: typeof StudioGuideRoute
   StudioRequestRoute: typeof StudioRequestRoute
@@ -792,6 +812,7 @@ interface StudioRouteChildren {
 const StudioRouteChildren: StudioRouteChildren = {
   StudioAdminRoute: StudioAdminRoute,
   StudioAppRoute: StudioAppRoute,
+  StudioCareRoute: StudioCareRoute,
   StudioDesignsRoute: StudioDesignsRoute,
   StudioGuideRoute: StudioGuideRoute,
   StudioRequestRoute: StudioRequestRoute,

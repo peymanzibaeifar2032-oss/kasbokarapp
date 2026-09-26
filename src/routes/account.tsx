@@ -113,7 +113,10 @@ function Account() {
           درخواست جدید
         </Link>
         <Link to="/studio/guide" className="inline-flex h-11 items-center rounded-full border border-border bg-surface px-4 text-sm">
-          آموزش و مراقبت
+          آموزش فرم
+        </Link>
+        <Link to="/studio/care" className="inline-flex h-11 items-center rounded-full border border-border bg-surface px-4 text-sm">
+          مراقبت قبل و بعد
         </Link>
       </div>
     </Shell>

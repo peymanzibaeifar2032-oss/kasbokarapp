@@ -36,7 +36,7 @@ const faqs = [
   ["فرم را چطور پر کنم؟", "بخش آموزش را باز کن. همان عکس‌ها ورود، فرم، عکس طرح، بررسی و بیعانه را نشان می‌دهند."],
   ["برای رزرو چه اطلاعاتی لازم است؟", "عکس واضح محل بدن، تصویر یا توضیح ایده، اندازه تقریبی و زمان‌های مناسب خودت را بفرست."],
   ["قیمت تاتو چطور مشخص می‌شود؟", "قیمت به اندازه، جزئیات، محل اجرا، وضعیت پوست و تعداد جلسه بستگی دارد و پس از بررسی اعلام می‌شود."],
-  ["قبل از تاتو چه کار کنم؟", "خواب کافی داشته باش، آب بنوش، غذای مناسب بخور و از مصرف الکل و آفتاب‌سوختگی پرهیز کن."],
+  ["قبل از تاتو چه کار کنم؟", "بخش مراقبت را بخوان: خواب، آب، غذای سبک، پرهیز از الکل و آفتاب، و این‌که درد برای همه یکسان کم نمی‌شود."],
   ["بیعانه قابل بازگشت است؟", "شرایط جابه‌جایی و لغو نوبت پیش از پرداخت به‌صورت روشن نمایش داده می‌شود."],
 ];
 
@@ -97,6 +97,12 @@ function StudioLanding() {
                     className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
                   >
                     انتخاب طرح
+                  </Link>
+                  <Link
+                    to="/studio/care"
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
+                  >
+                    مراقبت
                   </Link>
                   <Link
                     to="/studio/guide"
@@ -222,8 +228,16 @@ function StudioLanding() {
         </section>
 
         <section id="care" className="mx-auto grid max-w-6xl gap-4 px-4 py-20 md:grid-cols-2">
-          <CareCard title="پیش از تاتو" points={["خواب و تغذیه کافی", "آبرسانی مناسب پوست", "پرهیز از الکل و آفتاب‌سوختگی", "اعلام بیماری یا داروی مؤثر"]} />
-          <CareCard title="پس از تاتو" points={["شست‌وشوی درست طبق آموزش", "استفاده محدود از محصول توصیه‌شده", "پرهیز از استخر، آفتاب و اصطکاک", "تماس در صورت نشانه غیرعادی"]} />
+          <CareCard
+            hash="before"
+            title="پیش از تاتو"
+            points={["خواب، آب و غذای سبک", "بدون الکل و آفتاب‌سوختگی", "مهار درد، بدون وعده قطعی", "دارو و جوش را همان روز بگو"]}
+          />
+          <CareCard
+            hash="after"
+            title="پس از تاتو"
+            points={["شستن ملایم و لایه نازک", "پوسته را نکن تا رنگ نریزد", "استخر و آفتاب تا بسته شدن سطح", "ترشح بد یا تب را همان روز بگو"]}
+          />
         </section>
 
         <section id="faq" className="mx-auto max-w-3xl px-4 pb-24">
@@ -266,9 +280,9 @@ function Mini({ icon: Icon, label }: { icon: typeof Upload; label: string }) {
   return <span className="flex items-center gap-3 text-sm"><Icon className="size-5 text-[#b7955b]" />{label}</span>;
 }
 
-function CareCard({ title, points }: { title: string; points: string[] }) {
+function CareCard({ title, points, hash }: { title: string; points: string[]; hash: string }) {
   return (
-    <article className="rounded-3xl border border-white/10 bg-white/[.035] p-7">
+    <Link to="/studio/care" hash={hash} className="rounded-3xl border border-white/10 bg-white/[.035] p-7">
       <h2 className="text-2xl font-black">{title}</h2>
       <ul className="mt-6 grid gap-4">
         {points.map((point) => (
@@ -278,6 +292,7 @@ function CareCard({ title, points }: { title: string; points: string[] }) {
           </li>
         ))}
       </ul>
-    </article>
+      <p className="mt-6 text-sm font-bold text-[#e5d2ae]">خواندن مرحله‌به‌مرحله</p>
+    </Link>
   );
 }

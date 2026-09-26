@@ -231,6 +231,12 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
               آموزش فرم
             </Link>
             <Link
+              to="/studio/care"
+              className="inline-flex h-11 items-center justify-center rounded-full border border-[#b7955b]/40 px-4 text-sm text-[#e5d2ae]"
+            >
+              مراقبت قبل و بعد
+            </Link>
+            <Link
               to="/studio/app"
               className="inline-flex h-11 items-center justify-center rounded-full border border-[#b7955b]/40 px-4 text-sm text-[#e5d2ae]"
             >
