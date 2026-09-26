@@ -42,13 +42,23 @@ import {
 import type { Booking, Business, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/studio/admin")({ component: StudioAdminPage });
-
 type PanelTab = "requests" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists";
+
+const panelTabs: PanelTab[] = ["requests", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists"];
+
+export const Route = createFileRoute("/studio/admin")({
+  validateSearch: (search: Record<string, unknown>): { tab?: PanelTab } => {
+    if (typeof search.tab === "string" && panelTabs.includes(search.tab as PanelTab)) return { tab: search.tab as PanelTab };
+    return {};
+  },
+  component: StudioAdminPage,
+});
 type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
 
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
+  const search = Route.useSearch();
+  const navigate = Route.useNavigate();
   const userId = user?.id;
   const owner = isStudioOwnerEmail(user?.primaryEmail);
   const [chairArtist, setChairArtist] = useState<StudioArtistCard | null>(null);
@@ -56,11 +66,16 @@ function StudioAdminPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
-  const [tab, setTab] = useState<PanelTab>("requests");
+  const [tab, setTabState] = useState<PanelTab>(search.tab ?? "requests");
   const [filter, setFilter] = useState<RequestFilter>("active");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  function setTab(next: PanelTab) {
+    setTabState(next);
+    void navigate({ search: { tab: next }, replace: true });
+  }
 
   async function refresh() {
     setLoading(true);
@@ -241,16 +256,6 @@ function StudioAdminPage() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("contacts")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "contacts" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          مخاطبین سال
-        </button>
-        <button
-          type="button"
           onClick={() => setTab("fill")}
           className={cn(
             "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
@@ -268,6 +273,16 @@ function StudioAdminPage() {
           )}
         >
           <CalendarDays className="ml-1 inline size-4" /> تقویم کاری
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("contacts")}
+          className={cn(
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
+            tab === "contacts" ? "bg-primary text-primary-fg" : "text-muted",
+          )}
+        >
+          مخاطبین سال
         </button>
         {owner ? (
         <button
