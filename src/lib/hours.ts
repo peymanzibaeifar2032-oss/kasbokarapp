@@ -40,6 +40,22 @@ export function shiftTehranDayKey(dayKey: string, days: number) {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
+/** Saturday-to-Friday week in Tehran. Offset 0 is the week containing `from`. */
+export function tehranWeekBounds(weekOffset = 0, from = new Date()) {
+  const clock = tehranClock(from);
+  const fromSaturday = (clock.weekday + 1) % 7;
+  const startKey = shiftTehranDayKey(tehranDayKey(from), -fromSaturday + weekOffset * 7);
+  const endKey = shiftTehranDayKey(startKey, 7);
+  const [sy, sm, sd] = startKey.split("-").map(Number);
+  const [ey, em, ed] = endKey.split("-").map(Number);
+  return {
+    startKey,
+    endKey,
+    start: tehranLocalToIso(sy, sm, sd, 0, 0),
+    end: tehranLocalToIso(ey, em, ed, 0, 0),
+  };
+}
+
 /** First day with no tattoo job and no apprentice Thursday. */
 export function firstOpenCustomerDay(occupied: Iterable<string>, thursdays: Iterable<string>, from = new Date()) {
   const busy = new Set(occupied);

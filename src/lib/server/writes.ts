@@ -2085,10 +2085,28 @@ function jalaliMonthRange(jy: number, jm: number) {
 
 async function performStudioMonthJobs(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
-  const data = z.object({ jy: z.number().int(), jm: z.number().int().min(1).max(12), mine: z.boolean().optional() }).parse(raw);
+  const data = z
+    .object({
+      jy: z.number().int().optional(),
+      jm: z.number().int().min(1).max(12).optional(),
+      mine: z.boolean().optional(),
+      start: z.string().optional(),
+      end: z.string().optional(),
+    })
+    .parse(raw);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
-  const range = jalaliMonthRange(data.jy, data.jm);
+  let range: { start: string; end: string };
+  if (data.start && data.end) {
+    const startMs = Date.parse(data.start);
+    const endMs = Date.parse(data.end);
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) throw new Error("بازه هفته درست نیست.");
+    range = { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
+  } else if (data.jy && data.jm) {
+    range = jalaliMonthRange(data.jy, data.jm);
+  } else {
+    throw new Error("ماه یا هفته را مشخص کن.");
+  }
   const scope =
     actor.role === "artist" ? "and artist_id = $3" : data.mine ? "and artist_id is null" : "";
   const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];

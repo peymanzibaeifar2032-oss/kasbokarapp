@@ -19,7 +19,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink } from "@/lib/format";
-import { firstOpenCustomerDay, tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
+import { firstOpenCustomerDay, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import { TATTOO_REQUEST_LABEL } from "@/lib/tattoo-estimate";
@@ -965,6 +965,8 @@ function MonthJobsPanel({
 }) {
   const clock = tehranClock();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
+  const [span, setSpan] = useState<"month" | "week">("month");
+  const [weekOffset, setWeekOffset] = useState(0);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [jobs, setJobs] = useState<TattooRequest[]>([]);
   const [jobQuery, setJobQuery] = useState("");
@@ -975,7 +977,11 @@ function MonthJobsPanel({
     setLoading(true);
     setError("");
     try {
-      const rows = await saveAction<TattooRequest[]>("studioMonthJobs", { jy: month.jy, jm: month.jm, mine: true });
+      const week = tehranWeekBounds(weekOffset);
+      const rows = await saveAction<TattooRequest[]>(
+        "studioMonthJobs",
+        span === "week" ? { start: week.start, end: week.end, mine: true } : { jy: month.jy, jm: month.jm, mine: true },
+      );
       setJobs(rows);
     } catch (err) {
       setError(friendlyError(err));
@@ -986,8 +992,11 @@ function MonthJobsPanel({
 
   useEffect(() => {
     void load();
-  }, [month.jy, month.jm]);
+  }, [span, weekOffset, month.jy, month.jm]);
 
+  const week = tehranWeekBounds(weekOffset);
+  const weekTitle = weekRangeLabel(week.startKey);
+  const listTitle = span === "week" ? (weekOffset === 0 ? "لیست کارهای این هفته" : "لیست کارهای هفته") : "لیست کارهای این ماه";
   const visibleJobs = jobs.filter((job) => customerQueryMatch(jobQuery, job));
 
   async function refreshAll() {
@@ -999,11 +1008,26 @@ function MonthJobsPanel({
     <div className="mt-5 grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
         <div>
-          <h2 className="text-lg font-bold">لیست کارهای این ماه</h2>
+          <h2 className="text-lg font-bold">{listTitle}</h2>
           <p className="mt-1 text-sm leading-7 text-muted">
             نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
             جستجو فقط همان اسم یا شماره را نشان می‌دهد و نوبت‌های چندروزه را یکی نمی‌کند.
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={span === "week" ? "default" : "outline"}
+              onClick={() => {
+                setWeekOffset(0);
+                setSpan("week");
+              }}
+            >
+              کارهای این هفته
+            </Button>
+            <Button size="sm" variant={span === "month" ? "default" : "outline"} onClick={() => setSpan("month")}>
+              کارهای این ماه
+            </Button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -1014,7 +1038,7 @@ function MonthJobsPanel({
               try {
                 const mode = downloadStudioJobsPdf(
                   visibleJobs,
-                  `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
+                  span === "week" ? `لیست هفته ${weekTitle}` : `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
                 );
                 toast.success(
                   mode === "apk"
@@ -1029,15 +1053,29 @@ function MonthJobsPanel({
             <FileDown className="size-4" />
             دانلود PDF لیست
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}>
-            ماه قبل
-          </Button>
-          <p className="min-w-28 text-center text-sm font-semibold">
-            {JALALI_MONTHS[month.jm - 1]} {toFaDigits(month.jy)}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}>
-            ماه بعد
-          </Button>
+          {span === "week" ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value - 1)}>
+                هفته قبل
+              </Button>
+              <p className="min-w-28 text-center text-sm font-semibold">{weekTitle}</p>
+              <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value + 1)}>
+                هفته بعد
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}>
+                ماه قبل
+              </Button>
+              <p className="min-w-28 text-center text-sm font-semibold">
+                {JALALI_MONTHS[month.jm - 1]} {toFaDigits(month.jy)}
+              </p>
+              <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}>
+                ماه بعد
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1046,7 +1084,7 @@ function MonthJobsPanel({
       <Input
         value={jobQuery}
         onChange={(e) => setJobQuery(e.target.value)}
-        placeholder="جستجوی اسم یا شماره در این ماه"
+        placeholder={span === "week" ? "جستجوی اسم یا شماره در این هفته" : "جستجوی اسم یا شماره در این ماه"}
       />
 
       {error ? (
@@ -1054,15 +1092,19 @@ function MonthJobsPanel({
           {error}
         </div>
       ) : null}
-      {loading ? <p className="text-sm text-muted">در حال دریافت لیست ماه…</p> : null}
+      {loading ? <p className="text-sm text-muted">{span === "week" ? "در حال دریافت لیست هفته…" : "در حال دریافت لیست ماه…"}</p> : null}
       {!loading && !jobs.length ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">
-          در این ماه کار رزرو‌شده‌ای نیست. کارهای عقب‌افتاده را از فرم بالا دستی وارد کنید. تاریخ‌های سه‌شنبه ۵ آبان، شنبه ۹ آبان و جمعه ۱۴ آبان را هم همین‌جا ثبت کنید.
+          {span === "week"
+            ? "در این هفته کار رزرو‌شده‌ای نیست."
+            : "در این ماه کار رزرو‌شده‌ای نیست. کارهای عقب‌افتاده را از فرم بالا دستی وارد کنید. تاریخ‌های سه‌شنبه ۵ آبان، شنبه ۹ آبان و جمعه ۱۴ آبان را هم همین‌جا ثبت کنید."}
         </p>
       ) : null}
       {!loading && jobs.length > 0 && !visibleJobs.length ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
-          با این اسم یا شماره در این ماه نوبتی نیست. نوبت‌های دیگر همان مشتری حذف نشده‌اند.
+          {span === "week"
+            ? "با این اسم یا شماره در این هفته نوبتی نیست."
+            : "با این اسم یا شماره در این ماه نوبتی نیست. نوبت‌های دیگر همان مشتری حذف نشده‌اند."}
         </p>
       ) : null}
       {visibleJobs.map((job) => (
@@ -1084,6 +1126,17 @@ function MonthJobsPanel({
       />
     </div>
   );
+}
+
+function weekRangeLabel(startKey: string) {
+  const [y, m, d] = startKey.split("-").map(Number);
+  const start = gregorianToJalali(y, m, d);
+  const endKey = shiftTehranDayKey(startKey, 6);
+  const [ey, em, ed] = endKey.split("-").map(Number);
+  const end = gregorianToJalali(ey, em, ed);
+  const startText = `${toFaDigits(start.jd)} ${JALALI_MONTHS[start.jm - 1]}`;
+  const endText = `${toFaDigits(end.jd)} ${JALALI_MONTHS[end.jm - 1]}`;
+  return `${startText} تا ${endText}`;
 }
 
 function usablePhone(raw: string | null | undefined) {
