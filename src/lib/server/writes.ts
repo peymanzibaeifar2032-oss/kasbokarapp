@@ -2415,12 +2415,12 @@ async function performStudioDesignTimes(userId: string, raw: unknown) {
   }).parse(raw);
   const style = data.style.replace(/\s+/g, " ").trim();
   const size = compactSize(data.sizeCm || "");
-  if (style.length < 2 || !size) return { count: 0, typicalMinutes: null as number | null, shortest: null as number | null, longest: null as number | null, samples: [] as { minutes: number; placement: string; when: string }[] };
+  if (style.length < 2 || !size) return { count: 0, typicalMinutes: null as number | null, shortest: null as number | null, longest: null as number | null, samples: [] as { minutes: number; placement: string; factors: string[] }[] };
   const sql = await getSql();
   const scope = actor.role === "artist" ? "and t.artist_id = $3" : "and t.artist_id is null";
   const params = actor.role === "artist" ? [style, size, actor.artistId] : [style, size];
-  const rows = await sql.query<{ session_minutes: number | null; placement: string | null; slot_start: string }>(
-    `select t.session_minutes, coalesce(t.placement,'') as placement, b.slot_start
+  const rows = await sql.query<{ session_minutes: number | null; placement: string | null; customer_phone: string | null }>(
+    `select t.session_minutes, coalesce(t.placement,'') as placement, coalesce(t.customer_phone,'') as customer_phone
        from tattoo_requests t
        join bookings b on b.id = t.booking_id
       where t.status = 'booked'
@@ -2434,11 +2434,15 @@ async function performStudioDesignTimes(userId: string, raw: unknown) {
       limit 12`,
     params,
   );
-  const samples = rows.map((row) => ({
-    minutes: Number(row.session_minutes) || 0,
-    placement: row.placement || "",
-    when: row.slot_start,
-  }));
+  const briefs = await loadCustomerFileBriefs(userId, rows.map((row) => row.customer_phone || ""));
+  const samples = rows.map((row) => {
+    const phone = contactPhone(normalizeIranPhone(row.customer_phone || "") || row.customer_phone || "");
+    const file = phone ? briefs[phone] : undefined;
+    const factors = file
+      ? [file.hydration, file.alcohol, file.numbing ? `بی‌حسی: ${file.numbing}` : "", file.inkHold, file.toleranceHours ? `تحمل ${file.toleranceHours}` : ""].filter(Boolean)
+      : [];
+    return { minutes: Number(row.session_minutes) || 0, placement: row.placement || "", factors };
+  });
   const sorted = samples.map((row) => row.minutes).sort((a, b) => a - b);
   return {
     count: samples.length,
@@ -2811,6 +2815,33 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
       "tattoo_rescheduled",
       { bookingId: current[0].booking_id ?? undefined, businessId: current[0].business_id ?? undefined },
     );
+  } else if (data.sessionMinutes) {
+    const minutes = data.sessionMinutes;
+    const startIso = current[0].proposed_slot_start;
+    const start = startIso ? new Date(startIso) : null;
+    if (start && !Number.isNaN(start.getTime()) && current[0].booking_id && current[0].business_id) {
+      const end = new Date(start.getTime() + minutes * 60000);
+      const overlap = await sql.query<{ id: string }>(
+        `select id from bookings
+          where status in ('requested','confirmed')
+            and slot_end is not null and slot_start < $3 and slot_end > $2
+            and id <> coalesce($4,'')
+            and business_id = $1
+          limit 1`,
+        [current[0].business_id, start.toISOString(), end.toISOString(), current[0].booking_id],
+      );
+      if (overlap[0]) throw new Error("این مدت با نوبت بعدی تداخل دارد. مدت کوتاه‌تری بگذار یا نوبت را جابه‌جا کن.");
+      await sql.query(
+        `update tattoo_requests set session_minutes=$2, proposed_slot_end=$3, updated_at=now() where id=$1`,
+        [data.id, minutes, end.toISOString()],
+      );
+      await sql.query(
+        `update bookings set slot_end=$2 where id=$1 and status in ('requested','confirmed')`,
+        [current[0].booking_id, end.toISOString()],
+      );
+    } else {
+      await sql.query(`update tattoo_requests set session_minutes=$2, updated_at=now() where id=$1`, [data.id, minutes]);
+    }
   }
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const mapped = await mapTattooRequestRows(sql, rows);

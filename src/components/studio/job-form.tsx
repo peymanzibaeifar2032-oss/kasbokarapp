@@ -19,7 +19,15 @@ type DesignTimes = {
   typicalMinutes: number | null;
   shortest: number | null;
   longest: number | null;
+  samples: { minutes: number; factors: string[] }[];
 };
+
+function designTimeVerdict(times: DesignTimes) {
+  if (times.count < 2) return "فقط یک جلسه ثبت شده. برای استناد هنوز کافی نیست. بعد از اجرا مدت واقعی را اصلاح کن.";
+  const spread = (times.longest ?? 0) - (times.shortest ?? 0);
+  if (spread <= 30) return "زمان‌ها نزدیک هم‌اند. این مدت برای کار بعدی قابل اتکاست.";
+  return "فاصله زیاد است. پوست کم‌آب، مشروب یا بی‌حسی را در پرونده ببین؛ معمولاً دلیل اختلاف همان‌هاست.";
+}
 
 export function StudioJobForm({
   businesses,
@@ -248,6 +256,7 @@ export function StudioJobForm({
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">طرح</span>
           <Input value={style} onChange={(e) => setStyle(e.target.value)} placeholder="نام یا موضوع طرح" />
+          <span className="text-xs text-muted">اسم طرح را هر بار مثل کار قبلی بنویس تا زمان واقعی پیدا شود.</span>
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">محل اجرا</span>
@@ -295,6 +304,16 @@ export function StudioJobForm({
               ? `، از ${formatSitting(designTimes.shortest)} تا ${formatSitting(designTimes.longest)}.`
               : "."}
           </p>
+          <p className="mt-1 text-sm leading-7 text-muted">{designTimeVerdict(designTimes)}</p>
+          {designTimes.samples.some((sample) => sample.factors.length) ? (
+            <ul className="mt-2 grid gap-1 text-sm leading-7">
+              {designTimes.samples.filter((sample) => sample.factors.length).map((sample, index) => (
+                <li key={`${index}-${sample.minutes}`}>
+                  {formatSitting(sample.minutes)}: {sample.factors.join("، ")}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <button
             type="button"
             className="mt-2 text-sm font-semibold text-accent"

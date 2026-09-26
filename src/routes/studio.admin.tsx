@@ -1806,6 +1806,44 @@ function briefPhoneKey(raw: string) {
   return digits.length > 10 ? `0${digits.slice(-10)}` : digits;
 }
 
+function RealDurationFix({ job, onChange }: { job: TattooRequest; onChange: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [minutes, setMinutes] = useState(job.sessionMinutes ?? 180);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (minutes < 10) return toast.error("مدت واقعی را کامل بنویس.");
+    setBusy(true);
+    try {
+      await saveAction("updateStudioJob", { id: job.id, sessionMinutes: minutes });
+      toast.success("مدت واقعی ذخیره شد. ساعت نوبت جابه‌جا نشد.");
+      setOpen(false);
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-2">
+      <Button size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
+        {open ? "بستن اصلاح مدت" : "اصلاح مدت واقعی"}
+      </Button>
+      {open ? (
+        <div className="mt-2 max-w-sm">
+          <DurationFields minutes={minutes} onChange={setMinutes} />
+          <p className="mt-1 text-xs leading-6 text-muted">{formatSitting(minutes) || "ساعت و دقیقه را بنویس."} ساعت شروع همان می‌ماند و به مشتری پیام نمی‌رود.</p>
+          <Button className="mt-2" size="sm" disabled={busy} onClick={() => void save()}>
+            {busy ? "در حال ذخیره…" : "ذخیره مدت واقعی"}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MonthJobCard({
   job,
   busyKeys,
@@ -1895,6 +1933,7 @@ function MonthJobCard({
           </p>
           <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
           {job.sessionMinutes ? <p className="mt-1 text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
+          <RealDurationFix job={job} onChange={onChange} />
           {job.artistMessage === "جلسه دوم" ? (
             <p className="mt-1 text-xs font-semibold text-accent">جلسه دوم · مشخصات از جلسه قبل</p>
           ) : null}
