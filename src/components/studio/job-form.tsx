@@ -10,9 +10,17 @@ import type { BusinessResource } from "@/lib/calendar/resources";
 import { firstOpenCustomerDay, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { digitsOnly, formatGroupedDigits, isRetiredCollaborator } from "@/lib/tattoo-flow";
+import { digitsOnly, formatGroupedDigits, formatTattooToman, isRetiredCollaborator } from "@/lib/tattoo-flow";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { Booking, Business } from "@/lib/types";
+
+type WorkCarry = {
+  price: number;
+  paid: number;
+  remaining: number;
+  settled: boolean;
+  sessions: number;
+};
 
 type DesignTimes = {
   count: number;
@@ -52,6 +60,8 @@ export function StudioJobForm({
   const [sizeCm, setSizeCm] = useState("");
   const [price, setPrice] = useState("");
   const [paid, setPaid] = useState("");
+  const [continuation, setContinuation] = useState(false);
+  const [carry, setCarry] = useState<WorkCarry | null>(null);
   const [day, setDay] = useState("");
   const [dayTouched, setDayTouched] = useState(false);
   const [time, setTime] = useState("12:00");
@@ -148,6 +158,35 @@ export function StudioJobForm({
     };
   }, [style, sizeCm]);
 
+  useEffect(() => {
+    if (!continuation || (phoneKey.length < 10 && phone2Key.length < 10)) {
+      setCarry(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void saveAction<WorkCarry>("studioContinuationBalance", { phone, phone2 })
+        .then((next) => {
+          if (cancelled) return;
+          setCarry(next);
+          if (next.settled) {
+            setPrice("");
+            setPaid("");
+          } else if (next.remaining > 0) {
+            setPrice(String(next.remaining));
+            setPaid("");
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setCarry(null);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [continuation, phone, phone2, phoneKey, phone2Key]);
+
   function reset() {
     setName("");
     setPhone("");
@@ -159,6 +198,8 @@ export function StudioJobForm({
     setSizeCm("");
     setPrice("");
     setPaid("");
+    setContinuation(false);
+    setCarry(null);
     setMinutes("180");
     setMinutesTouched(false);
     setCustomerFile(null);
@@ -170,7 +211,8 @@ export function StudioJobForm({
     if (name.trim().length < 2) return toast.error("نام مشتری را بنویسید.");
     if (style.trim().length < 2) return toast.error("طرح را بنویسید.");
     if (placement.trim().length < 2) return toast.error("محل اجرا را بنویسید.");
-    if (!price) return toast.error("مبلغ کل را بنویسید.");
+    if (!continuation && !price) return toast.error("مبلغ کل را بنویسید.");
+    if (continuation && !phone.trim() && !phone2.trim()) return toast.error("برای ادامه کار شماره مشتری لازم است.");
     if (!day || !time) return toast.error("تاریخ و ساعت را انتخاب کنید.");
     if (phone.trim() && !isIranMobile(normalizeIranPhone(phone))) {
       return toast.error("شماره موبایل اول معتبر نیست.");
@@ -192,8 +234,9 @@ export function StudioJobForm({
         idea: idea.trim() || style.trim(),
         placement: placement.trim(),
         sizeCm: sizeCm.trim() || undefined,
-        priceMinToman: Number(price),
-        paidToman: paid ? Number(paid) : 0,
+        priceMinToman: continuation && carry?.settled ? 0 : Number(price || 0),
+        paidToman: continuation && carry?.settled ? 0 : paid ? Number(paid) : 0,
+        continuation,
         sessionMinutes: minutes ? Number(minutes) : 180,
         slotStart: tehranLocalToIso(y, m, d, hh, mm),
         resourceId: resourceId || undefined,
@@ -266,14 +309,33 @@ export function StudioJobForm({
           <span className="font-medium">ابعاد به سانتی‌متر</span>
           <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="مثلاً ۲۰ × ۱۲" />
         </label>
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input type="checkbox" className="size-4 accent-current" checked={continuation} onChange={(e) => setContinuation(e.target.checked)} />
+          ادامه کار
+        </label>
+        {continuation ? (
+          <p className="text-sm leading-7 text-muted sm:col-span-2">
+            {!carry
+              ? "شماره را بزن تا ماندهٔ کارهای قبلی همین مشتری پیدا شود."
+              : carry.sessions < 1
+                ? "برای این شماره کار قبلی پیدا نشد. اگر مانده‌ای هست همان را در مبلغ بنویس."
+                : carry.settled
+                  ? `کارهای قبلی تسویه شده. مبلغ کل ${formatTattooToman(carry.price)} و واریزی همان است. برای این نوبت مبلغی لازم نیست.`
+                  : `ماندهٔ کارهای قبلی ${formatTattooToman(carry.remaining)} است. همین مبلغ طلب این نوبت می‌شود، مگر خودت عوضش کنی.`}
+          </p>
+        ) : null}
+        {!(continuation && carry?.settled) ? (
+          <>
         <label className="grid gap-1.5 text-sm">
-          <span className="font-medium">قیمت کل طرح</span>
+          <span className="font-medium">{continuation ? "مانده‌ای که منتقل شود" : "قیمت کل طرح"}</span>
           <Input value={formatGroupedDigits(price)} onChange={(e) => setPrice(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
         </label>
         <label className="grid gap-1.5 text-sm">
-          <span className="font-medium">مقدار واریزی</span>
+          <span className="font-medium">{continuation ? "اگر الان چیزی گرفتید" : "مقدار واریزی"}</span>
           <Input value={formatGroupedDigits(paid)} onChange={(e) => setPaid(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
         </label>
+          </>
+        ) : null}
         <div className="grid gap-1.5 text-sm sm:col-span-2">
           <span className="font-medium">مدت جلسه</span>
           <DurationFields

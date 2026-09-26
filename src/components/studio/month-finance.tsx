@@ -21,6 +21,7 @@ type FinancePayload = {
   payments: StudioMonthPayment[];
   expenses: StudioExpense[];
   summary: Summary;
+  continuation?: { month: number; week: number; today: number };
 };
 
 export function StudioMonthFinance() {
@@ -126,6 +127,9 @@ export function StudioMonthFinance() {
           <MoneyCard label="هزینه سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
           <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent />
           <MoneyCard label="باقیمانده بعد از زندگی" value={summary.leftover} hint="بعد از کرایه خانه، بیمه و خانه" accent />
+          <MoneyCard label="مانده ادامه کار امروز" value={data?.continuation?.today ?? 0} hint="طلبی که باید همین امروز بگیری" />
+          <MoneyCard label="مانده ادامه کار این هفته" value={data?.continuation?.week ?? 0} hint="طلب نوبت‌های ادامه در این هفته" />
+          <MoneyCard label="مانده ادامه کار این ماه" value={data?.continuation?.month ?? 0} hint="طلب نوبت‌های ادامه در این ماه" />
         </div>
       ) : null}
 

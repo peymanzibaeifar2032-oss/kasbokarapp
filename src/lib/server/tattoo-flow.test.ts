@@ -470,6 +470,8 @@ describe("studio customer list report", () => {
           proposedSlotEnd: null,
           paidToman: 2_000_000,
           settled: false,
+          isContinuation: false,
+          carryClosed: false,
           payments: [],
           createdAt: "2026-10-01T09:00:00.000Z",
           updatedAt: "2026-10-01T09:00:00.000Z",

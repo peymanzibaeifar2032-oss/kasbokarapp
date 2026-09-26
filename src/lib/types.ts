@@ -230,6 +230,8 @@ export type TattooRequest = {
   proposedSlotEnd: string | null;
   paidToman: number;
   settled: boolean;
+  isContinuation: boolean;
+  carryClosed: boolean;
   payments: TattooPayment[];
   createdAt: string;
   updatedAt: string;

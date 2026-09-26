@@ -1655,6 +1655,8 @@ function BookedSlotActions({
 }) {
   const [editing, setEditing] = useState(false);
   const [follow, setFollow] = useState(false);
+  const [carryOn, setCarryOn] = useState(false);
+  const [carry, setCarry] = useState<{ price: number; paid: number; remaining: number; settled: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [day, setDay] = useState(tehranDateInput(request.proposedSlotStart));
   const [time, setTime] = useState(tehranTimeInput(request.proposedSlotStart));
@@ -1684,8 +1686,8 @@ function BookedSlotActions({
     }
   }
 
-  async function saveFollow() {
-    if (!followDay || !followTime) return toast.error("تاریخ و ساعت جلسه دوم را انتخاب کنید.");
+  async function saveFollow(continuation = false) {
+    if (!followDay || !followTime) return toast.error("تاریخ و ساعت را انتخاب کنید.");
     const [y, m, d] = followDay.split("-").map(Number);
     const [hh, mm] = followTime.split(":").map(Number);
     setBusy(true);
@@ -1694,14 +1696,32 @@ function BookedSlotActions({
         id: request.id,
         slotStart: tehranLocalToIso(y, m, d, hh, mm),
         sessionMinutes: minutes ? Number(minutes) : undefined,
+        continuation,
+        carryToman: continuation ? carry?.remaining ?? 0 : undefined,
       });
-      toast.success("جلسه دوم با همان مشخصات ثبت شد.");
+      toast.success(continuation ? "ادامه کار ثبت شد." : "جلسه دوم با همان مشخصات ثبت شد.");
       setFollow(false);
+      setCarryOn(false);
       onChange();
     } catch (err) {
       toast.error(friendlyError(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function openCarry() {
+    setCarryOn(true);
+    setFollow(false);
+    setEditing(false);
+    try {
+      const next = await saveAction<{ price: number; paid: number; remaining: number; settled: boolean }>("studioContinuationBalance", {
+        phone: request.customerPhone,
+        phone2: request.customerPhone2,
+      });
+      setCarry(next);
+    } catch (err) {
+      toast.error(friendlyError(err));
     }
   }
 
@@ -1747,10 +1767,16 @@ function BookedSlotActions({
             </Button>
           </div>
         </div>
-      ) : follow ? (
+      ) : follow || carryOn ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <p className="text-sm leading-7 text-muted sm:col-span-3">
-            نام، شماره، اینستاگرام، طرح، محل، ابعاد، عکس، قیمت و واریزی همین کار می‌آید. فقط تاریخ جلسه دوم را عوض کن.
+            {carryOn
+              ? carry?.settled
+                ? "این کار تسویه شده. ادامهٔ کار بدون مبلغ ثبت می‌شود."
+                : carry
+                  ? `مانده ${formatTattooToman(carry.remaining)} روی نوبت جدید می‌ماند تا بعداً بگیریش.`
+                  : "در حال حساب مانده…"
+              : "نام، شماره، اینستاگرام، طرح، محل، ابعاد، عکس، قیمت و واریزی همین کار می‌آید. فقط تاریخ جلسه دوم را عوض کن."}
           </p>
           <Field label="تاریخ جلسه دوم">
             <JalaliDatePicker value={followDay} onChange={setFollowDay} label="انتخاب روز" busyKeys={busyKeys} />
@@ -1764,10 +1790,10 @@ function BookedSlotActions({
             <p className="text-xs text-muted">{formatSitting(Number(minutes))}</p>
           </div>
           <div className="flex flex-wrap gap-2 sm:col-span-3">
-            <Button disabled={busy} size="sm" onClick={() => void saveFollow()}>
-              ثبت جلسه دوم
+            <Button disabled={busy} size="sm" onClick={() => void saveFollow(carryOn)}>
+              {carryOn ? "ثبت ادامه کار" : "ثبت جلسه دوم"}
             </Button>
-            <Button disabled={busy} size="sm" variant="outline" onClick={() => setFollow(false)}>
+            <Button disabled={busy} size="sm" variant="outline" onClick={() => { setFollow(false); setCarryOn(false); }}>
               انصراف
             </Button>
           </div>
@@ -1777,8 +1803,11 @@ function BookedSlotActions({
           <Button disabled={busy} size="sm" variant="outline" onClick={() => setEditing(true)}>
             ویرایش زمان
           </Button>
-          <Button disabled={busy} size="sm" variant="outline" onClick={() => setFollow(true)}>
+          <Button disabled={busy} size="sm" variant="outline" onClick={() => { setFollow(true); setCarryOn(false); }}>
             ثبت جلسه دوم
+          </Button>
+          <Button disabled={busy} size="sm" variant="outline" onClick={() => void openCarry()}>
+            ادامه کار
           </Button>
           <Button
             disabled={busy}
@@ -1936,6 +1965,14 @@ function MonthJobCard({
           <RealDurationFix job={job} onChange={onChange} />
           {job.artistMessage === "جلسه دوم" ? (
             <p className="mt-1 text-xs font-semibold text-accent">جلسه دوم · مشخصات از جلسه قبل</p>
+          ) : null}
+          {job.isContinuation ? (
+            <p className="mt-1 text-xs font-semibold text-accent">
+              ادامه کار · {balance.remaining > 0 ? `مانده ${formatTattooToman(balance.remaining)}` : "قبلاً تسویه شده"}
+            </p>
+          ) : null}
+          {job.carryClosed ? (
+            <p className="mt-1 text-xs font-semibold text-accent">مانده این کار به نوبت ادامه منتقل شده</p>
           ) : null}
           <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} />
           {phone ? (
