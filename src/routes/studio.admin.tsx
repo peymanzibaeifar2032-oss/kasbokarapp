@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/studio/admin")({ component: StudioAdminPage });
 
-type PanelTab = "requests" | "jobs" | "calendar" | "money" | "apprentices" | "fill" | "artists";
+type PanelTab = "requests" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists";
 type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
 
 function StudioAdminPage() {
@@ -241,6 +241,16 @@ function StudioAdminPage() {
         </button>
         <button
           type="button"
+          onClick={() => setTab("contacts")}
+          className={cn(
+            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
+            tab === "contacts" ? "bg-primary text-primary-fg" : "text-muted",
+          )}
+        >
+          مخاطبین سال
+        </button>
+        <button
+          type="button"
           onClick={() => setTab("fill")}
           className={cn(
             "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
@@ -312,6 +322,8 @@ function StudioAdminPage() {
       {!loading && !error && tab === "jobs" ? (
         <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} />
       ) : null}
+
+      {!loading && !error && tab === "contacts" ? <YearContactsPanel /> : null}
 
       {!loading && !error && tab === "fill" ? <StudioFillInBoard bookings={bookings} onPlaced={() => void refresh()} /> : null}
 
@@ -953,6 +965,116 @@ function CustomerTempPassword() {
     </form>
   );
 }
+
+function YearContactsPanel() {
+  const clock = tehranClock();
+  const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
+  const [year, setYear] = useState(todayJ.jy);
+  const [query, setQuery] = useState("");
+  const [rows, setRows] = useState<YearContact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    void saveAction<YearContact[]>("studioYearContacts", { jy: year, mine: true })
+      .then((next) => {
+        if (!cancelled) setRows(next);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(friendlyError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [year]);
+
+  const needle = query.trim();
+  const digits = digitsOnly(needle);
+  const visible = rows.filter((row) => {
+    if (!needle) return true;
+    const hay = [row.name, row.phone, row.phone2, row.instagram, row.placements.join(" ")].join(" ");
+    return hay.includes(needle) || (digits.length >= 3 && `${row.phone}${row.phone2}`.includes(digits));
+  });
+  const paid = visible.reduce((sum, row) => sum + row.paidToman, 0);
+
+  return (
+    <div className="mt-5 grid gap-4">
+      <div className="rounded-2xl border border-border bg-surface p-4">
+        <h2 className="text-lg font-bold">مخاطبین سال</h2>
+        <p className="mt-1 text-sm leading-7 text-muted">
+          هر مشتری یک ردیف است: شماره، تعداد جلسه‌های ثبت‌شده در تقویم، مجموع پولی که تا حالا گرفته‌ای و محل‌هایی که تاتو شده.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setYear((value) => value - 1)}>
+            سال قبل
+          </Button>
+          <p className="min-w-16 text-center text-sm font-semibold">{toFaDigits(year)}</p>
+          <Button variant="outline" size="sm" onClick={() => setYear((value) => value + 1)}>
+            سال بعد
+          </Button>
+        </div>
+      </div>
+      <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="جستجوی اسم، شماره یا محل تاتو" />
+      {error ? <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</p> : null}
+      {loading ? <p className="text-sm text-muted">در حال جمع کردن مخاطبین…</p> : null}
+      {!loading && !error ? (
+        <p className="text-sm text-muted">
+          {toFaDigits(visible.length)} مشتری · دریافتی {formatTattooToman(paid)}
+        </p>
+      ) : null}
+      {!loading && !rows.length ? (
+        <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">
+          در این سال کار ثبت‌شده‌ای در تقویم نیست.
+        </p>
+      ) : null}
+      {visible.map((row) => (
+        <article key={`${row.phone || row.name}-${row.lastSlot}`} className="rounded-2xl border border-border bg-surface p-4">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h3 className="text-base font-bold">{row.name}</h3>
+            <p className="text-sm font-semibold">{toFaDigits(row.sessions)} جلسه</p>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-3 text-sm">
+            {row.phone ? (
+              <a className="font-semibold text-accent" href={`tel:${row.phone}`} dir="ltr">
+                {row.phone}
+              </a>
+            ) : (
+              <span className="text-muted">شماره ندارد</span>
+            )}
+            {row.phone2 ? (
+              <a className="text-accent" href={`tel:${row.phone2}`} dir="ltr">
+                دوم: {row.phone2}
+              </a>
+            ) : null}
+          </div>
+          {row.instagram ? <p className="mt-1 text-sm text-muted" dir="ltr">{row.instagram}</p> : null}
+          <p className="mt-2 text-sm">دریافتی: {formatTattooToman(row.paidToman)}</p>
+          <p className="mt-1 text-sm leading-7 text-muted">
+            محل تاتو: {row.placements.length ? row.placements.join("، ") : "ثبت نشده"}
+          </p>
+          {row.lastSlot ? <p className="mt-1 text-xs text-muted">آخرین جلسه: {formatFaDateTime(row.lastSlot)}</p> : null}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+type YearContact = {
+  name: string;
+  phone: string;
+  phone2: string;
+  instagram: string;
+  sessions: number;
+  paidToman: number;
+  placements: string[];
+  lastSlot: string;
+};
 
 function MonthJobsPanel({
   businesses,

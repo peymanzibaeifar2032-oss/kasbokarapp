@@ -2083,6 +2083,90 @@ function jalaliMonthRange(jy: number, jm: number) {
   };
 }
 
+function jalaliYearRange(jy: number) {
+  const start = jalaliToGregorian(jy, 1, 1);
+  const next = jalaliToGregorian(jy + 1, 1, 1);
+  return {
+    start: tehranLocalToIso(start.gy, start.gm, start.gd, 0, 0),
+    end: tehranLocalToIso(next.gy, next.gm, next.gd, 0, 0),
+  };
+}
+
+async function performStudioYearContacts(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ jy: z.number().int(), mine: z.boolean().optional() }).parse(raw);
+  const sql = await getSql();
+  await removeRetiredCollaborators(sql, userId);
+  const range = jalaliYearRange(data.jy);
+  const scope = actor.role === "artist" ? "and t.artist_id = $3" : data.mine ? "and t.artist_id is null" : "";
+  const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
+  const rows = await sql.query<{
+    customer_name: string;
+    customer_phone: string;
+    customer_phone_2: string;
+    customer_instagram: string;
+    placement: string;
+    paid_toman: number | string;
+    slot_start: string;
+  }>(
+    `select t.customer_name, t.customer_phone, coalesce(t.customer_phone_2,'') as customer_phone_2,
+            coalesce(t.customer_instagram,'') as customer_instagram, coalesce(t.placement,'') as placement,
+            coalesce(t.paid_toman,0) as paid_toman, b.slot_start
+       from tattoo_requests t
+       join bookings b on b.id = t.booking_id
+      where b.status not in ('cancelled')
+        and b.kind = 'booking'
+        and b.slot_start >= $1 and b.slot_start < $2
+        ${scope}
+      order by b.slot_start`,
+    params,
+  );
+  const grouped = new Map<string, {
+    name: string;
+    phone: string;
+    phone2: string;
+    instagram: string;
+    sessions: number;
+    paidToman: number;
+    placements: string[];
+    lastSlot: string;
+  }>();
+  for (const row of rows) {
+    const phone = contactPhone(row.customer_phone);
+    const phone2 = contactPhone(row.customer_phone_2);
+    const name = (row.customer_name || "").trim() || "بدون نام";
+    const key = phone || `name:${name.replace(/\s+/g, " ")}`;
+    const current = grouped.get(key) ?? {
+      name,
+      phone,
+      phone2: "",
+      instagram: "",
+      sessions: 0,
+      paidToman: 0,
+      placements: [],
+      lastSlot: row.slot_start,
+    };
+    current.sessions += 1;
+    current.paidToman += Number(row.paid_toman) || 0;
+    current.name = name;
+    current.lastSlot = row.slot_start;
+    if (phone) current.phone = phone;
+    if (phone2 && phone2 !== current.phone) current.phone2 = phone2;
+    const instagram = (row.customer_instagram || "").trim();
+    if (instagram) current.instagram = instagram;
+    const placement = (row.placement || "").trim();
+    if (placement && !current.placements.includes(placement)) current.placements.push(placement);
+    grouped.set(key, current);
+  }
+  return [...grouped.values()].sort((a, b) => b.paidToman - a.paidToman || b.sessions - a.sessions || a.name.localeCompare(b.name, "fa"));
+}
+
+function contactPhone(raw: string | null | undefined) {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (!digits || digits === "09000000000") return "";
+  return digits.length > 10 ? `0${digits.slice(-10)}` : digits;
+}
+
 async function performStudioMonthJobs(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z
@@ -2800,6 +2884,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performDeleteResource(userId, payload);
     case "studioMonthJobs":
       return performStudioMonthJobs(userId, payload);
+    case "studioYearContacts":
+      return performStudioYearContacts(userId, payload);
     case "studioMonthFinance":
       return performStudioMonthFinance(userId, payload);
     case "addStudioExpense":
