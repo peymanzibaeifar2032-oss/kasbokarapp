@@ -2174,7 +2174,8 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
   }>(
     `select t.customer_name, t.customer_phone, coalesce(t.customer_phone_2,'') as customer_phone_2,
             coalesce(t.customer_instagram,'') as customer_instagram, coalesce(t.placement,'') as placement,
-            coalesce(t.paid_toman,0) as paid_toman, b.slot_start
+            case when coalesce(t.artist_message,'') = 'جلسه دوم' or coalesce(t.is_continuation,false) then 0 else coalesce(t.paid_toman,0) end as paid_toman,
+            b.slot_start
        from tattoo_requests t
        join bookings b on b.id = t.booking_id
       where b.status not in ('cancelled')
@@ -2196,6 +2197,7 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
     lastSlot: string;
     file: ReturnType<typeof emptyCustomerFile>;
   }>();
+  const countedPaid = new Set<string>();
   for (const row of rows) {
     const phone = contactPhone(row.customer_phone);
     const phone2 = contactPhone(row.customer_phone_2);
@@ -2214,7 +2216,12 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
       file: emptyCustomerFile(),
     };
     current.sessions += 1;
-    current.paidToman += Number(row.paid_toman) || 0;
+    const paidNow = Number(row.paid_toman) || 0;
+    const paidKey = `${key}|${paidNow}`;
+    if (paidNow > 0 && !countedPaid.has(paidKey)) {
+      countedPaid.add(paidKey);
+      current.paidToman += paidNow;
+    }
     current.name = name;
     current.lastSlot = row.slot_start;
     if (phone) current.phone = phone;
@@ -2508,6 +2515,42 @@ function compactSize(value: string) {
     .toLowerCase();
 }
 
+function phoneTail(raw: string | null | undefined) {
+  const phone = contactPhone(raw);
+  return phone.length >= 10 ? phone.slice(-10) : "";
+}
+
+async function findRepeatDeposit(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  phone: string | null | undefined,
+  phone2: string | null | undefined,
+  amount: number,
+  exceptRequestId?: string,
+) {
+  const keys = [...new Set([phoneTail(phone), phoneTail(phone2)].filter(Boolean))];
+  if (!keys.length || amount <= 0) return null;
+  const rows = await sql.query<{ customer_name: string | null }>(
+    `select t.customer_name
+       from tattoo_payments p
+       join tattoo_requests t on t.id = p.request_id
+      where t.status not in ('rejected','cancelled')
+        and p.amount_toman = $2
+        and t.id <> coalesce($3, '')
+        and (
+          right(regexp_replace(coalesce(t.customer_phone,''), '\\D', '', 'g'), 10) = any($1::text[])
+          or right(regexp_replace(coalesce(t.customer_phone_2,''), '\\D', '', 'g'), 10) = any($1::text[])
+        )
+      limit 1`,
+    [keys, amount, exceptRequestId ?? ""],
+  );
+  return rows[0] ? { name: (rows[0].customer_name || "").trim() || "همین مشتری" } : null;
+}
+
+function repeatDepositMessage(name: string, amount: number) {
+  const money = Math.round(amount).toLocaleString("fa-IR");
+  return `مبلغ ${money} تومان برای ${name} با همین شماره قبلاً ثبت شده. دوباره حساب نمی‌شود. جلسه را بدون واریزی ذخیره کن.`;
+}
+
 function contactPhone(raw: string | null | undefined) {
   const digits = (raw || "").replace(/\D/g, "");
   if (!digits || digits === "09000000000") return "";
@@ -2665,18 +2708,23 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
   const [payments, monthRemain, allRemain, expenses] = await Promise.all([
     sql.query<{
       id: string;
+      request_id: string;
       amount_toman: number | string;
       note: string | null;
       created_at: string;
       customer_name: string;
+      customer_phone: string | null;
+      customer_phone_2: string | null;
       style: string;
       placement: string;
     }>(
-      `select p.id, p.amount_toman, p.note, p.created_at, r.customer_name, r.style, r.placement
+      `select p.id, p.request_id, p.amount_toman, p.note, p.created_at,
+              r.customer_name, r.customer_phone, coalesce(r.customer_phone_2,'') as customer_phone_2,
+              r.style, r.placement
          from tattoo_payments p
          join tattoo_requests r on r.id = p.request_id
         where p.created_at >= $1 and p.created_at < $2
-        order by p.created_at desc`,
+        order by p.created_at`,
       [range.start, range.end],
     ),
     sql.query<{ remaining: number | string }>(remainingTotalSql(true), [range.start, range.end]),
@@ -2708,7 +2756,7 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
     customerName: row.customer_name,
     style: row.style,
     placement: row.placement,
-  }));
+  })).reverse();
   const paid = mappedPayments.reduce((sum, row) => sum + row.amountToman, 0);
   const week = tehranWeekBounds(0);
   const today = tehranDayBounds();
@@ -2984,6 +3032,13 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
   );
   if (!current[0]) throw new Error("کار پیدا نشد.");
   assertOwnArtistJob(actor, current[0].artist_id);
+  const recent = await sql.query<{ id: string }>(
+    `select id from tattoo_payments
+      where request_id=$1 and amount_toman=$2 and created_at > now() - interval '2 minutes'
+      limit 1`,
+    [data.requestId, data.amountToman],
+  );
+  if (recent[0]) throw new Error("این مبلغ همین الان ثبت شد. دوباره نزن.");
   await sql.query(
     `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
     [crypto.randomUUID(), data.requestId, data.amountToman, data.note?.trim() || "واریز بعدی"],
@@ -3115,6 +3170,10 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
   const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
   if (clash) throw new Error(studioClashMessage(clash));
+  if (paid > 0 && !data.continuation) {
+    const repeat = await findRepeatDeposit(sql, phone, phone2, paid);
+    if (repeat) throw new Error(repeatDepositMessage(repeat.name, paid));
+  }
   try {
     await sql.query(
       `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)

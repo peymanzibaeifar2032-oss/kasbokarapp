@@ -333,6 +333,7 @@ export function StudioJobForm({
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">{continuation ? "اگر الان چیزی گرفتید" : "مقدار واریزی"}</span>
           <Input value={formatGroupedDigits(paid)} onChange={(e) => setPaid(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
+          <span className="text-xs text-muted">اگر این شماره قبلاً همین مبلغ را داده، دوباره ننویس. اسم اگر فرق کند هم شماره ملاک است.</span>
         </label>
           </>
         ) : null}
