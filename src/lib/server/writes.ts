@@ -4,7 +4,7 @@ import { getSql } from "@/lib/db";
 import { env, isStandalone, isWorkspacePreview } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, normalizeInstagramHandle, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, shouldGrantPreviewStudioAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
-import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
+import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranClock, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import {
   RESOURCE_KINDS,
   assignResourceAtIso,
@@ -131,6 +131,47 @@ const PREVIEW_STUDIO_ID = "biz-peyman-studio";
 
 function rejectCustomerThursday(iso: string) {
   if (isThursdayIso(iso)) throw new Error(THURSDAY_CUSTOMER_BLOCK_MESSAGE);
+}
+
+function tehranHm(iso: string) {
+  const clock = tehranClock(new Date(iso));
+  return `${String(clock.hh).padStart(2, "0")}:${String(clock.mm).padStart(2, "0")}`;
+}
+
+async function findStudioClash(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  businessId: string,
+  startIso: string,
+  endIso: string,
+  exceptBookingId: string | null,
+  resourceId: string | null,
+) {
+  const rows = await sql.query<{ id: string; customer_name: string | null; customer_phone: string | null; slot_start: string; slot_end: string; kind: string }>(
+    `select id, customer_name, customer_phone, slot_start, slot_end, kind
+       from bookings
+      where status in ('requested','confirmed')
+        and kind in ('booking','block')
+        and slot_end is not null
+        and slot_start < $2 and slot_end > $1
+        and id <> coalesce($3,'')
+        and business_id = $4
+        and (
+          $5::text is null or btrim($5) = ''
+          or resource_id is null or btrim(coalesce(resource_id,'')) = ''
+          or resource_id = $5
+        )
+      order by slot_start
+      limit 1`,
+    [startIso, endIso, exceptBookingId ?? "", businessId, resourceId],
+  );
+  return rows[0] ?? null;
+}
+
+function studioClashMessage(clash: { customer_name: string | null; slot_start: string; slot_end: string; kind: string }) {
+  const when = `از ${tehranHm(clash.slot_start)} تا ${tehranHm(clash.slot_end)}`;
+  if (clash.kind === "block") return `این ساعت با وقت آموزش یا بسته بودن استودیو تداخل دارد، ${when}.`;
+  const name = (clash.customer_name || "").trim() || "نوبت دیگری";
+  return `این ساعت با ${name} تداخل دارد، ${when}. روز می‌تواند دو کار داشته باشد، به شرطی که ساعت‌ها روی هم نیفتند.`;
 }
 
 async function lockStudioThursdays(sql: Awaited<ReturnType<typeof getSql>>, businessId: string) {
@@ -2778,23 +2819,18 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     rejectCustomerThursday(start.toISOString());
     const minutes = data.sessionMinutes ?? current[0].session_minutes ?? 180;
     const end = new Date(start.getTime() + minutes * 60000);
-    const overlap = await sql.query<{ id: string }>(
-      `select id from bookings
-        where status in ('requested','confirmed')
-          and slot_end is not null and slot_start < $3 and slot_end > $2
-          and id <> coalesce($4,'')
-          and (
-            business_id = $1
-            or business_id in (
-              select b2.id from businesses b2
-              join businesses b1 on b1.owner_id = b2.owner_id
-              where b1.id = $1
-            )
-          )
-        limit 1`,
-      [current[0].business_id, start.toISOString(), end.toISOString(), current[0].booking_id],
+    const seat = current[0].booking_id
+      ? await sql.query<{ resource_id: string | null }>("select resource_id from bookings where id=$1", [current[0].booking_id])
+      : [];
+    const clash = await findStudioClash(
+      sql,
+      current[0].business_id,
+      start.toISOString(),
+      end.toISOString(),
+      current[0].booking_id,
+      seat[0]?.resource_id ?? null,
     );
-    if (overlap[0]) throw new Error("این زمان با نوبت دیگری تداخل دارد.");
+    if (clash) throw new Error(studioClashMessage(clash));
     await sql.query(
       `update tattoo_requests
           set proposed_slot_start=$2, proposed_slot_end=$3, session_minutes=$4, updated_at=now()
@@ -2821,16 +2857,16 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     const start = startIso ? new Date(startIso) : null;
     if (start && !Number.isNaN(start.getTime()) && current[0].booking_id && current[0].business_id) {
       const end = new Date(start.getTime() + minutes * 60000);
-      const overlap = await sql.query<{ id: string }>(
-        `select id from bookings
-          where status in ('requested','confirmed')
-            and slot_end is not null and slot_start < $3 and slot_end > $2
-            and id <> coalesce($4,'')
-            and business_id = $1
-          limit 1`,
-        [current[0].business_id, start.toISOString(), end.toISOString(), current[0].booking_id],
+      const seat = await sql.query<{ resource_id: string | null }>("select resource_id from bookings where id=$1", [current[0].booking_id]);
+      const clash = await findStudioClash(
+        sql,
+        current[0].business_id,
+        start.toISOString(),
+        end.toISOString(),
+        current[0].booking_id,
+        seat[0]?.resource_id ?? null,
       );
-      if (overlap[0]) throw new Error("این مدت با نوبت بعدی تداخل دارد. مدت کوتاه‌تری بگذار یا نوبت را جابه‌جا کن.");
+      if (clash) throw new Error(studioClashMessage(clash));
       await sql.query(
         `update tattoo_requests set session_minutes=$2, proposed_slot_end=$3, updated_at=now() where id=$1`,
         [data.id, minutes, end.toISOString()],
@@ -2971,6 +3007,8 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const requestId = crypto.randomUUID();
   const paid = data.paidToman ?? 0;
   const settled = tattooBalance(data.priceMinToman, paid).settled;
+  const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
+  if (clash) throw new Error(studioClashMessage(clash));
   try {
     await sql.query(
       `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
@@ -3037,25 +3075,17 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   const paid = src.paid_toman == null ? 0 : Number(src.paid_toman);
   const price = src.price_min_toman == null ? 0 : Number(src.price_min_toman);
   const settled = tattooBalance(price, paid).settled;
-  const ownerId = actor.role === "artist" ? actor.ownerUserId : userId;
   const phoneDigits = (src.customer_phone || "").replace(/\D/g, "");
-  const wantDay = tehranDayKey(start);
-  const sameDay = await sql.query<{ id: string; customer_name: string | null; customer_phone: string | null; slot_start: string }>(
-    `select id, customer_name, customer_phone, slot_start
-       from bookings
-      where status in ('requested','confirmed')
-        and slot_end is not null
-        and slot_start < $2 and slot_end > $1
-        and business_id in (select id from businesses where owner_id = $3 or id = $4)`,
-    [start.toISOString(), slotEnd, ownerId, businessId],
+  const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
+  const clashDigits = (clash?.customer_phone || "").replace(/\D/g, "");
+  const samePerson = Boolean(
+    clash && (
+      (phoneDigits.length >= 10 && clashDigits.endsWith(phoneDigits.slice(-10)))
+      || (clash.customer_name || "").trim() === src.customer_name.trim()
+    ),
   );
-  const dayRows = sameDay.filter((row) => tehranDayKey(new Date(row.slot_start)) === wantDay);
-  const own = dayRows.find((row) => {
-    const digits = (row.customer_phone || "").replace(/\D/g, "");
-    const phoneMatch = phoneDigits.length >= 10 && digits.endsWith(phoneDigits.slice(-10));
-    return phoneMatch || (row.customer_name || "").trim() === src.customer_name.trim();
-  });
-  if (!own && dayRows.length) throw new Error("این روز برای مشتری دیگری پر است. روز دیگری را انتخاب کن.");
+  if (clash && !samePerson) throw new Error(studioClashMessage(clash));
+  const own = samePerson ? clash : null;
   let bookingId = own?.id ?? crypto.randomUUID();
   let createdBooking = false;
   if (own) {
