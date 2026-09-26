@@ -2200,7 +2200,7 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
     const phone = contactPhone(row.customer_phone);
     const phone2 = contactPhone(row.customer_phone_2);
     const name = (row.customer_name || "").trim() || "بدون نام";
-    const key = phone || `name:${name.replace(/\s+/g, " ")}`;
+    const key = phone || phone2 || `name:${name.replace(/\s+/g, " ")}`;
     const current = grouped.get(key) ?? {
       key,
       name,
@@ -2635,6 +2635,8 @@ function remainingTotalSql(scopedToRange: boolean) {
             when length(right(regexp_replace(coalesce(customer_phone,''), '\\D', '', 'g'), 10)) >= 10
              and right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) <> '9000000000'
               then right(regexp_replace(customer_phone, '\\D', '', 'g'), 10)
+            when length(right(regexp_replace(coalesce(customer_phone_2,''), '\\D', '', 'g'), 10)) >= 10
+              then right(regexp_replace(customer_phone_2, '\\D', '', 'g'), 10)
             else lower(btrim(customer_name))
           end as who,
           lower(btrim(coalesce(style,''))) as style,
