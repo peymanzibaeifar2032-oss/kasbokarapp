@@ -183,15 +183,38 @@ export function bookingReminderSms(opts: {
   ].join("\n");
 }
 
-export function fillInOfferSms(name: string, idea: string) {
+export function fillInRegisteredSms(name: string) {
   return [
-    `سلام ${name.trim() || ""}`.trim(),
-    "امروز یک جا برای تاتو خالی شد.",
-    "اگر می‌توانی همین امروز بیایی، به این شماره جواب بده یا زنگ بزن.",
-    idea.trim() ? `طرح: ${idea.trim()}` : "",
-    "هزینه همان روز در استودیو، با کارت‌خوان، دریافت می‌شود.",
-    STUDIO_ADDRESS,
+    `سلام ${name.trim() || "مشتری"}`.trim(),
+    "اسم شما در لیست انتظار کنسلی ثبت شد. در اولین فرصت تاتوآرتیست با شما تماس می‌گیرد.",
     `تلفن: ${STUDIO_CONTACT_PHONE}`,
+  ].join("\n");
+}
+
+function smsPrice(value: number) {
+  const amount = Math.max(0, Math.round(Number(value) || 0));
+  if (!amount) return "";
+  const fmt = new Intl.NumberFormat("fa-IR");
+  if (amount % 1_000_000 === 0) return `${fmt.format(amount / 1_000_000)} میلیون`;
+  if (amount >= 1_000_000 && amount % 1_000 === 0) {
+    const millions = Math.floor(amount / 1_000_000);
+    const thousand = (amount % 1_000_000) / 1_000;
+    return `${fmt.format(millions)} میلیون و ${fmt.format(thousand)} هزار`;
+  }
+  return `${fmt.format(amount)} تومان`;
+}
+
+export function fillInOfferSms(name: string, idea: string, priceToman = 0) {
+  const design = idea.trim().replace(/\s+/g, " ");
+  const price = smsPrice(priceToman);
+  const plan = [design, price].filter(Boolean).join("، ");
+  return [
+    `سلام ${name.trim() || "مشتری"}`.trim(),
+    "امروز جا خالی شد. اگر امروز می‌آیی زنگ بزن یا جواب بده.",
+    plan ? `طرح: ${plan}` : "",
+    "پرداخت همان روز با کارت‌خوان.",
+    "چهارراه بسیج، مجتمع ارشاد، ط۴ واحد ۱۶",
+    STUDIO_CONTACT_PHONE,
   ]
     .filter(Boolean)
     .join("\n");

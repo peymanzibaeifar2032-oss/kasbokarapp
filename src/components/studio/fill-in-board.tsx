@@ -8,7 +8,7 @@ import { parseToman, toSmsLink, toTelLink } from "@/lib/format";
 import { firstOpenCustomerDay, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
-import { fillInOfferSms, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
+import { fillInOfferSms, fillInRegisteredSms, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
 import type { Booking } from "@/lib/types";
 
 type StudioFillIn = {
@@ -27,6 +27,7 @@ type StudioFillIn = {
 export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[]; onPlaced: () => void }) {
   const [rows, setRows] = useState<StudioFillIn[]>([]);
   const [name, setName] = useState("");
+  const [honorific, setHonorific] = useState<"آقای" | "خانم" | "">("آقای");
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [sizeCm, setSizeCm] = useState("");
@@ -59,8 +60,10 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   async function add() {
     setBusy(true);
     try {
+      const spoken = name.trim();
+      const customerName = honorific && spoken && !spoken.startsWith(honorific) ? `${honorific} ${spoken}` : spoken;
       await saveAction("addStudioFillIn", {
-        customerName: name,
+        customerName,
         customerPhone: phone,
         idea: note.trim() || (image ? "طرح آپلود شده" : ""),
         note,
@@ -125,6 +128,18 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         </p>
         <div className="mt-4 grid gap-3">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام" className="h-12" />
+          <div className="grid grid-cols-3 gap-2">
+            {(["آقای", "خانم", ""] as const).map((item) => (
+              <button
+                key={item || "none"}
+                type="button"
+                className={`h-11 rounded-xl border text-sm font-bold ${honorific === item ? "border-primary bg-primary text-primary-fg" : "border-border"}`}
+                onClick={() => setHonorific(item)}
+              >
+                {item || "بدون پیشوند"}
+              </button>
+            ))}
+          </div>
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شماره موبایل" inputMode="tel" dir="ltr" className="h-12" />
           <label className="flex h-12 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm font-bold">
             {image ? "طرح انتخاب شد · تغییر" : "آپلود طرح از گالری، اختیاری"}
@@ -158,7 +173,11 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
 
       {!waiting.length ? <p className="text-sm text-muted">هنوز کسی در لیست انتظار کنسلی نیست.</p> : null}
       {waiting.map((row) => {
-        const sms = toSmsLink(row.customerPhone, fillInOfferSms(row.customerName, row.note || row.idea));
+        const registered = toSmsLink(row.customerPhone, fillInRegisteredSms(row.customerName));
+        const sms = toSmsLink(
+          row.customerPhone,
+          fillInOfferSms(row.customerName, row.note || (row.idea === "طرح آپلود شده" ? "" : row.idea), row.priceToman),
+        );
         const tel = toTelLink(row.customerPhone);
         return (
           <article key={row.id} className="rounded-2xl border border-border p-4">
@@ -170,17 +189,24 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
               {row.priceToman ? ` · ${formatTattooToman(row.priceToman)}` : ""}
             </p>
             {row.note ? <p className="mt-1 text-sm leading-7">{row.note}</p> : null}
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {tel ? (
-                <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={tel}>
-                  تماس
+            <div className="mt-3 grid gap-2">
+              {registered ? (
+                <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={registered}>
+                  پیام ثبت در لیست
                 </a>
               ) : null}
-              {sms ? (
-                <a className="inline-flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={sms}>
-                  ارسال پیام
-                </a>
-              ) : null}
+              <div className="grid grid-cols-2 gap-2">
+                {tel ? (
+                  <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={tel}>
+                    تماس
+                  </a>
+                ) : null}
+                {sms ? (
+                  <a className="inline-flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={sms}>
+                    پیام جا خالی
+                  </a>
+                ) : null}
+              </div>
             </div>
             {placing === row.id ? (
               <div className="mt-3 grid gap-2">
