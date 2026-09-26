@@ -14,7 +14,6 @@ import { compressImage, designFileName, downloadImage } from "@/lib/design-image
 import { formatFaDate, formatFaDateTime, formatToman, addBookingToPhoneCalendar } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { TATTOO_CUSTOMER_STAGE_LABEL, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
-import { formatEstimateRange } from "@/lib/tattoo-estimate";
 import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
 import type { Profile, TattooRequest } from "@/lib/types";
 
@@ -28,7 +27,7 @@ function StudioRequestPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState<{ code: string; phone: string; estimate: string } | null>(null);
+  const [sent, setSent] = useState<{ code: string; phone: string } | null>(null);
 
   function refresh() {
     void saveAction<TattooRequest[]>("myTattooRequests").then((rows) => {
@@ -72,22 +71,21 @@ function StudioRequestPage() {
         referenceImages: [] as string[],
         bodyImages: [] as string[],
       };
-      let estimate = "";
+      let code = "";
       if (userId) {
-        const created = await saveAction<{ id: string; trackingCode?: string; estimateMin?: number | null; estimateMax?: number | null }>("createTattooRequest", body);
-        if (created.estimateMin && created.estimateMax) estimate = formatEstimateRange(created.estimateMin, created.estimateMax);
-        setSent({ code: created.trackingCode || "", phone: payload.customerPhone, estimate });
+        const created = await saveAction<{ id: string; trackingCode?: string }>("createTattooRequest", body);
+        code = created.trackingCode || "";
       } else {
         const res = await fetch("/api/tattoo-public", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string; estimateMin?: number | null; estimateMax?: number | null } | null;
+        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string } | null;
         if (!res.ok) throw new Error(data?.error || "ثبت انجام نشد.");
-        if (data?.estimateMin && data.estimateMax) estimate = formatEstimateRange(data.estimateMin, data.estimateMax);
-        setSent({ code: data?.trackingCode || "", phone: payload.customerPhone, estimate });
+        code = data?.trackingCode || "";
       }
+      setSent({ code, phone: payload.customerPhone });
       refresh();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -104,21 +102,13 @@ function StudioRequestPage() {
             <div>
               <p className="text-xs text-[#b7955b]">درخواست ثبت شد</p>
               <h1 className="mt-2 text-3xl font-black">درخواستت رسید</h1>
-              <p className="mt-3 text-sm leading-7 text-white/70">هنوز وقت قطعی نیست. پیمان طرح را نگاه می‌کند و بعد قیمت و زمان را همین‌جا می‌بینی.</p>
+              <p className="mt-3 text-sm leading-7 text-white/70">درخواستت ثبت شد. طرح و عکس‌ها را بررسی می‌کنم. قیمت و زمان را تا چند ساعت دیگر در وضعیت همین شماره می‌بینی. تا قبل از آن هیچ مبلغی اعلام نمی‌شود.</p>
               {sent.code ? (
                 <p className="mt-6 text-center text-4xl font-black tracking-[0.2em] text-[#e5d2ae]" dir="ltr">
                   {sent.code}
                 </p>
               ) : null}
-              <p className="mt-3 text-center text-sm text-white/55">کد پیگیری را نگه دار. وضعیت را با شماره {sent.phone} ببین.</p>
-              {sent.estimate ? (
-                <div className="mt-5 rounded-2xl border border-[#b7955b]/30 bg-[#b7955b]/10 p-4 text-sm leading-7">
-                  <p className="font-bold">قیمت تقریبی: {sent.estimate}</p>
-                  <p className="mt-1 text-white/70">این مبلغ برآورد اولیه است. قیمت نهایی پس از بررسی طرح و تصاویر توسط آرتیست مشخص می‌شود.</p>
-                </div>
-              ) : (
-                <p className="mt-5 text-sm leading-7 text-white/70">قیمت تقریبی بعد از جمع‌شدن نمونه‌های واقعی قبلی مشخص می‌شود. قیمت نهایی را آرتیست تعیین می‌کند.</p>
-              )}
+              <p className="mt-3 text-center text-sm text-white/55">کد پیگیری را نگه دار و با شماره {sent.phone} وضعیت را چک کن.</p>
               <Link
                 to="/studio/status"
                 className="mt-6 flex h-12 items-center justify-center rounded-2xl bg-[#b7955b] text-sm font-bold text-black"

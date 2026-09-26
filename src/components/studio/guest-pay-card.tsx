@@ -7,7 +7,6 @@ import { compressImage } from "@/lib/design-images";
 import { addBookingToPhoneCalendar, formatFaDateTime, formatToman } from "@/lib/format";
 import { friendlyError } from "@/lib/save";
 import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
-import { formatEstimateRange } from "@/lib/tattoo-estimate";
 import { STUDIO_ADDRESS, TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 
 export type GuestStatus = {
@@ -105,9 +104,7 @@ export function GuestPayCard({
         {item.placement ? ` · ${item.placement}` : ""}
       </p>
       {item.artistMessage ? <p className="mt-2 text-sm leading-7 text-white/75">{item.artistMessage}</p> : null}
-      {item.priceMinToman != null ? <p className="mt-2 text-sm text-white/65">قیمت: {formatToman(item.priceMinToman)}</p> : item.estimateMinToman && item.estimateMaxToman ? (
-        <p className="mt-2 text-sm leading-7 text-white/70">قیمت تقریبی: {formatEstimateRange(item.estimateMinToman, item.estimateMaxToman)}. این مبلغ برآورد اولیه است و قیمت نهایی بعد از بررسی آرتیست مشخص می‌شود.</p>
-      ) : null}
+      {item.priceMinToman != null && item.artistMessage ? <p className="mt-2 text-sm text-white/65">قیمت: {formatToman(item.priceMinToman)}</p> : !item.artistMessage ? <p className="mt-2 text-sm leading-7 text-white/70">درخواست ثبت شده و در حال بررسی است. قیمت را تا چند ساعت دیگر همین‌جا می‌بینی.</p> : null}
       {item.depositToman != null ? <p className="text-sm text-white/65">بیعانه: {formatToman(item.depositToman)}</p> : null}
       {item.proposedSlotStart && !closed ? (
         <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-sm text-[#e5d2ae]">

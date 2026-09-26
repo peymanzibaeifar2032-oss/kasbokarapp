@@ -88,8 +88,6 @@ function mapStatus(row: StatusRow) {
     paymentCardNumber: row.payment_card_number || null,
     proposedSlotStart: row.proposed_slot_start,
     proposedSlotEnd: row.proposed_slot_end || null,
-    estimateMinToman: row.estimate_min_toman == null ? null : Number(row.estimate_min_toman),
-    estimateMaxToman: row.estimate_max_toman == null ? null : Number(row.estimate_max_toman),
     createdAt: row.created_at,
   };
 }
@@ -210,7 +208,7 @@ async function createGuest(request: Request) {
           ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
         ],
   });
-  return json({ id, trackingCode, estimateMin: priced.estimateMin, estimateMax: priced.estimateMax });
+  return json({ id, trackingCode });
 }
 
 async function lookup(request: Request) {

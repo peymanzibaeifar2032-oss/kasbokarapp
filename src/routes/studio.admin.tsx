@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
-import { PriceBasis } from "@/components/studio/price-basis";
 import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
 import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-board";
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
@@ -542,7 +541,6 @@ function TattooAdminCard({
       </div>
       <ReplySeen request={request} />
       <p className="mt-3 text-sm leading-7">{request.idea}</p>
-      <PriceBasis request={request} onChange={onChange} />
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
         <span>اندازه: {request.sizeCm}</span>
         <a className="text-accent" href={`tel:${request.customerPhone}`}>
