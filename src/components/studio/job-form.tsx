@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { CustomerFileDetails, toleranceMinutes, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import type { BusinessResource } from "@/lib/calendar/resources";
@@ -12,6 +13,13 @@ import { friendlyError, saveAction } from "@/lib/save";
 import { digitsOnly, formatGroupedDigits, isRetiredCollaborator } from "@/lib/tattoo-flow";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { Booking, Business } from "@/lib/types";
+
+type DesignTimes = {
+  count: number;
+  typicalMinutes: number | null;
+  shortest: number | null;
+  longest: number | null;
+};
 
 export function StudioJobForm({
   businesses,
@@ -43,6 +51,7 @@ export function StudioJobForm({
   const [minutesTouched, setMinutesTouched] = useState(false);
   const [customerFile, setCustomerFile] = useState<CustomerFileBrief | null>(null);
   const [filePending, setFilePending] = useState(false);
+  const [designTimes, setDesignTimes] = useState<DesignTimes | null>(null);
   const [resourceId, setResourceId] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
   const [images, setImages] = useState<string[]>([]);
@@ -107,6 +116,29 @@ export function StudioJobForm({
       window.clearTimeout(timer);
     };
   }, [phone, phone2, phoneKey, phone2Key, minutesTouched]);
+
+  useEffect(() => {
+    const styleKey = style.trim();
+    const sizeKey = sizeCm.trim();
+    if (styleKey.length < 2 || !sizeKey) {
+      setDesignTimes(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void saveAction<DesignTimes>("studioDesignTimes", { style: styleKey, sizeCm: sizeKey })
+        .then((next) => {
+          if (!cancelled) setDesignTimes(next.count ? next : null);
+        })
+        .catch(() => {
+          if (!cancelled) setDesignTimes(null);
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [style, sizeCm]);
 
   function reset() {
     setName("");
@@ -233,10 +265,17 @@ export function StudioJobForm({
           <span className="font-medium">مقدار واریزی</span>
           <Input value={formatGroupedDigits(paid)} onChange={(e) => setPaid(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
         </label>
-        <label className="grid gap-1.5 text-sm">
+        <div className="grid gap-1.5 text-sm sm:col-span-2">
           <span className="font-medium">مدت جلسه</span>
-          <Input value={minutes} onChange={(e) => { setMinutesTouched(true); setMinutes(e.target.value.replace(/\D/g, "")); }} inputMode="numeric" placeholder="دقیقه" />
-        </label>
+          <DurationFields
+            minutes={Number(minutes) || 0}
+            onChange={(value) => {
+              setMinutesTouched(true);
+              setMinutes(String(value));
+            }}
+          />
+          <p className="text-xs text-muted">{formatSitting(Number(minutes)) || "ساعت و دقیقه را جدا بنویس. مثلاً ۵ و ۲۰."}</p>
+        </div>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">تاریخ اجرا</span>
           <JalaliDatePicker value={day} onChange={(next) => { setDayTouched(true); setDay(next); }} label="اولین روز خالی" busyKeys={busyKeys} />
@@ -246,6 +285,28 @@ export function StudioJobForm({
           <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </label>
       </div>
+      {designTimes?.typicalMinutes ? (
+        <aside className="mt-3 rounded-2xl border border-border bg-bg p-4">
+          <h3 className="text-sm font-bold">زمان واقعی این طرح</h3>
+          <p className="mt-2 text-sm leading-7">
+            همین طرح با همین ابعاد قبلاً {designTimes.count.toLocaleString("fa-IR")} بار ثبت شده. زمان معمول{" "}
+            {formatSitting(designTimes.typicalMinutes)} است
+            {designTimes.shortest && designTimes.longest && designTimes.shortest !== designTimes.longest
+              ? `، از ${formatSitting(designTimes.shortest)} تا ${formatSitting(designTimes.longest)}.`
+              : "."}
+          </p>
+          <button
+            type="button"
+            className="mt-2 text-sm font-semibold text-accent"
+            onClick={() => {
+              setMinutesTouched(true);
+              setMinutes(String(designTimes.typicalMinutes));
+            }}
+          >
+            همین مدت را برای این جلسه بگذار
+          </button>
+        </aside>
+      ) : null}
       {phoneKey.length >= 10 || phone2Key.length >= 10 ? (
         customerFile || filePending ? (
           <CustomerFileDetails file={customerFile} pending={filePending && !customerFile} />

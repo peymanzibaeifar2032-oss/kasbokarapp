@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, Download, ImagePlus, Loader2, ShieldCheck, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { formatSitting } from "@/components/studio/duration-fields";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { TattooRequestWizard, type WizardPayload } from "@/components/studio/request-wizard";
 import { StudioVisitNote } from "@/components/studio/visit-note";
@@ -402,7 +403,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
           ) : null}
           {request.sessionMinutes ? (
             <p>
-              مدت هر جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionMinutes)} دقیقه
+              مدت هر جلسه: {formatSitting(request.sessionMinutes)}
             </p>
           ) : null}
           {request.depositToman != null ? <p>بیعانه: {formatToman(request.depositToman)}</p> : null}

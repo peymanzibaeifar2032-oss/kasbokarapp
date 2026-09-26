@@ -10,6 +10,7 @@ import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
 import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
 import { CustomerFileDetails, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
+import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { SignedOutPanel } from "@/components/layout/auth-required";
@@ -657,7 +658,11 @@ function TattooAdminCard({
               value={sessions}
               onChange={setSessions}
             />
-            <NumberField label="مدت هر جلسه" hint="دقیقه" value={minutes} onChange={setMinutes} />
+            <div className="grid gap-1.5 text-sm sm:col-span-2">
+              <span className="font-medium">مدت هر جلسه</span>
+              <DurationFields minutes={Number(minutes) || 0} onChange={(value) => setMinutes(String(value))} />
+              <p className="text-xs text-muted">{formatSitting(Number(minutes))}</p>
+            </div>
             <Field label="تاریخ پیشنهادی">
               <JalaliDatePicker
                 value={day}
@@ -1728,7 +1733,11 @@ function BookedSlotActions({
           <Field label="ساعت شروع">
             <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </Field>
-          <NumberField label="مدت جلسه" hint="دقیقه" value={minutes} onChange={setMinutes} />
+          <div className="grid gap-1.5 text-sm sm:col-span-2">
+            <span className="font-medium">مدت جلسه</span>
+            <DurationFields minutes={Number(minutes) || 0} onChange={(value) => setMinutes(String(value))} />
+            <p className="text-xs text-muted">{formatSitting(Number(minutes))}</p>
+          </div>
           <div className="flex flex-wrap gap-2 sm:col-span-3">
             <Button disabled={busy} size="sm" onClick={() => void saveTime()}>
               ذخیره زمان جدید
@@ -1749,7 +1758,11 @@ function BookedSlotActions({
           <Field label="ساعت شروع">
             <Input type="time" value={followTime} onChange={(e) => setFollowTime(e.target.value)} />
           </Field>
-          <NumberField label="مدت جلسه" hint="دقیقه" value={minutes} onChange={setMinutes} />
+          <div className="grid gap-1.5 text-sm sm:col-span-2">
+            <span className="font-medium">مدت جلسه</span>
+            <DurationFields minutes={Number(minutes) || 0} onChange={(value) => setMinutes(String(value))} />
+            <p className="text-xs text-muted">{formatSitting(Number(minutes))}</p>
+          </div>
           <div className="flex flex-wrap gap-2 sm:col-span-3">
             <Button disabled={busy} size="sm" onClick={() => void saveFollow()}>
               ثبت جلسه دوم
@@ -1881,6 +1894,7 @@ function MonthJobCard({
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
           <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
+          {job.sessionMinutes ? <p className="mt-1 text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
           {job.artistMessage === "جلسه دوم" ? (
             <p className="mt-1 text-xs font-semibold text-accent">جلسه دوم · مشخصات از جلسه قبل</p>
           ) : null}

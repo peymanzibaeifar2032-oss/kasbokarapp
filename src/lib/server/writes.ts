@@ -2407,6 +2407,56 @@ async function performStudioCustomerFileBriefs(userId: string, raw: unknown) {
   return loadCustomerFileBriefs(userId, data.phones);
 }
 
+async function performStudioDesignTimes(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({
+    style: z.string().trim().max(80),
+    sizeCm: z.string().trim().max(60).optional(),
+  }).parse(raw);
+  const style = data.style.replace(/\s+/g, " ").trim();
+  const size = compactSize(data.sizeCm || "");
+  if (style.length < 2 || !size) return { count: 0, typicalMinutes: null as number | null, shortest: null as number | null, longest: null as number | null, samples: [] as { minutes: number; placement: string; when: string }[] };
+  const sql = await getSql();
+  const scope = actor.role === "artist" ? "and t.artist_id = $3" : "and t.artist_id is null";
+  const params = actor.role === "artist" ? [style, size, actor.artistId] : [style, size];
+  const rows = await sql.query<{ session_minutes: number | null; placement: string | null; slot_start: string }>(
+    `select t.session_minutes, coalesce(t.placement,'') as placement, b.slot_start
+       from tattoo_requests t
+       join bookings b on b.id = t.booking_id
+      where t.status = 'booked'
+        and b.status not in ('cancelled')
+        and b.kind = 'booking'
+        and lower(btrim(t.style)) = lower($1)
+        and translate(replace(replace(replace(lower(regexp_replace(btrim(coalesce(t.size_cm,'')), '\\s+', '', 'g')), '×', 'x'), '*', 'x'), 'X', 'x'), '۰۱۲۳۴۵۶۷۸۹', '0123456789') = $2
+        and coalesce(t.session_minutes, 0) > 0
+        ${scope}
+      order by b.slot_start desc
+      limit 12`,
+    params,
+  );
+  const samples = rows.map((row) => ({
+    minutes: Number(row.session_minutes) || 0,
+    placement: row.placement || "",
+    when: row.slot_start,
+  }));
+  const sorted = samples.map((row) => row.minutes).sort((a, b) => a - b);
+  return {
+    count: samples.length,
+    typicalMinutes: sorted.length ? sorted[Math.floor((sorted.length - 1) / 2)] : null,
+    shortest: sorted[0] ?? null,
+    longest: sorted[sorted.length - 1] ?? null,
+    samples: samples.slice(0, 5),
+  };
+}
+
+function compactSize(value: string) {
+  return value
+    .replace(/\s+/g, "")
+    .replace(/[×xX*]/g, "x")
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .toLowerCase();
+}
+
 function contactPhone(raw: string | null | undefined) {
   const digits = (raw || "").replace(/\D/g, "");
   if (!digits || digits === "09000000000") return "";
@@ -3204,6 +3254,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performLookupStudioCustomerFile(userId, payload);
     case "studioCustomerFileBriefs":
       return performStudioCustomerFileBriefs(userId, payload);
+    case "studioDesignTimes":
+      return performStudioDesignTimes(userId, payload);
     case "studioMonthFinance":
       return performStudioMonthFinance(userId, payload);
     case "addStudioExpense":
