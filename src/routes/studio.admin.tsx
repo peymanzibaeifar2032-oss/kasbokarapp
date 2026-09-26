@@ -9,6 +9,7 @@ import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
 import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-board";
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
 import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
+import { CustomerFileDetails, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { SignedOutPanel } from "@/components/layout/auth-required";
@@ -1139,6 +1140,8 @@ type CustomerFile = {
   bleeding: string;
   sensitivity: string;
   bloodType: string;
+  toleranceHours: string;
+  hydration: string;
   healedImage: string;
   hasHealedImage: boolean;
 };
@@ -1169,6 +1172,8 @@ function fileSummary(file: CustomerFile) {
     file.numbing,
     file.bleeding ? `خونریزی ${file.bleeding}` : "",
     file.bloodType ? `گروه ${file.bloodType}` : "",
+    file.toleranceHours ? `تحمل ${file.toleranceHours}` : "",
+    file.hydration,
     file.sensitivity,
   ].filter(Boolean);
 }
@@ -1293,6 +1298,8 @@ function CustomerFileForm({
       <Choice label="ترمیم" value={draft.healing} options={["پوسته را دست نمی‌زند", "می‌خارد یا پوسته را می‌کند", "التهابش طول می‌کشد"]} onChange={(value) => setField("healing", value)} />
       <Choice label="بی‌حسی" value={draft.numbing} options={["نزدم", "زدم و خوب بود", "زدم و پوست را خراب کرد"]} onChange={(value) => setField("numbing", value)} />
       <Choice label="خونریزی" value={draft.bleeding} options={["کم", "معمولی", "زیاد"]} onChange={(value) => setField("bleeding", value)} />
+      <Choice label="تحمل جلسه" value={draft.toleranceHours} options={["۲ ساعت", "۳ ساعت", "۴ ساعت", "۵ ساعت", "۶ ساعت"]} onChange={(value) => setField("toleranceHours", value)} />
+      <Choice label="آب پوست" value={draft.hydration} options={["پوست کم‌آب", "پوست معمولی", "پوست آبدار"]} onChange={(value) => setField("hydration", value)} />
       <Choice label="گروه خونی" value={draft.bloodType} options={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "نمی‌داند"]} onChange={(value) => setField("bloodType", value)} />
       <p className="mt-1 text-xs leading-6 text-muted">برای مقایسه تحمل و سرعت ترمیم بین مشتری‌هاست، نه برای کار پزشکی.</p>
       <label className="mt-3 block text-sm font-semibold">
@@ -1393,6 +1400,7 @@ function MonthJobsPanel({
   const [weekOffset, setWeekOffset] = useState(0);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [jobs, setJobs] = useState<TattooRequest[]>([]);
+  const [briefs, setBriefs] = useState<Record<string, CustomerFileBrief>>({});
   const [jobQuery, setJobQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1407,6 +1415,9 @@ function MonthJobsPanel({
         span === "week" ? { start: week.start, end: week.end, mine: true } : { jy: month.jy, jm: month.jm, mine: true },
       );
       setJobs(rows);
+      const phones = rows.flatMap((job) => [job.customerPhone, job.customerPhone2 || ""]);
+      const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones });
+      setBriefs(nextBriefs);
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -1539,6 +1550,7 @@ function MonthJobsPanel({
             .filter((booking) => booking.status !== "cancelled")
             .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
           onChange={() => void refreshAll()}
+          file={fileForJob(briefs, job)}
         />
       ))}
 
@@ -1770,14 +1782,27 @@ function BookedSlotActions({
   );
 }
 
+function fileForJob(briefs: Record<string, CustomerFileBrief>, job: TattooRequest) {
+  const keys = [job.customerPhone, job.customerPhone2 || ""].map(briefPhoneKey).filter(Boolean);
+  return keys.map((key) => briefs[key]).find(Boolean) ?? null;
+}
+
+function briefPhoneKey(raw: string) {
+  const digits = digitsOnly(raw);
+  if (!digits || digits === "09000000000") return "";
+  return digits.length > 10 ? `0${digits.slice(-10)}` : digits;
+}
+
 function MonthJobCard({
   job,
   busyKeys,
   onChange,
+  file,
 }: {
   job: TattooRequest;
   busyKeys: string[];
   onChange: () => void;
+  file: CustomerFileBrief | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(job.customerName);
@@ -1909,6 +1934,7 @@ function MonthJobCard({
           ))}
         </ul>
       ) : null}
+      <CustomerFileDetails file={file} />
       <div className="mt-3">
         <Button variant="outline" size="sm" onClick={() => setEditing((value) => !value)}>
           {editing ? "بستن ویرایش" : "ویرایش طرح، محل اجرا و واریزی"}

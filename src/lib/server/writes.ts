@@ -2197,6 +2197,8 @@ function emptyCustomerFile() {
     bleeding: "",
     sensitivity: "",
     bloodType: "",
+    toleranceHours: "",
+    hydration: "",
     healedImage: "",
     hasHealedImage: false,
   };
@@ -2225,10 +2227,13 @@ async function attachCustomerFiles(
       bleeding: string;
       sensitivity: string;
       blood_type: string;
+      tolerance_hours: string;
+      hydration: string;
       has_healed_image: boolean;
     }>(
       `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
-              numbing, bleeding, sensitivity, blood_type, (healed_image <> '') as has_healed_image
+              numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration,
+              (healed_image <> '') as has_healed_image
          from studio_customer_files where user_id=$1 and contact_key = any($2::text[])`,
       [userId, keys],
     );
@@ -2249,6 +2254,8 @@ async function attachCustomerFiles(
         bleeding: file.bleeding || "",
         sensitivity: file.sensitivity || "",
         bloodType: file.blood_type || "",
+        toleranceHours: file.tolerance_hours || "",
+        hydration: file.hydration || "",
         healedImage: "",
         hasHealedImage: Boolean(file.has_healed_image),
       };
@@ -2273,6 +2280,8 @@ const customerFileSchema = z.object({
   bleeding: z.string().trim().max(40),
   sensitivity: z.string().trim().max(200),
   bloodType: z.string().trim().max(20),
+  toleranceHours: z.string().trim().max(40),
+  hydration: z.string().trim().max(40),
   healedImage: z.union([z.literal(""), imageDataSchema]).optional(),
 });
 
@@ -2284,14 +2293,14 @@ async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
   await sql.query(
     `insert into studio_customer_files
        (id, user_id, contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
-        numbing, bleeding, sensitivity, blood_type, healed_image)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration, healed_image)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      on conflict (user_id, contact_key) do update set
        skin_tone=excluded.skin_tone, ink_hold=excluded.ink_hold, fade=excluded.fade, alcohol=excluded.alcohol,
        sleep_note=excluded.sleep_note, arrival=excluded.arrival, pain=excluded.pain, healing=excluded.healing,
        notes=excluded.notes, numbing=excluded.numbing, bleeding=excluded.bleeding, sensitivity=excluded.sensitivity,
-       blood_type=excluded.blood_type,
-       healed_image=case when $18 then excluded.healed_image else studio_customer_files.healed_image end,
+       blood_type=excluded.blood_type, tolerance_hours=excluded.tolerance_hours, hydration=excluded.hydration,
+       healed_image=case when $20 then excluded.healed_image else studio_customer_files.healed_image end,
        updated_at=now()`,
     [
       crypto.randomUUID(),
@@ -2310,6 +2319,8 @@ async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
       data.bleeding,
       data.sensitivity,
       data.bloodType,
+      data.toleranceHours,
+      data.hydration,
       updateImage ? data.healedImage : "",
       updateImage,
     ],
@@ -2326,6 +2337,74 @@ async function performStudioCustomerHealedImage(userId: string, raw: unknown) {
     [userId, data.contactKey],
   );
   return { image: rows[0]?.healed_image || "" };
+}
+
+type CustomerFileBriefRow = {
+  contact_key: string;
+  skin_tone: string;
+  ink_hold: string;
+  fade: string;
+  alcohol: string;
+  sleep_note: string;
+  arrival: string;
+  pain: string;
+  healing: string;
+  notes: string;
+  numbing: string;
+  bleeding: string;
+  sensitivity: string;
+  blood_type: string;
+  tolerance_hours: string;
+  hydration: string;
+};
+
+function mapCustomerFileBrief(row: CustomerFileBriefRow) {
+  return {
+    skinTone: row.skin_tone || "",
+    inkHold: row.ink_hold || "",
+    fade: row.fade || "",
+    alcohol: row.alcohol || "",
+    sleepNote: row.sleep_note || "",
+    arrival: row.arrival || "",
+    pain: row.pain || "",
+    healing: row.healing || "",
+    notes: row.notes || "",
+    numbing: row.numbing || "",
+    bleeding: row.bleeding || "",
+    sensitivity: row.sensitivity || "",
+    bloodType: row.blood_type || "",
+    toleranceHours: row.tolerance_hours || "",
+    hydration: row.hydration || "",
+  };
+}
+
+async function loadCustomerFileBriefs(userId: string, phones: string[]) {
+  const keys = [...new Set(phones.map((phone) => contactPhone(normalizeIranPhone(phone) || phone)).filter(Boolean))];
+  if (!keys.length) return {} as Record<string, ReturnType<typeof mapCustomerFileBrief>>;
+  const sql = await getSql();
+  const rows = await sql.query<CustomerFileBriefRow>(
+    `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
+            numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration
+       from studio_customer_files where user_id=$1 and contact_key = any($2::text[])`,
+    [userId, keys],
+  );
+  return Object.fromEntries(rows.map((row) => [row.contact_key, mapCustomerFileBrief(row)]));
+}
+
+async function performLookupStudioCustomerFile(userId: string, raw: unknown) {
+  await requireStudioStaff(userId);
+  const data = z.object({
+    phone: z.string().max(40).optional(),
+    phone2: z.string().max(40).optional(),
+  }).parse(raw);
+  const briefs = await loadCustomerFileBriefs(userId, [data.phone || "", data.phone2 || ""]);
+  return Object.values(briefs)[0] ?? null;
+}
+
+async function performStudioCustomerFileBriefs(userId: string, raw: unknown) {
+  await requireStudioStaff(userId);
+  const data = z.object({ phones: z.array(z.string().max(40)).max(300) }).parse(raw);
+  return loadCustomerFileBriefs(userId, data.phones);
 }
 
 function contactPhone(raw: string | null | undefined) {
@@ -3121,6 +3200,10 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performSaveStudioCustomerFile(userId, payload);
     case "studioCustomerHealedImage":
       return performStudioCustomerHealedImage(userId, payload);
+    case "lookupStudioCustomerFile":
+      return performLookupStudioCustomerFile(userId, payload);
+    case "studioCustomerFileBriefs":
+      return performStudioCustomerFileBriefs(userId, payload);
     case "studioMonthFinance":
       return performStudioMonthFinance(userId, payload);
     case "addStudioExpense":

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
+import { CustomerFileDetails, toleranceMinutes, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -39,6 +40,9 @@ export function StudioJobForm({
   const [dayTouched, setDayTouched] = useState(false);
   const [time, setTime] = useState("12:00");
   const [minutes, setMinutes] = useState("180");
+  const [minutesTouched, setMinutesTouched] = useState(false);
+  const [customerFile, setCustomerFile] = useState<CustomerFileBrief | null>(null);
+  const [filePending, setFilePending] = useState(false);
   const [resourceId, setResourceId] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
   const [images, setImages] = useState<string[]>([]);
@@ -73,6 +77,37 @@ export function StudioJobForm({
       .catch(() => setResources([]));
   }, [businessId]);
 
+  const phoneKey = digitsOnly(phone);
+  const phone2Key = digitsOnly(phone2);
+  useEffect(() => {
+    if (phoneKey.length < 10 && phone2Key.length < 10) {
+      setCustomerFile(null);
+      setFilePending(false);
+      return;
+    }
+    let cancelled = false;
+    setFilePending(true);
+    const timer = window.setTimeout(() => {
+      void saveAction<CustomerFileBrief | null>("lookupStudioCustomerFile", { phone, phone2 })
+        .then((next) => {
+          if (cancelled) return;
+          setCustomerFile(next);
+          const known = next ? toleranceMinutes(next.toleranceHours) : null;
+          if (known && !minutesTouched) setMinutes(String(known));
+        })
+        .catch(() => {
+          if (!cancelled) setCustomerFile(null);
+        })
+        .finally(() => {
+          if (!cancelled) setFilePending(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [phone, phone2, phoneKey, phone2Key, minutesTouched]);
+
   function reset() {
     setName("");
     setPhone("");
@@ -84,6 +119,9 @@ export function StudioJobForm({
     setSizeCm("");
     setPrice("");
     setPaid("");
+    setMinutes("180");
+    setMinutesTouched(false);
+    setCustomerFile(null);
     setDay("");
     setImages([]);
   }
@@ -197,7 +235,7 @@ export function StudioJobForm({
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">مدت جلسه</span>
-          <Input value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="دقیقه" />
+          <Input value={minutes} onChange={(e) => { setMinutesTouched(true); setMinutes(e.target.value.replace(/\D/g, "")); }} inputMode="numeric" placeholder="دقیقه" />
         </label>
         <label className="grid gap-1.5 text-sm">
           <span className="font-medium">تاریخ اجرا</span>
@@ -208,6 +246,16 @@ export function StudioJobForm({
           <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
         </label>
       </div>
+      {phoneKey.length >= 10 || phone2Key.length >= 10 ? (
+        customerFile || filePending ? (
+          <CustomerFileDetails file={customerFile} pending={filePending && !customerFile} />
+        ) : (
+          <aside className="mt-3 rounded-2xl border border-border bg-bg p-4">
+            <h3 className="text-sm font-bold">جزئیات پرونده مشتری</h3>
+            <p className="mt-2 text-sm leading-7 text-muted">برای این شماره هنوز پرونده‌ای نوشته نشده. از بخش مخاطبین سال، تحمل و پوست را ثبت کن.</p>
+          </aside>
+        )
+      ) : null}
       <label className="mt-3 grid gap-1.5 text-sm">
         <span className="font-medium">توضیح طرح</span>
         <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} placeholder="اختیاری" />
