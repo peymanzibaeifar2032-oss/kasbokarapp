@@ -1,33 +1,40 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { Button } from "@/components/ui/button";
-import { NativeSelect } from "@/components/ui/input";
-import { toFaDigits } from "@/lib/calendar/jalali";
+import { Input, NativeSelect } from "@/components/ui/input";
+import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { friendlyError, saveAction } from "@/lib/save";
 import {
   apprenticeRemaining,
   nextSessionNumber,
+  type ApprenticePayment,
   type StudioApprentice,
   type StudioApprenticeBoard,
 } from "@/lib/studio-apprentices";
+import { digitsOnly, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
 import { cn } from "@/lib/utils";
 
 export function StudioApprenticeBoard() {
   const [dayKey, setDayKey] = useState<string | undefined>(undefined);
+  const [month, setMonth] = useState<{ jy: number; jm: number } | null>(null);
   const [board, setBoard] = useState<StudioApprenticeBoard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function load(nextDay?: string) {
+  async function load(nextDay?: string, nextMonth = month) {
     setLoading(true);
     setError("");
     try {
       const data = await saveAction<StudioApprenticeBoard>("studioApprenticeBoard", {
         dayKey: nextDay,
+        jy: nextMonth?.jy,
+        jm: nextMonth?.jm,
       });
       setBoard(data);
       setDayKey(data.dayKey);
+      setMonth({ jy: data.financeMonth.jy, jm: data.financeMonth.jm });
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -47,7 +54,7 @@ export function StudioApprenticeBoard() {
         setBoard(data);
         setDayKey(data.dayKey);
       } else {
-        await load(dayKey);
+        await load(dayKey, month);
       }
     } catch (err) {
       toast.error(friendlyError(err));
@@ -61,7 +68,7 @@ export function StudioApprenticeBoard() {
     try {
       await saveAction("setApprenticeProgress", { apprenticeId, sessionsDone });
       toast.success("شمارش جلسه ثبت شد.");
-      await load(dayKey);
+      await load(dayKey, month);
     } catch (err) {
       toast.error(friendlyError(err));
     } finally {
@@ -90,16 +97,53 @@ export function StudioApprenticeBoard() {
         <p className="mt-1 text-sm leading-7 text-muted">
           هر پنجشنبه سال برای هنرجوهاست و نوبت مشتری نمی‌گیرد. اگر کسی نیاید، همان روز استراحت است.
           ناهار ۱۲ تا ۱۳ قفل است. فقط «حاضر شد» جزو ۱۰ جلسه است. «کنسل شد» هیچ جلسه‌ای اضافه نمی‌کند.
+          پول هنرجو جدا از واریزی سالن است و فقط در ماهی که تاریخ واریز خورده دیده می‌شود.
         </p>
       </div>
+
+      <section className="rounded-3xl border border-border bg-surface p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-bold">دریافتی هنرجوها</h3>
+            <p className="mt-1 text-sm text-muted">{JALALI_MONTHS[board.financeMonth.jm - 1]} {toFaDigits(board.financeMonth.jy)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" disabled={busy || !month} onClick={() => month && void load(dayKey, shiftJalaliMonth(month.jy, month.jm, -1))}>
+              ماه قبل
+            </Button>
+            <Button variant="outline" size="sm" disabled={busy || !month} onClick={() => month && void load(dayKey, shiftJalaliMonth(month.jy, month.jm, 1))}>
+              ماه بعد
+            </Button>
+          </div>
+        </div>
+        <p className="mt-3 text-2xl font-bold">{formatTattooToman(board.monthReceived)}</p>
+        <p className="mt-1 text-sm text-muted">جمع واریزی‌هایی که تاریخ‌شان در {JALALI_MONTHS[board.financeMonth.jm - 1]} است. ماه‌های قبل اینجا نمی‌آیند و داخل واریزی سالن هم حساب نمی‌شوند.</p>
+        <p className="mt-2 text-sm">مانده بدهی هنرجوها: {formatTattooToman(board.debtTotal)}</p>
+      </section>
 
       <div className="grid gap-3">
         {board.roster.map((person) => (
           <ApprenticeRosterCard
             key={person.id}
             person={person}
+            payments={board.payments.filter((row) => row.apprenticeId === person.id)}
+            month={board.financeMonth}
             disabled={busy}
             onSetDone={(n) => void setDone(person.id, n)}
+            onAdd={async (amountToman, paidOn) => {
+              await saveAction("addApprenticePayment", { apprenticeId: person.id, amountToman, paidOn });
+              toast.success("واریزی هنرجو ثبت شد و داخل درآمد سالن نرفت.");
+              await load(dayKey, month);
+            }}
+            onDelete={async (id) => {
+              await saveAction("deleteApprenticePayment", { id });
+              await load(dayKey, month);
+            }}
+            onDebt={async (debtToman) => {
+              await saveAction("setApprenticeDebt", { apprenticeId: person.id, debtToman });
+              toast.success("مانده بدهی ثبت شد.");
+              await load(dayKey, month);
+            }}
           />
         ))}
       </div>
@@ -222,17 +266,72 @@ export function StudioApprenticeBoard() {
   );
 }
 
+function paymentMonthLabel(paidOn: string) {
+  const [y, m, d] = paidOn.split("-").map(Number);
+  const j = gregorianToJalali(y, m, d);
+  return `${toFaDigits(j.jd)} ${JALALI_MONTHS[j.jm - 1]} ${toFaDigits(j.jy)}`;
+}
+
 function ApprenticeRosterCard({
   person,
+  payments,
+  month,
   disabled,
   onSetDone,
+  onAdd,
+  onDelete,
+  onDebt,
 }: {
   person: StudioApprentice;
+  payments: ApprenticePayment[];
+  month: { jy: number; jm: number; label: string };
   disabled: boolean;
   onSetDone: (n: number) => void;
+  onAdd: (amountToman: number, paidOn: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  onDebt: (debtToman: number) => Promise<void>;
 }) {
   const remaining = apprenticeRemaining(person.sessionsDone, person.sessionGoal);
   const done = person.sessionsDone >= person.sessionGoal;
+  const [amount, setAmount] = useState("");
+  const [paidOn, setPaidOn] = useState("");
+  const [debt, setDebt] = useState(String(person.debtToman || ""));
+  const [localBusy, setLocalBusy] = useState(false);
+  useEffect(() => {
+    setDebt(String(person.debtToman || ""));
+  }, [person.debtToman]);
+  const monthPaid = payments.filter((row) => {
+    const [y, m, d] = row.paidOn.split("-").map(Number);
+    const j = gregorianToJalali(y, m, d);
+    return j.jy === month.jy && j.jm === month.jm;
+  });
+
+  async function add() {
+    if (!amount || Number(amount) <= 0) return toast.error("مبلغ واریزی را بنویس.");
+    if (!paidOn) return toast.error("تاریخ واریز را انتخاب کن، حتی اگر مال ماه قبل است.");
+    setLocalBusy(true);
+    try {
+      await onAdd(Number(amount), paidOn);
+      setAmount("");
+      setPaidOn("");
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setLocalBusy(false);
+    }
+  }
+
+  async function saveDebt() {
+    setLocalBusy(true);
+    try {
+      await onDebt(Number(debt || 0));
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setLocalBusy(false);
+    }
+  }
+
   return (
     <article className="rounded-3xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -247,7 +346,7 @@ function ApprenticeRosterCard({
           </p>
         </div>
         <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", done ? "bg-primary text-primary-fg" : "bg-bg text-muted")}>
-          مانده {toFaDigits(remaining)}
+          مانده {toFaDigits(remaining)} جلسه
         </span>
       </div>
       <p className="mt-3 text-xs text-muted">خانه جلسه چندم را بزن؛ از همان عدد تا ۱۰ شمرده می‌شود.</p>
@@ -256,7 +355,7 @@ function ApprenticeRosterCard({
           <button
             key={n}
             type="button"
-            disabled={disabled}
+            disabled={disabled || localBusy}
             onClick={() => onSetDone(n === person.sessionsDone ? n - 1 : n)}
             className={cn(
               "size-9 rounded-xl text-sm font-bold",
@@ -266,6 +365,44 @@ function ApprenticeRosterCard({
             {toFaDigits(n)}
           </button>
         ))}
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-border bg-bg p-3">
+        <p className="text-sm font-semibold">واریزی {JALALI_MONTHS[month.jm - 1]}: {formatTattooToman(monthPaid.reduce((sum, row) => sum + row.amountToman, 0))}</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium">مبلغ واریزی</span>
+            <Input value={formatGroupedDigits(amount)} onChange={(e) => setAmount(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
+          </label>
+          <div className="grid gap-1.5 text-sm">
+            <span className="font-medium">تاریخ واریز</span>
+            <JalaliDatePicker value={paidOn} onChange={setPaidOn} label="تاریخ واریز" />
+          </div>
+        </div>
+        <Button className="mt-3" size="sm" disabled={disabled || localBusy} onClick={() => void add()}>
+          ثبت واریزی
+        </Button>
+        {payments.length ? (
+          <ul className="mt-3 grid gap-2">
+            {payments.map((row) => (
+              <li key={row.id} className="flex items-center justify-between gap-2 text-sm">
+                <span>{paymentMonthLabel(row.paidOn)} · {formatTattooToman(row.amountToman)}</span>
+                <Button size="sm" variant="outline" disabled={disabled || localBusy} onClick={() => void onDelete(row.id)}>
+                  حذف
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-xs text-muted">هنوز واریزی ثبت نشده.</p>
+        )}
+        <label className="mt-4 grid gap-1.5 text-sm">
+          <span className="font-medium">مانده بدهی</span>
+          <Input value={formatGroupedDigits(debt)} onChange={(e) => setDebt(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" className="text-left tracking-wide" placeholder="تومان" />
+        </label>
+        <Button className="mt-2" size="sm" variant="outline" disabled={disabled || localBusy} onClick={() => void saveDebt()}>
+          ثبت مانده
+        </Button>
       </div>
     </article>
   );

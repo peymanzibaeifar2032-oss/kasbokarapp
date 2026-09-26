@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { JALALI_MONTHS, gregorianToJalali } from "@/lib/calendar/jalali";
 import { getSql } from "@/lib/db";
+import { tehranClock } from "@/lib/hours";
 import {
   STUDIO_APPRENTICE_SEEDS,
   STUDIO_APPRENTICE_TEMPLATE,
@@ -13,6 +15,7 @@ import {
   type ApprenticeSlotStatus,
   type StudioApprentice,
   type StudioApprenticeSlot,
+  type ApprenticePayment,
 } from "@/lib/studio-apprentices";
 
 type Sql = Awaited<ReturnType<typeof getSql>>;
@@ -27,6 +30,7 @@ type ApprenticeRow = {
   sort_order: number;
   session_goal: number;
   sessions_done: number;
+  debt_toman: number | null;
 };
 
 type SlotRow = {
@@ -51,6 +55,7 @@ function mapApprentice(row: ApprenticeRow): StudioApprentice {
     sortOrder: row.sort_order,
     sessionGoal: row.session_goal,
     sessionsDone: row.sessions_done,
+    debtToman: Number(row.debt_toman) || 0,
   };
 }
 
@@ -69,7 +74,8 @@ function mapSlot(row: SlotRow): StudioApprenticeSlot {
 
 async function listApprentices(sql: Sql, userId: string) {
   const rows = await sql.query<ApprenticeRow>(
-    `select id, slug, name, phone, kind, default_slot_key, sort_order, session_goal, sessions_done
+    `select id, slug, name, phone, kind, default_slot_key, sort_order, session_goal, sessions_done,
+            coalesce(debt_toman,0) as debt_toman
        from studio_apprentices
       where user_id=$1 and active=true
       order by sort_order, name`,
@@ -184,11 +190,21 @@ async function syncDayBookings(sql: Sql, userId: string, businessId: string, day
   }
 }
 
-async function boardPayload(sql: Sql, userId: string, businessId: string, dayKey: string) {
+async function boardPayload(sql: Sql, userId: string, businessId: string, dayKey: string, jy?: number, jm?: number) {
   await syncDayBookings(sql, userId, businessId, dayKey);
   const roster = await listApprentices(sql, userId);
   const people = new Map(roster.map((row) => [row.id, row]));
   const fresh = await loadDay(sql, userId, dayKey);
+  const clock = tehranClock();
+  const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
+  const monthJy = jy || todayJ.jy;
+  const monthJm = jm || todayJ.jm;
+  const payments = await loadApprenticePayments(sql, userId);
+  const monthPayments = payments.filter((row) => {
+    const [y, m, d] = row.paidOn.split("-").map(Number);
+    const jalali = gregorianToJalali(y, m, d);
+    return jalali.jy === monthJy && jalali.jm === monthJm;
+  });
   return {
     dayKey,
     label: formatThursdayLabel(dayKey),
@@ -200,6 +216,10 @@ async function boardPayload(sql: Sql, userId: string, businessId: string, dayKey
       kind: STUDIO_APPRENTICE_TEMPLATE.find((row) => row.slotKey === slot.slotKey)?.kind ?? "lesson",
       person: slot.apprenticeId ? people.get(slot.apprenticeId) ?? null : null,
     })),
+    financeMonth: { jy: monthJy, jm: monthJm, label: `${JALALI_MONTHS[monthJm - 1]} ${monthJy}` },
+    monthReceived: monthPayments.reduce((sum, row) => sum + row.amountToman, 0),
+    debtTotal: roster.reduce((sum, row) => sum + row.debtToman, 0),
+    payments,
   };
 }
 
@@ -209,7 +229,11 @@ export async function performStudioApprenticeBoard(
   opts: { requireAdmin: (id: string) => Promise<void>; ensureStudioShop: (sql: Sql, id: string) => Promise<string> },
 ) {
   await opts.requireAdmin(userId);
-  const data = z.object({ dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() }).parse(raw ?? {});
+  const data = z.object({
+    dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    jy: z.number().int().optional(),
+    jm: z.number().int().min(1).max(12).optional(),
+  }).parse(raw ?? {});
   const dayKey = data.dayKey || upcomingThursdays()[0];
   if (!dayKey || !isTehranThursday(dayKey)) throw new Error("فقط پنجشنبه‌ها برای هنرجو است.");
   const sql = await getSql();
@@ -220,7 +244,7 @@ export async function performStudioApprenticeBoard(
     await syncDayBookings(sql, userId, businessId, key);
   }
   await ensureDaySlots(sql, userId, dayKey);
-  return boardPayload(sql, userId, businessId, dayKey);
+  return boardPayload(sql, userId, businessId, dayKey, data.jy, data.jm);
 }
 
 export async function performSetApprenticeProgress(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
@@ -319,6 +343,78 @@ export async function performAssignApprenticeSlot(
   );
   const businessId = await opts.ensureStudioShop(sql, userId);
   return boardPayload(sql, userId, businessId, slot.day_key);
+}
+
+async function loadApprenticePayments(sql: Sql, userId: string): Promise<ApprenticePayment[]> {
+  const rows = await sql.query<{
+    id: string;
+    apprentice_id: string;
+    amount_toman: number | string;
+    paid_on: string;
+    note: string | null;
+  }>(
+    `select id, apprentice_id, amount_toman, paid_on::text as paid_on, note
+       from studio_apprentice_payments
+      where user_id=$1
+      order by paid_on desc, created_at desc`,
+    [userId],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    apprenticeId: row.apprentice_id,
+    amountToman: Number(row.amount_toman) || 0,
+    paidOn: row.paid_on.slice(0, 10),
+    note: row.note || "",
+  }));
+}
+
+export async function performAddApprenticePayment(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
+  await requireAdmin(userId);
+  const data = z.object({
+    apprenticeId: z.string(),
+    amountToman: z.number().int().min(1).max(2_000_000_000),
+    paidOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    note: z.string().trim().max(120).optional(),
+  }).parse(raw);
+  const sql = await getSql();
+  const person = await sql.query<{ id: string }>(
+    `select id from studio_apprentices where id=$1 and user_id=$2`,
+    [data.apprenticeId, userId],
+  );
+  if (!person[0]) throw new Error("هنرجو پیدا نشد.");
+  await sql.query(
+    `insert into studio_apprentice_payments (id, user_id, apprentice_id, amount_toman, paid_on, note)
+     values ($1,$2,$3,$4,$5,$6)`,
+    [crypto.randomUUID(), userId, data.apprenticeId, data.amountToman, data.paidOn, data.note || null],
+  );
+  return { ok: true as const };
+}
+
+export async function performDeleteApprenticePayment(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
+  await requireAdmin(userId);
+  const data = z.object({ id: z.string() }).parse(raw);
+  const sql = await getSql();
+  const row = await sql.query<{ id: string }>(
+    `delete from studio_apprentice_payments where id=$1 and user_id=$2 returning id`,
+    [data.id, userId],
+  );
+  if (!row[0]) throw new Error("واریزی پیدا نشد.");
+  return { ok: true as const };
+}
+
+export async function performSetApprenticeDebt(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
+  await requireAdmin(userId);
+  const data = z.object({
+    apprenticeId: z.string(),
+    debtToman: z.number().int().min(0).max(2_000_000_000),
+  }).parse(raw);
+  const sql = await getSql();
+  const row = await sql.query<{ id: string }>(
+    `update studio_apprentices set debt_toman=$3 where id=$1 and user_id=$2 returning id`,
+    [data.apprenticeId, userId, data.debtToman],
+  );
+  if (!row[0]) throw new Error("هنرجو پیدا نشد.");
+  return { ok: true as const };
 }
 
 export { THURSDAY_CUSTOMER_BLOCK_MESSAGE };

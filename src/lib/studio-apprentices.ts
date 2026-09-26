@@ -58,6 +58,7 @@ export type StudioApprentice = {
   sortOrder: number;
   sessionGoal: number;
   sessionsDone: number;
+  debtToman: number;
 };
 
 export type StudioApprenticeSlot = {
@@ -77,12 +78,24 @@ export type StudioApprenticeBoardSlot = StudioApprenticeSlot & {
   person: StudioApprentice | null;
 };
 
+export type ApprenticePayment = {
+  id: string;
+  apprenticeId: string;
+  amountToman: number;
+  paidOn: string;
+  note: string;
+};
+
 export type StudioApprenticeBoard = {
   dayKey: string;
   label: string;
   thursdays: { dayKey: string; label: string }[];
   roster: StudioApprentice[];
   slots: StudioApprenticeBoardSlot[];
+  financeMonth: { jy: number; jm: number; label: string };
+  monthReceived: number;
+  debtTotal: number;
+  payments: ApprenticePayment[];
 };
 
 export function isTehranThursday(dayKey: string) {

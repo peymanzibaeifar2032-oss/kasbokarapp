@@ -21,8 +21,11 @@ import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
+  performAddApprenticePayment,
   performAssignApprenticeSlot,
+  performDeleteApprenticePayment,
   performMarkApprenticeSlot,
+  performSetApprenticeDebt,
   performSetApprenticeProgress,
   performStudioApprenticeBoard,
 } from "@/lib/server/studio-apprentices";
@@ -3556,6 +3559,12 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioApprenticeBoard(userId, payload, { requireAdmin, ensureStudioShop });
     case "setApprenticeProgress":
       return performSetApprenticeProgress(userId, payload, requireAdmin);
+    case "addApprenticePayment":
+      return performAddApprenticePayment(userId, payload, requireAdmin);
+    case "deleteApprenticePayment":
+      return performDeleteApprenticePayment(userId, payload, requireAdmin);
+    case "setApprenticeDebt":
+      return performSetApprenticeDebt(userId, payload, requireAdmin);
     case "markApprenticeSlot":
       return performMarkApprenticeSlot(userId, payload, { requireAdmin, ensureStudioShop });
     case "assignApprenticeSlot":
