@@ -19,6 +19,15 @@ describe("studio month money", () => {
     assert.equal(out.leftover, 13_000_000);
   });
 
+  it("keeps a deficit after life costs instead of hiding it", () => {
+    const out = studioMonthSummary(10_000_000, 0, 0, [
+      { category: "salon_rent", amountToman: 8_000_000 },
+      { category: "home_rent", amountToman: 12_000_000 },
+    ]);
+    assert.equal(out.salonProfit, 2_000_000);
+    assert.equal(out.leftover, -10_000_000);
+  });
+
   it("does not treat remaining customer balance as cash", () => {
     const out = studioMonthSummary(0, 5_000_000, 5_000_000, []);
     assert.equal(out.paid, 0);

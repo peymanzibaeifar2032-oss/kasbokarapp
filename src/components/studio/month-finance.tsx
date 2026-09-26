@@ -125,8 +125,13 @@ export function StudioMonthFinance() {
           <MoneyCard label="مانده کارهای این ماه" value={summary.remainingMonth} hint="هر طرح یک بار؛ چند روز همان کار دوباره جمع نمی‌شود" />
           <MoneyCard label="مانده کل مشتریان" value={summary.remainingAll} hint="طلب واقعی، بدون تکرار قیمت روی جلسه‌های بعدی" />
           <MoneyCard label="هزینه سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
-          <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent />
-          <MoneyCard label="باقیمانده بعد از زندگی" value={summary.leftover} hint="بعد از کرایه خانه، بیمه و خانه" accent />
+          <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent allowNegative />
+          <MoneyCard
+            label="باقیمانده بعد از زندگی"
+            value={summary.leftover}
+            hint={summary.leftover < 0 ? "این ماه هزینه‌ها از درآمد بیشتر شده" : "بعد از کرایه خانه، بیمه و خانه"}
+            allowNegative
+          />
           <MoneyCard label="مانده ادامه کار امروز" value={data?.continuation?.today ?? 0} hint="طلبی که باید همین امروز بگیری" />
           <MoneyCard label="مانده ادامه کار این هفته" value={data?.continuation?.week ?? 0} hint="طلب نوبت‌های ادامه در این هفته" />
           <MoneyCard label="مانده ادامه کار این ماه" value={data?.continuation?.month ?? 0} hint="طلب نوبت‌های ادامه در این ماه" />
@@ -249,16 +254,23 @@ function MoneyCard({
   value,
   hint,
   accent,
+  allowNegative,
 }: {
   label: string;
   value: number;
   hint: string;
   accent?: boolean;
+  allowNegative?: boolean;
 }) {
+  const amount = Math.round(Number(value) || 0);
+  const negative = Boolean(allowNegative) && amount < 0;
+  const text = negative
+    ? `-${new Intl.NumberFormat("fa-IR").format(Math.abs(amount))} تومان`
+    : formatTattooToman(amount);
   return (
-    <div className={`rounded-3xl border p-4 ${accent ? "border-primary/40 bg-primary/5" : "border-border bg-surface"}`}>
+    <div className={`rounded-3xl border p-4 ${negative ? "border-destructive/40 bg-destructive/5" : accent ? "border-primary/40 bg-primary/5" : "border-border bg-surface"}`}>
       <p className="text-sm text-muted">{label}</p>
-      <p className="mt-2 text-xl font-bold">{formatTattooToman(value)}</p>
+      <p className={`mt-2 text-xl font-bold ${negative ? "text-destructive" : ""}`}>{text}</p>
       <p className="mt-1 text-xs leading-6 text-muted">{hint}</p>
     </div>
   );
