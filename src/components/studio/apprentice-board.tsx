@@ -102,9 +102,13 @@ export function StudioApprenticeBoard() {
       </div>
 
       <section className="rounded-3xl border border-border bg-surface p-4">
-        <h3 className="font-bold">جمع واریزی هنرجوها</h3>
+        <h3 className="font-bold">دریافتی کل هنرجوها</h3>
         <p className="mt-3 text-2xl font-bold">{formatTattooToman(board.payments.reduce((sum, row) => sum + row.amountToman, 0))}</p>
-        <p className="mt-1 text-sm text-muted">همه ماه‌هایی که تا حالا ثبت شده. داخل درآمد سالن حساب نمی‌شود.</p>
+        <p className="mt-1 text-sm text-muted">
+          {board.payments.length
+            ? "جمع همه ماه‌ها، از اول تا حالا. داخل درآمد سالن حساب نمی‌شود."
+            : "هنوز واریزی با تاریخ ثبت نشده. عدد پایین فقط مانده بدهی است، دریافتی نیست."}
+        </p>
         <ul className="mt-3 grid gap-1 text-sm">
           {paymentMonths(board.payments).map((row) => (
             <li key={`${row.jy}-${row.jm}`} className="flex items-center justify-between gap-3">
