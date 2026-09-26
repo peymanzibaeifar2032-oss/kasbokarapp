@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { StudioTopBar } from "@/components/studio/top-bar";
 
 export const Route = createFileRoute("/studio/care")({
@@ -24,7 +25,15 @@ const jumps = [
   ["#when", "چه وقت مجاز است"],
 ];
 
+const posters = [
+  { src: "/studio-care/pain-skin.png", alt: "کالبدشناسی پوست، خواب، آب و مهار درد قبل از تاتو" },
+  { src: "/studio-care/skin-tone.jpg", alt: "اثر رنگ پوست روشن، گندمی و تیره بر تاتو" },
+  { src: "/studio-care/skin-structure.jpg", alt: "ساختار پوست و جایی که رنگ تاتو می‌نشیند" },
+  { src: "/studio-care/after-when.jpg", alt: "بعد از تاتو، دوش و ورزش و استخر و آفتاب از کی مجاز است" },
+];
+
 function StudioCarePage() {
+  const [open, setOpen] = useState<number | null>(null);
   return (
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
       <StudioTopBar compact />
@@ -49,6 +58,7 @@ function StudioCarePage() {
           title="از دو روز قبل تا نشستن روی تخت"
           lead="به همین ترتیب پیش برو. پوست آماده هم درد را کمتر می‌کند هم رنگ را بهتر نگه می‌دارد."
         >
+          <Poster index={0} onOpen={setOpen} />
           <Step n="۱" title="از دو روز قبل">
             <Item title="آب">در این روزها آب کافی بنوش. پوست خشک هم تحمل را پایین می‌آورد هم ترمیم را کند می‌کند.</Item>
             <Item title="مرطوب‌کننده">اگر پوستت خشک است، شب‌ها کمی کرم بدون عطر بزن. صبح جلسه و هنگام اجرا روی پوست نباشد.</Item>
@@ -99,6 +109,10 @@ function StudioCarePage() {
           lead="یک طرح روی پوست روشن، گندمی و تیره یکسان درنمی‌آید. ملاک اسم رنگ نیست. روشن یا تیره بودن آن نسبت به پوست خودت مهم است."
         >
           <div className="grid gap-3">
+            <Poster index={1} onOpen={setOpen} />
+            <Poster index={2} onOpen={setOpen} />
+          </div>
+          <div className="grid gap-3">
             <Tone title="پوست روشن" text="اختلاف رنگ با زمینه بیشتر دیده می‌شود و نتیجه قابل‌پیش‌بینی‌تر است. باز هم رنگ نهایی را بعد از ترمیم ببین، نه در عکس همان روز." />
             <Tone title="پوست گندمی" text="رنگ‌ها زنده‌اند، به شرطی که بینشان فاصله باشد و فضای خالی طرح را له نکند." />
             <Tone title="پوست تیره" text="رنگ خوانا می‌ماند، ولی فرم، کنتراست و فضای خالی از شلوغ کردن تعداد رنگ مهم‌تر است." />
@@ -116,6 +130,7 @@ function StudioCarePage() {
           title="همان روز و روزهای اول"
           lead="ملاک، شمردن روز نیست. سطح پوست باید کاملاً بسته باشد: بدون زخم، دلمه، خون، ترشح یا قرمزی."
         >
+          <Poster index={3} onOpen={setOpen} />
           <Step n="۱" title="همان روز">
             <Item title="پانسمان">چسب یا سلفون را تا همان زمانی که گفته شد باز نکن. زودتر کندن، رنگ را خراب می‌کند.</Item>
             <Item title="دوش">دوش کوتاه و ولرم معمولاً همان روز یا فردا اشکالی ندارد. آب را مستقیم و با فشار روی تاتو نگیر.</Item>
@@ -134,6 +149,7 @@ function StudioCarePage() {
           title="روز سوم تا حدود دو هفته"
           lead="در این فاصله پوسته می‌آید و رنگ سطح کمی می‌ریزد. این ریزش اگر پوسته را نکنی، رنگ اصلی را با خودش نمی‌برد."
         >
+          <Poster index={2} onOpen={setOpen} />
           <ul className="grid gap-3">
             {[
               ["نکن", "پوسته را نکن، نخار و نمال. پوسته‌ای که خودش بیفتد، رنگ زیرش سالم‌تر است."],
@@ -156,6 +172,7 @@ function StudioCarePage() {
           title="از کی دوباره مجاز است"
           lead="اگر بین این زمان و وضعیت پوستت فرق بود، پوست را ملاک بگیر نه عدد روز را."
         >
+          <Poster index={3} onOpen={setOpen} />
           <div className="grid gap-3">
             {[
               ["دوش کوتاه و ولرم", "معمولاً همان روز یا فردا. آب با فشار مستقیم روی تاتو نریزد."],
@@ -183,6 +200,7 @@ function StudioCarePage() {
           </Link>
         </Section>
       </main>
+      {open != null ? <CareLightbox index={open} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }
@@ -237,5 +255,57 @@ function Tone({ title, text }: { title: string; text: string }) {
       <h3 className="font-bold">{title}</h3>
       <p className="mt-2 text-sm leading-8 text-white/70">{text}</p>
     </article>
+  );
+}
+
+function Poster({ index, onOpen }: { index: number; onOpen: (index: number) => void }) {
+  const poster = posters[index];
+  return (
+    <button type="button" className="mb-4 block w-full overflow-hidden rounded-3xl border border-white/10 bg-white text-start" onClick={() => onOpen(index)}>
+      <img src={poster.src} alt={poster.alt} className="h-auto w-full" />
+      <span className="block bg-[#0b0b0c] px-3 py-2 text-center text-xs text-[#e5d2ae]">برای بزرگ شدن بزن و عکس بعدی را ببین</span>
+    </button>
+  );
+}
+
+function CareLightbox({ index, onClose }: { index: number; onClose: () => void }) {
+  const [current, setCurrent] = useState(index);
+  const last = posters.length - 1;
+  const poster = posters[current];
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowLeft") setCurrent((value) => Math.min(last, value + 1));
+      if (event.key === "ArrowRight") setCurrent((value) => Math.max(0, value - 1));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [last, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[80] flex flex-col bg-black/95 text-[#f4f1ea]" dir="rtl" onClick={onClose}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3" onClick={(event) => event.stopPropagation()}>
+        <p className="text-sm font-bold">
+          {new Intl.NumberFormat("fa-IR").format(current + 1)} از {new Intl.NumberFormat("fa-IR").format(posters.length)}
+        </p>
+        <button type="button" className="grid size-11 place-items-center rounded-full bg-white/10" onClick={onClose} aria-label="بستن">
+          <X className="size-5" />
+        </button>
+      </div>
+      <div className="relative flex min-h-0 flex-1 items-center justify-center px-3" onClick={(event) => event.stopPropagation()}>
+        {current > 0 ? (
+          <button type="button" className="absolute end-1 z-10 grid size-12 place-items-center rounded-full bg-[#b7955b] text-black" onClick={() => setCurrent((value) => value - 1)} aria-label="عکس قبلی">
+            <ChevronRight className="size-6" />
+          </button>
+        ) : null}
+        <img src={poster.src} alt={poster.alt} className="max-h-[82dvh] w-full object-contain" />
+        {current < last ? (
+          <button type="button" className="absolute start-1 z-10 grid size-12 place-items-center rounded-full bg-[#b7955b] text-black" onClick={() => setCurrent((value) => value + 1)} aria-label="عکس بعدی">
+            <ChevronLeft className="size-6" />
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
