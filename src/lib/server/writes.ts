@@ -2193,6 +2193,12 @@ function emptyCustomerFile() {
     pain: "",
     healing: "",
     notes: "",
+    numbing: "",
+    bleeding: "",
+    sensitivity: "",
+    bloodType: "",
+    healedImage: "",
+    hasHealedImage: false,
   };
 }
 
@@ -2215,8 +2221,14 @@ async function attachCustomerFiles(
       pain: string;
       healing: string;
       notes: string;
+      numbing: string;
+      bleeding: string;
+      sensitivity: string;
+      blood_type: string;
+      has_healed_image: boolean;
     }>(
-      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes
+      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
+              numbing, bleeding, sensitivity, blood_type, (healed_image <> '') as has_healed_image
          from studio_customer_files where user_id=$1 and contact_key = any($2::text[])`,
       [userId, keys],
     );
@@ -2233,6 +2245,12 @@ async function attachCustomerFiles(
         pain: file.pain || "",
         healing: file.healing || "",
         notes: file.notes || "",
+        numbing: file.numbing || "",
+        bleeding: file.bleeding || "",
+        sensitivity: file.sensitivity || "",
+        bloodType: file.blood_type || "",
+        healedImage: "",
+        hasHealedImage: Boolean(file.has_healed_image),
       };
     }
   } catch {
@@ -2251,20 +2269,30 @@ const customerFileSchema = z.object({
   pain: z.string().trim().max(40),
   healing: z.string().trim().max(80),
   notes: z.string().trim().max(1500),
+  numbing: z.string().trim().max(40),
+  bleeding: z.string().trim().max(40),
+  sensitivity: z.string().trim().max(200),
+  bloodType: z.string().trim().max(20),
+  healedImage: z.union([z.literal(""), imageDataSchema]).optional(),
 });
 
 async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
   await requireStudioStaff(userId);
   const data = customerFileSchema.parse(raw);
   const sql = await getSql();
+  const updateImage = data.healedImage !== undefined;
   await sql.query(
     `insert into studio_customer_files
-       (id, user_id, contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       (id, user_id, contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
+        numbing, bleeding, sensitivity, blood_type, healed_image)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
      on conflict (user_id, contact_key) do update set
        skin_tone=excluded.skin_tone, ink_hold=excluded.ink_hold, fade=excluded.fade, alcohol=excluded.alcohol,
        sleep_note=excluded.sleep_note, arrival=excluded.arrival, pain=excluded.pain, healing=excluded.healing,
-       notes=excluded.notes, updated_at=now()`,
+       notes=excluded.notes, numbing=excluded.numbing, bleeding=excluded.bleeding, sensitivity=excluded.sensitivity,
+       blood_type=excluded.blood_type,
+       healed_image=case when $18 then excluded.healed_image else studio_customer_files.healed_image end,
+       updated_at=now()`,
     [
       crypto.randomUUID(),
       userId,
@@ -2278,9 +2306,26 @@ async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
       data.pain,
       data.healing,
       data.notes,
+      data.numbing,
+      data.bleeding,
+      data.sensitivity,
+      data.bloodType,
+      updateImage ? data.healedImage : "",
+      updateImage,
     ],
   );
-  return { ok: true as const };
+  return { ok: true as const, hasHealedImage: updateImage ? Boolean(data.healedImage) : undefined };
+}
+
+async function performStudioCustomerHealedImage(userId: string, raw: unknown) {
+  await requireStudioStaff(userId);
+  const data = z.object({ contactKey: z.string().trim().min(2).max(160) }).parse(raw);
+  const sql = await getSql();
+  const rows = await sql.query<{ healed_image: string }>(
+    `select healed_image from studio_customer_files where user_id=$1 and contact_key=$2`,
+    [userId, data.contactKey],
+  );
+  return { image: rows[0]?.healed_image || "" };
 }
 
 function contactPhone(raw: string | null | undefined) {
@@ -3074,6 +3119,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioYearContacts(userId, payload);
     case "saveStudioCustomerFile":
       return performSaveStudioCustomerFile(userId, payload);
+    case "studioCustomerHealedImage":
+      return performStudioCustomerHealedImage(userId, payload);
     case "studioMonthFinance":
       return performStudioMonthFinance(userId, payload);
     case "addStudioExpense":

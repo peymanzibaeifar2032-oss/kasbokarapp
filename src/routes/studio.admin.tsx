@@ -21,6 +21,7 @@ import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "
 import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink } from "@/lib/format";
 import { firstOpenCustomerDay, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
+import { compressImage } from "@/lib/design-images";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import { TATTOO_REQUEST_LABEL } from "@/lib/tattoo-estimate";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
@@ -1134,6 +1135,12 @@ type CustomerFile = {
   pain: string;
   healing: string;
   notes: string;
+  numbing: string;
+  bleeding: string;
+  sensitivity: string;
+  bloodType: string;
+  healedImage: string;
+  hasHealedImage: boolean;
 };
 
 type YearContact = {
@@ -1159,6 +1166,10 @@ function fileSummary(file: CustomerFile) {
     file.arrival,
     file.pain,
     file.healing,
+    file.numbing,
+    file.bleeding ? `خونریزی ${file.bleeding}` : "",
+    file.bloodType ? `گروه ${file.bloodType}` : "",
+    file.sensitivity,
   ].filter(Boolean);
 }
 
@@ -1213,16 +1224,47 @@ function CustomerFileForm({
 }) {
   const [draft, setDraft] = useState(file);
   const [busy, setBusy] = useState(false);
+  const [imageTouched, setImageTouched] = useState(false);
+
+  useEffect(() => {
+    if (!file.hasHealedImage) return;
+    let cancelled = false;
+    void saveAction<{ image: string }>("studioCustomerHealedImage", { contactKey })
+      .then((result) => {
+        if (!cancelled && result.image) setDraft((current) => ({ ...current, healedImage: result.image, hasHealedImage: true }));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [contactKey, file.hasHealedImage]);
 
   function setField(field: keyof CustomerFile, value: string) {
     setDraft((current) => ({ ...current, [field]: current[field] === value ? "" : value }));
   }
 
+  async function pickHealed(list: FileList | null) {
+    const picked = list?.[0];
+    if (!picked) return;
+    try {
+      const image = await compressImage(picked);
+      setImageTouched(true);
+      setDraft((current) => ({ ...current, healedImage: image, hasHealedImage: true }));
+    } catch (err) {
+      toast.error(friendlyError(err));
+    }
+  }
+
   async function save() {
     setBusy(true);
     try {
-      await saveAction("saveStudioCustomerFile", { contactKey, ...draft });
-      onSaved(draft);
+      const { hasHealedImage, healedImage, ...rest } = draft;
+      await saveAction("saveStudioCustomerFile", {
+        contactKey,
+        ...rest,
+        ...(imageTouched ? { healedImage } : {}),
+      });
+      onSaved({ ...draft, hasHealedImage: imageTouched ? Boolean(healedImage) : hasHealedImage });
       toast.success("پرونده ذخیره شد و برای کار بعدی می‌ماند.");
     } catch (err) {
       toast.error(friendlyError(err));
@@ -1249,6 +1291,43 @@ function CustomerFileForm({
       <Choice label="آمدن به استودیو" value={draft.arrival} options={["سر وقت می‌آید", "معمولاً دیر می‌آید", "زودتر می‌آید"]} onChange={(value) => setField("arrival", value)} />
       <Choice label="تحمل جلسه" value={draft.pain} options={["درد را راحت تحمل می‌کند", "تحمل معمولی", "زود خسته می‌شود"]} onChange={(value) => setField("pain", value)} />
       <Choice label="ترمیم" value={draft.healing} options={["پوسته را دست نمی‌زند", "می‌خارد یا پوسته را می‌کند", "التهابش طول می‌کشد"]} onChange={(value) => setField("healing", value)} />
+      <Choice label="بی‌حسی" value={draft.numbing} options={["نزدم", "زدم و خوب بود", "زدم و پوست را خراب کرد"]} onChange={(value) => setField("numbing", value)} />
+      <Choice label="خونریزی" value={draft.bleeding} options={["کم", "معمولی", "زیاد"]} onChange={(value) => setField("bleeding", value)} />
+      <Choice label="گروه خونی" value={draft.bloodType} options={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "نمی‌داند"]} onChange={(value) => setField("bloodType", value)} />
+      <p className="mt-1 text-xs leading-6 text-muted">برای مقایسه تحمل و سرعت ترمیم بین مشتری‌هاست، نه برای کار پزشکی.</p>
+      <label className="mt-3 block text-sm font-semibold">
+        دارو یا حساسیت پوست
+        <Input
+          className="mt-2"
+          value={draft.sensitivity}
+          onChange={(event) => setDraft((current) => ({ ...current, sensitivity: event.target.value }))}
+          placeholder="مثلاً آسپرین می‌خورد، یا پوستش به چسب حساس است"
+        />
+      </label>
+      <div className="mt-3">
+        <p className="text-sm font-semibold">عکس بعد از ترمیم</p>
+        <p className="mt-1 text-xs leading-6 text-muted">یک عکس از کار جاافتاده. جلسه بعد همان را با پوست مقایسه می‌کنی.</p>
+        {draft.healedImage ? <img src={draft.healedImage} alt="تاتو بعد از ترمیم" className="mt-2 max-h-64 rounded-2xl object-contain" /> : null}
+        <div className="mt-2 flex flex-wrap gap-2">
+          <label className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-border px-3 text-sm">
+            انتخاب عکس
+            <input type="file" accept="image/*" className="hidden" onChange={(event) => void pickHealed(event.target.files)} />
+          </label>
+          {draft.healedImage || draft.hasHealedImage ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setImageTouched(true);
+                setDraft((current) => ({ ...current, healedImage: "", hasHealedImage: false }));
+              }}
+            >
+              حذف عکس
+            </Button>
+          ) : null}
+        </div>
+      </div>
       <label className="mt-3 block text-sm font-semibold">
         نکته برای کار بعدی
         <Textarea
