@@ -97,14 +97,29 @@ export function StudioApprenticeBoard() {
         <p className="mt-1 text-sm leading-7 text-muted">
           هر پنجشنبه سال برای هنرجوهاست و نوبت مشتری نمی‌گیرد. اگر کسی نیاید، همان روز استراحت است.
           ناهار ۱۲ تا ۱۳ قفل است. فقط «حاضر شد» جزو ۱۰ جلسه است. «کنسل شد» هیچ جلسه‌ای اضافه نمی‌کند.
-          پول هنرجو جدا از واریزی سالن است و فقط در ماهی که تاریخ واریز خورده دیده می‌شود.
+          پول هنرجو جدا از واریزی سالن است. جمع همه ماه‌ها و مانده هر نفر همین‌جا دیده می‌شود.
         </p>
       </div>
 
       <section className="rounded-3xl border border-border bg-surface p-4">
+        <h3 className="font-bold">جمع واریزی هنرجوها</h3>
+        <p className="mt-3 text-2xl font-bold">{formatTattooToman(board.payments.reduce((sum, row) => sum + row.amountToman, 0))}</p>
+        <p className="mt-1 text-sm text-muted">همه ماه‌هایی که تا حالا ثبت شده. داخل درآمد سالن حساب نمی‌شود.</p>
+        <ul className="mt-3 grid gap-1 text-sm">
+          {paymentMonths(board.payments).map((row) => (
+            <li key={`${row.jy}-${row.jm}`} className="flex items-center justify-between gap-3">
+              <span>{row.label}</span>
+              <span className="font-semibold">{formatTattooToman(row.amount)}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm">مانده بدهی همه: {formatTattooToman(board.debtTotal)}</p>
+      </section>
+
+      <section className="rounded-3xl border border-border bg-surface p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-bold">دریافتی هنرجوها</h3>
+            <h3 className="font-bold">ثبت واریزی یک ماه</h3>
             <p className="mt-1 text-sm text-muted">{JALALI_MONTHS[board.financeMonth.jm - 1]} {toFaDigits(board.financeMonth.jy)}</p>
           </div>
           <div className="flex items-center gap-2">
@@ -117,8 +132,7 @@ export function StudioApprenticeBoard() {
           </div>
         </div>
         <p className="mt-3 text-2xl font-bold">{formatTattooToman(board.monthReceived)}</p>
-        <p className="mt-1 text-sm text-muted">جمع واریزی‌هایی که تاریخ‌شان در {JALALI_MONTHS[board.financeMonth.jm - 1]} است. ماه‌های قبل اینجا نمی‌آیند و داخل واریزی سالن هم حساب نمی‌شوند.</p>
-        <p className="mt-2 text-sm">مانده بدهی هنرجوها: {formatTattooToman(board.debtTotal)}</p>
+        <p className="mt-1 text-sm text-muted">فقط واریزی‌های {JALALI_MONTHS[board.financeMonth.jm - 1]}. ماه‌های دیگر در جمع بالا هستند.</p>
       </section>
 
       <div className="grid gap-3">
@@ -266,6 +280,19 @@ export function StudioApprenticeBoard() {
   );
 }
 
+function paymentMonths(payments: ApprenticePayment[]) {
+  const groups = new Map<string, { jy: number; jm: number; label: string; amount: number }>();
+  for (const row of payments) {
+    const [y, m, d] = row.paidOn.split("-").map(Number);
+    const j = gregorianToJalali(y, m, d);
+    const key = `${j.jy}-${j.jm}`;
+    const current = groups.get(key) ?? { jy: j.jy, jm: j.jm, label: `${JALALI_MONTHS[j.jm - 1]} ${toFaDigits(j.jy)}`, amount: 0 };
+    current.amount += row.amountToman;
+    groups.set(key, current);
+  }
+  return [...groups.values()].sort((a, b) => b.jy - a.jy || b.jm - a.jm);
+}
+
 function paymentMonthLabel(paidOn: string) {
   const [y, m, d] = paidOn.split("-").map(Number);
   const j = gregorianToJalali(y, m, d);
@@ -344,6 +371,15 @@ function ApprenticeRosterCard({
             {person.kind === "substitute" ? "جایگزین هفته · " : ""}
             {done ? "دوره ۱۰ جلسه تمام شد" : `جلسه ${toFaDigits(nextSessionNumber(person.sessionsDone))} از ۱۰`}
           </p>
+          <p className="mt-2 text-sm font-semibold">واریزی کل: {formatTattooToman(payments.reduce((sum, row) => sum + row.amountToman, 0))}</p>
+          <p className={cn("text-sm font-semibold", person.debtToman > 0 ? "text-destructive" : "text-muted")}>
+            مانده بدهی: {formatTattooToman(person.debtToman)}
+          </p>
+          {paymentMonths(payments).map((row) => (
+            <p key={`${row.jy}-${row.jm}`} className="text-xs text-muted">
+              {row.label}: {formatTattooToman(row.amount)}
+            </p>
+          ))}
         </div>
         <span className={cn("rounded-full px-3 py-1 text-xs font-semibold", done ? "bg-primary text-primary-fg" : "bg-bg text-muted")}>
           مانده {toFaDigits(remaining)} جلسه
