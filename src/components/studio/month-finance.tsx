@@ -100,7 +100,7 @@ export function StudioMonthFinance() {
         <div>
           <h2 className="text-lg font-bold">درآمد و هزینه {monthLabel}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-7 text-muted">
-            واریزی یعنی پولی که همین ماه به کارت آمده. مانده یعنی طلب از مشتری، هنوز نقد نیست. سود سالن جدا از کرایه خانه و بیمه حساب می‌شود.
+            باقیمانده بعد از زندگی یعنی واریزی همین ماه، منهای هزینه سالن، منهای کرایه خانه و بیمه. اگر کم بیاید، همان کسری با علامت منها می‌ماند و صفر نمی‌شود.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -125,11 +125,12 @@ export function StudioMonthFinance() {
           <MoneyCard label="مانده کارهای این ماه" value={summary.remainingMonth} hint="هر طرح یک بار؛ چند روز همان کار دوباره جمع نمی‌شود" />
           <MoneyCard label="مانده کل مشتریان" value={summary.remainingAll} hint="طلب واقعی، بدون تکرار قیمت روی جلسه‌های بعدی" />
           <MoneyCard label="هزینه سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
+          <MoneyCard label="هزینه زندگی" value={summary.lifeCost} hint="کرایه خانه + بیمه + هزینه خانه" />
           <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent allowNegative />
           <MoneyCard
             label="باقیمانده بعد از زندگی"
             value={summary.leftover}
-            hint={summary.leftover < 0 ? "این ماه هزینه‌ها از درآمد بیشتر شده" : "بعد از کرایه خانه، بیمه و خانه"}
+            hint={`${formatPlainToman(summary.paid)} − ${formatPlainToman(summary.salonCost)} − ${formatPlainToman(summary.lifeCost)}`}
             allowNegative
           />
           <MoneyCard label="مانده ادامه کار امروز" value={data?.continuation?.today ?? 0} hint="طلبی که باید همین امروز بگیری" />
@@ -247,6 +248,10 @@ export function StudioMonthFinance() {
       </div>
     </div>
   );
+}
+
+function formatPlainToman(value: number) {
+  return new Intl.NumberFormat("fa-IR").format(Math.round(Number(value) || 0));
 }
 
 function MoneyCard({
