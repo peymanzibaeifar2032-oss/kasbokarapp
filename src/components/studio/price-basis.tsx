@@ -41,9 +41,9 @@ export function PriceBasis({ request, onChange }: { request: TattooRequest; onCh
 
   return (
     <div className="mt-4 rounded-2xl border border-border bg-bg p-3 text-sm leading-7">
-      <p className="font-bold">قیمت تقریبی {hasRange ? formatEstimateRange(request.estimateMinToman || 0, request.estimateMaxToman || 0) : "هنوز از روی نمونه معتبر حساب نشده"}</p>
+      <p className="font-bold">قیمت تقریبی {hasRange ? formatEstimateRange(request.estimateMinToman || 0, request.estimateMaxToman || 0) : "نشان داده نمی‌شود"}</p>
       <p className="text-muted">زمان تقریبی اجرا: {request.estimateMinutes ? `${new Intl.NumberFormat("fa-IR").format(request.estimateMinutes)} دقیقه` : "نامشخص"} · پیچیدگی {request.complexityScore ?? "—"} از ۱۰ · اطمینان {CONFIDENCE[request.estimateConfidence as keyof typeof CONFIDENCE] || "کم"}</p>
-      <p className="text-muted">این عدد قیمت نهایی نیست. قیمت نهایی را فقط تو در فرم تأیید می‌نویسی.</p>
+      <p className="text-muted">اگر اندازه این طرح با کارهایی که قبلاً قیمت خورده‌اند یکی نباشد، عدد پایین و غلط به مشتری نشان داده نمی‌شود. قیمت نهایی را فقط تو می‌نویسی.</p>
       <div className="mt-2 flex flex-wrap gap-2">
         <Button type="button" variant="outline" className="h-11" onClick={() => void load()}>مبنای برآورد قیمت</Button>
         <Button type="button" variant="outline" className="h-11" onClick={() => void saveAction("toggleTattooPriceAnchor", { requestId: request.id }).then(() => { toast.success(request.isPriceAnchor ? "از نمونه‌های مهم برداشته شد." : "به عنوان نمونه مهم قیمت ذخیره شد."); onChange(); }).catch((err) => toast.error(friendlyError(err)))}>

@@ -166,6 +166,38 @@ async function saveTattooEstimate(sql: Sql, requestId: string, draft: EstimateDr
   return estimate;
 }
 
+export async function refreshTattooEstimates(sql: Sql, ids: string[]) {
+  const unique = [...new Set(ids)].slice(0, 25);
+  for (const id of unique) {
+    const rows = await sql.query<{
+      request_type: string;
+      placement: string;
+      style: string;
+      size_cm: string;
+      color_mode: string | null;
+      idea: string;
+      reference_images: unknown;
+      body_images: unknown;
+    }>(
+      `select request_type, placement, style, size_cm, color_mode, idea, reference_images, body_images
+         from tattoo_requests where id=$1`,
+      [id],
+    );
+    const row = rows[0];
+    if (!row) continue;
+    const count = (value: unknown) => (Array.isArray(value) ? value.length : 0);
+    await saveTattooEstimate(sql, id, {
+      requestType: row.request_type,
+      placement: row.placement,
+      style: row.style,
+      sizeCm: row.size_cm,
+      colorMode: row.color_mode || "",
+      idea: row.idea || "",
+      imageCount: count(row.reference_images) + count(row.body_images),
+    });
+  }
+}
+
 export async function explainTattooEstimate(sql: Sql, requestId: string): Promise<TattooEstimate | null> {
   const rows = await sql.query<{
     request_type: string;

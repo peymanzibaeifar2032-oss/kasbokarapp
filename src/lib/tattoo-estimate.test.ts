@@ -44,6 +44,23 @@ describe("tattoo estimate", () => {
     assert.ok((estimate.maxToman || 0) < 20_000_000);
   });
 
+  it("does not price a large piece from small cheap jobs", () => {
+    const estimate = estimateTattooPrice(
+      { requestType: "new", placement: "پشت", style: "رئالیسم", sizeCm: "خیلی بزرگ", colorMode: "blackgrey", idea: "پرتره تمام پشت", imageCount: 3 },
+      [fine, { ...fine, id: "c", priceToman: 5_000_000 }],
+    );
+    assert.equal(estimate.minToman, null);
+    assert.equal(estimate.maxToman, null);
+  });
+
+  it("stays near a same-size expensive job", () => {
+    const estimate = estimateTattooPrice(
+      { requestType: "new", placement: "پشت", style: "رئالیسم", sizeCm: "خیلی بزرگ", colorMode: "blackgrey", idea: "پرتره", imageCount: 2 },
+      [fine, big, { ...big, id: "d", priceToman: 32_000_000, title: "پشت دوم" }],
+    );
+    assert.ok((estimate.minToman || 0) >= 20_000_000);
+  });
+
   it("learns only from positive final prices", () => {
     assert.equal(calibrationFactor([0, 0]), 1);
     assert.ok(calibrationFactor([1.4, 1.5, 1.6]) > 1.3);

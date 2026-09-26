@@ -160,13 +160,13 @@ export function estimateTattooPrice(draft: EstimateDraft, samples: EstimateSampl
   const ranked = valid
     .map((sample) => ({ sample, score: sampleScore(draft, sample) }))
     .sort((a, b) => b.score - a.score || Number(b.sample.anchor) - Number(a.sample.anchor));
-  const best = ranked[0]?.score ?? 0;
-  const picked = ranked.filter((row) => row.score >= 18 && row.score >= best - 12).slice(0, 5);
+  const band = sizeBand(draft.sizeCm);
+  const sized = ranked.filter((row) => Math.abs(sizeBand(row.sample.sizeCm) - band) <= 1);
+  const picked = sized.slice(0, 5);
   const prices = picked.map((row) => row.sample.priceToman);
   const mid = median(prices);
-  const band = sizeBand(draft.sizeCm);
   const sampleBand = picked.length ? median(picked.map((row) => sizeBand(row.sample.sizeCm))) : band;
-  const sizeAdjust = Math.min(1.7, Math.max(0.65, 1 + (band - sampleBand) * 0.16));
+  const sizeAdjust = Math.min(1.8, Math.max(0.7, 1 + (band - sampleBand) * 0.45));
   const cover = draft.requestType === "coverup" || draft.requestType === "repair";
   const colorBoost = draft.colorMode === "full" ? 1.12 : draft.colorMode === "accent" ? 1.05 : 1;
   const factor = calibrationFactor(ratios);
@@ -178,7 +178,7 @@ export function estimateTattooPrice(draft: EstimateDraft, samples: EstimateSampl
     cover ? "کاور یا ترمیم سخت‌تر از کار روی پوست خالی است." : "اجرا روی پوست بدون تاتوی قبلی.",
     "عکس‌ها ذخیره شده‌اند. هنوز تحلیل تصویری واقعی روی آن‌ها انجام نمی‌شود.",
   ];
-  if (!picked.length || mid <= 0) {
+  if (picked.length < 2 || mid <= 0) {
     return {
       minToman: null,
       maxToman: null,
@@ -187,12 +187,17 @@ export function estimateTattooPrice(draft: EstimateDraft, samples: EstimateSampl
       complexity,
       confidence: "low",
       validSamples: valid.length,
-      similarCount: 0,
-      similarMin: null,
-      similarMax: null,
-      median: null,
-      factors: [...factors, "نمونه قیمت معتبر و شبیه به این درخواست پیدا نشد."],
-      similar: [],
+      similarCount: picked.length,
+      similarMin: prices.length ? Math.min(...prices) : null,
+      similarMax: prices.length ? Math.max(...prices) : null,
+      median: mid || null,
+      factors: [...factors, "نمونه قیمت هم‌اندازه کافی نیست. عدد پایین و غلط به مشتری نشان داده نمی‌شود."],
+      similar: picked.slice(0, 5).map((row) => ({
+        id: row.sample.id,
+        title: row.sample.title,
+        priceToman: row.sample.priceToman,
+        score: row.score,
+      })),
     };
   }
   const adjusted = mid * sizeAdjust * colorBoost * factor;

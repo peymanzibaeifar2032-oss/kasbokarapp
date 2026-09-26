@@ -31,7 +31,7 @@ import {
   performListStudioFillIns,
   performSetStudioFillIn,
 } from "@/lib/server/studio-fill-ins";
-import { finalizeNewTattooRequest, performExplainTattooPrice, performSaveTattooPriceAnchor, performSaveTattooPriceFeedback, performToggleTattooPriceAnchor } from "@/lib/server/tattoo-estimate";
+import { finalizeNewTattooRequest, performExplainTattooPrice, performSaveTattooPriceAnchor, performSaveTattooPriceFeedback, performToggleTattooPriceAnchor, refreshTattooEstimates } from "@/lib/server/tattoo-estimate";
 import {
   performListStudioArtists,
   performSaveStudioArtist,
@@ -619,7 +619,22 @@ async function performStudioTattooRequests(userId: string) {
       when status='approved' then 6
       else 7
     end, created_at desc`, params);
-  return mapTattooRequestRows(sql, rows);
+  const open = rows.filter((row) => row.status === "submitted" || row.status === "needs_info").map((row) => row.id);
+  if (open.length) await refreshTattooEstimates(sql, open);
+  const fresh = open.length
+    ? await sql.query<TattooRequestRow>(`${tattooRequestSelect} ${scope} order by
+    case
+      when payment_status='receipt_submitted' and payment_review_deadline is not null and payment_review_deadline <= now() then 0
+      when payment_status='receipt_submitted' then 1
+      when payment_status='rejected' then 2
+      when status='submitted' then 3
+      when status='needs_info' then 4
+      when payment_status='expired' then 5
+      when status='approved' then 6
+      else 7
+    end, created_at desc`, params)
+    : rows;
+  return mapTattooRequestRows(sql, fresh);
 }
 
 async function performDecideTattooRequest(userId: string, raw: unknown) {
