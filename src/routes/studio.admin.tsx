@@ -441,6 +441,7 @@ function TattooAdminCard({
   const [day, setDay] = useState(tehranDateInput(request.proposedSlotStart));
   const [time, setTime] = useState(tehranTimeInput(request.proposedSlotStart));
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const slotLocked =
     request.paymentStatus === "awaiting_payment" ||
     request.paymentStatus === "receipt_submitted" ||
@@ -522,6 +523,24 @@ function TattooAdminCard({
       onChange();
     } catch (err) {
       toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeRequest() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveAction("deleteTattooRequest", { id: request.id });
+      toast.success("درخواست از لیست حذف شد.");
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+      setConfirmDelete(false);
     } finally {
       setBusy(false);
     }
@@ -707,6 +726,18 @@ function TattooAdminCard({
             <p className="mt-1">{formatFaDateTime(request.proposedSlotStart)}</p>
           ) : null}
           <BookedSlotActions request={request} busyKeys={busyKeys} onChange={onChange} />
+        </div>
+      ) : null}
+      {request.status !== "booked" ? (
+        <div className="mt-4">
+          <Button
+            disabled={busy}
+            variant="outline"
+            className={confirmDelete ? "border-destructive text-destructive" : ""}
+            onClick={() => void removeRequest()}
+          >
+            {confirmDelete ? "مطمئنی؟ این درخواست پاک شود" : "حذف درخواست"}
+          </Button>
         </div>
       ) : null}
     </article>

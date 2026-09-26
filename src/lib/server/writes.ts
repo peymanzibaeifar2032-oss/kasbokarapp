@@ -731,6 +731,31 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
+async function performDeleteTattooRequest(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ id: z.string().min(1) }).parse(raw);
+  const sql = await getSql();
+  const rows = await sql.query<{
+    status: string;
+    payment_status: string;
+    booking_id: string | null;
+    artist_id: string | null;
+  }>(`select status, payment_status, booking_id, artist_id from tattoo_requests where id=$1`, [data.id]);
+  const row = rows[0];
+  if (!row) throw new Error("درخواست پیدا نشد.");
+  assertOwnArtistJob(actor, row.artist_id);
+  if (row.status === "booked" || row.payment_status === "approved") {
+    throw new Error("نوبت قطعی حذف نمی‌شود. اگر باید از تقویم برداشته شود، همان‌جا حذف کن.");
+  }
+  if (row.booking_id) {
+    await sql.query(`update bookings set status='cancelled' where id=$1 and status='requested'`, [row.booking_id]);
+  }
+  await sql.query(`delete from tattoo_request_files where request_id=$1`, [data.id]);
+  await sql.query(`delete from tattoo_price_feedback where request_id=$1`, [data.id]);
+  await sql.query(`delete from tattoo_requests where id=$1`, [data.id]);
+  return { ok: true as const };
+}
+
 async function performAcceptTattooProposal(userId: string, raw: unknown) {
   const data = z.object({ requestId: z.string() }).parse(raw);
   const sql = await getSql();
@@ -2689,6 +2714,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioTattooRequests(userId);
     case "decideTattooRequest":
       return performDecideTattooRequest(userId, payload);
+    case "deleteTattooRequest":
+      return performDeleteTattooRequest(userId, payload);
     case "acceptTattooProposal":
       return performAcceptTattooProposal(userId, payload);
     case "mehrLoanLeads":
