@@ -2302,12 +2302,16 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
   const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
   const rows = await sql.query<TattooRequestRow>(
     `${tattooRequestSelect}
-      where booking_id in (
-        select id from bookings
-         where status not in ('cancelled')
-           and kind = 'booking'
-           and slot_start >= $1 and slot_start < $2
-      )
+      where status = 'booked'
+        and (
+          (proposed_slot_start >= $1 and proposed_slot_start < $2)
+          or booking_id in (
+            select id from bookings
+             where status not in ('cancelled')
+               and kind = 'booking'
+               and slot_start >= $1 and slot_start < $2
+          )
+        )
       ${scope}
       order by coalesce(proposed_slot_start, created_at)`,
     params,
@@ -2812,45 +2816,105 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   const paid = src.paid_toman == null ? 0 : Number(src.paid_toman);
   const price = src.price_min_toman == null ? 0 : Number(src.price_min_toman);
   const settled = tattooBalance(price, paid).settled;
-  const bookingId = crypto.randomUUID();
-  const requestId = crypto.randomUUID();
-  try {
-    await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
-       values ($1,$2,$3,$4,$5,$6,$7,'booking','manual','manual',$8,'confirmed',$9,1,$10,$10,$11,$12)`,
-      [
-        bookingId,
-        businessId,
-        previous[0]?.customer_id ?? null,
-        src.customer_name,
-        src.customer_phone && src.customer_phone !== "09000000000" ? src.customer_phone : null,
-        start.toISOString(),
-        slotEnd,
-        src.idea || null,
-        src.style,
-        resourceId,
-        settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required",
-        src.artist_id,
-      ],
+  const ownerId = actor.role === "artist" ? actor.ownerUserId : userId;
+  const phoneDigits = (src.customer_phone || "").replace(/\D/g, "");
+  const wantDay = tehranDayKey(start);
+  const sameDay = await sql.query<{ id: string; customer_name: string | null; customer_phone: string | null; slot_start: string }>(
+    `select id, customer_name, customer_phone, slot_start
+       from bookings
+      where status in ('requested','confirmed')
+        and slot_end is not null
+        and slot_start < $2 and slot_end > $1
+        and business_id in (select id from businesses where owner_id = $3 or id = $4)`,
+    [start.toISOString(), slotEnd, ownerId, businessId],
+  );
+  const dayRows = sameDay.filter((row) => tehranDayKey(new Date(row.slot_start)) === wantDay);
+  const own = dayRows.find((row) => {
+    const digits = (row.customer_phone || "").replace(/\D/g, "");
+    const phoneMatch = phoneDigits.length >= 10 && digits.endsWith(phoneDigits.slice(-10));
+    return phoneMatch || (row.customer_name || "").trim() === src.customer_name.trim();
+  });
+  if (!own && dayRows.length) throw new Error("این روز برای مشتری دیگری پر است. روز دیگری را انتخاب کن.");
+  let bookingId = own?.id ?? crypto.randomUUID();
+  let createdBooking = false;
+  if (own) {
+    const linked = await sql.query<TattooRequestRow>(
+      `${tattooRequestSelect} where booking_id=$1 and status='booked' order by created_at desc limit 1`,
+      [own.id],
     );
+    if (linked[0]) {
+      if (actor.role === "owner") {
+        await sql.query(`update tattoo_requests set artist_id=null, updated_at=now() where id=$1`, [linked[0].id]);
+      }
+      const fresh = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [linked[0].id]);
+      const mapped = await mapTattooRequestRows(sql, fresh);
+      return mapped[0];
+    }
+  } else {
+    try {
+      await sql.query(
+        `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
+         values ($1,$2,$3,$4,$5,$6,$7,'booking','manual','manual',$8,'confirmed',$9,1,$10,$10,$11,$12)`,
+        [
+          bookingId,
+          businessId,
+          previous[0]?.customer_id ?? null,
+          src.customer_name,
+          src.customer_phone && src.customer_phone !== "09000000000" ? src.customer_phone : null,
+          start.toISOString(),
+          slotEnd,
+          src.idea || null,
+          src.style,
+          resourceId,
+          settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required",
+          actor.role === "owner" ? null : src.artist_id,
+        ],
+      );
+      createdBooking = true;
+    } catch (err) {
+      if (isOccupancyConflict(err)) throw new Error("این ساعت با نوبت دیگری تداخل دارد. ساعت دیگری را انتخاب کن.");
+      throw err;
+    }
+  }
+  const requestId = crypto.randomUUID();
+  let trackingCode = makeTattooTrackingCode();
+  try {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      trackingCode = makeTattooTrackingCode();
+      try {
+        await sql.query(
+          `insert into tattoo_requests (
+             id, tracking_code, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram,
+             request_type, style, idea, placement, size_cm, status, price_min_toman, price_max_toman,
+             session_minutes, session_count, deposit_toman, artist_message, payment_status,
+             proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, body_images, artist_id
+           )
+           select $1, $8, customer_id, $7, $2, customer_name, customer_phone, customer_phone_2, customer_instagram,
+             request_type, style, idea, placement, size_cm, 'booked', price_min_toman, price_max_toman,
+             $3, coalesce(session_count, 1), deposit_toman, 'جلسه دوم', payment_status,
+             $4, $5, paid_toman, settled, reference_images, body_images, $9
+             from tattoo_requests where id=$6`,
+          [
+            requestId,
+            bookingId,
+            minutes,
+            start.toISOString(),
+            slotEnd,
+            src.id,
+            businessId,
+            trackingCode,
+            actor.role === "owner" ? null : src.artist_id,
+          ],
+        );
+        break;
+      } catch (error) {
+        if (attempt === 5 || !/unique|duplicate/i.test(error instanceof Error ? error.message : "")) throw error;
+      }
+    }
   } catch (err) {
-    if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
+    if (createdBooking) await sql.query(`delete from bookings where id=$1`, [bookingId]);
     throw err;
   }
-  await sql.query(
-    `insert into tattoo_requests (
-       id, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram,
-       request_type, style, idea, placement, size_cm, status, price_min_toman, price_max_toman,
-       session_minutes, session_count, deposit_toman, artist_message, payment_status,
-       proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, body_images, artist_id
-     )
-     select $1, customer_id, $7, $2, customer_name, customer_phone, customer_phone_2, customer_instagram,
-       request_type, style, idea, placement, size_cm, 'booked', price_min_toman, price_max_toman,
-       $3, coalesce(session_count, 1), deposit_toman, 'جلسه دوم', payment_status,
-       $4, $5, paid_toman, settled, reference_images, body_images, artist_id
-       from tattoo_requests where id=$6`,
-    [requestId, bookingId, minutes, start.toISOString(), slotEnd, src.id, businessId],
-  );
   const created = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [requestId]);
   const mapped = await mapTattooRequestRows(sql, created);
   return mapped[0];
