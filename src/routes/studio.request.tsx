@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { formatSitting } from "@/components/studio/duration-fields";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { TattooRequestWizard, type WizardPayload } from "@/components/studio/request-wizard";
+import { IntakeDesk } from "@/components/studio/intake-desk";
 import { StudioVisitNote } from "@/components/studio/visit-note";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
@@ -29,6 +30,7 @@ function StudioRequestPage() {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ code: string; phone: string } | null>(null);
+  const [useForm, setUseForm] = useState(false);
 
   function refresh() {
     void saveAction<TattooRequest[]>("myTattooRequests").then((rows) => {
@@ -123,10 +125,10 @@ function StudioRequestPage() {
           ) : (
           <>
           <p className="text-xs text-[#b7955b]">نوبت تاتو</p>
-          <h1 className="mt-2 text-3xl font-black">درخواست بررسی پروژه تاتو</h1>
+          <h1 className="mt-2 text-3xl font-black">میز پذیرش</h1>
           <p className="mt-3 text-sm leading-7 text-white/55">
-            ابتدا طرح و محل بدن بررسی می‌شود. ایمیل و ساخت حساب لازم نیست؛ نام و شماره کافی است.
-            بعد از تأیید، بازه قیمت، تعداد جلسه، بیعانه و زمان‌های مناسب برای شما فعال می‌شود.
+            خواسته‌ات را در گفتگو بگو. تا محل، اندازه، سبک، رنگ و شرح دقیق را تأیید نکنی، درخواست به صندوق نمی‌رود.
+            قیمت و روز اجرا را آرتیست تعیین می‌کند.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-2">
             <Link
@@ -152,7 +154,14 @@ function StudioRequestPage() {
             </a>
           ) : null}
 
-          <TattooRequestWizard busy={busy} initialName={name} initialPhone={phone} onSubmit={(payload) => void submit(payload)} />
+          {useForm ? (
+            <TattooRequestWizard busy={busy} initialName={name} initialPhone={phone} onSubmit={(payload) => void submit(payload)} />
+          ) : (
+            <IntakeDesk busy={busy} onSubmit={(payload) => void submit(payload)} />
+          )}
+          <button type="button" className="mt-4 text-sm text-[#e5d2ae]" onClick={() => setUseForm((value) => !value)}>
+            {useForm ? "برگشت به میز پذیرش" : "اگر گفتگو قطع شد، فرم را خودم پر می‌کنم"}
+          </button>
           </>
           )}
         </section>
