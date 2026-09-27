@@ -23,12 +23,13 @@ import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "
 import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink } from "@/lib/format";
 import { firstOpenCustomerDay, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
+import { phoneTail, suggestWaitlist } from "@/lib/fill-gap";
+import { isTehranThursday, thursdayBusyKeys } from "@/lib/studio-apprentices";
 import { compressImage } from "@/lib/design-images";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import { TATTOO_REQUEST_LABEL } from "@/lib/tattoo-estimate";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
 import type { StudioArtistCard } from "@/lib/studio-artists";
-import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import {
   TATTOO_ADMIN_STAGE_LABEL,
   TATTOO_SETTLEMENT_PRESETS,
@@ -1346,7 +1347,8 @@ function MonthJobsPanel({
   const [span, setSpan] = useState<"month" | "week">("month");
   const [weekOffset, setWeekOffset] = useState(0);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
-  const [jobs, setJobs] = useState<TattooRequest[]>([]);
+  const [jobs, setJobs] = useState<Array<TattooRequest & { customerFile?: CustomerFileBrief | null }>>([]);
+  const [waiting, setWaiting] = useState<WaitRow[]>([]);
   const [briefs, setBriefs] = useState<Record<string, CustomerFileBrief>>({});
   const [jobQuery, setJobQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1366,6 +1368,12 @@ function MonthJobsPanel({
       const names = rows.map((job) => job.customerName);
       const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones, names });
       setBriefs(nextBriefs);
+      try {
+        const fills = await saveAction<WaitRow[]>("listStudioFillIns");
+        setWaiting(fills.filter((row) => row.status === "waiting"));
+      } catch {
+        setWaiting([]);
+      }
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -1388,6 +1396,8 @@ function MonthJobsPanel({
   const pastJobs = visibleJobs
     .filter((job) => jobDayKey(job) < todayKey)
     .sort((a, b) => jobStamp(a) - jobStamp(b));
+  const dayGroups = groupByDay(upcomingJobs);
+  const viewingToday = span === "week" ? weekOffset === 0 : month.jy === todayJ.jy && month.jm === todayJ.jm;
 
   async function refreshAll() {
     await load();
@@ -1498,16 +1508,24 @@ function MonthJobsPanel({
             : "با این اسم یا شماره در این ماه نوبتی نیست. نوبت‌های دیگر همان مشتری حذف نشده‌اند."}
         </p>
       ) : null}
-      {upcomingJobs.map((job) => (
-        <MonthJobCard
-          key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
-          job={job}
-          busyKeys={bookings
-            .filter((booking) => booking.status !== "cancelled")
-            .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
-          onChange={() => void refreshAll()}
-          file={fileForJob(briefs, job)}
-        />
+      {viewingToday && !dayGroups.some((group) => group.day === todayKey) ? (
+        <DayGap day={todayKey} jobs={[]} waiting={waiting} />
+      ) : null}
+      {dayGroups.map((group) => (
+        <div key={group.day} className="grid gap-4">
+          {group.jobs.map((job) => (
+            <MonthJobCard
+              key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
+              job={job}
+              busyKeys={bookings
+                .filter((booking) => booking.status !== "cancelled")
+                .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              onChange={() => void refreshAll()}
+              file={fileForJob(briefs, job)}
+            />
+          ))}
+          <DayGap day={group.day} jobs={group.jobs} waiting={waiting} />
+        </div>
       ))}
       {pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
       {pastJobs.map((job) => (
@@ -1529,6 +1547,83 @@ function MonthJobsPanel({
         }}
       />
     </div>
+  );
+}
+
+function groupByDay(jobs: TattooRequest[]) {
+  const groups: { day: string; jobs: TattooRequest[] }[] = [];
+  for (const job of jobs) {
+    const day = jobDayKey(job);
+    const last = groups[groups.length - 1];
+    if (!last || last.day !== day) groups.push({ day, jobs: [job] });
+    else last.jobs.push(job);
+  }
+  return groups;
+}
+
+type WaitRow = {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  sessionMinutes: number;
+  createdAt: string;
+  status: string;
+  priceToman: number;
+};
+
+function DayGap({ day, jobs, waiting }: { day: string; jobs: TattooRequest[]; waiting: WaitRow[] }) {
+  if (day < tehranDayKey() || isTehranThursday(day)) return null;
+  if (jobs.some((job) => !job.sessionMinutes)) {
+    return (
+      <p className="rounded-2xl border border-border bg-surface p-4 text-sm leading-7">
+        مدت یکی از نوبت‌های این روز ثبت نشده. تا ساعتش معلوم نباشد پیشنهاد نمی‌دهم، تا روز از ۸ ساعت رد نشود.
+      </p>
+    );
+  }
+  const used = jobs.reduce((sum, job) => sum + (job.sessionMinutes || 0), 0);
+  const remaining = Math.max(0, 8 * 60 - used);
+  if (remaining < 60) return null;
+  const busy = new Set(jobs.flatMap((job) => [phoneTail(job.customerPhone), phoneTail(job.customerPhone2 || "")]).filter(Boolean));
+  const { primary, alternate, bothFit } = suggestWaitlist(
+    remaining,
+    waiting.map((row) => ({
+      id: row.id,
+      name: row.customerName,
+      phone: row.customerPhone,
+      minutes: row.sessionMinutes || 0,
+      createdAt: row.createdAt,
+    })),
+    busy,
+  );
+  return (
+    <aside className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+      <p className="text-sm font-semibold">پیشنهاد لیست انتظار</p>
+      <p className="mt-1 text-sm leading-7">
+        این روز {used ? formatSitting(used) : "هنوز کاری"} دارد. {formatSitting(remaining)} تا سقف ۸ ساعت بدن مانده.
+      </p>
+      {primary ? (
+        <>
+          <p className="mt-2 text-sm leading-7">
+            پیشنهاد: {primary.name}، {formatSitting(primary.minutes)}.
+          </p>
+          {alternate ? (
+            <p className="mt-1 text-sm leading-7 text-muted">
+              یا {alternate.name}، {formatSitting(alternate.minutes)}.
+              {bothFit
+                ? " جمع این دو در ۸ ساعت می‌ماند، ولی فقط اگر ساعت‌ها روی هم نیفتند."
+                : " این دو را با هم نگذار. از توان ۸ ساعت رد می‌شود."}
+            </p>
+          ) : null}
+          <p className="mt-2 text-xs leading-6 text-muted">
+            هنوز در تقویم نرفته. از لیست انتظار ساعت را انتخاب کن. اگر روی نوبت دیگری بیفتد، ثبت نمی‌شود.
+          </p>
+        </>
+      ) : (
+        <p className="mt-2 text-sm leading-7 text-muted">
+          در لیست انتظار کاری که در این {formatSitting(remaining)} جا شود نیست. مدت هر نفر باید ذخیره شده باشد.
+        </p>
+      )}
+    </aside>
   );
 }
 

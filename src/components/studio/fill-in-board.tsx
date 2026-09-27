@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
+import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { compressImage } from "@/lib/design-images";
@@ -21,6 +22,7 @@ type StudioFillIn = {
   note: string;
   priceToman: number;
   designImage: string;
+  sessionMinutes: number;
   status: "waiting" | "filled" | "dropped";
 };
 
@@ -32,6 +34,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   const [note, setNote] = useState("");
   const [sizeCm, setSizeCm] = useState("");
   const [price, setPrice] = useState("");
+  const [minutes, setMinutes] = useState(0);
   const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<string | null>(null);
@@ -62,6 +65,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
     try {
       const spoken = name.trim();
       const customerName = honorific && spoken && !spoken.startsWith(honorific) ? `${honorific} ${spoken}` : spoken;
+      if (minutes < 30) throw new Error("مدت تقریبی اجرا را بنویس. حداقل نیم ساعت.");
       await saveAction("addStudioFillIn", {
         customerName,
         customerPhone: phone,
@@ -70,12 +74,14 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         sizeCm,
         priceToman: parseToman(price),
         designImage: image || undefined,
+        sessionMinutes: minutes,
       });
       setName("");
       setPhone("");
       setNote("");
       setSizeCm("");
       setPrice("");
+      setMinutes(0);
       setImage("");
       toast.success("در لیست پر کردن کنسلی ذخیره شد.");
       await load();
@@ -92,6 +98,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       const [y, m, d] = day.split("-").map(Number);
       const [hh, mm] = time.split(":").map(Number);
       if (!y || !m || !d || Number.isNaN(hh)) throw new Error("روز و ساعت را انتخاب کن.");
+      if (!row.sessionMinutes || row.sessionMinutes < 30) throw new Error("اول مدت تقریبی اجرا را ذخیره کن.");
       await saveAction("createStudioJob", {
         customerName: row.customerName,
         customerPhone: row.customerPhone,
@@ -101,7 +108,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         sizeCm: row.sizeCm || undefined,
         priceMinToman: row.priceToman || 0,
         paidToman: 0,
-        sessionMinutes: 180,
+        sessionMinutes: row.sessionMinutes,
         slotStart: tehranLocalToIso(y, m, d, hh || 12, mm || 0),
         referenceImages: row.designImage ? [row.designImage] : [],
       });
@@ -156,6 +163,12 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
           </label>
           {image ? <img src={image} alt="" className="mx-auto max-h-36 rounded-xl object-contain" /> : null}
           <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۲۰ × ۱۲" className="h-12" />
+          <div>
+            <p className="text-sm font-semibold">مدت تقریبی اجرا</p>
+            <div className="mt-2">
+              <DurationFields minutes={minutes} onChange={setMinutes} />
+            </div>
+          </div>
           <Input
             value={price}
             onChange={(e) => setPrice(formatGroupedDigits(e.target.value))}
@@ -185,9 +198,11 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
             {row.designImage ? <img src={row.designImage} alt="" className="mt-3 max-h-40 rounded-xl object-contain" /> : null}
             <p className="mt-2 text-sm text-muted">
-              {row.sizeCm ? `ابعاد ${row.sizeCm}` : "ابعاد ثبت نشده"}
+              {row.sessionMinutes ? formatSitting(row.sessionMinutes) : "مدت اجرا ذخیره نشده"}
+              {row.sizeCm ? ` · ابعاد ${row.sizeCm}` : ""}
               {row.priceToman ? ` · ${formatTattooToman(row.priceToman)}` : ""}
             </p>
+            <WaitMinutes row={row} onSaved={() => void load()} />
             {row.note ? <p className="mt-1 text-sm leading-7">{row.note}</p> : null}
             <div className="mt-3 grid gap-2">
               {registered ? (
@@ -238,6 +253,34 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
           </article>
         );
       })}
+    </div>
+  );
+}
+
+function WaitMinutes({ row, onSaved }: { row: StudioFillIn; onSaved: () => void }) {
+  const [minutes, setMinutes] = useState(row.sessionMinutes || 0);
+  const [busy, setBusy] = useState(false);
+  if (row.sessionMinutes >= 30) return null;
+  async function save() {
+    if (minutes < 30) return toast.error("حداقل نیم ساعت بنویس.");
+    setBusy(true);
+    try {
+      await saveAction("setStudioFillInMinutes", { id: row.id, sessionMinutes: minutes });
+      toast.success("مدت اجرا ذخیره شد.");
+      onSaved();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-3">
+      <p className="text-xs leading-6 text-muted">بدون مدت، در پیشنهاد روز نمی‌آید.</p>
+      <DurationFields minutes={minutes} onChange={setMinutes} />
+      <Button className="mt-2 h-11" variant="outline" disabled={busy} onClick={() => void save()}>
+        ذخیره مدت
+      </Button>
     </div>
   );
 }

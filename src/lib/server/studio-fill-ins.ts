@@ -14,6 +14,7 @@ export type StudioFillIn = {
   note: string;
   priceToman: number;
   designImage: string;
+  sessionMinutes: number;
   status: "waiting" | "filled" | "dropped";
   createdAt: string;
 };
@@ -30,6 +31,7 @@ type Row = {
   note: string | null;
   price_toman: number | null;
   design_image: string | null;
+  session_minutes: number | null;
   status: "waiting" | "filled" | "dropped";
   created_at: string;
 };
@@ -47,6 +49,7 @@ function mapRow(row: Row): StudioFillIn {
     note: row.note || "",
     priceToman: Number(row.price_toman) || 0,
     designImage: row.design_image || "",
+    sessionMinutes: Number(row.session_minutes) || 0,
     status: row.status,
     createdAt: row.created_at,
   };
@@ -56,7 +59,7 @@ export async function performListStudioFillIns(userId: string, requireAdmin: (us
   await requireAdmin(userId);
   const sql = await getSql();
   const rows = await sql.query<Row>(
-    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, status, created_at
+    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, status, created_at
        from studio_fill_ins
       where owner_id = $1 and status <> 'dropped'
       order by case when status = 'waiting' then 0 else 1 end, created_at desc
@@ -80,6 +83,7 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       note: z.string().trim().max(300).optional(),
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
       designImage: z.string().max(1_400_000).optional(),
+      sessionMinutes: z.number().int().min(30).max(480),
     })
     .parse(raw);
   const phone = normalizeIranPhone(data.customerPhone);
@@ -96,8 +100,8 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
   const id = crypto.randomUUID();
   await sql.query(
     `insert into studio_fill_ins
-      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
     [
       id,
       userId,
@@ -111,6 +115,7 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       data.note?.trim() || null,
       data.priceToman ?? 0,
       data.designImage || null,
+      data.sessionMinutes,
     ],
   );
   return { id };
@@ -125,6 +130,17 @@ export async function performSetStudioFillIn(userId: string, raw: unknown, requi
         set status = $3, filled_at = case when $3 = 'filled' then now() else filled_at end
       where id = $1 and owner_id = $2`,
     [data.id, userId, data.status],
+  );
+  return { ok: true as const };
+}
+
+export async function performSetStudioFillInMinutes(userId: string, raw: unknown, requireAdmin: (userId: string) => Promise<unknown>) {
+  await requireAdmin(userId);
+  const data = z.object({ id: z.string(), sessionMinutes: z.number().int().min(30).max(480) }).parse(raw);
+  const sql = await getSql();
+  await sql.query(
+    `update studio_fill_ins set session_minutes = $3 where id = $1 and owner_id = $2`,
+    [data.id, userId, data.sessionMinutes],
   );
   return { ok: true as const };
 }
