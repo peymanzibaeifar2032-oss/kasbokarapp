@@ -135,6 +135,67 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
   return { id };
 }
 
+export async function performUpdateStudioFillIn(userId: string, raw: unknown, requireAdmin: (userId: string) => Promise<unknown>) {
+  await requireAdmin(userId);
+  const data = z
+    .object({
+      id: z.string(),
+      customerName: z.string().trim().min(2).max(80),
+      customerPhone: z.string().trim().max(40),
+      customerPhone2: z.string().trim().max(40).optional(),
+      sizeCm: z.string().trim().max(60).optional(),
+      note: z.string().trim().max(300).optional(),
+      priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      designImage: z.string().max(1_400_000).optional(),
+      sessionMinutes: z.number().int().min(30).max(480),
+      ongoing: z.boolean(),
+    })
+    .parse(raw);
+  const phone = normalizeIranPhone(data.customerPhone);
+  if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
+  let phone2: string | null = null;
+  if (data.customerPhone2?.trim()) {
+    phone2 = normalizeIranPhone(data.customerPhone2);
+    if (!isIranMobile(phone2)) throw new Error("شماره دوم معتبر نیست.");
+  }
+  if (data.designImage && !/^data:image\/(jpeg|png|webp);base64,/i.test(data.designImage)) {
+    throw new Error("فرمت تصویر طرح معتبر نیست.");
+  }
+  const sql = await getSql();
+  const imageSql = data.designImage ? ", design_image = $11" : "";
+  const params = [
+    data.id,
+    userId,
+    data.customerName,
+    phone,
+    phone2,
+    data.sizeCm?.trim() || null,
+    data.note?.trim() || null,
+    data.priceToman ?? 0,
+    data.sessionMinutes,
+    data.ongoing,
+  ];
+  if (data.designImage) params.push(data.designImage);
+  const updated = await sql.query(
+    `update studio_fill_ins
+        set customer_name = $3,
+            customer_phone = $4,
+            customer_phone_2 = $5,
+            size_cm = $6,
+            note = $7,
+            idea = case when $7 is null or btrim($7) = '' then idea else $7 end,
+            price_toman = $8,
+            session_minutes = $9,
+            ongoing = $10
+            ${imageSql}
+      where id = $1 and owner_id = $2
+      returning id`,
+    params,
+  );
+  if (!updated[0]) throw new Error("این نفر در لیست انتظار پیدا نشد.");
+  return { ok: true as const };
+}
+
 export async function performSetStudioFillIn(userId: string, raw: unknown, requireAdmin: (userId: string) => Promise<unknown>) {
   await requireAdmin(userId);
   const data = z.object({ id: z.string(), status: z.enum(["waiting", "filled", "dropped"]) }).parse(raw);

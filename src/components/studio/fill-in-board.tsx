@@ -44,6 +44,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [day, setDay] = useState("");
   const [time, setTime] = useState("12:00");
   const bookedKeys = useMemo(
@@ -227,6 +228,17 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             <p className="mt-2 text-sm">
               تماس {toFaCount(row.callCount)} · آمد {toFaCount(row.cameCount)} · مراجعه نکرد {toFaCount(row.missedCount)}
             </p>
+            {editing === row.id ? (
+              <FillEditor
+                row={row}
+                onClose={() => setEditing(null)}
+                onSaved={async () => {
+                  setEditing(null);
+                  await load();
+                }}
+              />
+            ) : (
+              <>
             {row.designImage ? <img src={row.designImage} alt="" className="mt-3 max-h-40 rounded-xl object-contain" /> : null}
             <p className="mt-2 text-sm text-muted">
               {row.sessionMinutes ? formatSitting(row.sessionMinutes) : "مدت اجرا ذخیره نشده"}
@@ -235,7 +247,12 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             </p>
             <WaitMinutes row={row} onSaved={() => void load()} />
             {row.note ? <p className="mt-1 text-sm leading-7">{row.note}</p> : null}
+              </>
+            )}
             <div className="mt-3 grid gap-2">
+              <Button variant="outline" className="h-11" onClick={() => setEditing(editing === row.id ? null : row.id)}>
+                {editing === row.id ? "بستن ویرایش" : "ویرایش مشخصات"}
+              </Button>
               {registered ? (
                 <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={registered}>
                   پیام ثبت در لیست
@@ -343,6 +360,83 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
 
 function toFaCount(value: number) {
   return new Intl.NumberFormat("fa-IR").format(value || 0);
+}
+
+function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [name, setName] = useState(row.customerName);
+  const [phone, setPhone] = useState(row.customerPhone);
+  const [phone2, setPhone2] = useState(row.customerPhone2 || "");
+  const [sizeCm, setSizeCm] = useState(row.sizeCm || "");
+  const [price, setPrice] = useState(row.priceToman ? formatGroupedDigits(String(row.priceToman)) : "");
+  const [note, setNote] = useState(row.note || "");
+  const [minutes, setMinutes] = useState(row.sessionMinutes || 0);
+  const [ongoing, setOngoing] = useState(Boolean(row.ongoing));
+  const [image, setImage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (minutes < 30) return toast.error("مدت اجرا را بنویس. حداقل نیم ساعت.");
+    setBusy(true);
+    try {
+      await saveAction("updateStudioFillIn", {
+        id: row.id,
+        customerName: name.trim(),
+        customerPhone: phone,
+        customerPhone2: phone2,
+        sizeCm,
+        note,
+        priceToman: parseToman(price),
+        sessionMinutes: minutes,
+        ongoing,
+        designImage: image || undefined,
+      });
+      toast.success("مشخصات لیست انتظار ذخیره شد.");
+      await onSaved();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 grid gap-2 rounded-2xl border border-border bg-bg p-3">
+      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام" className="h-12" />
+      <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شماره موبایل" inputMode="tel" dir="ltr" className="h-12" />
+      <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="شماره دوم، اختیاری" inputMode="tel" dir="ltr" className="h-12" />
+      <DurationFields minutes={minutes} onChange={setMinutes} />
+      <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد" className="h-12" />
+      <Input value={price} onChange={(e) => setPrice(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="قیمت" className="h-12" />
+      <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت" rows={2} />
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className={`h-11 rounded-xl border text-sm font-bold ${!ongoing ? "border-primary bg-primary text-primary-fg" : "border-border"}`} onClick={() => setOngoing(false)}>
+          یک جلسه
+        </button>
+        <button type="button" className={`h-11 rounded-xl border text-sm font-bold ${ongoing ? "border-primary bg-primary text-primary-fg" : "border-border"}`} onClick={() => setOngoing(true)}>
+          ادامه دارد
+        </button>
+      </div>
+      <label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm font-bold">
+        {image ? "طرح جدید انتخاب شد" : "عوض کردن طرح، اختیاری"}
+        <input
+          className="sr-only"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            void compressImage(file).then(setImage).catch((err) => toast.error(friendlyError(err)));
+          }}
+        />
+      </label>
+      <Button className="h-11" disabled={busy} onClick={() => void save()}>
+        ذخیره ویرایش
+      </Button>
+      <Button variant="outline" className="h-11" disabled={busy} onClick={onClose}>
+        انصراف
+      </Button>
+    </div>
+  );
 }
 
 function WaitMinutes({ row, onSaved }: { row: StudioFillIn; onSaved: () => void }) {
