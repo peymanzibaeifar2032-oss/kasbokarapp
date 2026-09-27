@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z, ZodError } from "zod";
 import { getLlmProvider } from "@/lib/guide/provider";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
-import { cleanAssistantAnswer, tattooAssistantPrompt } from "@/lib/tattoo-assistant";
+import { cleanAssistantAnswer, answerStudioQuestion, tattooAssistantPrompt } from "@/lib/tattoo-assistant";
 import { STUDIO_CONTACT_PHONE } from "@/lib/tattoo-flow";
 
 const bodySchema = z.object({
@@ -28,6 +28,8 @@ async function handle(request: Request) {
   }
   try {
     const body = bodySchema.parse(await request.json());
+    const local = answerStudioQuestion(body.question);
+    if (local) return json({ answer: local });
     const result = await getLlmProvider().complete(
       [
         { role: "system", content: tattooAssistantPrompt() },

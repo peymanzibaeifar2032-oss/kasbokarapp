@@ -1,6 +1,6 @@
 import { isIranMobile, normalizeIranPhone, toEnDigits } from "./format.ts";
 import { TATTOO_BODY_PARTS, TATTOO_REQUEST_LABEL, TATTOO_SIDES, TATTOO_SIZE_LABELS } from "./tattoo-estimate.ts";
-import { STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME } from "./tattoo-flow.ts";
+import { answerStudioQuestion } from "./tattoo-assistant.ts";
 
 export type IntakeStep = "questions" | "name" | "phone" | "type" | "part" | "side" | "size" | "design" | "body" | "confirm";
 
@@ -160,43 +160,7 @@ function confirm(draft: IntakeDraft, text: string): IntakeTurn {
 }
 
 function secretaryAnswer(text: string) {
-  const q = text.replace(/[؟?]/g, "").trim();
-  if (q.length < 2) return "";
-  if (/تماس|شماره|زنگ|تلفن|واتس|پیامک/.test(q)) {
-    return `برای تماس با آرتیست همین شماره را بگیر: ${STUDIO_CONTACT_PHONE}`;
-  }
-  if (/آدرس|کجاست|کجا هست|آدرس استودیو|چطور بیام|چجوری بیام/.test(q)) {
-    return `استودیو: ${STUDIO_ADDRESS}. تلفن: ${STUDIO_CONTACT_PHONE}`;
-  }
-  if (/متریال|کیفیت|سوزن|جوهر|رنگ تاتو|لوازم|بهداشت|یکبار|یک‌بار|آمریک/.test(q)) {
-    return "همه متریال آمریکایی است و تمام لوازم یکبار مصرف است.";
-  }
-  if (/خودش|خودت|کی میزن|کی می‌زن|پیمان|هنرجو|کارآموز|استاد/.test(q)) {
-    return `بله. تاتو را خود ${STUDIO_OWNER_STAFF_NAME} انجام می‌دهد.`;
-  }
-  if (/پنجشنبه|پنج‌شنبه/.test(q)) {
-    return "پنجشنبه‌ها فقط برای کارآموزهاست و نوبت مشتری ثبت نمی‌شود.";
-  }
-  if (/قیمت|هزینه|چقدر|چند تومن|میلیون/.test(q)) {
-    return "قیمت را خود آرتیست بعد از دیدن طرح، محل و اندازه می‌گوید. اینجا قیمت تعیین نمی‌شود.";
-  }
-  if (/درد|بی\s*حسی|بیحسی|طاقت/.test(q)) {
-    return "اگر نگران درد هستی، بی‌حسی موقع کار با خود پیمان هماهنگ می‌شود.";
-  }
-  if (/چند ساعت|طول میکشد|طول می‌کشد|چقدر طول/.test(q)) {
-    return "زمان دقیق بعد از دیدن طرح گفته می‌شود. جلسه می‌تواند چند ساعت باشد.";
-  }
-  if (/بیعانه|کارت به کارت|واریز|شبا/.test(q) && !/امکان|میخوام|می‌خوام/.test(q)) {
-    return "بعد از تأیید درخواست، شماره کارت و مبلغ بیعانه در وضعیت همین شماره برایت می‌آید.";
-  }
-  const part = mentionedPart(q);
-  if (part && /امکان|میخوام|می‌خوام|میخاست|می‌خواست|میشه|می‌شه|بزن|زدن|هست|میتون|می‌تون/.test(q)) {
-    return `بله. تاتو روی ${part} انجام می‌شود و کار را خود ${STUDIO_OWNER_STAFF_NAME} می‌زند.`;
-  }
-  if (/امکان|میشه|می‌شه|میتونم|می‌تونم/.test(q)) {
-    return `بله. کار انجام می‌شود و تاتو را خود ${STUDIO_OWNER_STAFF_NAME} می‌زند.`;
-  }
-  return "";
+  return answerStudioQuestion(text);
 }
 
 function isDoneAsking(text: string) {
