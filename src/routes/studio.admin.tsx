@@ -1421,7 +1421,8 @@ function MonthJobsPanel({
       );
       setJobs(rows);
       const phones = rows.flatMap((job) => [job.customerPhone, job.customerPhone2 || ""]);
-      const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones });
+      const names = rows.map((job) => job.customerName);
+      const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones, names });
       setBriefs(nextBriefs);
     } catch (err) {
       setError(friendlyError(err));
@@ -1825,7 +1826,8 @@ function BookedSlotActions({
 }
 
 function fileForJob(briefs: Record<string, CustomerFileBrief>, job: TattooRequest) {
-  const keys = [job.customerPhone, job.customerPhone2 || ""].map(briefPhoneKey).filter(Boolean);
+  const name = job.customerName.replace(/\s+/g, " ").trim();
+  const keys = [briefPhoneKey(job.customerPhone), briefPhoneKey(job.customerPhone2 || ""), name ? `name:${name}` : ""].filter(Boolean);
   return keys.map((key) => briefs[key]).find(Boolean) ?? null;
 }
 
@@ -1995,6 +1997,7 @@ function MonthJobCard({
               @{normalizeInstagramHandle(job.customerInstagram)}
             </a>
           ) : null}
+          <CustomerFileDetails file={file} />
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
@@ -2024,7 +2027,6 @@ function MonthJobCard({
           ))}
         </ul>
       ) : null}
-      <CustomerFileDetails file={file} />
       <div className="mt-3">
         <Button variant="outline" size="sm" onClick={() => setEditing((value) => !value)}>
           {editing ? "بستن ویرایش" : "ویرایش طرح، محل اجرا و واریزی"}

@@ -2435,17 +2435,36 @@ function mapCustomerFileBrief(row: CustomerFileBriefRow) {
   };
 }
 
-async function loadCustomerFileBriefs(userId: string, phones: string[]) {
-  const keys = [...new Set(phones.map((phone) => contactPhone(normalizeIranPhone(phone) || phone)).filter(Boolean))];
-  if (!keys.length) return {} as Record<string, ReturnType<typeof mapCustomerFileBrief>>;
+async function loadCustomerFileBriefs(userId: string, phones: string[], names: string[] = []) {
+  const keys = new Set<string>();
+  for (const raw of phones) {
+    const plain = contactPhone(raw);
+    const normalized = normalizeIranPhone(raw || "");
+    const canonical = contactPhone(normalized);
+    if (plain) keys.add(plain);
+    if (canonical) keys.add(canonical);
+    if (normalized && normalized !== "09000000000") keys.add(normalized);
+  }
+  for (const raw of names) {
+    const name = raw.replace(/\s+/g, " ").trim();
+    if (name) keys.add(`name:${name}`);
+  }
+  if (!keys.size) return {} as Record<string, ReturnType<typeof mapCustomerFileBrief>>;
   const sql = await getSql();
   const rows = await sql.query<CustomerFileBriefRow>(
     `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
             numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration
        from studio_customer_files where user_id=$1 and contact_key = any($2::text[])`,
-    [userId, keys],
+    [userId, [...keys]],
   );
-  return Object.fromEntries(rows.map((row) => [row.contact_key, mapCustomerFileBrief(row)]));
+  const mapped: Record<string, ReturnType<typeof mapCustomerFileBrief>> = {};
+  for (const row of rows) {
+    const brief = mapCustomerFileBrief(row);
+    mapped[row.contact_key] = brief;
+    const canonical = contactPhone(normalizeIranPhone(row.contact_key));
+    if (canonical) mapped[canonical] = brief;
+  }
+  return mapped;
 }
 
 async function performLookupStudioCustomerFile(userId: string, raw: unknown) {
@@ -2460,8 +2479,11 @@ async function performLookupStudioCustomerFile(userId: string, raw: unknown) {
 
 async function performStudioCustomerFileBriefs(userId: string, raw: unknown) {
   await requireStudioStaff(userId);
-  const data = z.object({ phones: z.array(z.string().max(40)).max(300) }).parse(raw);
-  return loadCustomerFileBriefs(userId, data.phones);
+  const data = z.object({
+    phones: z.array(z.string().max(40)).max(800).optional(),
+    names: z.array(z.string().max(160)).max(400).optional(),
+  }).parse(raw);
+  return loadCustomerFileBriefs(userId, data.phones ?? [], data.names ?? []);
 }
 
 async function performStudioDesignTimes(userId: string, raw: unknown) {
