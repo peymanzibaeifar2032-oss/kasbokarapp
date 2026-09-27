@@ -120,12 +120,10 @@ export function StudioApprenticeBoard() {
           {board.roster.map((person) => {
             const paid = board.payments.filter((row) => row.apprenticeId === person.id).reduce((sum, row) => sum + row.amountToman, 0);
             return (
-              <li key={person.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-bg px-3 py-2 text-sm">
+              <li key={person.id} className="grid gap-1 rounded-2xl border border-border bg-bg px-3 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
                 <span className="font-semibold">{person.name}</span>
-                <span className="text-left">
-                  واریزی {formatTattooToman(paid)}
-                  <span className={person.debtToman > 0 ? "text-destructive" : "text-muted"}> · مانده {formatTattooToman(person.debtToman)}</span>
-                </span>
+                <span>واریزی {formatTattooToman(paid)}</span>
+                <span className={person.debtToman > 0 ? "font-semibold text-destructive" : "text-muted"}>مانده {formatTattooToman(person.debtToman)}</span>
               </li>
             );
           })}

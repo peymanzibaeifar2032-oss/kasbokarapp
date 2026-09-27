@@ -120,22 +120,32 @@ export function StudioMonthFinance() {
       {loading ? <p className="text-sm text-muted">در حال جمع‌کردن حساب ماه…</p> : null}
 
       {summary ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <MoneyCard label="واریزی این ماه" value={summary.paid} hint="بیعانه و پرداخت دستی" />
-          <MoneyCard label="مانده کارهای این ماه" value={summary.remainingMonth} hint="هر طرح یک بار؛ چند روز همان کار دوباره جمع نمی‌شود" />
-          <MoneyCard label="مانده کل مشتریان" value={summary.remainingAll} hint="طلب واقعی، بدون تکرار قیمت روی جلسه‌های بعدی" />
-          <MoneyCard label="هزینه سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
-          <MoneyCard label="هزینه زندگی" value={summary.lifeCost} hint="کرایه خانه + بیمه + هزینه خانه" />
-          <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent allowNegative />
-          <MoneyCard
-            label="باقیمانده بعد از زندگی"
-            value={summary.leftover}
-            hint={`${formatPlainToman(summary.paid)} − ${formatPlainToman(summary.salonCost)} − ${formatPlainToman(summary.lifeCost)}`}
-            allowNegative
-          />
-          <MoneyCard label="مانده ادامه کار امروز" value={data?.continuation?.today ?? 0} hint="طلبی که باید همین امروز بگیری" />
-          <MoneyCard label="مانده ادامه کار این هفته" value={data?.continuation?.week ?? 0} hint="طلب نوبت‌های ادامه در این هفته" />
-          <MoneyCard label="مانده ادامه کار این ماه" value={data?.continuation?.month ?? 0} hint="طلب نوبت‌های ادامه در این ماه" />
+        <div className="grid gap-4">
+          <div>
+            <p className="mb-2 text-xs font-semibold text-muted">نقد این ماه · واریزی سالن، بدون پول کارآموز</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <MoneyCard label="واریزی این ماه" value={summary.paid} hint="بیعانه و پرداخت دستی مشتریان" />
+              <MoneyCard label="هزینه سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
+              <MoneyCard label="هزینه زندگی" value={summary.lifeCost} hint="کرایه خانه + بیمه + هزینه خانه" />
+              <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent allowNegative />
+              <MoneyCard
+                label="باقیمانده بعد از زندگی"
+                value={summary.leftover}
+                hint={`${formatPlainToman(summary.paid)} − ${formatPlainToman(summary.salonCost)} − ${formatPlainToman(summary.lifeCost)}`}
+                allowNegative
+              />
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-semibold text-muted">طلب · هنوز نقد نیست</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <MoneyCard label="مانده کارهای این ماه" value={summary.remainingMonth} hint="هر طرح یک بار؛ چند روز همان کار دوباره جمع نمی‌شود" />
+              <MoneyCard label="مانده کل مشتریان" value={summary.remainingAll} hint="طلب واقعی، بدون تکرار قیمت روی جلسه‌های بعدی" />
+              <MoneyCard label="مانده ادامه کار امروز" value={data?.continuation?.today ?? 0} hint="طلبی که باید همین امروز بگیری" />
+              <MoneyCard label="مانده ادامه کار این هفته" value={data?.continuation?.week ?? 0} hint="طلب نوبت‌های ادامه در این هفته" />
+              <MoneyCard label="مانده ادامه کار این ماه" value={data?.continuation?.month ?? 0} hint="طلب نوبت‌های ادامه در این ماه" />
+            </div>
+          </div>
         </div>
       ) : null}
 

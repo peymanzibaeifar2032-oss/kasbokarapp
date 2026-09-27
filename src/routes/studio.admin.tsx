@@ -1976,9 +1976,8 @@ function MonthJobCard({
           {job.carryClosed ? (
             <p className="mt-1 text-xs font-semibold text-accent">مانده این کار به نوبت ادامه منتقل شده</p>
           ) : null}
-          <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} />
           {phone ? (
-            <a className="mt-1 inline-block text-sm text-accent" href={`tel:${phone}`}>
+            <a className="mt-2 inline-block text-sm font-semibold text-accent" href={`tel:${phone}`} dir="ltr">
               {phone}
             </a>
           ) : null}
@@ -1997,10 +1996,11 @@ function MonthJobCard({
               @{normalizeInstagramHandle(job.customerInstagram)}
             </a>
           ) : null}
-          <CustomerFileDetails file={job.customerFile ?? file} showEmpty />
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
+      <CustomerFileDetails file={job.customerFile ?? file} showEmpty />
+      <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} />
       <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
         <div className="rounded-2xl border border-border bg-bg p-3">
@@ -2013,7 +2013,7 @@ function MonthJobCard({
         </div>
         <div className="rounded-2xl border border-border bg-bg p-3">
           <dt className="text-muted">مانده</dt>
-          <dd className="mt-1 font-semibold">{formatTattooToman(balance.remaining)}</dd>
+          <dd className={`mt-1 font-semibold ${balance.remaining > 0 ? "text-destructive" : ""}`}>{formatTattooToman(balance.remaining)}</dd>
         </div>
       </dl>
       {job.payments?.length ? (
