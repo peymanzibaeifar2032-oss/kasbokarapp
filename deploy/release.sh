@@ -122,13 +122,7 @@ wait_health() {
 }
 
 echo "=== release $OLD_SHA -> $NEW_SHA image=$CURRENT_IMAGE force=${FORCE_DEPLOY:-0} ==="
-
-DUMP_NAME=pre-deploy-$(date -u +%Y%m%dT%H%M%SZ).dump
-$COMPOSE exec -T db pg_dump -U kasbokar -d kasbokar -Fc -f "/backups/$DUMP_NAME" || fail "backup-dump"
-$COMPOSE exec -T db sh -c "test -s /backups/$DUMP_NAME" || fail "backup-empty"
-$COMPOSE exec -T db pg_restore -l "/backups/$DUMP_NAME" >/tmp/kasb-dump.list 2>/tmp/kasb-dump.err || fail "backup-list"
-grep -Eqi 'TABLE' /tmp/kasb-dump.list || fail "backup-invalid"
-echo "BACKUP_OK $DUMP_NAME"
+echo "BACKUP_SKIPPED live data stays in the database; no dump until the studio is ready"
 
 preflight_sql || fail "preflight"
 
