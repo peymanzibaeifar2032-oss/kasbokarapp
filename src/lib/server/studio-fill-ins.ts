@@ -19,6 +19,7 @@ export type StudioFillIn = {
   cameCount: number;
   missedCount: number;
   ongoing: boolean;
+  historyMinutes: number;
   status: "waiting" | "filled" | "dropped";
   createdAt: string;
 };
@@ -62,6 +63,7 @@ function mapRow(row: Row): StudioFillIn {
     cameCount: Number(row.came_count) || 0,
     missedCount: Number(row.missed_count) || 0,
     ongoing: Boolean(row.ongoing),
+    historyMinutes: 0,
     status: row.status,
     createdAt: row.created_at,
   };
@@ -78,7 +80,34 @@ export async function performListStudioFillIns(userId: string, requireAdmin: (us
       limit 80`,
     [userId],
   );
-  return rows.map(mapRow);
+  const mapped = rows.map(mapRow);
+  const tails = [...new Set(mapped.map((row) => row.customerPhone.replace(/\D/g, "").slice(-10)).filter((tail) => tail.length >= 10))];
+  if (tails.length) {
+    try {
+      const history = await sql.query<{ tail: string; minutes: number }>(
+        `select right(regexp_replace(coalesce(t.customer_phone, ''), '\\D', '', 'g'), 10) as tail,
+                round(percentile_cont(0.5) within group (order by t.session_minutes))::int as minutes
+           from tattoo_requests t
+           join bookings b on b.id = t.booking_id
+           join businesses biz on biz.id = b.business_id
+          where biz.owner_id = $1
+            and t.status = 'booked'
+            and b.status <> 'cancelled'
+            and coalesce(t.session_minutes, 0) >= 30
+            and right(regexp_replace(coalesce(t.customer_phone, ''), '\\D', '', 'g'), 10) = any($2::text[])
+          group by 1`,
+        [userId, tails],
+      );
+      const byTail = new Map(history.map((row) => [row.tail, Number(row.minutes) || 0]));
+      for (const row of mapped) {
+        const tail = row.customerPhone.replace(/\D/g, "").slice(-10);
+        row.historyMinutes = byTail.get(tail) || 0;
+      }
+    } catch {
+      // The list still loads. A missing past-session time only skips the guess.
+    }
+  }
+  return mapped;
 }
 
 export async function performAddStudioFillIn(userId: string, raw: unknown, requireAdmin: (userId: string) => Promise<unknown>) {

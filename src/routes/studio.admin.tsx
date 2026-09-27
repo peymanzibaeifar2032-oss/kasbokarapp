@@ -20,10 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink } from "@/lib/format";
+import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink, toTelLink } from "@/lib/format";
 import { firstOpenCustomerDay, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
-import { phoneTail, suggestWaitlist } from "@/lib/fill-gap";
+import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
 import { isTehranThursday, thursdayBusyKeys } from "@/lib/studio-apprentices";
 import { compressImage } from "@/lib/design-images";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
@@ -35,6 +35,7 @@ import {
   TATTOO_SETTLEMENT_PRESETS,
   bookingConfirmSms,
   digitsOnly,
+  fillInMissedCallSms,
   formatCardNumber,
   formatGroupedDigits,
   formatTattooToman,
@@ -1565,7 +1566,11 @@ type WaitRow = {
   id: string;
   customerName: string;
   customerPhone: string;
+  customerPhone2: string;
   sessionMinutes: number;
+  historyMinutes: number;
+  missedCount: number;
+  ongoing: boolean;
   createdAt: string;
   status: string;
   priceToman: number;
@@ -1586,13 +1591,20 @@ function DayGap({ day, jobs, waiting }: { day: string; jobs: TattooRequest[]; wa
   const busy = new Set(jobs.flatMap((job) => [phoneTail(job.customerPhone), phoneTail(job.customerPhone2 || "")]).filter(Boolean));
   const { primary, alternate, bothFit } = suggestWaitlist(
     remaining,
-    waiting.map((row) => ({
-      id: row.id,
-      name: row.customerName,
-      phone: row.customerPhone,
-      minutes: row.sessionMinutes || 0,
-      createdAt: row.createdAt,
-    })),
+    waiting.map((row) => {
+      const piece = pieceMinutes(row.sessionMinutes || 0, row.historyMinutes || 0);
+      return {
+        id: row.id,
+        name: row.customerName,
+        phone: row.customerPhone,
+        phone2: row.customerPhone2,
+        minutes: piece.minutes,
+        createdAt: row.createdAt,
+        missedCount: row.missedCount || 0,
+        ongoing: row.ongoing,
+        source: piece.source === "none" ? undefined : piece.source,
+      };
+    }),
     busy,
   );
   return (
@@ -1603,27 +1615,55 @@ function DayGap({ day, jobs, waiting }: { day: string; jobs: TattooRequest[]; wa
       </p>
       {primary ? (
         <>
-          <p className="mt-2 text-sm leading-7">
-            پیشنهاد: {primary.name}، {formatSitting(primary.minutes)}.
-          </p>
+          <SuggestionLine row={primary} />
           {alternate ? (
-            <p className="mt-1 text-sm leading-7 text-muted">
-              یا {alternate.name}، {formatSitting(alternate.minutes)}.
-              {bothFit
-                ? " جمع این دو در ۸ ساعت می‌ماند، ولی فقط اگر ساعت‌ها روی هم نیفتند."
-                : " این دو را با هم نگذار. از توان ۸ ساعت رد می‌شود."}
-            </p>
+            <>
+              <SuggestionLine row={alternate} muted />
+              <p className="mt-1 text-sm leading-7 text-muted">
+                {bothFit
+                  ? "جمع این دو در ۸ ساعت می‌ماند، ولی فقط اگر ساعت‌ها روی هم نیفتند."
+                  : "این دو را با هم نگذار. از توان ۸ ساعت رد می‌شود."}
+              </p>
+            </>
           ) : null}
           <p className="mt-2 text-xs leading-6 text-muted">
-            هنوز در تقویم نرفته. از لیست انتظار ساعت را انتخاب کن. اگر روی نوبت دیگری بیفتد، ثبت نمی‌شود.
+            هنوز در تقویم نرفته. اگر آمد، از لیست انتظار ساعت را بزن. اگر روی نوبت دیگری بیفتد، ثبت نمی‌شود.
+            {primary.ongoing ? " کار ادامه‌دار بعد از این تکه در لیست می‌ماند." : " کار یک‌جلسه‌ای بعد از تأیید از لیست می‌رود."}
           </p>
         </>
       ) : (
         <p className="mt-2 text-sm leading-7 text-muted">
-          در لیست انتظار کاری که در این {formatSitting(remaining)} جا شود نیست. مدت هر نفر باید ذخیره شده باشد.
+          در لیست انتظار کاری که در این {formatSitting(remaining)} جا شود نیست. اگر مدت کسی خالی است، در ویرایش لیست بنویس.
         </p>
       )}
     </aside>
+  );
+}
+
+function SuggestionLine({ row, muted = false }: { row: { name: string; phone: string; phone2?: string; minutes: number; source?: "piece" | "history"; missedCount?: number }; muted?: boolean }) {
+  const tel = toTelLink(row.phone);
+  const sms = toSmsLink(row.phone, fillInMissedCallSms(row.name));
+  const why = row.source === "history" ? "از جلسه قبلی همین مشتری" : "مدت همین تکه";
+  return (
+    <div className={muted ? "mt-2 text-sm leading-7 text-muted" : "mt-2 text-sm leading-7"}>
+      <p>
+        {muted ? "یا " : "پیشنهاد: "}
+        {row.name}، {formatSitting(row.minutes)}. {why}.
+        {row.missedCount ? ` ${toFaDigits(row.missedCount)} بار مراجعه نکرده.` : ""}
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {tel ? (
+          <a className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-surface text-sm font-bold" href={tel}>
+            تماس
+          </a>
+        ) : null}
+        {sms ? (
+          <a className="inline-flex h-10 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={sms}>
+            پیام بی‌جواب
+          </a>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
