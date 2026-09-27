@@ -35,6 +35,7 @@ import {
   performMarkStudioFillIn,
   performSetStudioFillIn,
   performSetStudioFillInMinutes,
+  performSetStudioFillInPlan,
 } from "@/lib/server/studio-fill-ins";
 import { finalizeNewTattooRequest, performExplainTattooPrice, performSaveTattooPriceAnchor, performSaveTattooPriceFeedback, performToggleTattooPriceAnchor, refreshTattooEstimates } from "@/lib/server/tattoo-estimate";
 import {
@@ -3637,6 +3638,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performSetStudioFillInMinutes(userId, payload, requireAdmin);
     case "markStudioFillIn":
       return performMarkStudioFillIn(userId, payload, requireAdmin);
+    case "setStudioFillInPlan":
+      return performSetStudioFillInPlan(userId, payload, requireAdmin);
     case "studioWhoami":
       return performStudioWhoami(userId);
     case "listStudioArtists":

@@ -26,6 +26,7 @@ type StudioFillIn = {
   callCount: number;
   cameCount: number;
   missedCount: number;
+  ongoing: boolean;
   status: "waiting" | "filled" | "dropped";
 };
 
@@ -39,6 +40,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   const [sizeCm, setSizeCm] = useState("");
   const [price, setPrice] = useState("");
   const [minutes, setMinutes] = useState(0);
+  const [ongoing, setOngoing] = useState(false);
   const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         priceToman: parseToman(price),
         designImage: image || undefined,
         sessionMinutes: minutes,
+        ongoing,
       });
       setName("");
       setPhone("");
@@ -88,6 +91,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       setSizeCm("");
       setPrice("");
       setMinutes(0);
+      setOngoing(false);
       setImage("");
       toast.success("در لیست پر کردن کنسلی ذخیره شد.");
       await load();
@@ -121,7 +125,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       });
       await saveAction("markStudioFillIn", { id: row.id, mark: "came" });
       setPlacing(null);
-      toast.success("به تقویم اضافه شد. هزینه را همان روز با کارت‌خوان می‌گیری.");
+      toast.success(row.ongoing ? "به نوبت امروز رفت و در لیست انتظار ماند." : "به نوبت امروز رفت و از لیست انتظار خارج شد.");
       await load();
       onPlaced();
     } catch (err) {
@@ -157,7 +161,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شماره موبایل" inputMode="tel" dir="ltr" className="h-12" />
           <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="شماره دوم، اختیاری" inputMode="tel" dir="ltr" className="h-12" />
           <div>
-            <p className="text-sm font-semibold">مدت تقریبی اجرا</p>
+            <p className="text-sm font-semibold">{ongoing ? "مدت هر تکه" : "مدت تقریبی اجرا"}</p>
             <div className="mt-2">
               <DurationFields minutes={minutes} onChange={setMinutes} />
             </div>
@@ -185,6 +189,22 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             placeholder="قیمت طرح"
             className="h-12"
           />
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className={`h-11 rounded-xl border text-sm font-bold ${!ongoing ? "border-primary bg-primary text-primary-fg" : "border-border"}`}
+              onClick={() => setOngoing(false)}
+            >
+              یک جلسه
+            </button>
+            <button
+              type="button"
+              className={`h-11 rounded-xl border text-sm font-bold ${ongoing ? "border-primary bg-primary text-primary-fg" : "border-border"}`}
+              onClick={() => setOngoing(true)}
+            >
+              ادامه دارد
+            </button>
+          </div>
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت، اختیاری" rows={2} />
           <Button className="h-12" disabled={busy} onClick={() => void add()}>
             ذخیره در لیست انتظار
@@ -201,6 +221,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         return (
           <article key={row.id} className="rounded-2xl border border-border p-4">
             <strong>{row.customerName}</strong>
+            <p className="mt-1 text-xs font-semibold text-accent">{row.ongoing ? "ادامه دارد · بعد از تأیید در لیست می‌ماند" : "یک جلسه · بعد از تأیید از لیست می‌رود"}</p>
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
             {row.customerPhone2 ? <p className="text-sm text-muted" dir="ltr">دوم: {row.customerPhone2}</p> : null}
             <p className="mt-2 text-sm">
@@ -282,6 +303,35 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
                 >
                   حذف از لیست
                 </Button>
+                <Button
+                  variant="outline"
+                  className="col-span-2 h-11"
+                  disabled={busy}
+                  onClick={() =>
+                    void saveAction("setStudioFillInPlan", { id: row.id, ongoing: !row.ongoing })
+                      .then(load)
+                      .catch((err) => toast.error(friendlyError(err)))
+                  }
+                >
+                  {row.ongoing ? "تغییر به یک جلسه" : "تغییر به ادامه دارد"}
+                </Button>
+                {row.ongoing ? (
+                  <Button
+                    variant="outline"
+                    className="col-span-2 h-11"
+                    disabled={busy}
+                    onClick={() =>
+                      void saveAction("setStudioFillIn", { id: row.id, status: "filled" })
+                        .then(() => {
+                          toast.success("کارش تمام شد و از لیست انتظار خارج شد.");
+                          return load();
+                        })
+                        .catch((err) => toast.error(friendlyError(err)))
+                    }
+                  >
+                    کار تمام شد
+                  </Button>
+                ) : null}
               </div>
             )}
           </article>

@@ -18,6 +18,7 @@ export type StudioFillIn = {
   callCount: number;
   cameCount: number;
   missedCount: number;
+  ongoing: boolean;
   status: "waiting" | "filled" | "dropped";
   createdAt: string;
 };
@@ -38,6 +39,7 @@ type Row = {
   call_count: number | null;
   came_count: number | null;
   missed_count: number | null;
+  ongoing: boolean | null;
   status: "waiting" | "filled" | "dropped";
   created_at: string;
 };
@@ -59,6 +61,7 @@ function mapRow(row: Row): StudioFillIn {
     callCount: Number(row.call_count) || 0,
     cameCount: Number(row.came_count) || 0,
     missedCount: Number(row.missed_count) || 0,
+    ongoing: Boolean(row.ongoing),
     status: row.status,
     createdAt: row.created_at,
   };
@@ -68,7 +71,7 @@ export async function performListStudioFillIns(userId: string, requireAdmin: (us
   await requireAdmin(userId);
   const sql = await getSql();
   const rows = await sql.query<Row>(
-    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, call_count, came_count, missed_count, status, created_at
+    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, call_count, came_count, missed_count, ongoing, status, created_at
        from studio_fill_ins
       where owner_id = $1 and status <> 'dropped'
       order by case when status = 'waiting' then 0 else 1 end, created_at desc
@@ -93,6 +96,7 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
       designImage: z.string().max(1_400_000).optional(),
       sessionMinutes: z.number().int().min(30).max(480),
+      ongoing: z.boolean().optional(),
     })
     .parse(raw);
   const phone = normalizeIranPhone(data.customerPhone);
@@ -109,8 +113,8 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
   const id = crypto.randomUUID();
   await sql.query(
     `insert into studio_fill_ins
-      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, ongoing)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
     [
       id,
       userId,
@@ -125,6 +129,7 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       data.priceToman ?? 0,
       data.designImage || null,
       data.sessionMinutes,
+      Boolean(data.ongoing),
     ],
   );
   return { id };
@@ -162,10 +167,18 @@ export async function performMarkStudioFillIn(userId: string, raw: unknown, requ
   await sql.query(
     `update studio_fill_ins
         set ${column} = ${column} + 1,
-            status = case when $3 = 'came' then 'filled' else status end,
-            filled_at = case when $3 = 'came' then now() else filled_at end
+            status = case when $3 = 'came' and ongoing = false then 'filled' else status end,
+            filled_at = case when $3 = 'came' and ongoing = false then now() else filled_at end
       where id = $1 and owner_id = $2`,
     [data.id, userId, data.mark],
   );
+  return { ok: true as const };
+}
+
+export async function performSetStudioFillInPlan(userId: string, raw: unknown, requireAdmin: (userId: string) => Promise<unknown>) {
+  await requireAdmin(userId);
+  const data = z.object({ id: z.string(), ongoing: z.boolean() }).parse(raw);
+  const sql = await getSql();
+  await sql.query(`update studio_fill_ins set ongoing = $3 where id = $1 and owner_id = $2`, [data.id, userId, data.ongoing]);
   return { ok: true as const };
 }
