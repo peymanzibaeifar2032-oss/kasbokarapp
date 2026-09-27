@@ -98,9 +98,9 @@ export function StudioMonthFinance() {
     <div className="mt-5 grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
         <div>
-          <h2 className="text-lg font-bold">درآمد و هزینه {monthLabel}</h2>
+          <h2 className="text-lg font-bold">صندوق {monthLabel}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-7 text-muted">
-            باقیمانده بعد از زندگی یعنی واریزی همین ماه، منهای هزینه سالن، منهای کرایه خانه و بیمه. اگر کم بیاید، همان کسری با علامت منها می‌ماند و صفر نمی‌شود.
+            دریافتی همین ماه، منهای خرج سالن، منهای خرج زندگی. اگر کم بیاید، مانده دست تو با علامت منها می‌ماند و صفر نمی‌شود. پول هنرجو اینجا نیست.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -122,14 +122,14 @@ export function StudioMonthFinance() {
       {summary ? (
         <div className="grid gap-4">
           <div>
-            <p className="mb-2 text-xs font-semibold text-muted">نقد این ماه · واریزی سالن، بدون پول کارآموز</p>
+            <p className="mb-2 text-xs font-semibold text-muted">دریافتی و خرج</p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <MoneyCard label="واریزی این ماه" value={summary.paid} hint="بیعانه و پرداخت دستی مشتریان" />
-              <MoneyCard label="هزینه سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
-              <MoneyCard label="هزینه زندگی" value={summary.lifeCost} hint="کرایه خانه + بیمه + هزینه خانه" />
-              <MoneyCard label="سود سالن" value={summary.salonProfit} hint="واریزی منهای هزینه سالن" accent allowNegative />
+              <MoneyCard label="دریافتی" value={summary.paid} hint="بیعانه و پرداخت دستی مشتریان همین ماه" />
+              <MoneyCard label="خرج سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
+              <MoneyCard label="خرج زندگی" value={summary.lifeCost} hint="کرایه خانه + بیمه + هزینه خانه" />
+              <MoneyCard label="سود سالن" value={summary.salonProfit} hint="دریافتی منهای خرج سالن" accent allowNegative />
               <MoneyCard
-                label="باقیمانده بعد از زندگی"
+                label="مانده دست تو"
                 value={summary.leftover}
                 hint={`${formatPlainToman(summary.paid)} − ${formatPlainToman(summary.salonCost)} − ${formatPlainToman(summary.lifeCost)}`}
                 allowNegative

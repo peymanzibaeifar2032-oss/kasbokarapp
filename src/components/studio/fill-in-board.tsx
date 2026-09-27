@@ -122,7 +122,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   return (
     <div className="mt-5 grid gap-4">
       <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-bold">لیست پر کردن کنسلی</h2>
+        <h2 className="font-bold">لیست انتظار</h2>
         <p className="mt-2 text-sm leading-7 text-muted">
           کسانی که می‌خواهند زودتر بیایند. تا روز اجرا پولی نمی‌گیرند. اگر جا خالی شد، پیام بفرست و همان روز یا این هفته به تقویم اضافه‌شان کن.
         </p>
@@ -166,7 +166,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
           />
           <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت، اختیاری" rows={2} />
           <Button className="h-12" disabled={busy} onClick={() => void add()}>
-            ذخیره در لیست پر کردن کنسلی
+            ذخیره در لیست انتظار
           </Button>
         </div>
       </section>

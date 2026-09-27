@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronLeft, ClipboardList, CreditCard, FileDown, GraduationCap, RefreshCw, Wallet } from "lucide-react";
+import { ChevronLeft, CreditCard, FileDown, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
@@ -69,7 +69,7 @@ function StudioAdminPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
-  const [tab, setTabState] = useState<PanelTab>(search.tab ?? "requests");
+  const [tab, setTabState] = useState<PanelTab>(search.tab ?? "calendar");
   const [filter, setFilter] = useState<RequestFilter>("active");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -236,91 +236,33 @@ function StudioAdminPage() {
         />
       ) : null}
 
-      <div className="mt-5 flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => setTab("requests")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "requests" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          درخواست‌ها ({new Intl.NumberFormat("fa-IR").format(requests.length)})
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("jobs")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "jobs" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          <ClipboardList className="ml-1 inline size-4" /> لیست این ماه
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("fill")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "fill" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          پر کردن کنسلی
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("calendar")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "calendar" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          <CalendarDays className="ml-1 inline size-4" /> تقویم کاری
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab("contacts")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "contacts" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          مخاطبین سال
-        </button>
-        {owner ? (
-        <button
-          type="button"
-          onClick={() => setTab("apprentices")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "apprentices" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          <GraduationCap className="ml-1 inline size-4" /> پنجشنبه‌ها
-        </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => setTab("money")}
-          className={cn(
-            "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-            tab === "money" ? "bg-primary text-primary-fg" : "text-muted",
-          )}
-        >
-          <Wallet className="ml-1 inline size-4" /> درآمد ماه
-        </button>
-        {owner ? (
-          <button
-            type="button"
-            onClick={() => setTab("artists")}
-            className={cn(
-              "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
-              tab === "artists" ? "bg-primary text-primary-fg" : "text-muted",
-            )}
-          >
-            همکاران و صندلی
-          </button>
-        ) : null}
+      <div className="mt-5 grid gap-2">
+        {(
+          [
+            ["calendar", "امروز"],
+            ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
+            ["jobs", "نوبت‌ها"],
+            ["contacts", "مشتریان"],
+            ["fill", "لیست انتظار"],
+            ["money", owner ? "صندوق" : "سهم من"],
+            ["apprentices", "هنرجوها"],
+            ["artists", "همکاران"],
+          ] as const
+        )
+          .filter(([id]) => owner || (id !== "apprentices" && id !== "artists"))
+          .map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={cn(
+                "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
+                tab === id ? "bg-primary text-primary-fg" : "text-muted",
+              )}
+            >
+              {label}
+            </button>
+          ))}
       </div>
 
       {error ? (
@@ -1042,7 +984,7 @@ function YearContactsPanel() {
   return (
     <div className="mt-5 grid gap-4">
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="text-lg font-bold">مخاطبین و پرونده</h2>
+        <h2 className="text-lg font-bold">مشتریان</h2>
         <p className="mt-1 text-sm leading-7 text-muted">
           با اسم یا شماره پیدا کن. هفته، ماه یا سال را عوض کن تا فقط مشتری‌های همان بازه بمانند.
         </p>
@@ -1437,7 +1379,7 @@ function MonthJobsPanel({
 
   const week = tehranWeekBounds(weekOffset);
   const weekTitle = weekRangeLabel(week.startKey);
-  const listTitle = span === "week" ? (weekOffset === 0 ? "لیست کارهای این هفته" : "لیست کارهای هفته") : "لیست کارهای این ماه";
+  const listTitle = "نوبت‌ها";
   const visibleJobs = jobs.filter((job) => customerQueryMatch(jobQuery, job));
 
   async function refreshAll() {
@@ -1463,10 +1405,10 @@ function MonthJobsPanel({
                 setSpan("week");
               }}
             >
-              کارهای این هفته
+              این هفته
             </Button>
             <Button size="sm" variant={span === "month" ? "default" : "outline"} onClick={() => setSpan("month")}>
-              کارهای این ماه
+              این ماه
             </Button>
           </div>
         </div>

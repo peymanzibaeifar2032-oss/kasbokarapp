@@ -66,7 +66,7 @@ export function StudioArtistBoard() {
   return (
     <div className="mt-5 grid gap-4">
       <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-bold">اجاره صندلی و کار درصدی</h2>
+        <h2 className="font-bold">همکاران</h2>
         <p className="mt-2 text-sm leading-7 text-muted">
           ایمیل تاتوکار را بنویس. با همان ایمیل پنل جدا می‌گیرد و مشتری‌های خودش را در تقویم خودش ثبت می‌کند. سهم تو از همان کارها حساب می‌شود، نه از عددی که خودش بگوید.
         </p>

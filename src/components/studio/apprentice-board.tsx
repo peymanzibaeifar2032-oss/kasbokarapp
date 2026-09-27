@@ -93,7 +93,7 @@ export function StudioApprenticeBoard() {
   return (
     <div className="mt-5 grid gap-4">
       <div className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="text-lg font-bold">پنجشنبه‌های هنرجو</h2>
+        <h2 className="text-lg font-bold">هنرجوها</h2>
         <p className="mt-1 text-sm leading-7 text-muted">
           هر پنجشنبه سال برای هنرجوهاست و نوبت مشتری نمی‌گیرد. اگر کسی نیاید، همان روز استراحت است.
           ناهار ۱۲ تا ۱۳ قفل است. فقط «حاضر شد» جزو ۱۰ جلسه است. «کنسل شد» هیچ جلسه‌ای اضافه نمی‌کند.
