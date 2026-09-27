@@ -18,6 +18,16 @@ test("calling the artist returns the studio number", () => {
   assert.equal(turn.draft.step, "phone");
 });
 
+test("a neck question is answered and is not saved as the customer name", () => {
+  const turn = answerIntake(startIntake().draft, "من میخوام رو گردنم تاتو بزنم امکانش هست");
+  assert.match(turn.say[0], /گردن/);
+  assert.match(turn.say[0], /پیمان/);
+  assert.equal(turn.draft.step, "name");
+  assert.equal(turn.draft.name, "");
+  assert.equal(turn.draft.part, "گردن");
+  assert.equal(turn.payload, null);
+});
+
 test("approximate size is enough and a new tattoo still needs the design photo", () => {
   let turn = startIntake();
   for (const step of ["امیر حسینی", "09120000000", "pick:new", "pick:ساعد", "pick:left", "pick:medium"]) {

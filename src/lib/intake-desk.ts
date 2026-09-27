@@ -71,6 +71,12 @@ export function answerIntake(draft: IntakeDraft, raw: string, images?: { design?
     imageCurrent: images?.current ?? draft.imageCurrent,
   };
   if (!text) return speak(next, ["جواب را بنویس، یا اگر سؤال داری بپرس."]);
+  if (!text.startsWith("pick:") && text !== "فرستادم" && !(next.step === "phone" && isIranMobile(normalizeIranPhone(text))) && looksLikeTalk(text)) {
+    const hinted = mentionedPart(text);
+    const remembered = hinted ? { ...next, part: next.part || hinted } : next;
+    const faq = secretaryAnswer(text) || (hinted ? `بله. تاتو روی ${hinted} انجام می‌شود و کار را خود ${STUDIO_OWNER_STAFF_NAME} می‌زند.` : "سؤالت را بپرس. درباره تماس، متریال، درد، آدرس یا جای بدن جواب می‌دهم.");
+    return speak(remembered, [faq, question(remembered)]);
+  }
   const faq = secretaryAnswer(text);
   if (faq && !isDirectAnswer(next, text)) return speak(next, [faq, question(next)]);
   if (next.step === "confirm") return confirm(next, text);
@@ -85,8 +91,8 @@ function check(draft: IntakeDraft, text: string): { draft: IntakeDraft; error: s
   const id = text.startsWith("pick:") ? text.slice(5) : "";
   if (draft.step === "name") {
     const name = text.replace(/^pick:/, "").trim();
-    if (name.length < 5 || !/[\u0600-\u06FF]/.test(name) || /\d/.test(toEnDigits(name))) {
-      return { draft, error: "نام و نام خانوادگی را فارسی بنویس." };
+    if (name.length < 5 || !/[\u0600-\u06FF]/.test(name) || /\d/.test(toEnDigits(name)) || looksLikeTalk(name)) {
+      return { draft, error: "این اسم نیست. اسم و نام خانوادگی‌ات را بنویس. اگر سؤال داری همان را بپرس." };
     }
     return { draft: { ...draft, name }, error: "" };
   }
@@ -101,6 +107,7 @@ function check(draft: IntakeDraft, text: string): { draft: IntakeDraft; error: s
     return { draft: { ...draft, requestType: found[0] }, error: "" };
   }
   if (draft.step === "part") {
+    if (draft.part && /^(بله|آره|اره|همان|همون|درسته)/.test(text)) return { draft, error: "" };
     const found = TATTOO_BODY_PARTS.find((item) => item !== "سایر" && (id === item || text.includes(item)));
     if (!found) return { draft, error: "محل اجرا را از گزینه‌ها انتخاب کن." };
     return { draft: { ...draft, part: found }, error: "" };
@@ -168,10 +175,43 @@ function secretaryAnswer(text: string) {
   if (/چند ساعت|طول میکشد|طول می‌کشد|چقدر طول/.test(q)) {
     return "زمان دقیق بعد از دیدن طرح گفته می‌شود. جلسه می‌تواند چند ساعت باشد.";
   }
-  if (/بیعانه|کارت|واریز|شبا/.test(q)) {
+  if (/بیعانه|کارت به کارت|واریز|شبا/.test(q) && !/امکان|میخوام|می‌خوام/.test(q)) {
     return "بعد از تأیید درخواست، شماره کارت و مبلغ بیعانه در وضعیت همین شماره برایت می‌آید.";
   }
+  const part = mentionedPart(q);
+  if (part && /امکان|میخوام|می‌خوام|میخاست|می‌خواست|میشه|می‌شه|بزن|زدن|هست|میتون|می‌تون/.test(q)) {
+    return `بله. تاتو روی ${part} انجام می‌شود و کار را خود ${STUDIO_OWNER_STAFF_NAME} می‌زند.`;
+  }
+  if (/امکان|میشه|می‌شه|میتونم|می‌تونم/.test(q)) {
+    return `بله. کار انجام می‌شود و تاتو را خود ${STUDIO_OWNER_STAFF_NAME} می‌زند.`;
+  }
   return "";
+}
+
+function looksLikeTalk(text: string) {
+  return /[؟?]|امکان|میخوام|می‌خوام|میخاست|می‌خواست|میشه|می‌شه|میتون|می‌تون|بزنم|بزنه|تاتو|چطور|چجوری|چرا|آیا|لطفا/.test(text);
+}
+
+function mentionedPart(text: string) {
+  const cleaned = text.replace(/درخواست/g, "");
+  const found = [
+    [/گردن/, "گردن"],
+    [/ساعد/, "ساعد"],
+    [/بازو/, "بازو"],
+    [/انگشت/, "انگشت"],
+    [/سینه/, "سینه"],
+    [/شکم/, "شکم"],
+    [/پهلو/, "پهلو"],
+    [/پشت|کمر/, "پشت"],
+    [/زانو/, "زانو"],
+    [/ساق/, "ساق"],
+    [/ران/, "ران"],
+    [/مچ/, "مچ"],
+    [/پا(?!ر)/, "پا"],
+    [/دست/, "دست"],
+    [/سر(?!یع)/, "سر"],
+  ].find(([pattern]) => (pattern as RegExp).test(cleaned));
+  return found ? String(found[1]) : "";
 }
 
 function isDirectAnswer(draft: IntakeDraft, text: string) {
@@ -199,7 +239,7 @@ function question(draft: IntakeDraft) {
   const again = draft.fixing ? "این مورد را اصلاح کن. " : "";
   if (draft.step === "phone") return `${again}شماره موبایل را بنویس.`;
   if (draft.step === "type") return `${again}کارت جدید است، کاور است، یا مشاوره؟`;
-  if (draft.step === "part") return `${again}کجای بدن است؟`;
+  if (draft.step === "part" && draft.part) return `${again}گفتی ${draft.part}. همان جا باشد؟`;
   if (draft.step === "side") return `${again}${draft.part} راست است یا چپ؟`;
   if (draft.step === "size") return `${again}اندازه را بگو. دقیق، مثل ۱۰ در ۱۵، یا تقریبی.`;
   if (draft.step === "design") {
