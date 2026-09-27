@@ -1,38 +1,22 @@
-import { isIranMobile, normalizeInstagramHandle, normalizeIranPhone, toEnDigits } from "./format.ts";
-import { TATTOO_BODY_PARTS, TATTOO_COLORS, TATTOO_REQUEST_LABEL, TATTOO_SIDES, TATTOO_STYLE_OPTIONS } from "./tattoo-estimate.ts";
+import { isIranMobile, normalizeIranPhone, toEnDigits } from "./format.ts";
+import { TATTOO_BODY_PARTS, TATTOO_REQUEST_LABEL, TATTOO_SIDES, TATTOO_SIZE_LABELS } from "./tattoo-estimate.ts";
+import { STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME } from "./tattoo-flow.ts";
 
-export type IntakeStep =
-  | "name"
-  | "phone"
-  | "phone2"
-  | "instagram"
-  | "type"
-  | "part"
-  | "side"
-  | "size"
-  | "style"
-  | "color"
-  | "idea"
-  | "image"
-  | "confirm";
+export type IntakeStep = "name" | "phone" | "type" | "part" | "side" | "size" | "design" | "body" | "confirm";
 
 export type IntakeDraft = {
   step: IntakeStep;
   fixing: boolean;
   name: string;
   phone: string;
-  phone2: string;
-  instagram: string;
   requestType: string;
   part: string;
   side: string;
   width: string;
   height: string;
-  style: string;
-  colorMode: string;
-  idea: string;
-  imageCount: number;
-  hasCurrent: boolean;
+  sizeLabel: string;
+  imageDesign: boolean;
+  imageCurrent: boolean;
 };
 
 export type IntakeChip = { id: string; label: string };
@@ -41,15 +25,13 @@ export type IntakeTurn = {
   draft: IntakeDraft;
   say: string[];
   chips: IntakeChip[];
-  image: boolean;
+  image: false | "reference" | "current";
   payload: IntakePayload | null;
 };
 
 export type IntakePayload = {
   customerName: string;
   customerPhone: string;
-  customerPhone2?: string;
-  customerInstagram?: string;
   requestType: string;
   style: string;
   styles: string[];
@@ -59,40 +41,44 @@ export type IntakePayload = {
   sizeMode: string;
   colorMode: string;
   bodySide: string;
-  preferredDates?: string;
 };
 
-const ORDER: IntakeStep[] = ["name", "phone", "phone2", "instagram", "type", "part", "side", "size", "style", "color", "idea", "image", "confirm"];
+const ORDER: IntakeStep[] = ["name", "phone", "type", "part", "side", "size", "design", "body", "confirm"];
 
 const TYPES = [
   ["new", "تاتوی جدید"],
-  ["custom", "طراحی اختصاصی"],
-  ["coverup", "کاور تاتوی قبلی"],
-  ["repair", "ترمیم"],
-  ["continuation", "تکمیل تاتوی قبلی"],
+  ["coverup", "کاور"],
   ["consultation", "مشاوره"],
+  ["repair", "ترمیم"],
+  ["continuation", "تکمیل کار قبلی"],
+  ["custom", "طراحی اختصاصی"],
 ] as const;
-
-const VAGUE_IDEA = /^(طرح|یه طرح|یک طرح|تاتو|چیز|قشنگ|خوب|عالی|باحال|نمیدونم|نمی‌دانم|نمی دونم|هرچی|هر چی|نمیدانم|فقط تاتو)$/;
 
 export function startIntake(): IntakeTurn {
   return speak(blank(), [
-    "اینجا میز پذیرش است.",
-    "سؤال‌ها را یکی‌یکی می‌پرسم. تا خواسته‌ات دقیق و تأیید نشده باشد، برای آرتیست فرستاده نمی‌شود. قیمت و روز را من تعیین نمی‌کنم.",
-    "نام و نام خانوادگی‌ات چیست؟",
+    "پاسخ سریع درخواست.",
+    "اگر سؤالی داری همین‌جا بپرس: شماره تماس، متریال، یا اینکه کار را چه کسی می‌زند.",
+    "برای خود درخواست فقط نوع کار، جای بدن، اندازه و عکس طرح لازم است.",
+    "اسمت چیست؟",
   ]);
 }
 
-export function answerIntake(draft: IntakeDraft, raw: string, images?: { count: number; hasCurrent: boolean }): IntakeTurn {
+export function answerIntake(draft: IntakeDraft, raw: string, images?: { design?: boolean; current?: boolean }): IntakeTurn {
   const text = raw.replace(/\s+/g, " ").trim();
-  const next = { ...draft, imageCount: images?.count ?? draft.imageCount, hasCurrent: images?.hasCurrent ?? draft.hasCurrent };
-  if (!text) return speak(next, ["این قسمت را بنویس."]);
+  const next = {
+    ...draft,
+    imageDesign: images?.design ?? draft.imageDesign,
+    imageCurrent: images?.current ?? draft.imageCurrent,
+  };
+  if (!text) return speak(next, ["جواب را بنویس، یا اگر سؤال داری بپرس."]);
+  const faq = secretaryAnswer(text);
+  if (faq && !isDirectAnswer(next, text)) return speak(next, [faq, question(next)]);
   if (next.step === "confirm") return confirm(next, text);
   const checked = check(next, text);
   if (checked.error) return speak(checked.draft, [checked.error]);
   const filled = checked.draft;
-  if (filled.fixing) return showConfirm({ ...filled, fixing: false, step: "confirm" });
-  return ask(filled, stepAfter(filled.step));
+  if (filled.fixing) return showConfirm({ ...filled, fixing: false });
+  return ask(filled, stepAfter(filled));
 }
 
 function check(draft: IntakeDraft, text: string): { draft: IntakeDraft; error: string } {
@@ -100,194 +86,183 @@ function check(draft: IntakeDraft, text: string): { draft: IntakeDraft; error: s
   if (draft.step === "name") {
     const name = text.replace(/^pick:/, "").trim();
     if (name.length < 5 || !/[\u0600-\u06FF]/.test(name) || /\d/.test(toEnDigits(name))) {
-      return { draft, error: "نام و نام خانوادگی را کامل و فارسی بنویس." };
+      return { draft, error: "نام و نام خانوادگی را فارسی بنویس." };
     }
     return { draft: { ...draft, name }, error: "" };
   }
   if (draft.step === "phone") {
-    const phone = mobile(text);
-    if (!phone) return { draft, error: "شماره تماس واردشده صحیح نیست. مثل ۰۹۱۲۰۰۰۰۰۰۰." };
+    const phone = normalizeIranPhone(text);
+    if (!isIranMobile(phone)) return { draft, error: "شماره تماس واردشده صحیح نیست." };
     return { draft: { ...draft, phone }, error: "" };
   }
-  if (draft.step === "phone2") {
-    if (isSkip(text)) return { draft: { ...draft, phone2: "" }, error: "" };
-    const phone = mobile(text);
-    if (!phone) return { draft, error: "شماره دوم صحیح نیست. اگر نداری بنویس ندارم." };
-    if (phone === draft.phone) return { draft, error: "این همان شماره اول است. شماره دیگری بده یا بنویس ندارم." };
-    return { draft: { ...draft, phone2: phone }, error: "" };
-  }
-  if (draft.step === "instagram") {
-    if (isSkip(text)) return { draft: { ...draft, instagram: "" }, error: "" };
-    const handle = normalizeInstagramHandle(text);
-    if (handle.length < 2) return { draft, error: "آیدی اینستاگرام را درست بنویس، یا بنویس ندارم." };
-    return { draft: { ...draft, instagram: handle }, error: "" };
-  }
   if (draft.step === "type") {
-    const found = TYPES.find((item) => item[0] === id || item[1] === text || text.includes(item[1]));
-    if (!found) return { draft, error: "نوع کار را از گزینه‌ها انتخاب کن." };
+    const found = TYPES.find((item) => item[0] === id || text.includes(item[1]));
+    if (!found) return { draft, error: "نوع کار را انتخاب کن: تاتوی جدید، کاور، یا مشاوره." };
     return { draft: { ...draft, requestType: found[0] }, error: "" };
   }
   if (draft.step === "part") {
-    const found = TATTOO_BODY_PARTS.find((item) => item !== "سایر" && (id === item || text === item || text.includes(item)));
-    if (!found) return { draft, error: "محل را دقیق انتخاب کن. «بدن» یا «سایر» کافی نیست." };
+    const found = TATTOO_BODY_PARTS.find((item) => item !== "سایر" && (id === item || text.includes(item)));
+    if (!found) return { draft, error: "محل اجرا را از گزینه‌ها انتخاب کن." };
     return { draft: { ...draft, part: found }, error: "" };
   }
   if (draft.step === "side") {
-    const found = TATTOO_SIDES.find((item) => item[0] === id || item[1] === text || text.includes(item[1]));
-    if (!found) return { draft, error: "راست، چپ یا وسط را انتخاب کن." };
+    const found = TATTOO_SIDES.find((item) => item[0] === id || text.includes(item[1]));
+    if (!found) return { draft, error: "بگو راست است، چپ است، یا وسط." };
     return { draft: { ...draft, side: found[0] }, error: "" };
   }
   if (draft.step === "size") {
-    const size = parseSize(text);
-    if (!size) return { draft, error: "طول و عرض را به سانتی‌متر بگو. مثلاً ۱۰ در ۱۵. اندازهٔ مبهم قبول نمی‌شود." };
-    return { draft: { ...draft, width: size.width, height: size.height }, error: "" };
+    const exact = parseSize(text);
+    if (exact) return { draft: { ...draft, width: exact.width, height: exact.height, sizeLabel: "" }, error: "" };
+    const approx = TATTOO_SIZE_LABELS.find((item) => item[0] === id || text.includes(item[1]));
+    if (approx) return { draft: { ...draft, width: "", height: "", sizeLabel: approx[0] }, error: "" };
+    return { draft, error: "اندازه را دقیق بگو، مثل ۱۰ در ۱۵، یا یکی از اندازه‌های تقریبی را انتخاب کن." };
   }
-  if (draft.step === "style") {
-    const found = TATTOO_STYLE_OPTIONS.find((item) => item[0] !== "unknown" && item[0] !== "other" && (item[0] === id || item[1] === text || text.includes(item[1])));
-    if (!found) return { draft, error: "یک سبک مشخص انتخاب کن. «نمی‌دانم» به صندوق نمی‌رود." };
-    return { draft: { ...draft, style: found[0] }, error: "" };
-  }
-  if (draft.step === "color") {
-    const found = TATTOO_COLORS.find((item) => item[0] !== "unsure" && (item[0] === id || item[1] === text || text.includes(item[1])));
-    if (!found) return { draft, error: "رنگ کار را مشخص کن: سیاه و خاکستری، تمام‌رنگی، یا سیاه با یک رنگ." };
-    return { draft: { ...draft, colorMode: found[0] }, error: "" };
-  }
-  if (draft.step === "idea") {
-    const idea = text.trim();
-    const compact = idea.replace(/\s/g, "");
-    if (idea.split(" ").filter(Boolean).length < 3 || compact.length < 15 || VAGUE_IDEA.test(compact)) {
-      return { draft, error: "خواسته را دقیق بنویس. موضوع طرح، نوشتهٔ داخلش، و چیزی که نباید باشد را بگو." };
-    }
-    return { draft: { ...draft, idea }, error: "" };
-  }
-  if (draft.step === "image") {
-    const needsCurrent = draft.requestType === "coverup" || draft.requestType === "repair";
-    if (isSkip(text)) {
-      if (needsCurrent || draft.imageCount < 1 && needsCurrent) {
-        return { draft, error: "برای کاور یا ترمیم، عکس تاتوی فعلی لازم است." };
-      }
-      return { draft, error: "" };
-    }
-    if (draft.imageCount < 1) return { draft, error: "اول عکس را بفرست، یا اگر عکس نداری بنویس ندارم." };
-    if (needsCurrent && !draft.hasCurrent) return { draft, error: "عکس تاتوی فعلی را بفرست، نه فقط طرح مرجع." };
+  if (draft.step === "design") {
+    const optional = draft.requestType === "consultation";
+    if (isSkip(text) && optional) return { draft, error: "" };
+    if (!draft.imageDesign) return { draft, error: "عکس خود طرح را بفرست تا قیمت دقیق‌تر شود." };
     return { draft, error: "" };
   }
-  return { draft, error: "این جواب را نفهمیدم. دوباره همان سؤال را جواب بده." };
+  if (draft.step === "body") {
+    if (!draft.imageCurrent) return { draft, error: "عکس تاتویی که الان روی بدن است را بفرست." };
+    return { draft, error: "" };
+  }
+  return { draft, error: "این را نفهمیدم. اگر سؤال داری بپرس." };
 }
 
 function confirm(draft: IntakeDraft, text: string): IntakeTurn {
   if (/^(بله|آره|اره|درست است|درسته|تأیید|تایید|بفرست)/.test(text) || text === "pick:yes") {
     return { ...showConfirm(draft), payload: toPayload(draft) };
   }
-  const fix = ORDER.find((step) => text === `pick:fix:${step}`);
-  if (fix && fix !== "confirm") {
-    return ask({ ...draft, fixing: true }, fix);
+  const fix = ORDER.find((step) => text === `pick:fix:${step}` && (step !== "body" || needsBody(draft)));
+  if (fix && fix !== "confirm") return ask({ ...draft, fixing: true }, fix);
+  const faq = secretaryAnswer(text);
+  if (faq) return speak(draft, [faq, "اگر خلاصه درست است بنویس بله."]);
+  return speak(draft, ["اگر خلاصه درست است بنویس بله. اگر نه، همان مورد را اصلاح کن."]);
+}
+
+function secretaryAnswer(text: string) {
+  const q = text.replace(/[؟?]/g, "").trim();
+  if (q.length < 2) return "";
+  if (/تماس|شماره|زنگ|تلفن|واتس|پیامک/.test(q)) {
+    return `برای تماس با آرتیست همین شماره را بگیر: ${STUDIO_CONTACT_PHONE}`;
   }
-  return speak(draft, ["اگر خلاصه درست است بنویس بله. اگر نه، همان مورد را برای اصلاح انتخاب کن."]);
+  if (/آدرس|کجاست|کجا هست|آدرس استودیو|چطور بیام|چجوری بیام/.test(q)) {
+    return `استودیو: ${STUDIO_ADDRESS}. تلفن: ${STUDIO_CONTACT_PHONE}`;
+  }
+  if (/متریال|کیفیت|سوزن|جوهر|رنگ تاتو|لوازم|بهداشت|یکبار|یک‌بار|آمریک/.test(q)) {
+    return "همه متریال آمریکایی است و تمام لوازم یکبار مصرف است.";
+  }
+  if (/خودش|خودت|کی میزن|کی می‌زن|پیمان|هنرجو|کارآموز|استاد/.test(q)) {
+    return `بله. تاتو را خود ${STUDIO_OWNER_STAFF_NAME} انجام می‌دهد.`;
+  }
+  if (/پنجشنبه|پنج‌شنبه/.test(q)) {
+    return "پنجشنبه‌ها فقط برای کارآموزهاست و نوبت مشتری ثبت نمی‌شود.";
+  }
+  if (/قیمت|هزینه|چقدر|چند تومن|میلیون/.test(q)) {
+    return "قیمت را خود آرتیست بعد از دیدن طرح، محل و اندازه می‌گوید. اینجا قیمت تعیین نمی‌شود.";
+  }
+  if (/درد|بی\s*حسی|بیحسی|طاقت/.test(q)) {
+    return "اگر نگران درد هستی، بی‌حسی موقع کار با خود پیمان هماهنگ می‌شود.";
+  }
+  if (/چند ساعت|طول میکشد|طول می‌کشد|چقدر طول/.test(q)) {
+    return "زمان دقیق بعد از دیدن طرح گفته می‌شود. جلسه می‌تواند چند ساعت باشد.";
+  }
+  if (/بیعانه|کارت|واریز|شبا/.test(q)) {
+    return "بعد از تأیید درخواست، شماره کارت و مبلغ بیعانه در وضعیت همین شماره برایت می‌آید.";
+  }
+  return "";
+}
+
+function isDirectAnswer(draft: IntakeDraft, text: string) {
+  if (text.startsWith("pick:") || text === "فرستادم") return true;
+  if (/[؟?]/.test(text) || /^(آیا|میشه|می‌شه|چطور|چجوری|کجا|کی |چند|شماره)/.test(text)) return false;
+  return draft.step === "name" || draft.step === "phone" || draft.step === "size";
 }
 
 function ask(draft: IntakeDraft, step: IntakeStep): IntakeTurn {
-  return show(step === "confirm" ? showConfirm(draft) : speak({ ...draft, step }, [question(step, draft)]));
+  const next = { ...draft, step };
+  return step === "confirm" ? showConfirm(next) : speak(next, [question(next)]);
 }
 
 function showConfirm(draft: IntakeDraft): IntakeTurn {
   const ready = { ...draft, step: "confirm" as const, fixing: false };
-  return speak(ready, ["این خلاصه را بخوان. فقط اگر همه‌اش دقیق است بنویس بله.", summary(ready)]);
-}
-
-function show(turn: IntakeTurn): IntakeTurn {
-  return turn;
+  return speak(ready, ["این را بخوان. اگر درست است بنویس بله.", summary(ready)]);
 }
 
 function speak(draft: IntakeDraft, say: string[]): IntakeTurn {
-  return { draft, say, chips: chipsFor(draft), image: draft.step === "image", payload: null };
+  const image = draft.step === "design" ? "reference" : draft.step === "body" ? "current" : false;
+  return { draft, say, chips: chipsFor(draft), image, payload: null };
 }
 
-function question(step: IntakeStep, draft: IntakeDraft) {
+function question(draft: IntakeDraft) {
   const again = draft.fixing ? "این مورد را اصلاح کن. " : "";
-  if (step === "phone") return `${again}شماره موبایل را بنویس.`;
-  if (step === "phone2") return `${again}شماره دوم داری؟ اگر نه، بنویس ندارم.`;
-  if (step === "instagram") return `${again}آیدی اینستاگرام را بنویس. اگر نداری، بنویس ندارم.`;
-  if (step === "type") return `${again}کدام کار را می‌خواهی؟`;
-  if (step === "part") return `${again}طرح دقیقاً روی کدام قسمت بدن است؟`;
-  if (step === "side") return `${again}${draft.part} کدام سمت است؟`;
-  if (step === "size") return `${again}طول و عرض را به سانتی‌متر بگو. مثلاً ۱۰ در ۱۵.`;
-  if (step === "style") return `${again}سبک طرح کدام است؟ یکی را انتخاب کن.`;
-  if (step === "color") return `${again}رنگ کار کدام است؟`;
-  if (step === "idea") return `${again}خود طرح را دقیق بگو: موضوع، نوشته، و چیزی که نباید در کار باشد.`;
-  if (step === "image") {
-    return draft.requestType === "coverup" || draft.requestType === "repair"
-      ? `${again}عکس واضح تاتوی فعلی را بفرست.`
-      : `${again}اگر عکس طرح یا محل را داری بفرست. اگر نداری بنویس ندارم.`;
+  if (draft.step === "phone") return `${again}شماره موبایل را بنویس.`;
+  if (draft.step === "type") return `${again}کارت جدید است، کاور است، یا مشاوره؟`;
+  if (draft.step === "part") return `${again}کجای بدن است؟`;
+  if (draft.step === "side") return `${again}${draft.part} راست است یا چپ؟`;
+  if (draft.step === "size") return `${again}اندازه را بگو. دقیق، مثل ۱۰ در ۱۵، یا تقریبی.`;
+  if (draft.step === "design") {
+    return draft.requestType === "consultation"
+      ? `${again}اگر عکس طرح داری بفرست. اگر نداری بنویس ندارم.`
+      : `${again}عکس خود طرح را بفرست.`;
   }
-  return `${again}نام و نام خانوادگی‌ات چیست؟`;
+  if (draft.step === "body") return `${again}عکس تاتویی که الان روی بدن است را بفرست.`;
+  return `${again}اسمت چیست؟`;
 }
 
 function chipsFor(draft: IntakeDraft): IntakeChip[] {
-  if (draft.step === "phone2" || draft.step === "instagram") return [{ id: "skip", label: "ندارم" }];
   if (draft.step === "type") return TYPES.map(([id, label]) => ({ id, label }));
   if (draft.step === "part") return TATTOO_BODY_PARTS.filter((item) => item !== "سایر").map((item) => ({ id: item, label: item }));
   if (draft.step === "side") return TATTOO_SIDES.map(([id, label]) => ({ id, label }));
-  if (draft.step === "style") return TATTOO_STYLE_OPTIONS.filter((item) => item[0] !== "unknown" && item[0] !== "other").map(([id, label]) => ({ id, label }));
-  if (draft.step === "color") return TATTOO_COLORS.filter((item) => item[0] !== "unsure").map(([id, label]) => ({ id, label }));
-  if (draft.step === "image" && draft.requestType !== "coverup" && draft.requestType !== "repair") return [{ id: "skip", label: "عکس ندارم" }];
+  if (draft.step === "size") return TATTOO_SIZE_LABELS.map(([id, label]) => ({ id, label: `${label}، تقریبی` }));
+  if (draft.step === "design" && draft.requestType === "consultation") return [{ id: "skip", label: "عکس ندارم" }];
   if (draft.step === "confirm") {
-    return [
-      { id: "yes", label: "درست است، بفرست" },
-      ...ORDER.filter((step) => step !== "confirm").map((step) => ({ id: `fix:${step}`, label: fixLabel(step) })),
-    ];
+    const fixes = ORDER.filter((step) => step !== "confirm" && (step !== "body" || needsBody(draft)));
+    return [{ id: "yes", label: "درست است، بفرست" }, ...fixes.map((step) => ({ id: `fix:${step}`, label: fixLabel(step) }))];
   }
   return [];
 }
 
 function summary(draft: IntakeDraft) {
   const side = TATTOO_SIDES.find((item) => item[0] === draft.side)?.[1] || "";
-  const style = TATTOO_STYLE_OPTIONS.find((item) => item[0] === draft.style)?.[1] || "";
-  const color = TATTOO_COLORS.find((item) => item[0] === draft.colorMode)?.[1] || "";
-  const photo = draft.imageCount ? `${fa(draft.imageCount)} عکس` : "بدون عکس";
   return [
     `نام: ${draft.name}`,
     `شماره: ${draft.phone}`,
-    `شماره دوم: ${draft.phone2 || "ندارد"}`,
-    `اینستاگرام: ${draft.instagram || "ندارد"}`,
     `نوع: ${TATTOO_REQUEST_LABEL[draft.requestType] || ""}`,
     `محل: ${draft.part} ${side}`,
-    `اندازه: ${fa(draft.width)} در ${fa(draft.height)} سانتی‌متر`,
-    `سبک: ${style}`,
-    `رنگ: ${color}`,
-    `شرح: ${draft.idea}`,
-    `عکس: ${photo}`,
-  ].join("\n");
+    `اندازه: ${sizeText(draft)}`,
+    `عکس طرح: ${draft.imageDesign ? "دارد" : "ندارد"}`,
+    needsBody(draft) ? `عکس تاتوی فعلی: ${draft.imageCurrent ? "دارد" : "ندارد"}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function toPayload(draft: IntakeDraft): IntakePayload {
   const side = TATTOO_SIDES.find((item) => item[0] === draft.side)?.[1] || "";
-  const style = TATTOO_STYLE_OPTIONS.find((item) => item[0] === draft.style)?.[1] || draft.style;
-  const color = TATTOO_COLORS.find((item) => item[0] === draft.colorMode)?.[1] || "";
-  const size = `${draft.width}×${draft.height} سانتی‌متر`;
+  const size = sizeText(draft);
   return {
     customerName: draft.name,
     customerPhone: draft.phone,
-    customerPhone2: draft.phone2 || undefined,
-    customerInstagram: draft.instagram || undefined,
     requestType: draft.requestType,
-    style,
-    styles: [draft.style],
-    idea: [
-      "خلاصه تأییدشده در میز پذیرش",
-      `نوع: ${TATTOO_REQUEST_LABEL[draft.requestType] || draft.requestType}`,
-      `محل: ${draft.part}، ${side}`,
-      `اندازه: ${size}`,
-      `سبک: ${style}`,
-      `رنگ: ${color}`,
-      `شرح مشتری: ${draft.idea}`,
-    ].join("\n"),
+    style: "از روی عکس",
+    styles: ["other"],
+    idea: [`درخواست از پاسخ سریع`, `نوع: ${TATTOO_REQUEST_LABEL[draft.requestType] || draft.requestType}`, `محل: ${draft.part}، ${side}`, `اندازه: ${size}`].join("\n"),
     placement: `${draft.part}، ${side}`,
     sizeCm: size,
-    sizeMode: "cm",
-    colorMode: draft.colorMode,
+    sizeMode: draft.sizeLabel ? "approx" : "cm",
+    colorMode: "",
     bodySide: draft.side,
   };
+}
+
+function sizeText(draft: IntakeDraft) {
+  if (draft.sizeLabel) {
+    const label = TATTOO_SIZE_LABELS.find((item) => item[0] === draft.sizeLabel)?.[1] || draft.sizeLabel;
+    return `${label}، تقریبی`;
+  }
+  return `${draft.width}×${draft.height} سانتی‌متر`;
 }
 
 function blank(): IntakeDraft {
@@ -296,37 +271,34 @@ function blank(): IntakeDraft {
     fixing: false,
     name: "",
     phone: "",
-    phone2: "",
-    instagram: "",
     requestType: "",
     part: "",
     side: "",
     width: "",
     height: "",
-    style: "",
-    colorMode: "",
-    idea: "",
-    imageCount: 0,
-    hasCurrent: false,
+    sizeLabel: "",
+    imageDesign: false,
+    imageCurrent: false,
   };
 }
 
-function stepAfter(step: IntakeStep): IntakeStep {
-  const index = ORDER.indexOf(step);
-  return ORDER[Math.min(ORDER.length - 1, index + 1)] || "confirm";
+function stepAfter(draft: IntakeDraft): IntakeStep {
+  const index = ORDER.indexOf(draft.step);
+  let next = ORDER[index + 1] || "confirm";
+  if (next === "body" && !needsBody(draft)) next = "confirm";
+  return next;
 }
 
-function mobile(raw: string) {
-  const phone = normalizeIranPhone(raw);
-  return isIranMobile(phone) ? phone : "";
+function needsBody(draft: IntakeDraft) {
+  return draft.requestType === "coverup" || draft.requestType === "repair";
 }
 
 function isSkip(text: string) {
-  return text === "pick:skip" || /^(ندارم|نه|خیر|بدون عکس|عکس ندارم)$/.test(text);
+  return text === "pick:skip" || /^(ندارم|نه|خیر|عکس ندارم)$/.test(text);
 }
 
 function parseSize(raw: string) {
-  const text = toEnDigits(raw).replace(/سانتی\s*متر|سانت|cm/gi, " ");
+  const text = toEnDigits(raw);
   const match = text.match(/(\d{1,2}(?:\.\d+)?)\s*(?:در|x|×|\*|به)\s*(\d{1,2}(?:\.\d+)?)/i);
   if (!match) return null;
   const width = Number(match[1]);
@@ -335,24 +307,16 @@ function parseSize(raw: string) {
   return { width: String(width), height: String(height) };
 }
 
-function fa(value: string | number) {
-  return new Intl.NumberFormat("fa-IR").format(Number(value) || 0);
-}
-
 function fixLabel(step: IntakeStep) {
   const labels: Record<IntakeStep, string> = {
     name: "اصلاح نام",
     phone: "اصلاح شماره",
-    phone2: "اصلاح شماره دوم",
-    instagram: "اصلاح اینستاگرام",
-    type: "اصلاح نوع کار",
+    type: "اصلاح نوع",
     part: "اصلاح محل",
     side: "اصلاح سمت",
     size: "اصلاح اندازه",
-    style: "اصلاح سبک",
-    color: "اصلاح رنگ",
-    idea: "اصلاح شرح",
-    image: "اصلاح عکس",
+    design: "اصلاح عکس طرح",
+    body: "اصلاح عکس بدن",
     confirm: "تأیید",
   };
   return labels[step];

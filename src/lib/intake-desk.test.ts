@@ -2,54 +2,45 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { answerIntake, startIntake } from "./intake-desk.ts";
 
-test("a vague size never reaches the inbox", () => {
+test("a customer question is answered without skipping the form", () => {
+  const turn = answerIntake(startIntake().draft, "متریال تاتو آمریکاییه؟");
+  assert.match(turn.say[0], /آمریکایی/);
+  assert.match(turn.say[1], /اسمت/);
+  assert.equal(turn.draft.step, "name");
+  assert.equal(turn.payload, null);
+});
+
+test("calling the artist returns the studio number", () => {
   let turn = startIntake();
   turn = answerIntake(turn.draft, "امیر حسینی");
-  turn = answerIntake(turn.draft, "09120000000");
-  turn = answerIntake(turn.draft, "ندارم");
-  turn = answerIntake(turn.draft, "ندارم");
-  turn = answerIntake(turn.draft, "pick:new");
-  turn = answerIntake(turn.draft, "pick:ساعد");
-  turn = answerIntake(turn.draft, "pick:right");
-  const vague = answerIntake(turn.draft, "متوسط");
-  assert.equal(vague.payload, null);
-  assert.match(vague.say[0], /سانتی‌متر/);
+  turn = answerIntake(turn.draft, "شماره تماس آرتیست را می‌خواستم");
+  assert.match(turn.say[0], /09216812852/);
+  assert.equal(turn.draft.step, "phone");
 });
 
-test("confirmation is required before a payload exists", () => {
+test("approximate size is enough and a new tattoo still needs the design photo", () => {
   let turn = startIntake();
-  const steps = [
-    "امیر حسینی",
-    "09120000000",
-    "ندارم",
-    "ندارم",
-    "pick:new",
-    "pick:ساعد",
-    "pick:left",
-    "۱۰ در ۱۵",
-    "pick:realism",
-    "pick:full",
-    "پرتره پدر بدون هیچ نوشته‌ای",
-    "ندارم",
-  ];
-  for (const step of steps) turn = answerIntake(turn.draft, step);
-  assert.equal(turn.payload, null);
-  assert.equal(turn.draft.step, "confirm");
-  const sent = answerIntake(turn.draft, "pick:yes");
-  assert.equal(sent.payload?.placement, "ساعد، چپ");
-  assert.equal(sent.payload?.sizeCm, "10×15 سانتی‌متر");
-  assert.match(sent.payload?.idea || "", /پرتره پدر/);
-});
-
-test("cover-up cannot skip the current tattoo photo", () => {
-  let turn = startIntake();
-  for (const step of ["امیر حسینی", "09120000000", "ندارم", "ندارم", "pick:coverup", "pick:بازو", "pick:right", "8 در 12"]) {
+  for (const step of ["امیر حسینی", "09120000000", "pick:new", "pick:ساعد", "pick:left", "pick:medium"]) {
     turn = answerIntake(turn.draft, step);
   }
-  turn = answerIntake(turn.draft, "pick:blackwork");
-  turn = answerIntake(turn.draft, "pick:blackgrey");
-  turn = answerIntake(turn.draft, "کاور نوشته قدیمی که رنگش رفته است");
-  const skipped = answerIntake(turn.draft, "ندارم");
+  assert.equal(turn.draft.step, "design");
+  const blocked = answerIntake(turn.draft, "ندارم");
+  assert.match(blocked.say[0], /عکس/);
+  const ready = answerIntake(turn.draft, "فرستادم", { design: true });
+  assert.equal(ready.draft.step, "confirm");
+  const sent = answerIntake(ready.draft, "pick:yes", { design: true });
+  assert.match(sent.payload?.sizeCm || "", /تقریبی/);
+  assert.equal(sent.payload?.placement, "ساعد، چپ");
+});
+
+test("cover-up cannot skip the tattoo already on the body", () => {
+  let turn = startIntake();
+  for (const step of ["امیر حسینی", "09120000000", "pick:coverup", "pick:بازو", "pick:right", "۸ در ۱۲"]) {
+    turn = answerIntake(turn.draft, step);
+  }
+  turn = answerIntake(turn.draft, "فرستادم", { design: true });
+  assert.equal(turn.draft.step, "body");
+  const skipped = answerIntake(turn.draft, "ندارم", { design: true });
+  assert.match(skipped.say[0], /بدن/);
   assert.equal(skipped.payload, null);
-  assert.match(skipped.say[0], /عکس/);
 });

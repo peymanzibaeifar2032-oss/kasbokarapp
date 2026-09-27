@@ -125,10 +125,10 @@ function StudioRequestPage() {
           ) : (
           <>
           <p className="text-xs text-[#b7955b]">نوبت تاتو</p>
-          <h1 className="mt-2 text-3xl font-black">میز پذیرش</h1>
+          <h1 className="mt-2 text-3xl font-black">پاسخ سریع درخواست</h1>
           <p className="mt-3 text-sm leading-7 text-white/55">
-            خواسته‌ات را در گفتگو بگو. تا محل، اندازه، سبک، رنگ و شرح دقیق را تأیید نکنی، درخواست به صندوق نمی‌رود.
-            قیمت و روز اجرا را آرتیست تعیین می‌کند.
+            سؤال داری همین‌جا بپرس. برای ثبت درخواست فقط نوع کار، جای بدن، اندازه و عکس طرح لازم است.
+            شماره دوم و اینستاگرام اجباری نیست. قیمت را آرتیست بعد از دیدن درخواست می‌گوید.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-2">
             <Link
@@ -160,7 +160,7 @@ function StudioRequestPage() {
             <IntakeDesk busy={busy} onSubmit={(payload) => void submit(payload)} />
           )}
           <button type="button" className="mt-4 text-sm text-[#e5d2ae]" onClick={() => setUseForm((value) => !value)}>
-            {useForm ? "برگشت به میز پذیرش" : "اگر گفتگو قطع شد، فرم را خودم پر می‌کنم"}
+            {useForm ? "برگشت به پاسخ سریع" : "اگر گفتگو قطع شد، فرم را خودم پر می‌کنم"}
           </button>
           </>
           )}

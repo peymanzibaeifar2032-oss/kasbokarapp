@@ -22,7 +22,7 @@ export function IntakeDesk({
   const [text, setText] = useState("");
   const [images, setImages] = useState<WizardImage[]>([]);
   const [chips, setChips] = useState<{ id: string; label: string }[]>([]);
-  const [allowImage, setAllowImage] = useState(false);
+  const [allowImage, setAllowImage] = useState<false | "reference" | "current">(false);
 
   useEffect(() => {
     if (opened.current) return;
@@ -41,8 +41,8 @@ export function IntakeDesk({
   function apply(raw: string, nextImages = images, shown?: string) {
     if (!draft || busy) return;
     const turn = answerIntake(draft, raw, {
-      count: nextImages.length,
-      hasCurrent: nextImages.some((image) => image.kind === "current"),
+      design: nextImages.some((image) => image.kind === "reference" || image.kind === "sketch"),
+      current: nextImages.some((image) => image.kind === "current"),
     });
     setDraft(turn.draft);
     setLines((current) => [
@@ -58,7 +58,7 @@ export function IntakeDesk({
 
   async function addImages(list: FileList | null) {
     if (!list?.length || !draft) return;
-    const kind = draft.requestType === "coverup" || draft.requestType === "repair" ? "current" : "reference";
+    const kind = allowImage === "current" ? "current" : "reference";
     try {
       const packed = await Promise.all(Array.from(list).slice(0, 3).map(compressImage));
       const nextImages = [...images, ...packed.map((data) => ({ kind, data }) as WizardImage)].slice(0, 3);
@@ -71,7 +71,7 @@ export function IntakeDesk({
 
   return (
     <div className="mt-6">
-      <p className="text-xs text-[#b7955b]">میز پذیرش</p>
+      <p className="text-xs text-[#b7955b]">پاسخ سریع درخواست</p>
       <div ref={scroller} className="mt-3 grid max-h-[28rem] gap-2 overflow-y-auto rounded-3xl border border-white/10 bg-black/20 p-3">
         {lines.map((line, index) => (
           <p
@@ -99,7 +99,7 @@ export function IntakeDesk({
           onKeyDown={(event) => {
             if (event.key === "Enter") apply(text);
           }}
-          placeholder="جواب را بنویس"
+          placeholder="جواب یا سؤالت را بنویس"
           className="h-12 min-w-0 flex-1 rounded-2xl border border-white/15 bg-transparent px-3 text-sm"
         />
         {allowImage ? (
