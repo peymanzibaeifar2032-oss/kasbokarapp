@@ -48,11 +48,11 @@ export function customerFileLines(file: CustomerFileBrief) {
   ].filter(Boolean);
 }
 
-export function CustomerFileDetails({ file, pending }: { file: CustomerFileBrief | null; pending?: boolean }) {
+export function CustomerFileDetails({ file, pending, showEmpty }: { file: CustomerFileBrief | null; pending?: boolean; showEmpty?: boolean }) {
   if (pending) return <p className="mt-3 text-sm text-muted">در حال پیدا کردن پرونده…</p>;
-  if (!file) return null;
-  const lines = customerFileLines(file);
-  const minutes = toleranceMinutes(file.toleranceHours);
+  if (!file && !showEmpty) return null;
+  const lines = file ? customerFileLines(file) : [];
+  const minutes = file ? toleranceMinutes(file.toleranceHours) : null;
   return (
     <aside className="mt-3 rounded-2xl border border-primary/30 bg-primary/5 p-4">
       <h3 className="text-sm font-bold">جزئیات پرونده مشتری</h3>
@@ -63,9 +63,9 @@ export function CustomerFileDetails({ file, pending }: { file: CustomerFileBrief
           ))}
         </ul>
       ) : (
-        <p className="mt-2 text-sm leading-7 text-muted">برای این شماره هنوز چیزی در پرونده نوشته نشده.</p>
+        <p className="mt-2 text-sm leading-7 text-muted">برای این شماره هنوز پرونده‌ای ذخیره نشده.</p>
       )}
-      {minutes ? (
+      {minutes && file ? (
         <p className="mt-2 text-sm font-semibold leading-7">
           بیشتر از {file.toleranceHours} برایش وقت نگذار. اگر کار کوتاه‌تری هم داری، می‌تواند همان روز، کار دوم باشد.
         </p>

@@ -1881,7 +1881,7 @@ function MonthJobCard({
   onChange,
   file,
 }: {
-  job: TattooRequest;
+  job: TattooRequest & { customerFile?: CustomerFileBrief | null };
   busyKeys: string[];
   onChange: () => void;
   file: CustomerFileBrief | null;
@@ -1997,7 +1997,7 @@ function MonthJobCard({
               @{normalizeInstagramHandle(job.customerInstagram)}
             </a>
           ) : null}
-          <CustomerFileDetails file={file} />
+          <CustomerFileDetails file={job.customerFile ?? file} showEmpty />
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>

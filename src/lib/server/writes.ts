@@ -2625,7 +2625,39 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
       order by coalesce(proposed_slot_start, created_at)`,
     params,
   );
-  return mapTattooRequestRows(sql, rows);
+  const mapped = await mapTattooRequestRows(sql, rows);
+  const files = await filesForJobs(sql, userId, mapped);
+  return mapped.map((job, index) => ({ ...job, customerFile: files[index] }));
+}
+
+async function filesForJobs(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  userId: string,
+  jobs: { customerName: string; customerPhone: string; customerPhone2: string }[],
+) {
+  if (!jobs.length) return [] as Array<ReturnType<typeof mapCustomerFileBrief> | null>;
+  try {
+    const stored = await sql.query<CustomerFileBriefRow>(
+      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
+              numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration
+         from studio_customer_files where user_id=$1`,
+      [userId],
+    );
+    return jobs.map((job) => {
+      const tails = new Set([phoneTail(job.customerPhone), phoneTail(job.customerPhone2)].filter(Boolean));
+      const name = job.customerName.replace(/\s+/g, " ").trim();
+      const hit = stored.find((file) => {
+        const tail = phoneTail(file.contact_key);
+        if (tail && tails.has(tail)) return true;
+        const savedName = file.contact_key.startsWith("name:") ? file.contact_key.slice(5).trim() : "";
+        if (!name || !savedName) return false;
+        return name === savedName || name.includes(savedName) || savedName.includes(name);
+      });
+      return hit ? mapCustomerFileBrief(hit) : null;
+    });
+  } catch {
+    return jobs.map(() => null);
+  }
 }
 
 const expenseCategoryIds = STUDIO_EXPENSE_CATEGORIES.map((row) => row.id) as [StudioExpenseCategory, ...StudioExpenseCategory[]];
