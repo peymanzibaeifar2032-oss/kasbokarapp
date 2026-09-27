@@ -1381,6 +1381,13 @@ function MonthJobsPanel({
   const weekTitle = weekRangeLabel(week.startKey);
   const listTitle = "نوبت‌ها";
   const visibleJobs = jobs.filter((job) => customerQueryMatch(jobQuery, job));
+  const todayKey = tehranDayKey();
+  const upcomingJobs = visibleJobs
+    .filter((job) => jobDayKey(job) >= todayKey)
+    .sort((a, b) => jobStamp(a) - jobStamp(b));
+  const pastJobs = visibleJobs
+    .filter((job) => jobDayKey(job) < todayKey)
+    .sort((a, b) => jobStamp(a) - jobStamp(b));
 
   async function refreshAll() {
     await load();
@@ -1395,6 +1402,7 @@ function MonthJobsPanel({
           <p className="mt-1 text-sm leading-7 text-muted">
             نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
             جستجو فقط همان اسم یا شماره را نشان می‌دهد و نوبت‌های چندروزه را یکی نمی‌کند.
+            ترتیب از امروز تا آخر همین بازه است. روزهای گذشته پایین‌تر می‌آیند.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
@@ -1416,11 +1424,11 @@ function MonthJobsPanel({
           <Button
             variant="outline"
             size="sm"
-            disabled={!visibleJobs.length}
+            disabled={!upcomingJobs.length && !pastJobs.length}
             onClick={() => {
               try {
                 const mode = downloadStudioJobsPdf(
-                  visibleJobs,
+                  [...upcomingJobs, ...pastJobs],
                   span === "week" ? `لیست هفته ${weekTitle}` : `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
                 );
                 toast.success(
@@ -1483,14 +1491,26 @@ function MonthJobsPanel({
             : "در این ماه کار رزرو‌شده‌ای نیست. کارهای عقب‌افتاده را از فرم بالا دستی وارد کنید. تاریخ‌های سه‌شنبه ۵ آبان، شنبه ۹ آبان و جمعه ۱۴ آبان را هم همین‌جا ثبت کنید."}
         </p>
       ) : null}
-      {!loading && jobs.length > 0 && !visibleJobs.length ? (
+      {!loading && jobs.length > 0 && !upcomingJobs.length && !pastJobs.length ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
           {span === "week"
             ? "با این اسم یا شماره در این هفته نوبتی نیست."
             : "با این اسم یا شماره در این ماه نوبتی نیست. نوبت‌های دیگر همان مشتری حذف نشده‌اند."}
         </p>
       ) : null}
-      {visibleJobs.map((job) => (
+      {upcomingJobs.map((job) => (
+        <MonthJobCard
+          key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
+          job={job}
+          busyKeys={bookings
+            .filter((booking) => booking.status !== "cancelled")
+            .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+          onChange={() => void refreshAll()}
+          file={fileForJob(briefs, job)}
+        />
+      ))}
+      {pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
+      {pastJobs.map((job) => (
         <MonthJobCard
           key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
           job={job}
@@ -1510,6 +1530,17 @@ function MonthJobsPanel({
       />
     </div>
   );
+}
+
+function jobStamp(job: TattooRequest) {
+  const when = job.proposedSlotStart || job.updatedAt;
+  const time = Date.parse(when);
+  return Number.isFinite(time) ? time : 0;
+}
+
+function jobDayKey(job: TattooRequest) {
+  const stamp = jobStamp(job);
+  return stamp ? tehranDayKey(new Date(stamp)) : "";
 }
 
 function weekRangeLabel(startKey: string) {
