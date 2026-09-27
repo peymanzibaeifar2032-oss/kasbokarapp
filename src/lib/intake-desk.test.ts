@@ -2,34 +2,31 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { answerIntake, startIntake } from "./intake-desk.ts";
 
-test("a customer question is answered without skipping the form", () => {
+test("a customer question is sent to the assistant before the form starts", () => {
   const turn = answerIntake(startIntake().draft, "متریال تاتو آمریکاییه؟");
-  assert.match(turn.say[0], /آمریکایی/);
-  assert.match(turn.say[1], /اسمت/);
-  assert.equal(turn.draft.step, "name");
+  assert.equal(turn.needsModel, true);
+  assert.equal(turn.draft.step, "questions");
+  assert.match(turn.after || "", /درخواست/);
   assert.equal(turn.payload, null);
 });
 
-test("calling the artist returns the studio number", () => {
-  let turn = startIntake();
-  turn = answerIntake(turn.draft, "امیر حسینی");
-  turn = answerIntake(turn.draft, "شماره تماس آرتیست را می‌خواستم");
-  assert.match(turn.say[0], /09216812852/);
-  assert.equal(turn.draft.step, "phone");
+test("the form starts only after the customer finishes asking", () => {
+  const turn = answerIntake(startIntake().draft, "درخواست");
+  assert.equal(turn.needsModel, undefined);
+  assert.equal(turn.draft.step, "name");
+  assert.match(turn.say.join(" "), /اسمت/);
 });
 
-test("a neck question is answered and is not saved as the customer name", () => {
+test("a neck question stays a question and remembers the place", () => {
   const turn = answerIntake(startIntake().draft, "من میخوام رو گردنم تاتو بزنم امکانش هست");
-  assert.match(turn.say[0], /گردن/);
-  assert.match(turn.say[0], /پیمان/);
-  assert.equal(turn.draft.step, "name");
+  assert.equal(turn.needsModel, true);
+  assert.equal(turn.draft.step, "questions");
   assert.equal(turn.draft.name, "");
   assert.equal(turn.draft.part, "گردن");
-  assert.equal(turn.payload, null);
 });
 
 test("approximate size is enough and a new tattoo still needs the design photo", () => {
-  let turn = startIntake();
+  let turn = answerIntake(startIntake().draft, "درخواست");
   for (const step of ["امیر حسینی", "09120000000", "pick:new", "pick:ساعد", "pick:left", "pick:medium"]) {
     turn = answerIntake(turn.draft, step);
   }
@@ -44,7 +41,7 @@ test("approximate size is enough and a new tattoo still needs the design photo",
 });
 
 test("cover-up cannot skip the tattoo already on the body", () => {
-  let turn = startIntake();
+  let turn = answerIntake(startIntake().draft, "درخواست");
   for (const step of ["امیر حسینی", "09120000000", "pick:coverup", "pick:بازو", "pick:right", "۸ در ۱۲"]) {
     turn = answerIntake(turn.draft, step);
   }

@@ -23,6 +23,7 @@ export function IntakeDesk({
   const [images, setImages] = useState<WizardImage[]>([]);
   const [chips, setChips] = useState<{ id: string; label: string }[]>([]);
   const [allowImage, setAllowImage] = useState<false | "reference" | "current">(false);
+  const [waiting, setWaiting] = useState(false);
 
   useEffect(() => {
     if (opened.current) return;
@@ -38,21 +39,34 @@ export function IntakeDesk({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [lines, chips]);
 
-  function apply(raw: string, nextImages = images, shown?: string) {
-    if (!draft || busy) return;
+  async function apply(raw: string, nextImages = images, shown?: string) {
+    if (!draft || busy || waiting) return;
     const turn = answerIntake(draft, raw, {
       design: nextImages.some((image) => image.kind === "reference" || image.kind === "sketch"),
       current: nextImages.some((image) => image.kind === "current"),
     });
     setDraft(turn.draft);
-    setLines((current) => [
-      ...current,
-      { from: "customer", text: shown || customerText(raw) },
-      ...turn.say.map((text) => ({ from: "desk" as const, text })),
-    ]);
     setChips(turn.payload ? [] : turn.chips);
     setAllowImage(turn.image);
     setText("");
+    const customer = shown || customerText(raw);
+    if (turn.needsModel && turn.modelQuestion) {
+      const history = lines.slice(-8).map((line) => ({
+        role: line.from === "customer" ? ("user" as const) : ("assistant" as const),
+        content: line.text,
+      }));
+      setLines((current) => [...current, { from: "customer", text: customer }, { from: "desk", text: "دارم جواب می‌دهم…" }]);
+      setWaiting(true);
+      const answer = await askStudio(turn.modelQuestion, history);
+      setWaiting(false);
+      setLines((current) => [
+        ...current.slice(0, -1),
+        { from: "desk", text: answer },
+        ...(turn.after ? [{ from: "desk" as const, text: turn.after }] : []),
+      ]);
+      return;
+    }
+    setLines((current) => [...current, { from: "customer", text: customer }, ...turn.say.map((text) => ({ from: "desk" as const, text }))]);
     if (turn.payload) onSubmit({ ...turn.payload, images: nextImages });
   }
 
@@ -86,7 +100,7 @@ export function IntakeDesk({
       {chips.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {chips.map((chip) => (
-            <button key={chip.id} type="button" className="h-10 rounded-full border border-[#b7955b]/50 px-3 text-sm" onClick={() => apply(`pick:${chip.id}`, images, chip.label)}>
+            <button key={chip.id} type="button" className="h-10 rounded-full border border-[#b7955b]/50 px-3 text-sm" onClick={() => void apply(`pick:${chip.id}`, images, chip.label)}>
               {chip.label}
             </button>
           ))}
@@ -97,7 +111,7 @@ export function IntakeDesk({
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") apply(text);
+            if (event.key === "Enter") void apply(text);
           }}
           placeholder="جواب یا سؤالت را بنویس"
           className="h-12 min-w-0 flex-1 rounded-2xl border border-white/15 bg-transparent px-3 text-sm"
@@ -108,12 +122,26 @@ export function IntakeDesk({
             <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void addImages(event.target.files)} />
           </label>
         ) : null}
-        <Button className="h-12 bg-[#b7955b] text-black" disabled={busy || !text.trim()} onClick={() => apply(text)}>
+        <Button className="h-12 bg-[#b7955b] text-black" disabled={busy || waiting || !text.trim()} onClick={() => void apply(text)}>
           بفرست
         </Button>
       </div>
     </div>
   );
+}
+
+async function askStudio(question: string, history: { role: "user" | "assistant"; content: string }[]) {
+  try {
+    const res = await fetch("/api/tattoo-ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, history }),
+    });
+    const data = (await res.json().catch(() => null)) as { answer?: string; error?: string } | null;
+    return data?.answer || data?.error || "الان جواب این سؤال را ندارم. با ۰۹۲۱۶۸۱۲۸۵۲ تماس بگیر.";
+  } catch {
+    return "الان جواب این سؤال را ندارم. با ۰۹۲۱۶۸۱۲۸۵۲ تماس بگیر.";
+  }
 }
 
 function customerText(raw: string) {

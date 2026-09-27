@@ -2,7 +2,7 @@ import { isIranMobile, normalizeIranPhone, toEnDigits } from "./format.ts";
 import { TATTOO_BODY_PARTS, TATTOO_REQUEST_LABEL, TATTOO_SIDES, TATTOO_SIZE_LABELS } from "./tattoo-estimate.ts";
 import { STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME } from "./tattoo-flow.ts";
 
-export type IntakeStep = "name" | "phone" | "type" | "part" | "side" | "size" | "design" | "body" | "confirm";
+export type IntakeStep = "questions" | "name" | "phone" | "type" | "part" | "side" | "size" | "design" | "body" | "confirm";
 
 export type IntakeDraft = {
   step: IntakeStep;
@@ -27,6 +27,9 @@ export type IntakeTurn = {
   chips: IntakeChip[];
   image: false | "reference" | "current";
   payload: IntakePayload | null;
+  needsModel?: boolean;
+  modelQuestion?: string;
+  after?: string;
 };
 
 export type IntakePayload = {
@@ -57,9 +60,8 @@ const TYPES = [
 export function startIntake(): IntakeTurn {
   return speak(blank(), [
     "پاسخ سریع درخواست.",
-    "اگر سؤالی داری همین‌جا بپرس: شماره تماس، متریال، یا اینکه کار را چه کسی می‌زند.",
-    "برای خود درخواست فقط نوع کار، جای بدن، اندازه و عکس طرح لازم است.",
-    "اسمت چیست؟",
+    "اگر سؤالی درباره تاتو داری همین حالا بپرس. هر سؤالی.",
+    "وقتی سؤال‌هایت تمام شد بنویس درخواست، تا فرم را با هم کامل کنیم.",
   ]);
 }
 
@@ -71,14 +73,23 @@ export function answerIntake(draft: IntakeDraft, raw: string, images?: { design?
     imageCurrent: images?.current ?? draft.imageCurrent,
   };
   if (!text) return speak(next, ["جواب را بنویس، یا اگر سؤال داری بپرس."]);
-  if (!text.startsWith("pick:") && text !== "فرستادم" && !(next.step === "phone" && isIranMobile(normalizeIranPhone(text))) && looksLikeTalk(text)) {
+  if (next.step === "questions" && isDoneAsking(text)) {
+    return speak({ ...next, step: "name" }, [
+      "باشه. حالا درخواست را کامل می‌کنیم. فقط نوع کار، جای بدن، اندازه و عکس طرح لازم است.",
+      "اسمت چیست؟",
+    ]);
+  }
+  if (next.step === "questions" || (looksLikeTalk(text) && !text.startsWith("pick:") && text !== "فرستادم" && !(next.step === "phone" && isIranMobile(normalizeIranPhone(text))))) {
     const hinted = mentionedPart(text);
     const remembered = hinted ? { ...next, part: next.part || hinted } : next;
-    const faq = secretaryAnswer(text) || (hinted ? `بله. تاتو روی ${hinted} انجام می‌شود و کار را خود ${STUDIO_OWNER_STAFF_NAME} می‌زند.` : "سؤالت را بپرس. درباره تماس، متریال، درد، آدرس یا جای بدن جواب می‌دهم.");
-    return speak(remembered, [faq, question(remembered)]);
+    const turn = speak(remembered, []);
+    return {
+      ...turn,
+      needsModel: true,
+      modelQuestion: text,
+      after: remembered.step === "questions" ? "سؤال دیگری داری؟ اگر نه، بنویس درخواست." : remembered.step === "confirm" ? "اگر خلاصه درست است بنویس بله." : question(remembered),
+    };
   }
-  const faq = secretaryAnswer(text);
-  if (faq && !isDirectAnswer(next, text)) return speak(next, [faq, question(next)]);
   if (next.step === "confirm") return confirm(next, text);
   const checked = check(next, text);
   if (checked.error) return speak(checked.draft, [checked.error]);
@@ -188,6 +199,10 @@ function secretaryAnswer(text: string) {
   return "";
 }
 
+function isDoneAsking(text: string) {
+  return text === "pick:form" || /^(نه|ندارم|سوال ندارم|سؤالی ندارم|سؤال ندارم|درخواست|فرم|شروع|تمام|بس است|بسه|دیگه نه|دیگر نه)$/.test(text);
+}
+
 function looksLikeTalk(text: string) {
   return /[؟?]|امکان|میخوام|می‌خوام|میخاست|می‌خواست|میشه|می‌شه|میتون|می‌تون|بزنم|بزنه|تاتو|چطور|چجوری|چرا|آیا|لطفا/.test(text);
 }
@@ -212,12 +227,6 @@ function mentionedPart(text: string) {
     [/سر(?!یع)/, "سر"],
   ].find(([pattern]) => (pattern as RegExp).test(cleaned));
   return found ? String(found[1]) : "";
-}
-
-function isDirectAnswer(draft: IntakeDraft, text: string) {
-  if (text.startsWith("pick:") || text === "فرستادم") return true;
-  if (/[؟?]/.test(text) || /^(آیا|میشه|می‌شه|چطور|چجوری|کجا|کی |چند|شماره)/.test(text)) return false;
-  return draft.step === "name" || draft.step === "phone" || draft.step === "size";
 }
 
 function ask(draft: IntakeDraft, step: IntakeStep): IntakeTurn {
@@ -252,6 +261,7 @@ function question(draft: IntakeDraft) {
 }
 
 function chipsFor(draft: IntakeDraft): IntakeChip[] {
+  if (draft.step === "questions") return [{ id: "form", label: "سؤال ندارم، درخواست را شروع کن" }];
   if (draft.step === "type") return TYPES.map(([id, label]) => ({ id, label }));
   if (draft.step === "part") return TATTOO_BODY_PARTS.filter((item) => item !== "سایر").map((item) => ({ id: item, label: item }));
   if (draft.step === "side") return TATTOO_SIDES.map(([id, label]) => ({ id, label }));
@@ -307,7 +317,7 @@ function sizeText(draft: IntakeDraft) {
 
 function blank(): IntakeDraft {
   return {
-    step: "name",
+    step: "questions",
     fixing: false,
     name: "",
     phone: "",
@@ -349,6 +359,7 @@ function parseSize(raw: string) {
 
 function fixLabel(step: IntakeStep) {
   const labels: Record<IntakeStep, string> = {
+    questions: "سؤال",
     name: "اصلاح نام",
     phone: "اصلاح شماره",
     type: "اصلاح نوع",
