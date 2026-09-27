@@ -6,16 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { compressImage } from "@/lib/design-images";
 import { parseToman, toSmsLink, toTelLink } from "@/lib/format";
-import { firstOpenCustomerDay, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
+import { tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
-import { thursdayBusyKeys } from "@/lib/studio-apprentices";
-import { fillInOfferSms, fillInRegisteredSms, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
+import { fillInMissedCallSms, fillInRegisteredSms, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
 import type { Booking } from "@/lib/types";
 
 type StudioFillIn = {
   id: string;
   customerName: string;
   customerPhone: string;
+  customerPhone2: string;
   idea: string;
   placement: string;
   sizeCm: string;
@@ -23,6 +23,9 @@ type StudioFillIn = {
   priceToman: number;
   designImage: string;
   sessionMinutes: number;
+  callCount: number;
+  cameCount: number;
+  missedCount: number;
   status: "waiting" | "filled" | "dropped";
 };
 
@@ -31,6 +34,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   const [name, setName] = useState("");
   const [honorific, setHonorific] = useState<"آقای" | "خانم" | "">("آقای");
   const [phone, setPhone] = useState("");
+  const [phone2, setPhone2] = useState("");
   const [note, setNote] = useState("");
   const [sizeCm, setSizeCm] = useState("");
   const [price, setPrice] = useState("");
@@ -56,7 +60,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
 
   function openPlace(id: string) {
     setPlacing(id);
-    setDay(firstOpenCustomerDay(bookedKeys, thursdayBusyKeys()));
+    setDay(tehranDayKey());
     setTime("12:00");
   }
 
@@ -69,6 +73,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       await saveAction("addStudioFillIn", {
         customerName,
         customerPhone: phone,
+        customerPhone2: phone2,
         idea: note.trim() || (image ? "طرح آپلود شده" : ""),
         note,
         sizeCm,
@@ -78,6 +83,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       });
       setName("");
       setPhone("");
+      setPhone2("");
       setNote("");
       setSizeCm("");
       setPrice("");
@@ -102,6 +108,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       await saveAction("createStudioJob", {
         customerName: row.customerName,
         customerPhone: row.customerPhone,
+        customerPhone2: row.customerPhone2 || undefined,
         style: "سایر",
         idea: row.note || row.idea || "پر کردن کنسلی",
         placement: row.placement || "هماهنگ در استودیو",
@@ -112,7 +119,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         slotStart: tehranLocalToIso(y, m, d, hh || 12, mm || 0),
         referenceImages: row.designImage ? [row.designImage] : [],
       });
-      await saveAction("setStudioFillIn", { id: row.id, status: "filled" });
+      await saveAction("markStudioFillIn", { id: row.id, mark: "came" });
       setPlacing(null);
       toast.success("به تقویم اضافه شد. هزینه را همان روز با کارت‌خوان می‌گیری.");
       await load();
@@ -148,6 +155,13 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             ))}
           </div>
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شماره موبایل" inputMode="tel" dir="ltr" className="h-12" />
+          <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="شماره دوم، اختیاری" inputMode="tel" dir="ltr" className="h-12" />
+          <div>
+            <p className="text-sm font-semibold">مدت تقریبی اجرا</p>
+            <div className="mt-2">
+              <DurationFields minutes={minutes} onChange={setMinutes} />
+            </div>
+          </div>
           <label className="flex h-12 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm font-bold">
             {image ? "طرح انتخاب شد · تغییر" : "آپلود طرح از گالری، اختیاری"}
             <input
@@ -163,12 +177,6 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
           </label>
           {image ? <img src={image} alt="" className="mx-auto max-h-36 rounded-xl object-contain" /> : null}
           <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۲۰ × ۱۲" className="h-12" />
-          <div>
-            <p className="text-sm font-semibold">مدت تقریبی اجرا</p>
-            <div className="mt-2">
-              <DurationFields minutes={minutes} onChange={setMinutes} />
-            </div>
-          </div>
           <Input
             value={price}
             onChange={(e) => setPrice(formatGroupedDigits(e.target.value))}
@@ -187,15 +195,17 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       {!waiting.length ? <p className="text-sm text-muted">هنوز کسی در لیست انتظار کنسلی نیست.</p> : null}
       {waiting.map((row) => {
         const registered = toSmsLink(row.customerPhone, fillInRegisteredSms(row.customerName));
-        const sms = toSmsLink(
-          row.customerPhone,
-          fillInOfferSms(row.customerName, row.note || (row.idea === "طرح آپلود شده" ? "" : row.idea), row.priceToman),
-        );
         const tel = toTelLink(row.customerPhone);
+        const tel2 = toTelLink(row.customerPhone2);
+        const missedSms = toSmsLink(row.customerPhone, fillInMissedCallSms(row.customerName));
         return (
           <article key={row.id} className="rounded-2xl border border-border p-4">
             <strong>{row.customerName}</strong>
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
+            {row.customerPhone2 ? <p className="text-sm text-muted" dir="ltr">دوم: {row.customerPhone2}</p> : null}
+            <p className="mt-2 text-sm">
+              تماس {toFaCount(row.callCount)} · آمد {toFaCount(row.cameCount)} · مراجعه نکرد {toFaCount(row.missedCount)}
+            </p>
             {row.designImage ? <img src={row.designImage} alt="" className="mt-3 max-h-40 rounded-xl object-contain" /> : null}
             <p className="mt-2 text-sm text-muted">
               {row.sessionMinutes ? formatSitting(row.sessionMinutes) : "مدت اجرا ذخیره نشده"}
@@ -212,13 +222,22 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
               ) : null}
               <div className="grid grid-cols-2 gap-2">
                 {tel ? (
-                  <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={tel}>
+                  <a
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold"
+                    href={tel}
+                    onClick={() => void saveAction("markStudioFillIn", { id: row.id, mark: "called" }).then(load).catch(() => undefined)}
+                  >
                     تماس
                   </a>
                 ) : null}
-                {sms ? (
-                  <a className="inline-flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={sms}>
-                    پیام جا خالی
+                {tel2 ? (
+                  <a className="inline-flex h-11 items-center justify-center rounded-xl border border-border text-sm font-bold" href={tel2}>
+                    تماس شماره دوم
+                  </a>
+                ) : null}
+                {missedSms ? (
+                  <a className="inline-flex h-11 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={missedSms}>
+                    پیام بی‌جواب
                   </a>
                 ) : null}
               </div>
@@ -228,17 +247,32 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
                 <JalaliDatePicker value={day} onChange={setDay} label="روز جا خالی" busyKeys={bookedKeys} />
                 <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="h-12" />
                 <Button className="h-12" disabled={busy} onClick={() => void place(row)}>
-                  افزودن به تقویم
+                  تأیید شد، برو به نوبت این روز
                 </Button>
               </div>
             ) : (
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button className="h-11" onClick={() => openPlace(row.id)}>
-                  افزودن به تقویم
+                  تأیید و انتقال به نوبت
                 </Button>
                 <Button
                   variant="outline"
                   className="h-11"
+                  disabled={busy}
+                  onClick={() =>
+                    void saveAction("markStudioFillIn", { id: row.id, mark: "missed" })
+                      .then(() => {
+                        toast.success("مراجعه نکرد. در لیست انتظار ماند.");
+                        return load();
+                      })
+                      .catch((err) => toast.error(friendlyError(err)))
+                  }
+                >
+                  مراجعه نکرد
+                </Button>
+                <Button
+                  variant="outline"
+                  className="col-span-2 h-11 text-muted"
                   disabled={busy}
                   onClick={() =>
                     void saveAction("setStudioFillIn", { id: row.id, status: "dropped" })
@@ -255,6 +289,10 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       })}
     </div>
   );
+}
+
+function toFaCount(value: number) {
+  return new Intl.NumberFormat("fa-IR").format(value || 0);
 }
 
 function WaitMinutes({ row, onSaved }: { row: StudioFillIn; onSaved: () => void }) {

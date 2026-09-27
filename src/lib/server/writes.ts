@@ -32,6 +32,7 @@ import {
 import {
   performAddStudioFillIn,
   performListStudioFillIns,
+  performMarkStudioFillIn,
   performSetStudioFillIn,
   performSetStudioFillInMinutes,
 } from "@/lib/server/studio-fill-ins";
@@ -3634,6 +3635,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performSetStudioFillIn(userId, payload, requireAdmin);
     case "setStudioFillInMinutes":
       return performSetStudioFillInMinutes(userId, payload, requireAdmin);
+    case "markStudioFillIn":
+      return performMarkStudioFillIn(userId, payload, requireAdmin);
     case "studioWhoami":
       return performStudioWhoami(userId);
     case "listStudioArtists":

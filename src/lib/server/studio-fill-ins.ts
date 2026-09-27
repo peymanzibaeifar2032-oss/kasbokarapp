@@ -15,6 +15,9 @@ export type StudioFillIn = {
   priceToman: number;
   designImage: string;
   sessionMinutes: number;
+  callCount: number;
+  cameCount: number;
+  missedCount: number;
   status: "waiting" | "filled" | "dropped";
   createdAt: string;
 };
@@ -32,6 +35,9 @@ type Row = {
   price_toman: number | null;
   design_image: string | null;
   session_minutes: number | null;
+  call_count: number | null;
+  came_count: number | null;
+  missed_count: number | null;
   status: "waiting" | "filled" | "dropped";
   created_at: string;
 };
@@ -50,6 +56,9 @@ function mapRow(row: Row): StudioFillIn {
     priceToman: Number(row.price_toman) || 0,
     designImage: row.design_image || "",
     sessionMinutes: Number(row.session_minutes) || 0,
+    callCount: Number(row.call_count) || 0,
+    cameCount: Number(row.came_count) || 0,
+    missedCount: Number(row.missed_count) || 0,
     status: row.status,
     createdAt: row.created_at,
   };
@@ -59,7 +68,7 @@ export async function performListStudioFillIns(userId: string, requireAdmin: (us
   await requireAdmin(userId);
   const sql = await getSql();
   const rows = await sql.query<Row>(
-    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, status, created_at
+    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, call_count, came_count, missed_count, status, created_at
        from studio_fill_ins
       where owner_id = $1 and status <> 'dropped'
       order by case when status = 'waiting' then 0 else 1 end, created_at desc
@@ -141,6 +150,22 @@ export async function performSetStudioFillInMinutes(userId: string, raw: unknown
   await sql.query(
     `update studio_fill_ins set session_minutes = $3 where id = $1 and owner_id = $2`,
     [data.id, userId, data.sessionMinutes],
+  );
+  return { ok: true as const };
+}
+
+export async function performMarkStudioFillIn(userId: string, raw: unknown, requireAdmin: (userId: string) => Promise<unknown>) {
+  await requireAdmin(userId);
+  const data = z.object({ id: z.string(), mark: z.enum(["called", "missed", "came"]) }).parse(raw);
+  const column = data.mark === "called" ? "call_count" : data.mark === "missed" ? "missed_count" : "came_count";
+  const sql = await getSql();
+  await sql.query(
+    `update studio_fill_ins
+        set ${column} = ${column} + 1,
+            status = case when $3 = 'came' then 'filled' else status end,
+            filled_at = case when $3 = 'came' then now() else filled_at end
+      where id = $1 and owner_id = $2`,
+    [data.id, userId, data.mark],
   );
   return { ok: true as const };
 }

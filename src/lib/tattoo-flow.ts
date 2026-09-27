@@ -183,6 +183,14 @@ export function bookingReminderSms(opts: {
   ].join("\n");
 }
 
+export function fillInMissedCallSms(name: string) {
+  return [
+    `سلام ${name.trim() || "مشتری"}`.trim(),
+    "امروز برایت وقت تاتو گذاشتم.",
+    "لطفاً همین حالا زنگ بزن.",
+    STUDIO_CONTACT_PHONE,
+  ].join("\n");
+}
 export function fillInRegisteredSms(name: string) {
   return [
     `سلام ${name.trim() || "مشتری"}`.trim(),
