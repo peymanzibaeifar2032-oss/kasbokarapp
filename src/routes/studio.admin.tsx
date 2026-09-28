@@ -1984,6 +1984,36 @@ function RealDurationFix({ job, onChange }: { job: TattooRequest; onChange: () =
   );
 }
 
+function jobFileKey(job: { customerName: string; customerPhone: string; customerPhone2?: string }) {
+  const primary = (job.customerPhone || "").replace(/\D/g, "");
+  const second = (job.customerPhone2 || "").replace(/\D/g, "");
+  const digits = primary && primary !== "09000000000" ? primary : second;
+  if (digits) return digits.length > 10 ? `0${digits.slice(-10)}` : digits;
+  return `name:${job.customerName.replace(/\s+/g, " ").trim()}`;
+}
+
+function briefToCustomerFile(file: CustomerFileBrief | null): CustomerFile {
+  return {
+    skinTone: file?.skinTone || "",
+    inkHold: file?.inkHold || "",
+    fade: file?.fade || "",
+    alcohol: file?.alcohol || "",
+    sleepNote: file?.sleepNote || "",
+    arrival: file?.arrival || "",
+    pain: file?.pain || "",
+    healing: file?.healing || "",
+    notes: file?.notes || "",
+    numbing: file?.numbing || "",
+    bleeding: file?.bleeding || "",
+    sensitivity: file?.sensitivity || "",
+    bloodType: file?.bloodType || "",
+    toleranceHours: file?.toleranceHours || "",
+    hydration: file?.hydration || "",
+    healedImage: "",
+    hasHealedImage: false,
+  };
+}
+
 function MonthJobCard({
   job,
   busyKeys,
@@ -1996,6 +2026,7 @@ function MonthJobCard({
   file: CustomerFileBrief | null;
 }) {
   const [editing, setEditing] = useState(false);
+  const [fileOpen, setFileOpen] = useState(false);
   const [name, setName] = useState(job.customerName);
   const [style, setStyle] = useState(job.style);
   const [placement, setPlacement] = useState(job.placement);
@@ -2108,7 +2139,17 @@ function MonthJobCard({
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
-      <CustomerFileDetails file={job.customerFile ?? file} showEmpty />
+      <CustomerFileDetails file={job.customerFile ?? file} showEmpty editing={fileOpen} onEdit={() => setFileOpen((value) => !value)} />
+      {fileOpen ? (
+        <CustomerFileForm
+          contactKey={jobFileKey(job)}
+          file={briefToCustomerFile(job.customerFile ?? file)}
+          onSaved={() => {
+            setFileOpen(false);
+            onChange();
+          }}
+        />
+      ) : null}
       <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} />
       <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">

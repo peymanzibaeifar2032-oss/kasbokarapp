@@ -1,3 +1,5 @@
+import { Pencil } from "lucide-react";
+
 export type CustomerFileBrief = {
   skinTone: string;
   inkHold: string;
@@ -48,14 +50,22 @@ export function customerFileLines(file: CustomerFileBrief) {
   ].filter(Boolean);
 }
 
-export function CustomerFileDetails({ file, pending, showEmpty }: { file: CustomerFileBrief | null; pending?: boolean; showEmpty?: boolean }) {
+export function CustomerFileDetails({ file, pending, showEmpty, editing, onEdit }: { file: CustomerFileBrief | null; pending?: boolean; showEmpty?: boolean; editing?: boolean; onEdit?: () => void }) {
   if (pending) return <p className="mt-3 text-sm text-muted">در حال پیدا کردن پرونده…</p>;
   if (!file && !showEmpty) return null;
   const lines = file ? customerFileLines(file) : [];
   const minutes = file ? toleranceMinutes(file.toleranceHours) : null;
   return (
     <aside className="mt-3 rounded-2xl border border-primary/30 bg-primary/5 p-4">
-      <h3 className="text-sm font-bold">جزئیات پرونده مشتری</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-bold">جزئیات پرونده مشتری</h3>
+        {onEdit ? (
+          <button type="button" className="inline-flex h-9 items-center gap-1 rounded-xl border border-primary/30 px-3 text-xs font-bold" onClick={onEdit}>
+            <Pencil className="size-3.5" />
+            {editing ? "بستن" : "ویرایش پرونده"}
+          </button>
+        ) : null}
+      </div>
       {lines.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {lines.filter((line) => line !== file?.notes && line.length < 48).map((line) => (
