@@ -127,7 +127,7 @@ function ReadyMessages() {
     },
   ];
   return (
-    <div className="mt-5 grid gap-3">
+    <div className="mt-5 grid w-full min-w-0 max-w-full gap-3 overflow-x-hidden">
       <p className="text-sm leading-7 text-muted">هر متن را با دکمهٔ کپی بردار و در پیام مشتری بفرست.</p>
       {boxes.map((box) => (
         <CopyBox key={box.title} title={box.title} text={box.text} ltr={box.ltr} />
@@ -149,19 +149,37 @@ function CopyBox({ title, text, ltr }: { title: string; text: string; ltr?: bool
     }
   }
   return (
-    <section className="rounded-2xl border border-border bg-surface p-4">
+    <section className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold">{title}</h3>
+        <h3 className="min-w-0 text-sm font-bold">{title}</h3>
         <button type="button" onClick={() => void copy()} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-primary/30 px-3 text-xs font-bold">
           <Copy className="size-3.5" />
           {done ? "کپی شد" : "کپی"}
         </button>
       </div>
-      <pre dir={ltr ? "ltr" : "rtl"} className={cn("mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-bg p-3 text-sm leading-7", ltr && "text-left")}>
-        {text}
-      </pre>
+      <div className="mt-3 w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-bg p-3 text-sm leading-7">
+        {text.split("\n").map((line, index) => (
+          <CopyLine key={`${index}-${line}`} line={line} ltr={ltr} />
+        ))}
+      </div>
     </section>
   );
+}
+
+function CopyLine({ line, ltr }: { line: string; ltr?: boolean }) {
+  if (!line) return <p className="h-3" />;
+  if (ltr || line.startsWith("http")) {
+    return <p dir="ltr" className="break-all text-left">{line}</p>;
+  }
+  const split = line.match(/^(.*?\S)\s+((?:IR)?[0-9][0-9\s-]{5,})$/);
+  if (split) {
+    return (
+      <p className="break-words">
+        {split[1]} <span dir="ltr" className="inline-block break-all">{split[2]}</span>
+      </p>
+    );
+  }
+  return <p className="break-words">{line}</p>;
 }
 
 function StudioAdminPage() {
@@ -336,7 +354,7 @@ function StudioAdminPage() {
         </div>
       </div>
 
-      <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+      <div className="mt-5 flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
         {(
           [
             ["calendar", "امروز"],

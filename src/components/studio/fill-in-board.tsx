@@ -21,6 +21,7 @@ type StudioFillIn = {
   sizeCm: string;
   note: string;
   priceToman: number;
+  paidToman: number;
   designImage: string;
   sessionMinutes: number;
   callCount: number;
@@ -39,6 +40,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   const [note, setNote] = useState("");
   const [sizeCm, setSizeCm] = useState("");
   const [price, setPrice] = useState("");
+  const [paid, setPaid] = useState("");
   const [minutes, setMinutes] = useState(0);
   const [ongoing, setOngoing] = useState(false);
   const [image, setImage] = useState("");
@@ -81,6 +83,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         note,
         sizeCm,
         priceToman: parseToman(price),
+        paidToman: parseToman(paid),
         designImage: image || undefined,
         sessionMinutes: minutes,
         ongoing,
@@ -91,6 +94,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       setNote("");
       setSizeCm("");
       setPrice("");
+      setPaid("");
       setMinutes(0);
       setOngoing(false);
       setImage("");
@@ -119,7 +123,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         placement: row.placement || "هماهنگ در استودیو",
         sizeCm: row.sizeCm || undefined,
         priceMinToman: row.priceToman || 0,
-        paidToman: 0,
+        paidToman: row.paidToman || 0,
         sessionMinutes: row.sessionMinutes,
         slotStart: tehranLocalToIso(y, m, d, hh || 12, mm || 0),
         referenceImages: row.designImage ? [row.designImage] : [],
@@ -190,6 +194,14 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             placeholder="قیمت طرح"
             className="h-12"
           />
+          <Input
+            value={paid}
+            onChange={(e) => setPaid(formatGroupedDigits(e.target.value))}
+            inputMode="numeric"
+            dir="ltr"
+            placeholder="مبلغ واریزی"
+            className="h-12"
+          />
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -243,7 +255,8 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             <p className="mt-2 text-sm text-muted">
               {row.sessionMinutes ? formatSitting(row.sessionMinutes) : "مدت اجرا ذخیره نشده"}
               {row.sizeCm ? ` · ابعاد ${row.sizeCm}` : ""}
-              {row.priceToman ? ` · ${formatTattooToman(row.priceToman)}` : ""}
+              {row.priceToman ? ` · قیمت ${formatTattooToman(row.priceToman)}` : ""}
+              {row.paidToman ? ` · واریزی ${formatTattooToman(row.paidToman)}` : ""}
             </p>
             <WaitMinutes row={row} onSaved={() => void load()} />
             {row.note ? <p className="mt-1 text-sm leading-7">{row.note}</p> : null}
@@ -368,6 +381,7 @@ function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () 
   const [phone2, setPhone2] = useState(row.customerPhone2 || "");
   const [sizeCm, setSizeCm] = useState(row.sizeCm || "");
   const [price, setPrice] = useState(row.priceToman ? formatGroupedDigits(String(row.priceToman)) : "");
+  const [paid, setPaid] = useState(row.paidToman ? formatGroupedDigits(String(row.paidToman)) : "");
   const [note, setNote] = useState(row.note || "");
   const [minutes, setMinutes] = useState(row.sessionMinutes || 0);
   const [ongoing, setOngoing] = useState(Boolean(row.ongoing));
@@ -386,6 +400,7 @@ function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () 
         sizeCm,
         note,
         priceToman: parseToman(price),
+        paidToman: parseToman(paid),
         sessionMinutes: minutes,
         ongoing,
         designImage: image || undefined,
@@ -406,7 +421,8 @@ function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () 
       <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="شماره دوم، اختیاری" inputMode="tel" dir="ltr" className="h-12" />
       <DurationFields minutes={minutes} onChange={setMinutes} />
       <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد" className="h-12" />
-      <Input value={price} onChange={(e) => setPrice(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="قیمت" className="h-12" />
+      <Input value={price} onChange={(e) => setPrice(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="قیمت طرح" className="h-12" />
+      <Input value={paid} onChange={(e) => setPaid(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="مبلغ واریزی" className="h-12" />
       <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت" rows={2} />
       <div className="grid grid-cols-2 gap-2">
         <button type="button" className={`h-11 rounded-xl border text-sm font-bold ${!ongoing ? "border-primary bg-primary text-primary-fg" : "border-border"}`} onClick={() => setOngoing(false)}>

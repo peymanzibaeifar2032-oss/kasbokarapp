@@ -13,6 +13,7 @@ export type StudioFillIn = {
   sizeCm: string;
   note: string;
   priceToman: number;
+  paidToman: number;
   designImage: string;
   sessionMinutes: number;
   callCount: number;
@@ -35,6 +36,7 @@ type Row = {
   size_cm: string | null;
   note: string | null;
   price_toman: number | null;
+  paid_toman: number | null;
   design_image: string | null;
   session_minutes: number | null;
   call_count: number | null;
@@ -57,6 +59,7 @@ function mapRow(row: Row): StudioFillIn {
     sizeCm: row.size_cm || "",
     note: row.note || "",
     priceToman: Number(row.price_toman) || 0,
+    paidToman: Number(row.paid_toman) || 0,
     designImage: row.design_image || "",
     sessionMinutes: Number(row.session_minutes) || 0,
     callCount: Number(row.call_count) || 0,
@@ -73,7 +76,7 @@ export async function performListStudioFillIns(userId: string, requireAdmin: (us
   await requireAdmin(userId);
   const sql = await getSql();
   const rows = await sql.query<Row>(
-    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, call_count, came_count, missed_count, ongoing, status, created_at
+    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, paid_toman, design_image, session_minutes, call_count, came_count, missed_count, ongoing, status, created_at
        from studio_fill_ins
       where owner_id = $1 and status <> 'dropped'
       order by case when status = 'waiting' then 0 else 1 end, created_at desc
@@ -123,6 +126,7 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       sizeCm: z.string().trim().max(60).optional(),
       note: z.string().trim().max(300).optional(),
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      paidToman: z.number().int().min(0).max(2_000_000_000).optional(),
       designImage: z.string().max(1_400_000).optional(),
       sessionMinutes: z.number().int().min(30).max(480),
       ongoing: z.boolean().optional(),
@@ -142,8 +146,8 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
   const id = crypto.randomUUID();
   await sql.query(
     `insert into studio_fill_ins
-      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, design_image, session_minutes, ongoing)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, paid_toman, design_image, session_minutes, ongoing)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
     [
       id,
       userId,
@@ -156,6 +160,7 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       data.sizeCm?.trim() || null,
       data.note?.trim() || null,
       data.priceToman ?? 0,
+      data.paidToman ?? 0,
       data.designImage || null,
       data.sessionMinutes,
       Boolean(data.ongoing),
@@ -175,6 +180,7 @@ export async function performUpdateStudioFillIn(userId: string, raw: unknown, re
       sizeCm: z.string().trim().max(60).optional(),
       note: z.string().trim().max(300).optional(),
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      paidToman: z.number().int().min(0).max(2_000_000_000).optional(),
       designImage: z.string().max(1_400_000).optional(),
       sessionMinutes: z.number().int().min(30).max(480),
       ongoing: z.boolean(),
@@ -191,7 +197,7 @@ export async function performUpdateStudioFillIn(userId: string, raw: unknown, re
     throw new Error("فرمت تصویر طرح معتبر نیست.");
   }
   const sql = await getSql();
-  const imageSql = data.designImage ? ", design_image = $11" : "";
+  const imageSql = data.designImage ? ", design_image = $12" : "";
   const params = [
     data.id,
     userId,
@@ -201,6 +207,7 @@ export async function performUpdateStudioFillIn(userId: string, raw: unknown, re
     data.sizeCm?.trim() || null,
     data.note?.trim() || null,
     data.priceToman ?? 0,
+    data.paidToman ?? 0,
     data.sessionMinutes,
     data.ongoing,
   ];
@@ -214,8 +221,9 @@ export async function performUpdateStudioFillIn(userId: string, raw: unknown, re
             note = $7,
             idea = case when $7 is null or btrim($7) = '' then idea else $7 end,
             price_toman = $8,
-            session_minutes = $9,
-            ongoing = $10
+            paid_toman = $9,
+            session_minutes = $10,
+            ongoing = $11
             ${imageSql}
       where id = $1 and owner_id = $2
       returning id`,
