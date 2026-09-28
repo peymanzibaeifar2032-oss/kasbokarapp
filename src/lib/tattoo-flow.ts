@@ -212,14 +212,16 @@ function smsPrice(value: number) {
   return `${fmt.format(amount)} تومان`;
 }
 
-export function proposalSeenSms(name: string, phone: string) {
-  const who = name.trim().split(/\s+/)[0] || "";
+export function proposalSeenSms(name: string, phone: string, honorific: "آقا" | "خانم") {
+  const bare = name.trim().replace(/^(آقای|آقا|خانم)\s+/, "").split(/\s+/)[0] || "";
+  const who = bare ? `${honorific} ${bare}` : honorific;
+  const shown = phone.replace(/\d/g, (digit) => "۰۱۲۳۴۵۶۷۸۹"[Number(digit)]);
   return [
-    who ? `سلام ${who}` : "سلام",
+    `سلام ${who}`,
     "درخواستت دیده شد.",
-    "kasbokarapp.com را باز کن.",
+    "سایت را باز کن.",
     "پایین صفحه، وضعیت را بزن.",
-    `شماره ${phone} را بنویس و دیدن وضعیت را بزن.`,
+    `شماره ${shown} را بنویس و دیدن وضعیت را بزن.`,
   ].join("\n");
 }
 

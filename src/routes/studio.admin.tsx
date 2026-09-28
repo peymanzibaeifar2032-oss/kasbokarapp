@@ -701,13 +701,21 @@ function TattooAdminCard({
         <div className="mt-4 rounded-2xl border border-border bg-bg p-3 text-sm">
           <p className="font-semibold">پیشنهاد ارسال شده؛ هنوز روی تقویم قفل نشده است.</p>
           <p className="mt-1 text-muted">{formatFaDateTime(request.proposedSlotStart)}</p>
-          {toSmsLink(request.customerPhone, proposalSeenSms(request.customerName, request.customerPhone)) ? (
-            <a
-              className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-fg"
-              href={toSmsLink(request.customerPhone, proposalSeenSms(request.customerName, request.customerPhone)) ?? undefined}
-            >
-              پیامک: درخواستت دیده شد
-            </a>
+          {toSmsLink(request.customerPhone, " ") ? (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <a
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-3 text-sm font-bold text-primary-fg"
+                href={toSmsLink(request.customerPhone, proposalSeenSms(request.customerName, request.customerPhone, "آقا")) ?? undefined}
+              >
+                پیامک برای آقا
+              </a>
+              <a
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-border px-3 text-sm font-bold"
+                href={toSmsLink(request.customerPhone, proposalSeenSms(request.customerName, request.customerPhone, "خانم")) ?? undefined}
+              >
+                پیامک برای خانم
+              </a>
+            </div>
           ) : null}
         </div>
       ) : null}
