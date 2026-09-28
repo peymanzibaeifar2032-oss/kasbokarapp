@@ -77,7 +77,7 @@ export function StudioJobForm({
   const busyKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const booking of bookings) {
-      if (booking.businessId === businessId && booking.status !== "cancelled") {
+      if (booking.businessId === businessId && booking.status !== "cancelled" && booking.kind === "booking") {
         keys.add(tehranDayKey(new Date(booking.slotStart)));
       }
     }

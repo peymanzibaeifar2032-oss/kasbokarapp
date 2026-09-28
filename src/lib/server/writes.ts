@@ -164,6 +164,10 @@ async function findStudioClash(
         and id <> coalesce($3,'')
         and business_id = $4
         and (
+          kind = 'block'
+          or exists (select 1 from tattoo_requests t where t.booking_id = bookings.id and t.status = 'booked')
+        )
+        and (
           $5::text is null or btrim($5) = ''
           or resource_id is null or btrim(coalesce(resource_id,'')) = ''
           or resource_id = $5
@@ -173,6 +177,18 @@ async function findStudioClash(
     [startIso, endIso, exceptBookingId ?? "", businessId, resourceId],
   );
   return rows[0] ?? null;
+}
+
+/** A manual booking with no customer row is a failed save. Cancel it so the calendar cannot claim a customer the month list does not have. Finished rows stay. */
+async function retireGhostManualBookings(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql.query(
+    `update bookings b
+        set status = 'cancelled'
+      where b.kind = 'booking'
+        and b.source = 'manual'
+        and b.status in ('requested','confirmed')
+        and not exists (select 1 from tattoo_requests t where t.booking_id = b.id)`,
+  );
 }
 
 function studioClashMessage(clash: { customer_name: string | null; slot_start: string; slot_end: string; kind: string }) {
@@ -1901,6 +1917,7 @@ async function performMine(userId: string) {
 async function performOwnerBookings(userId: string) {
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
+  await retireGhostManualBookings(sql);
   const actor = await studioActor(userId);
   if (actor?.role === "artist") {
     const rows = await sql.query<BookingRow>(
@@ -3230,68 +3247,81 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const bookingId = crypto.randomUUID();
   const requestId = crypto.randomUUID();
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
-  const phoneTail = phone.replace(/\D/g, "").slice(-10);
-  const savingDay = tehranDay(start.toISOString());
-  if (phoneTail.length >= 10 && savingDay) {
-    await sql.query(
-      `delete from bookings b
-        where b.business_id = $1
-          and b.source = 'manual'
-          and b.kind = 'booking'
-          and b.status in ('requested','confirmed')
-          and right(regexp_replace(coalesce(b.customer_phone,''), '\\D', '', 'g'), 10) = $2
-          and to_char(b.slot_start at time zone 'Asia/Tehran', 'YYYY-MM-DD') = $3
-          and not exists (select 1 from tattoo_requests t where t.booking_id = b.id)`,
-      [businessId, phoneTail, savingDay],
-    );
-  }
+  await retireGhostManualBookings(sql);
   const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
   if (clash) throw new Error(studioClashMessage(clash));
   if (paid > 0 && !data.continuation) {
     const repeat = await findRepeatDeposit(sql, phone, phone2, paid);
     if (repeat) throw new Error(repeatDepositMessage(repeat.name, paid));
   }
-  try {
-    await sql.query(
-      `insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
-       values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,$9,$9,$10,$11)`,
-      [bookingId, businessId, data.customerName, data.customerPhone ? phone : null, start.toISOString(), slotEnd, data.idea || null, data.style, resourceId, settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required", actor.artistId],
-    );
-  } catch (err) {
-    if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
-    throw err;
-  }
   let trackingCode = makeTattooTrackingCode();
+  const paymentId = crypto.randomUUID();
+  const paymentNote = data.continuation ? "دریافت مانده ادامه کار" : "واریز ثبت‌شده هنگام ورود دستی";
   let stored = false;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
       await sql.query(
-        `insert into tattoo_requests
-          (id, tracking_code, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
-           size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
-           payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, artist_id, is_continuation)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10,$11,$12,$13,'booked',$14,$15,1,$16,$23,'approved',$17,$18,$19,$20,$21::jsonb,$22,$24)`,
-        [requestId, trackingCode, userId, businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", priceMin, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images), actor.artistId, note, Boolean(data.continuation)],
+        `with book as (
+           insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
+           values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,$9,$9,$10,$11)
+           returning id
+         ),
+         req as (
+           insert into tattoo_requests
+             (id, tracking_code, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
+              size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
+              payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, artist_id, is_continuation)
+           select $12,$13,$14,$2,book.id,$3,$15,$16,$17,'new',$8,$18,$19,$20,'booked',$21,$22,1,$23,$24,'approved',$5,$6,$23,$25,$26::jsonb,$11,$27
+           from book
+           returning id
+         )
+         insert into tattoo_payments (id, request_id, amount_toman, note)
+         select $28, req.id, $23, $29 from req where $23 > 0`,
+        [
+          bookingId,
+          businessId,
+          data.customerName,
+          data.customerPhone ? phone : null,
+          start.toISOString(),
+          slotEnd,
+          data.idea || null,
+          data.style,
+          resourceId,
+          settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required",
+          actor.artistId,
+          requestId,
+          trackingCode,
+          userId,
+          phone,
+          phone2,
+          instagram || null,
+          data.idea || data.style,
+          data.placement,
+          data.sizeCm || "نامشخص",
+          priceMin,
+          minutes,
+          paid,
+          note,
+          settled,
+          JSON.stringify(images),
+          Boolean(data.continuation),
+          paymentId,
+          paymentNote,
+        ],
       );
       stored = true;
       break;
     } catch (error) {
+      if (isOccupancyConflict(error)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
       const message = error instanceof Error ? error.message : "";
       if (attempt < 5 && /unique|duplicate/i.test(message)) {
         trackingCode = makeTattooTrackingCode();
         continue;
       }
-      await sql.query(`delete from bookings where id=$1`, [bookingId]);
       throw error;
     }
   }
-  if (!stored) {
-    await sql.query(`delete from bookings where id=$1`, [bookingId]);
-    throw new Error("ثبت در تقویم انجام نشد. یک بار دیگر بزن.");
-  }
-  if (paid > 0) {
-    await sql.query(`insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`, [crypto.randomUUID(), requestId, paid, data.continuation ? "دریافت مانده ادامه کار" : "واریز ثبت‌شده هنگام ورود دستی"]);
-  }
+  if (!stored) throw new Error("ثبت در تقویم انجام نشد. یک بار دیگر بزن.");
   if (data.continuation && priceMin > paid) {
     await sql.query(
       `update tattoo_requests
@@ -3324,6 +3354,7 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   }).parse(raw);
   const sql = await getSql();
   await removeRetiredCollaborators(sql, userId);
+  await retireGhostManualBookings(sql);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const src = rows[0];
   if (!src) throw new Error("این کار پیدا نشد.");

@@ -425,7 +425,7 @@ function TattooAdminCard({
   const busyKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const booking of bookings) {
-      if (booking.businessId !== businessId || booking.status === "cancelled") continue;
+      if (booking.businessId !== businessId || booking.status === "cancelled" || booking.kind !== "booking") continue;
       keys.add(tehranDayKey(new Date(booking.slotStart)));
     }
     for (const other of requests) {
@@ -447,6 +447,7 @@ function TattooAdminCard({
             (booking) =>
               booking.businessId === businessId &&
               booking.status !== "cancelled" &&
+              booking.kind === "booking" &&
               tehranDayKey(new Date(booking.slotStart)) === day,
           ),
     [bookings, businessId, day],
@@ -1519,7 +1520,7 @@ function MonthJobsPanel({
               key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
               job={job}
               busyKeys={bookings
-                .filter((booking) => booking.status !== "cancelled")
+                .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
                 .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
@@ -1534,7 +1535,7 @@ function MonthJobsPanel({
           key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
           job={job}
           busyKeys={bookings
-            .filter((booking) => booking.status !== "cancelled")
+            .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
             .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
           onChange={() => void refreshAll()}
           file={fileForJob(briefs, job)}
