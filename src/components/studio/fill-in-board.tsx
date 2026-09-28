@@ -186,22 +186,28 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
           </label>
           {image ? <img src={image} alt="" className="mx-auto max-h-36 rounded-xl object-contain" /> : null}
           <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۲۰ × ۱۲" className="h-12" />
-          <Input
-            value={price}
-            onChange={(e) => setPrice(formatGroupedDigits(e.target.value))}
-            inputMode="numeric"
-            dir="ltr"
-            placeholder="قیمت طرح"
-            className="h-12"
-          />
-          <Input
-            value={paid}
-            onChange={(e) => setPaid(formatGroupedDigits(e.target.value))}
-            inputMode="numeric"
-            dir="ltr"
-            placeholder="مبلغ واریزی"
-            className="h-12"
-          />
+          <label className="block text-sm font-semibold">
+            قیمت طرح
+            <Input
+              value={price}
+              onChange={(e) => setPrice(formatGroupedDigits(e.target.value))}
+              inputMode="numeric"
+              dir="ltr"
+              placeholder="مثلاً ۲۲,۰۰۰,۰۰۰"
+              className="mt-2 h-12"
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            مبلغ واریزی
+            <Input
+              value={paid}
+              onChange={(e) => setPaid(formatGroupedDigits(e.target.value))}
+              inputMode="numeric"
+              dir="ltr"
+              placeholder="اگر هنوز واریز نکرده، خالی بگذار"
+              className="mt-2 h-12"
+            />
+          </label>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -255,8 +261,11 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             <p className="mt-2 text-sm text-muted">
               {row.sessionMinutes ? formatSitting(row.sessionMinutes) : "مدت اجرا ذخیره نشده"}
               {row.sizeCm ? ` · ابعاد ${row.sizeCm}` : ""}
-              {row.priceToman ? ` · قیمت ${formatTattooToman(row.priceToman)}` : ""}
-              {row.paidToman ? ` · واریزی ${formatTattooToman(row.paidToman)}` : ""}
+            </p>
+            <p className="mt-1 text-sm">
+              قیمت طرح: {row.priceToman ? formatTattooToman(row.priceToman) : "ثبت نشده"}
+              {" · "}
+              مبلغ واریزی: {row.paidToman ? formatTattooToman(row.paidToman) : "ثبت نشده"}
             </p>
             <WaitMinutes row={row} onSaved={() => void load()} />
             {row.note ? <p className="mt-1 text-sm leading-7">{row.note}</p> : null}
@@ -421,8 +430,14 @@ function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () 
       <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="شماره دوم، اختیاری" inputMode="tel" dir="ltr" className="h-12" />
       <DurationFields minutes={minutes} onChange={setMinutes} />
       <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد" className="h-12" />
-      <Input value={price} onChange={(e) => setPrice(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="قیمت طرح" className="h-12" />
-      <Input value={paid} onChange={(e) => setPaid(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="مبلغ واریزی" className="h-12" />
+      <label className="block text-sm font-semibold">
+        قیمت طرح
+        <Input value={price} onChange={(e) => setPrice(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="مثلاً ۲۲,۰۰۰,۰۰۰" className="mt-2 h-12" />
+      </label>
+      <label className="block text-sm font-semibold">
+        مبلغ واریزی
+        <Input value={paid} onChange={(e) => setPaid(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="اگر هنوز واریز نکرده، خالی بگذار" className="mt-2 h-12" />
+      </label>
       <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="یادداشت" rows={2} />
       <div className="grid grid-cols-2 gap-2">
         <button type="button" className={`h-11 rounded-xl border text-sm font-bold ${!ongoing ? "border-primary bg-primary text-primary-fg" : "border-border"}`} onClick={() => setOngoing(false)}>
