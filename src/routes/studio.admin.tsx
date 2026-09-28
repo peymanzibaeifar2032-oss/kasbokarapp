@@ -186,6 +186,10 @@ function StudioAdminPage() {
     void navigate({ search: { tab: next }, replace: true });
   }
 
+  useEffect(() => {
+    if (search.tab && search.tab !== tab) setTabState(search.tab);
+  }, [search.tab, tab]);
+
   async function refresh() {
     setLoading(true);
     setError("");
@@ -332,17 +336,7 @@ function StudioAdminPage() {
         </div>
       </div>
 
-      {!loading && !error ? (
-        <StudioTomorrowDesk
-          requests={requests}
-          onOpenReceipts={() => {
-            setTab("requests");
-            setFilter("receipt");
-          }}
-        />
-      ) : null}
-
-      <div className="mt-5 grid gap-2">
+      <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
         {(
           [
             ["calendar", "امروز"],
@@ -363,7 +357,7 @@ function StudioAdminPage() {
               type="button"
               onClick={() => setTab(id)}
               className={cn(
-                "h-12 w-full rounded-2xl border border-border px-4 text-right text-sm font-semibold",
+                "h-12 shrink-0 rounded-2xl border border-border px-4 text-sm font-semibold",
                 tab === id ? "bg-primary text-primary-fg" : "text-muted",
               )}
             >
@@ -371,6 +365,18 @@ function StudioAdminPage() {
             </button>
           ))}
       </div>
+
+      {tab === "messages" ? <ReadyMessages /> : null}
+
+      {!loading && !error && tab !== "messages" ? (
+        <StudioTomorrowDesk
+          requests={requests}
+          onOpenReceipts={() => {
+            setTab("requests");
+            setFilter("receipt");
+          }}
+        />
+      ) : null}
 
       {error ? (
         <div className="mt-5 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
@@ -381,8 +387,6 @@ function StudioAdminPage() {
         </div>
       ) : null}
       {loading ? <p className="mt-6 text-sm text-muted">در حال دریافت اطلاعات…</p> : null}
-
-      {tab === "messages" ? <ReadyMessages /> : null}
 
       {!loading && !error && tab === "calendar" ? (
         <OwnerCalendar items={bookings} businesses={businesses} onChange={() => void refresh()} />
