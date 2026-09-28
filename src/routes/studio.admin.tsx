@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronLeft, CreditCard, FileDown, RefreshCw } from "lucide-react";
+import { ChevronLeft, Copy, CreditCard, FileDown, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
@@ -41,15 +41,17 @@ import {
   formatTattooToman,
   isTattooReviewOverdue,
   studioVisitText,
+  STUDIO_ADDRESS,
+  STUDIO_CONTACT_PHONE,
   tattooBalance,
   tattooStage,
 } from "@/lib/tattoo-flow";
 import type { Booking, Business, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type PanelTab = "requests" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists";
+type PanelTab = "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists";
 
-const panelTabs: PanelTab[] = ["requests", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists"];
+const panelTabs: PanelTab[] = ["requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists"];
 
 export const Route = createFileRoute("/studio/admin")({
   validateSearch: (search: Record<string, unknown>): { tab?: PanelTab } => {
@@ -59,6 +61,108 @@ export const Route = createFileRoute("/studio/admin")({
   component: StudioAdminPage,
 });
 type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
+
+function ReadyMessages() {
+  const mehr = TATTOO_SETTLEMENT_PRESETS[0];
+  const maskan = TATTOO_SETTLEMENT_PRESETS[1];
+  const boxes = [
+    {
+      title: "۱. مشخصات واریز",
+      text: [
+        "مشخصات واریز",
+        "به نام پیمان زیبائی‌فر",
+        "",
+        "بانک مهر ایران",
+        `شماره کارت: ${formatCardNumber(mehr.card)}`,
+        `شبا: ${mehr.iban}`,
+        "",
+        "بانک مسکن",
+        `شماره کارت: ${formatCardNumber(maskan.card)}`,
+        `شبا: ${maskan.iban}`,
+      ].join("\n"),
+    },
+    {
+      title: "۲. آدرس",
+      text: ["آدرس استودیو", STUDIO_ADDRESS, `تلفن: ${STUDIO_CONTACT_PHONE}`].join("\n"),
+    },
+    {
+      title: "۳. لینک درخواست مشتری",
+      text: "https://kasbokarapp.com/studio/request",
+      ltr: true,
+    },
+    {
+      title: "۴. لینک پنل ادمین",
+      text: "https://kasbokarapp.com/studio/admin",
+      ltr: true,
+    },
+    {
+      title: "۵. آماده‌سازی شب قبل از اجرا",
+      text: [
+        "آماده‌سازی برای روز تاتو",
+        "",
+        "از حالا تا روز اجرا این‌ها را نخورید: قهوه، قرص آسپرین، نوشابه گازدار و مشروب. مشروب پوست را کم‌آب می‌کند و رنگ را بد می‌گیرد.",
+        "",
+        "اگر می‌توانید یک کرم آبرسان بگیرید و پوست محل تاتو را با آن نرم نگه دارید.",
+        "",
+        "شب قبل از تاتو، از ساعت ۱۰ شب بخوابید و ۸ ساعت خواب کامل داشته باشید تا خواب عمیق باشد.",
+        "",
+        "شب قبل، سرم قندی‌نمکی به همراه آمپول دگزامتازون بزنید تا التهاب کمتر شود.",
+        "",
+        "صبح روز اجرا غذای کافی همراه بیاورید تا وسط کار ضعف نکنید.",
+      ].join("\n"),
+    },
+    {
+      title: "۶. لوکیشن سالن",
+      text: "https://maps.google.com/maps?q=83HH%2BRW2%D8%8C%2B%DA%A9%D8%B1%D9%85%D8%A7%D9%86%D8%B4%D8%A7%D9%87%D8%8C%2B%D8%A7%D8%B3%D8%AA%D8%A7%D9%86%2B%DA%A9%D8%B1%D9%85%D8%A7%D9%86%D8%B4%D8%A7%D9%87%D8%8C%2B%D8%A7%DB%8C%D8%B1%D8%A7%D9%86&sll=34.32978347498267,47.07965947687626",
+      ltr: true,
+    },
+    {
+      title: "۷. آدرس بسته‌های پستی",
+      text: [
+        "پیمان زیبائی‌فر",
+        STUDIO_CONTACT_PHONE,
+        "کرمانشاه، گلایول، بلوار ۱۷ شهریور، بلوار ارشاد (چهارراه ارشاد)، چهارراه بسیج، بغل موتورسیکلت‌فروشی فقیرزاده، مجتمع ارشاد، طبقه ۴، واحد ۱۶",
+        "کد پستی: 6714619524",
+      ].join("\n"),
+    },
+  ];
+  return (
+    <div className="mt-5 grid gap-3">
+      <p className="text-sm leading-7 text-muted">هر متن را با دکمهٔ کپی بردار و در پیام مشتری بفرست.</p>
+      {boxes.map((box) => (
+        <CopyBox key={box.title} title={box.title} text={box.text} ltr={box.ltr} />
+      ))}
+    </div>
+  );
+}
+
+function CopyBox({ title, text, ltr }: { title: string; text: string; ltr?: boolean }) {
+  const [done, setDone] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setDone(true);
+      toast.success("متن کپی شد.");
+      window.setTimeout(() => setDone(false), 1500);
+    } catch {
+      toast.error("کپی نشد. متن را دستی انتخاب کنید.");
+    }
+  }
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-bold">{title}</h3>
+        <button type="button" onClick={() => void copy()} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-primary/30 px-3 text-xs font-bold">
+          <Copy className="size-3.5" />
+          {done ? "کپی شد" : "کپی"}
+        </button>
+      </div>
+      <pre dir={ltr ? "ltr" : "rtl"} className={cn("mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-bg p-3 text-sm leading-7", ltr && "text-left")}>
+        {text}
+      </pre>
+    </section>
+  );
+}
 
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
@@ -243,6 +347,7 @@ function StudioAdminPage() {
           [
             ["calendar", "امروز"],
             ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
+            ["messages", "پیام‌های آماده"],
             ["jobs", "نوبت‌ها"],
             ["contacts", "مشتریان"],
             ["fill", "لیست انتظار"],
@@ -276,6 +381,8 @@ function StudioAdminPage() {
         </div>
       ) : null}
       {loading ? <p className="mt-6 text-sm text-muted">در حال دریافت اطلاعات…</p> : null}
+
+      {tab === "messages" ? <ReadyMessages /> : null}
 
       {!loading && !error && tab === "calendar" ? (
         <OwnerCalendar items={bookings} businesses={businesses} onChange={() => void refresh()} />
