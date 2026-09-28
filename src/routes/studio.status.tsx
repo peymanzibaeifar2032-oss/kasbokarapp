@@ -42,7 +42,7 @@ function AppDownloadBar() {
           آخرین نسخهٔ اپ اندروید
         </p>
         <a
-          href="/api/tattoo-apk?v=12"
+          href="/api/tattoo-apk?v=13"
           download="rezerv-vaght-tatoo.apk"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
         >

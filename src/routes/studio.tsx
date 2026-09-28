@@ -12,6 +12,7 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
+import { useEffect } from "react";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { StudioGuideGallery } from "@/components/studio/guide-gallery";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
@@ -43,6 +44,12 @@ const faqs = [
 function StudioLanding() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { showAdmin } = useStudioAdminEntry();
+
+  useEffect(() => {
+    if (pathname === "/studio" && navigator.userAgent.includes("TattooApp")) {
+      window.location.replace("/studio/pocket");
+    }
+  }, [pathname]);
 
   if (pathname !== "/studio") return <Outlet />;
 

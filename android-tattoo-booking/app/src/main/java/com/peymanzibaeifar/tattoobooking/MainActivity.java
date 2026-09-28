@@ -46,7 +46,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
-    private static final String HOME = "https://kasbokarapp.com/studio";
+    private static final String HOME = "https://kasbokarapp.com/studio/pocket";
     private static final String ADMIN = "https://kasbokarapp.com/studio/admin";
     private static final String LOGIN = "https://kasbokarapp.com/login?next=/studio/admin";
     private static final String LOGOUT = "https://kasbokarapp.com/login?out=1";
