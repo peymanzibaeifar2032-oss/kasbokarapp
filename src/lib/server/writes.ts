@@ -3231,7 +3231,8 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const requestId = crypto.randomUUID();
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
   const phoneTail = phone.replace(/\D/g, "").slice(-10);
-  if (phoneTail.length >= 10) {
+  const savingDay = tehranDay(start.toISOString());
+  if (phoneTail.length >= 10 && savingDay) {
     await sql.query(
       `delete from bookings b
         where b.business_id = $1
@@ -3239,8 +3240,9 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
           and b.kind = 'booking'
           and b.status in ('requested','confirmed')
           and right(regexp_replace(coalesce(b.customer_phone,''), '\\D', '', 'g'), 10) = $2
+          and to_char(b.slot_start at time zone 'Asia/Tehran', 'YYYY-MM-DD') = $3
           and not exists (select 1 from tattoo_requests t where t.booking_id = b.id)`,
-      [businessId, phoneTail],
+      [businessId, phoneTail, savingDay],
     );
   }
   const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
