@@ -1,4 +1,4 @@
-const CACHE = "kasb-pocket-v2";
+const CACHE = "kasb-pocket-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -13,7 +13,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  const keep = url.pathname.startsWith("/studio/pocket") || url.pathname.startsWith("/assets/") || url.pathname.startsWith("/pocket-sw.js");
+  const keep = url.pathname.startsWith("/studio/") || url.pathname.startsWith("/assets/") || url.pathname.startsWith("/pocket-sw.js");
   if (!keep) return;
   event.respondWith(
     fetch(request)

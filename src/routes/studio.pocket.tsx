@@ -56,20 +56,38 @@ function PocketApp() {
 
   return (
     <main className="min-h-dvh bg-[#111] pb-24 text-white" dir="rtl">
-      <header className="border-b border-white/10 px-4 py-4">
-        <p className="text-xs text-[#b7955b]">اپ روی گوشی</p>
-        <h1 className="text-xl font-black">رزرو و پنل، حتی بدون اینترنت</h1>
-        <p className="mt-1 text-xs text-white/55">{syncing ? "در حال انتقال به سایت…" : online ? "اینترنت وصل است" : "اینترنت قطع است. همین‌جا ذخیره می‌شود."}</p>
+      <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div>
+          <h1 className="text-base font-black">{online ? "همان امکانات سایت" : "بدون اینترنت"}</h1>
+          <p className="text-xs text-white/55">{syncing ? "در حال انتقال…" : online ? "دستیار و پنل کامل" : "ذخیره روی گوشی"}</p>
+        </div>
+        <button type="button" className="h-10 rounded-2xl border border-white/20 px-4 text-sm" onClick={() => void leavePocket()}>خروج</button>
       </header>
+      {online ? (
+        <iframe
+          key={tab}
+          title={tab === "request" ? "درخواست رزرو" : "پنل ادمین"}
+          src={tab === "request" ? "/studio/request" : "/studio/admin"}
+          className="w-full border-0 bg-[#111]"
+          style={{ height: "calc(100dvh - 8.25rem)" }}
+        />
+      ) : (
       <div className="px-4 py-4">
         {tab === "request" ? <RequestPane requests={requests} onChange={setRequests} /> : <AdminPane jobs={jobs} requests={requests} admin={admin} setAdmin={setAdmin} onJobs={setJobs} onRequests={setRequests} />}
       </div>
+      )}
       <nav className="fixed inset-x-0 bottom-0 grid grid-cols-2 gap-2 border-t border-white/10 bg-[#111] p-3">
         <button type="button" className={`h-12 rounded-2xl text-sm font-bold ${tab === "request" ? "bg-[#b7955b] text-black" : "border border-white/15"}`} onClick={() => setTab("request")}>درخواست رزرو وقت</button>
         <button type="button" className={`h-12 rounded-2xl text-sm font-bold ${tab === "admin" ? "bg-[#b7955b] text-black" : "border border-white/15"}`} onClick={() => setTab("admin")}>پنل ادمین</button>
       </nav>
     </main>
   );
+}
+
+function leavePocket() {
+  localStorage.removeItem(ADMIN_KEY);
+  localStorage.removeItem(ADMIN_EMAIL_KEY);
+  return signOut("/studio/pocket").catch(() => undefined);
 }
 
 function RequestPane({ requests, onChange }: { requests: PocketRequest[]; onChange: (rows: PocketRequest[]) => void }) {
