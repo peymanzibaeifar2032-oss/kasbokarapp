@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { authClient, signOut } from "@/lib/auth/client";
 import { loadPocketJobs, loadPocketRequests, newLocalId, savePocketJobs, savePocketRequests } from "@/lib/pocket-db";
 import { mergePocketJobs, tehranDay, type PocketJob, type PocketRequest } from "@/lib/pocket-sync";
@@ -309,7 +310,10 @@ function JobForm({ jobs, onJobs, onSaved }: { jobs: PocketJob[]; onJobs: (rows: 
       <Field label="محل" value={placement} onChange={setPlacement} />
       <Field label="اندازه" value={sizeCm} onChange={setSizeCm} />
       <Field label="سبک" value={style} onChange={setStyle} />
-      <label className="grid gap-1 text-sm">تاریخ <input type="date" value={day} onChange={(event) => setDay(event.target.value)} className="h-11 rounded-2xl border border-white/15 bg-transparent px-3" /></label>
+      <label className="grid gap-1 text-sm">
+        تاریخ شمسی
+        <JalaliDatePicker value={day} onChange={setDay} label="انتخاب روز شمسی" busyKeys={jobs.map((row) => tehranDay(row.slotStart)).filter(Boolean)} />
+      </label>
       <label className="grid gap-1 text-sm">ساعت <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="h-11 rounded-2xl border border-white/15 bg-transparent px-3" /></label>
       <button type="button" className="h-11 rounded-2xl bg-white text-sm font-bold text-black" onClick={() => void save()}>ذخیره در تقویم</button>
     </div>
