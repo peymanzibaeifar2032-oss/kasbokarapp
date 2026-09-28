@@ -212,6 +212,17 @@ function smsPrice(value: number) {
   return `${fmt.format(amount)} تومان`;
 }
 
+export function proposalSeenSms(name: string, phone: string) {
+  const who = name.trim().split(/\s+/)[0] || "";
+  return [
+    who ? `سلام ${who}` : "سلام",
+    "درخواستت دیده شد.",
+    "kasbokarapp.com را باز کن.",
+    "پایین صفحه، وضعیت را بزن.",
+    `شماره ${phone} را بنویس و دیدن وضعیت را بزن.`,
+  ].join("\n");
+}
+
 export function fillInOfferSms(name: string, idea: string, priceToman = 0) {
   const design = idea.trim().replace(/\s+/g, " ");
   const price = smsPrice(priceToman);

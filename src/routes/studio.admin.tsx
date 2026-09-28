@@ -40,6 +40,7 @@ import {
   formatGroupedDigits,
   formatTattooToman,
   isTattooReviewOverdue,
+  proposalSeenSms,
   studioVisitText,
   STUDIO_ADDRESS,
   STUDIO_CONTACT_PHONE,
@@ -700,6 +701,14 @@ function TattooAdminCard({
         <div className="mt-4 rounded-2xl border border-border bg-bg p-3 text-sm">
           <p className="font-semibold">پیشنهاد ارسال شده؛ هنوز روی تقویم قفل نشده است.</p>
           <p className="mt-1 text-muted">{formatFaDateTime(request.proposedSlotStart)}</p>
+          {toSmsLink(request.customerPhone, proposalSeenSms(request.customerName, request.customerPhone)) ? (
+            <a
+              className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-fg"
+              href={toSmsLink(request.customerPhone, proposalSeenSms(request.customerName, request.customerPhone)) ?? undefined}
+            >
+              پیامک: درخواستت دیده شد
+            </a>
+          ) : null}
         </div>
       ) : null}
       {request.paymentStatus === "awaiting_payment" && request.proposedSlotStart ? (
