@@ -28,6 +28,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiMehrLoanLeadsRouteImport } from './routes/api/mehr-loan-leads'
 import { Route as ApiPasswordResetRouteImport } from './routes/api/password-reset'
+import { Route as ApiPocketRequestRouteImport } from './routes/api/pocket-request'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
 import { Route as ApiSetAppPasswordRouteImport } from './routes/api/set-app-password'
@@ -42,6 +43,7 @@ import { Route as StudioAppRouteImport } from './routes/studio.app'
 import { Route as StudioCareRouteImport } from './routes/studio.care'
 import { Route as StudioDesignsRouteImport } from './routes/studio.designs'
 import { Route as StudioGuideRouteImport } from './routes/studio.guide'
+import { Route as StudioPocketRouteImport } from './routes/studio.pocket'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
 import { Route as StudioStatusRouteImport } from './routes/studio.status'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -144,6 +146,11 @@ const ApiPasswordResetRoute = ApiPasswordResetRouteImport.update({
   path: '/api/password-reset',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPocketRequestRoute = ApiPocketRequestRouteImport.update({
+  id: '/api/pocket-request',
+  path: '/api/pocket-request',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSaveRoute = ApiSaveRouteImport.update({
   id: '/api/save',
   path: '/api/save',
@@ -214,6 +221,11 @@ const StudioGuideRoute = StudioGuideRouteImport.update({
   path: '/guide',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioPocketRoute = StudioPocketRouteImport.update({
+  id: '/pocket',
+  path: '/pocket',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioRequestRoute = StudioRequestRouteImport.update({
   id: '/request',
   path: '/request',
@@ -265,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/password-reset': typeof ApiPasswordResetRoute
+  '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
@@ -279,6 +292,7 @@ export interface FileRoutesByFullPath {
   '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -306,6 +320,7 @@ export interface FileRoutesByTo {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/password-reset': typeof ApiPasswordResetRoute
+  '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
@@ -320,6 +335,7 @@ export interface FileRoutesByTo {
   '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -348,6 +364,7 @@ export interface FileRoutesById {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/password-reset': typeof ApiPasswordResetRoute
+  '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
@@ -362,6 +379,7 @@ export interface FileRoutesById {
   '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -391,6 +409,7 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/mehr-loan-leads'
     | '/api/password-reset'
+    | '/api/pocket-request'
     | '/api/save'
     | '/api/search-trace'
     | '/api/set-app-password'
@@ -405,6 +424,7 @@ export interface FileRouteTypes {
     | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
     | '/api/auth/$'
@@ -432,6 +452,7 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/mehr-loan-leads'
     | '/api/password-reset'
+    | '/api/pocket-request'
     | '/api/save'
     | '/api/search-trace'
     | '/api/set-app-password'
@@ -446,6 +467,7 @@ export interface FileRouteTypes {
     | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
     | '/api/auth/$'
@@ -473,6 +495,7 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/mehr-loan-leads'
     | '/api/password-reset'
+    | '/api/pocket-request'
     | '/api/save'
     | '/api/search-trace'
     | '/api/set-app-password'
@@ -487,6 +510,7 @@ export interface FileRouteTypes {
     | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
     | '/api/auth/$'
@@ -515,6 +539,7 @@ export interface RootRouteChildren {
   ApiMapConfigRoute: typeof ApiMapConfigRoute
   ApiMehrLoanLeadsRoute: typeof ApiMehrLoanLeadsRoute
   ApiPasswordResetRoute: typeof ApiPasswordResetRoute
+  ApiPocketRequestRoute: typeof ApiPocketRequestRoute
   ApiSaveRoute: typeof ApiSaveRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
   ApiSetAppPasswordRoute: typeof ApiSetAppPasswordRoute
@@ -664,6 +689,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPasswordResetRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pocket-request': {
+      id: '/api/pocket-request'
+      path: '/api/pocket-request'
+      fullPath: '/api/pocket-request'
+      preLoaderRoute: typeof ApiPocketRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/save': {
       id: '/api/save'
       path: '/api/save'
@@ -762,6 +794,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioGuideRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/pocket': {
+      id: '/studio/pocket'
+      path: '/pocket'
+      fullPath: '/studio/pocket'
+      preLoaderRoute: typeof StudioPocketRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/request': {
       id: '/studio/request'
       path: '/request'
@@ -825,6 +864,7 @@ interface StudioRouteChildren {
   StudioCareRoute: typeof StudioCareRoute
   StudioDesignsRoute: typeof StudioDesignsRoute
   StudioGuideRoute: typeof StudioGuideRoute
+  StudioPocketRoute: typeof StudioPocketRoute
   StudioRequestRoute: typeof StudioRequestRoute
   StudioStatusRoute: typeof StudioStatusRoute
 }
@@ -835,6 +875,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioCareRoute: StudioCareRoute,
   StudioDesignsRoute: StudioDesignsRoute,
   StudioGuideRoute: StudioGuideRoute,
+  StudioPocketRoute: StudioPocketRoute,
   StudioRequestRoute: StudioRequestRoute,
   StudioStatusRoute: StudioStatusRoute,
 }
@@ -862,6 +903,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMapConfigRoute: ApiMapConfigRoute,
   ApiMehrLoanLeadsRoute: ApiMehrLoanLeadsRoute,
   ApiPasswordResetRoute: ApiPasswordResetRoute,
+  ApiPocketRequestRoute: ApiPocketRequestRoute,
   ApiSaveRoute: ApiSaveRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
   ApiSetAppPasswordRoute: ApiSetAppPasswordRoute,

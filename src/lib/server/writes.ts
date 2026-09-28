@@ -18,6 +18,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
+import { phoneKey, tehranDay } from "@/lib/pocket-sync";
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
@@ -3495,6 +3496,213 @@ async function performFavoriteToggle(userId: string, raw: unknown) {
   return performFavorites(userId);
 }
 
+export async function performPocketGuestRequest(raw: unknown) {
+  const data = z.object({
+    customerName: z.string().trim().min(2).max(80),
+    customerPhone: z.string().trim().max(40),
+    placement: z.string().trim().min(2).max(120),
+    sizeCm: z.string().trim().min(1).max(80),
+    idea: z.string().trim().min(2).max(1500),
+    style: z.string().trim().max(80).optional(),
+    requestType: z.enum(["new", "coverup", "consultation", "custom", "repair", "continuation"]).optional(),
+  }).parse(raw);
+  const phone = normalizeIranPhone(data.customerPhone);
+  if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
+  const sql = await getSql();
+  const tail = phoneKey(phone);
+  const idea = data.idea.trim();
+  const existing = await sql.query<{ id: string }>(
+    `select id from tattoo_requests
+      where right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) = $1
+        and idea = $2
+        and created_at > now() - interval '30 days'
+      limit 1`,
+    [tail, idea],
+  );
+  if (existing[0]) return { id: existing[0].id, duplicate: true };
+  const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin = true limit 1");
+  const businessId = admins[0] ? await ensureStudioShop(sql, admins[0].user_id) : null;
+  const id = crypto.randomUUID();
+  let trackingCode = makeTattooTrackingCode();
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await sql.query(
+        `insert into tattoo_requests
+          (id, tracking_code, customer_id, business_id, customer_name, customer_phone, request_type, style, idea, placement, size_cm, reference_images, body_images)
+         values ($1,$2,null,$3,$4,$5,$6,$7,$8,$9,$10,'[]'::jsonb,'[]'::jsonb)`,
+        [id, trackingCode, businessId, data.customerName, phone, data.requestType || "new", data.style || "از روی توضیح", idea, data.placement, data.sizeCm],
+      );
+      break;
+    } catch (error) {
+      if (attempt === 5 || !/unique|duplicate/i.test(error instanceof Error ? error.message : "")) throw error;
+      trackingCode = makeTattooTrackingCode();
+    }
+  }
+  try {
+    await finalizeNewTattooRequest(sql, id, {
+      requestType: data.requestType || "new",
+      placement: data.placement,
+      style: data.style || "از روی توضیح",
+      sizeCm: data.sizeCm,
+      colorMode: "",
+      idea,
+      imageCount: 0,
+    });
+  } catch {
+    /* the request row is already stored */
+  }
+  for (const admin of admins) {
+    await notify(sql, admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} دریافت شد.`, "tattoo_request_new");
+  }
+  return { id, duplicate: false };
+}
+
+async function performStudioPocketPull(userId: string) {
+  const actor = await requireStudioStaff(userId);
+  if (actor.role !== "owner") throw new Error("این بخش فقط برای پنل ادمین است.");
+  const sql = await getSql();
+  const businessId = await ensureStudioShop(sql, userId);
+  const jobs = await sql.query<{
+    id: string;
+    customer_name: string;
+    customer_phone: string | null;
+    customer_phone_2: string | null;
+    customer_instagram: string | null;
+    placement: string | null;
+    style: string | null;
+    idea: string | null;
+    size_cm: string | null;
+    price_min_toman: number | null;
+    paid_toman: number | null;
+    proposed_slot_start: string | null;
+    session_minutes: number | null;
+  }>(
+    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, placement, style, idea, size_cm,
+            price_min_toman, paid_toman, proposed_slot_start, session_minutes
+       from tattoo_requests
+      where business_id = $1 and status = 'booked' and proposed_slot_start is not null
+      order by proposed_slot_start`,
+    [businessId],
+  );
+  const requests = await sql.query<{
+    id: string;
+    customer_name: string;
+    customer_phone: string | null;
+    placement: string | null;
+    style: string | null;
+    idea: string | null;
+    size_cm: string | null;
+    request_type: string | null;
+  }>(
+    `select id, customer_name, customer_phone, placement, style, idea, size_cm, request_type
+       from tattoo_requests
+      where status <> 'booked' and (business_id = $1 or business_id is null)
+      order by created_at desc
+      limit 200`,
+    [businessId],
+  );
+  return {
+    jobs: jobs.map((row) => ({
+      localId: row.id,
+      serverId: row.id,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone || "",
+      customerPhone2: row.customer_phone_2 || "",
+      customerInstagram: row.customer_instagram || "",
+      placement: row.placement || "",
+      style: row.style || "",
+      idea: row.idea || "",
+      sizeCm: row.size_cm || "",
+      priceMinToman: row.price_min_toman || 0,
+      paidToman: row.paid_toman || 0,
+      slotStart: row.proposed_slot_start || "",
+      sessionMinutes: row.session_minutes || 180,
+      origin: "site" as const,
+    })),
+    requests: requests.map((row) => ({
+      localId: row.id,
+      serverId: row.id,
+      customerName: row.customer_name,
+      customerPhone: row.customer_phone || "",
+      placement: row.placement || "",
+      style: row.style || "",
+      idea: row.idea || "",
+      sizeCm: row.size_cm || "",
+      requestType: row.request_type || "new",
+      origin: "site" as const,
+    })),
+  };
+}
+
+async function performStudioPocketPush(userId: string, raw: unknown) {
+  const data = z.object({
+    jobs: z.array(z.object({
+      localId: z.string().trim().min(4).max(80),
+      customerName: z.string().trim().min(2).max(80),
+      customerPhone: z.string().trim().min(10).max(40),
+      customerPhone2: z.string().trim().max(40).optional(),
+      customerInstagram: z.string().trim().max(80).optional(),
+      placement: z.string().trim().min(2).max(120),
+      style: z.string().trim().min(2).max(80),
+      idea: z.string().trim().max(1500).optional(),
+      sizeCm: z.string().trim().max(80).optional(),
+      priceMinToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      paidToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      slotStart: z.string(),
+      sessionMinutes: z.number().int().min(10).max(4320).optional(),
+    })).max(40),
+  }).parse(raw);
+  const actor = await requireStudioStaff(userId);
+  if (actor.role !== "owner") throw new Error("این بخش فقط برای پنل ادمین است.");
+  const sql = await getSql();
+  const businessId = await ensureStudioShop(sql, userId);
+  const uploaded: { localId: string; serverId: string }[] = [];
+  const linked: { localId: string; serverId: string }[] = [];
+  const failed: { localId: string; error: string }[] = [];
+  for (const job of data.jobs) {
+    const day = tehranDay(job.slotStart);
+    const tail = phoneKey(job.customerPhone);
+    if (!day || tail.length < 10) {
+      failed.push({ localId: job.localId, error: "تاریخ یا شماره ناقص است." });
+      continue;
+    }
+    const existing = await sql.query<{ id: string }>(
+      `select id from tattoo_requests
+        where business_id = $1 and status = 'booked'
+          and right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) = $2
+          and to_char(proposed_slot_start at time zone 'Asia/Tehran', 'YYYY-MM-DD') = $3
+        limit 1`,
+      [businessId, tail, day],
+    );
+    if (existing[0]) {
+      linked.push({ localId: job.localId, serverId: existing[0].id });
+      continue;
+    }
+    try {
+      const created = await performCreateStudioJob(userId, {
+        customerName: job.customerName,
+        customerPhone: job.customerPhone,
+        customerPhone2: job.customerPhone2,
+        customerInstagram: job.customerInstagram,
+        style: job.style,
+        idea: job.idea,
+        placement: job.placement,
+        sizeCm: job.sizeCm,
+        priceMinToman: job.priceMinToman ?? 0,
+        paidToman: job.paidToman ?? 0,
+        sessionMinutes: job.sessionMinutes ?? 180,
+        slotStart: job.slotStart,
+        referenceImages: [],
+      });
+      uploaded.push({ localId: job.localId, serverId: created.id });
+    } catch (error) {
+      failed.push({ localId: job.localId, error: error instanceof Error ? error.message : "ثبت نشد." });
+    }
+  }
+  const pulled = await performStudioPocketPull(userId);
+  return { uploaded, linked, failed, ...pulled };
+}
+
 export async function dispatchSave(userId: string, type: string, payload: unknown, displayName?: string) {
   switch (type) {
     case "profile":
@@ -3611,6 +3819,10 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performAddStudioPayment(userId, payload);
     case "createStudioJob":
       return performCreateStudioJob(userId, payload);
+    case "studioPocketPull":
+      return performStudioPocketPull(userId);
+    case "studioPocketPush":
+      return performStudioPocketPush(userId, payload);
     case "followUpStudioJob":
       return performFollowUpStudioJob(userId, payload);
     case "studioApprenticeBoard":

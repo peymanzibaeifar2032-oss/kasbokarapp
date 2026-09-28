@@ -93,6 +93,12 @@ function StudioLanding() {
                     بررسی وضعیت
                   </Link>
                   <Link
+                    to="/studio/pocket"
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm"
+                  >
+                    اپ روی گوشی
+                  </Link>
+                  <Link
                     to="/studio/designs"
                     className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
                   >
