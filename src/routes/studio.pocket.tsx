@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { authClient } from "@/lib/auth/client";
+import { authClient, signOut } from "@/lib/auth/client";
 import { loadPocketJobs, loadPocketRequests, newLocalId, savePocketJobs, savePocketRequests } from "@/lib/pocket-db";
 import { mergePocketJobs, tehranDay, type PocketJob, type PocketRequest } from "@/lib/pocket-sync";
 import { saveAction } from "@/lib/save";
+import { isStudioOwnerEmail } from "@/lib/studio-owner";
 
 export const Route = createFileRoute("/studio/pocket")({
   component: PocketApp,
@@ -13,6 +14,11 @@ export const Route = createFileRoute("/studio/pocket")({
 
 type Tab = "request" | "admin";
 const ADMIN_KEY = "kasb-pocket-admin";
+const ADMIN_EMAIL_KEY = "kasb-pocket-email";
+
+function ownerUnlocked() {
+  return localStorage.getItem(ADMIN_KEY) === "1" && isStudioOwnerEmail(localStorage.getItem(ADMIN_EMAIL_KEY));
+}
 
 function PocketApp() {
   const [tab, setTab] = useState<Tab>("request");
@@ -24,7 +30,8 @@ function PocketApp() {
 
   useEffect(() => {
     let cancel = false;
-    const unlocked = localStorage.getItem(ADMIN_KEY) === "1";
+    const unlocked = ownerUnlocked();
+    if (!unlocked) localStorage.removeItem(ADMIN_KEY);
     setAdmin(unlocked);
     void (async () => {
       const [storedJobs, storedRequests] = await Promise.all([loadPocketJobs(), loadPocketRequests()]);
@@ -140,25 +147,55 @@ function AdminPane({
   onJobs: (rows: PocketJob[]) => void;
   onRequests: (rows: PocketRequest[]) => void;
 }) {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => localStorage.getItem(ADMIN_EMAIL_KEY) || "");
   const [password, setPassword] = useState("");
   const [open, setOpen] = useState(false);
 
+  async function leave() {
+    localStorage.removeItem(ADMIN_KEY);
+    localStorage.removeItem(ADMIN_EMAIL_KEY);
+    setAdmin(false);
+    setPassword("");
+    try {
+      await signOut("/studio/pocket");
+    } catch {
+      toast.error("خروج از سایت کامل نشد. فرم ورود دوباره باز است.");
+    }
+  }
+
   async function enter() {
+    const typed = email.trim();
+    if (!isStudioOwnerEmail(typed)) {
+      toast.error("این ایمیل پنل ادمین نیست. ایمیل خودت را بنویس.");
+      return;
+    }
     if (!navigator.onLine) {
-      if (localStorage.getItem(ADMIN_KEY) === "1") {
+      if (ownerUnlocked()) {
         setAdmin(true);
         return;
       }
       toast.error("اولین ورود باید یک بار با اینترنت باشد.");
       return;
     }
-    const res = await authClient.signIn.email({ email: email.trim(), password });
+    const res = await authClient.signIn.email({ email: typed, password });
     if (res.error) {
-      toast.error("ایمیل یا رمز درست نیست.");
+      toast.error("ایمیل یا رمز درست نیست. دوباره بنویس یا خروج را بزن.");
+      return;
+    }
+    const signedIn = res.data?.user?.email || typed;
+    if (!isStudioOwnerEmail(signedIn)) {
+      localStorage.removeItem(ADMIN_KEY);
+      localStorage.removeItem(ADMIN_EMAIL_KEY);
+      try {
+        await authClient.signOut();
+      } catch {
+        /* the panel stays closed either way */
+      }
+      toast.error("این حساب پنل ادمین نیست. خارج شدی.");
       return;
     }
     localStorage.setItem(ADMIN_KEY, "1");
+    localStorage.setItem(ADMIN_EMAIL_KEY, typed);
     setAdmin(true);
     void transfer(jobs, requests, true, onJobs, onRequests, () => undefined);
   }
@@ -169,16 +206,21 @@ function AdminPane({
         <p className="text-sm text-white/70">پنل فقط با ایمیل و رمز خودت باز می‌شود. بعد از یک ورود، بدون اینترنت هم باز است.</p>
         <Field label="ایمیل" value={email} onChange={setEmail} />
         <Field label="رمز" value={password} onChange={setPassword} type="password" />
-        <button type="button" className="h-12 rounded-2xl bg-[#b7955b] font-bold text-black" onClick={() => void enter()}>ورود به پنل</button>
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" className="h-12 rounded-2xl bg-[#b7955b] font-bold text-black" onClick={() => void enter()}>ورود</button>
+          <button type="button" className="h-12 rounded-2xl border border-white/20 font-bold" onClick={() => void leave()}>خروج</button>
+        </div>
       </section>
     );
   }
 
   return (
     <section className="grid gap-3">
+      <p className="text-xs text-white/50">{localStorage.getItem(ADMIN_EMAIL_KEY)}</p>
       <div className="flex gap-2">
         <button type="button" className="h-11 flex-1 rounded-2xl bg-[#b7955b] font-bold text-black" onClick={() => setOpen((value) => !value)}>{open ? "بستن فرم" : "نوبت جدید"}</button>
         <button type="button" className="h-11 rounded-2xl border border-white/15 px-4 text-sm" onClick={() => void transfer(jobs, requests, true, onJobs, onRequests, () => undefined)}>انتقال</button>
+        <button type="button" className="h-11 rounded-2xl border border-white/20 px-4 text-sm" onClick={() => void leave()}>خروج</button>
       </div>
       {open ? <JobForm jobs={jobs} onJobs={onJobs} onSaved={() => void transfer(jobs, requests, true, onJobs, onRequests, () => undefined)} /> : null}
       <h2 className="font-bold">تقویم ذخیره‌شده</h2>

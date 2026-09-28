@@ -1,4 +1,4 @@
-const CACHE = "kasb-pocket-v1";
+const CACHE = "kasb-pocket-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
