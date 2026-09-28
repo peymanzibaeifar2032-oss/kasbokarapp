@@ -3230,6 +3230,19 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const bookingId = crypto.randomUUID();
   const requestId = crypto.randomUUID();
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
+  const phoneTail = phone.replace(/\D/g, "").slice(-10);
+  if (phoneTail.length >= 10) {
+    await sql.query(
+      `delete from bookings b
+        where b.business_id = $1
+          and b.source = 'manual'
+          and b.kind = 'booking'
+          and b.status in ('requested','confirmed')
+          and right(regexp_replace(coalesce(b.customer_phone,''), '\\D', '', 'g'), 10) = $2
+          and not exists (select 1 from tattoo_requests t where t.booking_id = b.id)`,
+      [businessId, phoneTail],
+    );
+  }
   const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
   if (clash) throw new Error(studioClashMessage(clash));
   if (paid > 0 && !data.continuation) {
@@ -3246,14 +3259,34 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     if (isOccupancyConflict(err)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
     throw err;
   }
-  await sql.query(
-    `insert into tattoo_requests
-      (id, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
-       size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
-       payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, artist_id, is_continuation)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,'new',$9,$10,$11,$12,'booked',$13,$14,1,$15,$22,'approved',$16,$17,$18,$19,$20::jsonb,$21,$23)`,
-    [requestId, userId, businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", priceMin, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images), actor.artistId, note, Boolean(data.continuation)],
-  );
+  let trackingCode = makeTattooTrackingCode();
+  let stored = false;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await sql.query(
+        `insert into tattoo_requests
+          (id, tracking_code, customer_id, business_id, booking_id, customer_name, customer_phone, customer_phone_2, customer_instagram, request_type, style, idea, placement,
+           size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
+           payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, artist_id, is_continuation)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'new',$10,$11,$12,$13,'booked',$14,$15,1,$16,$23,'approved',$17,$18,$19,$20,$21::jsonb,$22,$24)`,
+        [requestId, trackingCode, userId, businessId, bookingId, data.customerName, phone, phone2, instagram || null, data.style, data.idea || data.style, data.placement, data.sizeCm || "نامشخص", priceMin, minutes, paid, start.toISOString(), slotEnd, paid, settled, JSON.stringify(images), actor.artistId, note, Boolean(data.continuation)],
+      );
+      stored = true;
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (attempt < 5 && /unique|duplicate/i.test(message)) {
+        trackingCode = makeTattooTrackingCode();
+        continue;
+      }
+      await sql.query(`delete from bookings where id=$1`, [bookingId]);
+      throw error;
+    }
+  }
+  if (!stored) {
+    await sql.query(`delete from bookings where id=$1`, [bookingId]);
+    throw new Error("ثبت در تقویم انجام نشد. یک بار دیگر بزن.");
+  }
   if (paid > 0) {
     await sql.query(`insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`, [crypto.randomUUID(), requestId, paid, data.continuation ? "دریافت مانده ادامه کار" : "واریز ثبت‌شده هنگام ورود دستی"]);
   }
