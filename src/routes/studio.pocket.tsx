@@ -23,7 +23,7 @@ function ownerUnlocked() {
 
 function PocketApp() {
   const [tab, setTab] = useState<Tab>("request");
-  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [online, setOnline] = useState(true);
   const [jobs, setJobs] = useState<PocketJob[]>([]);
   const [requests, setRequests] = useState<PocketRequest[]>([]);
   const [admin, setAdmin] = useState(false);
@@ -31,6 +31,7 @@ function PocketApp() {
 
   useEffect(() => {
     let cancel = false;
+    if (!navigator.onLine) setOnline(false);
     const unlocked = ownerUnlocked();
     if (!unlocked) localStorage.removeItem(ADMIN_KEY);
     setAdmin(unlocked);
