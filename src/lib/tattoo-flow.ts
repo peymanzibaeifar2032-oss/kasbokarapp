@@ -212,6 +212,19 @@ function smsPrice(value: number) {
   return `${fmt.format(amount)} تومان`;
 }
 
+export function aftercareSms(stage: "wash" | "itch" | "month", name: string, honorific: "آقا" | "خانم") {
+  const bare = name.trim().replace(/^(آقای|آقا|خانم)\s+/, "").split(/\s+/)[0] || "";
+  const who = bare ? `${honorific} ${bare}` : honorific;
+  const hello = `سلام ${who}`;
+  if (stage === "wash") {
+    return [hello, "روزی ۳ بار حمام کن.", "هر بار تاتو را کامل بشوی.", "بعد از حمام پانسمان کن.", "تا روز چهارم چرب نکن."].join("\n");
+  }
+  if (stage === "itch") {
+    return [hello, "تاتو را نخارانید.", "از روز چهارم با پماد دکسپانتونل چرب کن."].join("\n");
+  }
+  return [hello, "تا یک ماه، روزی ۵ تا ۶ بار، سطح پوست را ملایم با پماد دکسپانتونل چرب کن."].join("\n");
+}
+
 export function proposalSeenSms(name: string, phone: string, honorific: "آقا" | "خانم") {
   const bare = name.trim().replace(/^(آقای|آقا|خانم)\s+/, "").split(/\s+/)[0] || "";
   const who = bare ? `${honorific} ${bare}` : honorific;

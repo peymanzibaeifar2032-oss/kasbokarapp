@@ -40,6 +40,7 @@ import {
   formatGroupedDigits,
   formatTattooToman,
   isTattooReviewOverdue,
+  aftercareSms,
   proposalSeenSms,
   studioVisitText,
   STUDIO_ADDRESS,
@@ -1481,6 +1482,58 @@ function Choice({
   );
 }
 
+function daysBetweenKeys(fromKey: string, toKey: string) {
+  const [y, m, d] = fromKey.split("-").map(Number);
+  const [ty, tm, td] = toKey.split("-").map(Number);
+  if (!y || !ty) return -1;
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / 86400000);
+}
+
+function AftercareReminders({ jobs }: { jobs: TattooRequest[] }) {
+  const today = tehranDayKey();
+  const due = jobs
+    .map((job) => {
+      const day = jobDayKey(job);
+      const age = daysBetweenKeys(day, today);
+      const stage = age === 1 ? "wash" : age === 4 ? "itch" : age === 5 ? "month" : null;
+      return stage ? { job, stage, age } : null;
+    })
+    .filter((row): row is { job: TattooRequest; stage: "wash" | "itch" | "month"; age: number } => Boolean(row))
+    .sort((a, b) => a.age - b.age || jobStamp(a.job) - jobStamp(b.job));
+  if (!due.length) return null;
+  return (
+    <section className="rounded-3xl border border-amber-400 bg-amber-50 p-4 text-amber-950">
+      <h2 className="text-base font-bold">مراقبت بعد تاتو را تذکر بده</h2>
+      <p className="mt-1 text-sm leading-7">این‌ها مشتری امروز نیستند. رنگ این بخش با نوبت امروز فرق دارد.</p>
+      <div className="mt-3 grid gap-3">
+        {due.map(({ job, stage, age }) => {
+          const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
+          const label = age === 1 ? "مشتری دیروز" : age === 4 ? "چهار روز بعد از اجرا" : "پنج روز بعد از اجرا";
+          return (
+            <article key={`${job.id}-${stage}`} className="rounded-2xl border border-amber-300 bg-white/70 p-3">
+              <p className="text-xs font-bold text-amber-800">{label}</p>
+              <p className="mt-1 font-bold">{job.customerName}</p>
+              <p className="text-sm text-amber-900">{formatFaDateTime(job.proposedSlotStart || job.updatedAt)}</p>
+              {phone ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <a className="inline-flex h-11 items-center justify-center rounded-xl bg-amber-900 px-3 text-sm font-bold text-amber-50" href={toSmsLink(phone, aftercareSms(stage, job.customerName, "آقا")) ?? undefined}>
+                    پیامک برای آقا
+                  </a>
+                  <a className="inline-flex h-11 items-center justify-center rounded-xl border border-amber-800 px-3 text-sm font-bold text-amber-950" href={toSmsLink(phone, aftercareSms(stage, job.customerName, "خانم")) ?? undefined}>
+                    پیامک برای خانم
+                  </a>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm">شماره ندارد.</p>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function MonthJobsPanel({
   businesses,
   bookings,
@@ -1496,6 +1549,7 @@ function MonthJobsPanel({
   const [weekOffset, setWeekOffset] = useState(0);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [jobs, setJobs] = useState<Array<TattooRequest & { customerFile?: CustomerFileBrief | null }>>([]);
+  const [careJobs, setCareJobs] = useState<TattooRequest[]>([]);
   const [waiting, setWaiting] = useState<WaitRow[]>([]);
   const [briefs, setBriefs] = useState<Record<string, CustomerFileBrief>>({});
   const [jobQuery, setJobQuery] = useState("");
@@ -1512,6 +1566,20 @@ function MonthJobsPanel({
         span === "week" ? { start: week.start, end: week.end, mine: true } : { jy: month.jy, jm: month.jm, mine: true },
       );
       setJobs(rows);
+      try {
+        const today = tehranDayKey();
+        const startKey = shiftTehranDayKey(today, -5);
+        const [sy, sm, sd] = startKey.split("-").map(Number);
+        const [ty, tm, td] = today.split("-").map(Number);
+        const recent = await saveAction<TattooRequest[]>("studioMonthJobs", {
+          start: tehranLocalToIso(sy, sm, sd, 0, 0),
+          end: tehranLocalToIso(ty, tm, td, 0, 0),
+          mine: true,
+        });
+        setCareJobs(recent);
+      } catch {
+        setCareJobs([]);
+      }
       const phones = rows.flatMap((job) => [job.customerPhone, job.customerPhone2 || ""]);
       const names = rows.map((job) => job.customerName);
       const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones, names });
@@ -1627,6 +1695,8 @@ function MonthJobsPanel({
           )}
         </div>
       </div>
+
+      <AftercareReminders jobs={careJobs} />
 
       <StudioJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} />
 
@@ -2115,14 +2185,14 @@ function RealDurationFix({ job, onChange }: { job: TattooRequest; onChange: () =
   return (
     <div className="mt-2">
       <Button size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
-        {open ? "بستن اصلاح مدت" : "اصلاح مدت واقعی"}
+        {open ? "بستن ساعت واقعی" : "ساعت واقعی این جلسه"}
       </Button>
       {open ? (
         <div className="mt-2 max-w-sm">
           <DurationFields minutes={minutes} onChange={setMinutes} />
           <p className="mt-1 text-xs leading-6 text-muted">{formatSitting(minutes) || "ساعت و دقیقه را بنویس."} ساعت شروع همان می‌ماند و به مشتری پیام نمی‌رود.</p>
           <Button className="mt-2" size="sm" disabled={busy} onClick={() => void save()}>
-            {busy ? "در حال ذخیره…" : "ذخیره مدت واقعی"}
+            {busy ? "در حال ذخیره…" : "ذخیره ساعت واقعی"}
           </Button>
         </div>
       ) : null}
