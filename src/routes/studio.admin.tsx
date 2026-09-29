@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, Copy, CreditCard, FileDown, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
@@ -360,13 +360,13 @@ function StudioAdminPage() {
         {(
           [
             ["calendar", "امروز"],
-            ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
-            ["messages", "پیام‌های آماده"],
             ["jobs", "نوبت‌ها"],
-            ["contacts", "مشتریان"],
+            ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
             ["fill", "لیست انتظار"],
             ["money", owner ? "صندوق" : "سهم من"],
             ["apprentices", "هنرجوها"],
+            ["contacts", "مشتریان"],
+            ["messages", "پیام‌های آماده"],
             ["artists", "همکاران"],
           ] as const
         )
@@ -1974,10 +1974,12 @@ function BookedSlotActions({
   request,
   busyKeys,
   onChange,
+  showSms = true,
 }: {
   request: TattooRequest;
   busyKeys: string[];
   onChange: () => void;
+  showSms?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [follow, setFollow] = useState(false);
@@ -2070,7 +2072,7 @@ function BookedSlotActions({
 
   return (
     <div className="mt-3">
-      <BookingSmsActions request={request} />
+      {showSms ? <BookingSmsActions request={request} /> : null}
       {editing ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="تاریخ جدید">
@@ -2230,6 +2232,19 @@ function briefToCustomerFile(file: CustomerFileBrief | null): CustomerFile {
   };
 }
 
+function Fold({ title, children }: { title: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-2 overflow-hidden rounded-2xl border border-border">
+      <button type="button" className="flex h-11 w-full items-center justify-between px-3 text-right text-sm font-semibold" onClick={() => setOpen((value) => !value)}>
+        <span>{title}</span>
+        <span className="text-xs text-muted">{open ? "بستن" : "باز کردن"}</span>
+      </button>
+      {open ? <div className="border-t border-border px-3 py-3">{children}</div> : null}
+    </div>
+  );
+}
+
 function MonthJobCard({
   job,
   busyKeys,
@@ -2309,147 +2324,151 @@ function MonthJobCard({
   }
 
   return (
-    <article className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <article className="rounded-3xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <h3 className="text-lg font-bold">{job.customerName}</h3>
-          <ReplySeen request={job} />
-          <p className="text-sm text-muted">
-            طرح {job.style}
+          <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
+          <p className="mt-1 text-sm text-muted">
+            {job.style}
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
-          <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
-          {job.sessionMinutes ? <p className="mt-1 text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
-          <RealDurationFix job={job} onChange={onChange} />
-          {job.artistMessage === "جلسه دوم" ? (
-            <p className="mt-1 text-xs font-semibold text-accent">جلسه دوم · مشخصات از جلسه قبل</p>
-          ) : null}
-          {job.isContinuation ? (
-            <p className="mt-1 text-xs font-semibold text-accent">
-              ادامه کار · {balance.remaining > 0 ? `مانده ${formatTattooToman(balance.remaining)}` : "قبلاً تسویه شده"}
-            </p>
-          ) : null}
-          {job.carryClosed ? (
-            <p className="mt-1 text-xs font-semibold text-accent">مانده این کار به نوبت ادامه منتقل شده</p>
-          ) : null}
-          {phone ? (
-            <a className="mt-2 inline-block text-sm font-semibold text-accent" href={`tel:${phone}`} dir="ltr">
-              {phone}
-            </a>
-          ) : null}
-          {phone2 ? (
-            <a className="mt-1 mr-3 inline-block text-sm text-accent" href={`tel:${phone2}`}>
-              دوم: {phone2}
-            </a>
-          ) : null}
-          {job.customerInstagram ? (
-            <a
-              className="mt-1 mr-3 inline-block text-sm text-accent"
-              href={instagramProfileUrl(job.customerInstagram) ?? undefined}
-              target="_blank"
-              rel="noreferrer"
-            >
-              @{normalizeInstagramHandle(job.customerInstagram)}
-            </a>
-          ) : null}
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
-      <CustomerFileDetails file={job.customerFile ?? file} showEmpty editing={fileOpen} onEdit={() => setFileOpen((value) => !value)} />
-      {fileOpen ? (
-        <CustomerFileForm
-          contactKey={jobFileKey(job)}
-          file={briefToCustomerFile(job.customerFile ?? file)}
-          onSaved={() => {
-            setFileOpen(false);
-            onChange();
-          }}
-        />
-      ) : null}
-      <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} />
-      <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
-      <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-bg p-3">
-          <dt className="text-muted">مجموع واریزی</dt>
-          <dd className="mt-1 font-semibold">{formatTattooToman(balance.paid)}</dd>
-        </div>
-        <div className="rounded-2xl border border-border bg-bg p-3">
-          <dt className="text-muted">مبلغ کل</dt>
-          <dd className="mt-1 font-semibold">{formatTattooToman(balance.total)}</dd>
-        </div>
-        <div className="rounded-2xl border border-border bg-bg p-3">
-          <dt className="text-muted">مانده</dt>
-          <dd className={`mt-1 font-semibold ${balance.remaining > 0 ? "text-destructive" : ""}`}>{formatTattooToman(balance.remaining)}</dd>
-        </div>
-      </dl>
-      {job.payments?.length ? (
-        <ul className="mt-3 space-y-1 text-sm text-muted">
-          {job.payments.map((payment) => (
-            <li key={payment.id}>
-              {formatTattooToman(payment.amountToman)}
-              {payment.note ? ` · ${payment.note}` : ""}
-              {payment.createdAt ? ` · ${formatFaDateTime(payment.createdAt)}` : ""}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <div className="mt-3">
-        <Button variant="outline" size="sm" onClick={() => setEditing((value) => !value)}>
-          {editing ? "بستن ویرایش" : "ویرایش طرح، محل اجرا و واریزی"}
-        </Button>
-      </div>
-      {editing ? (
-        <div className="mt-3 border-t border-border pt-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="نام">
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </Field>
-            <Field label="شماره تماس">
-              <Input value={phoneEdit} onChange={(e) => setPhoneEdit(e.target.value)} dir="ltr" />
-            </Field>
-            <Field label="شماره دوم">
-              <Input value={phone2Edit} onChange={(e) => setPhone2Edit(e.target.value)} dir="ltr" />
-            </Field>
-            <Field label="اینستاگرام">
-              <Input value={instagramEdit} onChange={(e) => setInstagramEdit(e.target.value)} dir="ltr" placeholder="بدون @" />
-            </Field>
-            <Field label="طرح">
-              <Input value={style} onChange={(e) => setStyle(e.target.value)} />
-            </Field>
-            <Field label="محل اجرا">
-              <Input value={placement} onChange={(e) => setPlacement(e.target.value)} />
-            </Field>
-            <Field label="اندازه">
-              <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} />
-            </Field>
-            <NumberField label="مبلغ کل" hint="تومان" value={price} onChange={setPrice} money />
-            <Field label="توضیح طرح">
-              <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} />
-            </Field>
-          </div>
-          <DesignThumbs
-            images={images}
-            filePrefix={`${name}-${style}`}
-            onFiles={(urls) => setImages((current) => [...current, ...urls].slice(0, 3))}
-            onRemove={(index) => setImages((current) => current.filter((_, i) => i !== index))}
-          />
-          <Button className="mt-3" disabled={busy} onClick={() => void save()}>
-            ذخیره تغییرات
+      <Fold title="مشخصات">
+        <ReplySeen request={job} />
+        {job.sessionMinutes ? <p className="text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
+        <RealDurationFix job={job} onChange={onChange} />
+        {job.artistMessage === "جلسه دوم" ? <p className="mt-1 text-xs font-semibold text-accent">جلسه دوم · مشخصات از جلسه قبل</p> : null}
+        {job.isContinuation ? (
+          <p className="mt-1 text-xs font-semibold text-accent">
+            ادامه کار · {balance.remaining > 0 ? `مانده ${formatTattooToman(balance.remaining)}` : "قبلاً تسویه شده"}
+          </p>
+        ) : null}
+        {job.carryClosed ? <p className="mt-1 text-xs font-semibold text-accent">مانده این کار به نوبت ادامه منتقل شده</p> : null}
+        {phone ? (
+          <a className="mt-2 inline-block text-sm font-semibold text-accent" href={`tel:${phone}`} dir="ltr">
+            {phone}
+          </a>
+        ) : null}
+        {phone2 ? (
+          <a className="mt-1 mr-3 inline-block text-sm text-accent" href={`tel:${phone2}`}>
+            دوم: {phone2}
+          </a>
+        ) : null}
+        {job.customerInstagram ? (
+          <a className="mt-1 mr-3 inline-block text-sm text-accent" href={instagramProfileUrl(job.customerInstagram) ?? undefined} target="_blank" rel="noreferrer">
+            @{normalizeInstagramHandle(job.customerInstagram)}
+          </a>
+        ) : null}
+        {job.sizeCm ? <p className="mt-2 text-sm">اندازه: {job.sizeCm}</p> : null}
+        {job.idea ? <p className="mt-1 text-sm leading-7">{job.idea}</p> : null}
+        <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
+        <div className="mt-3">
+          <Button variant="outline" size="sm" onClick={() => setEditing((value) => !value)}>
+            {editing ? "بستن ویرایش" : "ویرایش طرح و محل اجرا"}
           </Button>
-          <div className="mt-4 rounded-2xl border border-border bg-bg p-3">
-            <p className="text-sm font-semibold">ثبت واریز بعدی</p>
+        </div>
+        {editing ? (
+          <div className="mt-3 border-t border-border pt-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <NumberField label="مبلغ واریز" hint="تومان" value={amount} onChange={setAmount} money />
-              <Field label="یادداشت">
-                <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً واریز دوم" />
+              <Field label="نام">
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+              </Field>
+              <Field label="شماره تماس">
+                <Input value={phoneEdit} onChange={(e) => setPhoneEdit(e.target.value)} dir="ltr" />
+              </Field>
+              <Field label="شماره دوم">
+                <Input value={phone2Edit} onChange={(e) => setPhone2Edit(e.target.value)} dir="ltr" />
+              </Field>
+              <Field label="اینستاگرام">
+                <Input value={instagramEdit} onChange={(e) => setInstagramEdit(e.target.value)} dir="ltr" placeholder="بدون @" />
+              </Field>
+              <Field label="طرح">
+                <Input value={style} onChange={(e) => setStyle(e.target.value)} />
+              </Field>
+              <Field label="محل اجرا">
+                <Input value={placement} onChange={(e) => setPlacement(e.target.value)} />
+              </Field>
+              <Field label="اندازه">
+                <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} />
+              </Field>
+              <NumberField label="مبلغ کل" hint="تومان" value={price} onChange={setPrice} money />
+              <Field label="توضیح طرح">
+                <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} />
               </Field>
             </div>
-            <Button className="mt-3" variant="outline" disabled={busy} onClick={() => void addPayment()}>
-              افزودن به مجموع واریزی
+            <DesignThumbs
+              images={images}
+              filePrefix={`${name}-${style}`}
+              onFiles={(urls) => setImages((current) => [...current, ...urls].slice(0, 3))}
+              onRemove={(index) => setImages((current) => current.filter((_, i) => i !== index))}
+            />
+            <Button className="mt-3" disabled={busy} onClick={() => void save()}>
+              ذخیره تغییرات
             </Button>
           </div>
+        ) : null}
+      </Fold>
+      <Fold title="پرونده">
+        <CustomerFileDetails file={job.customerFile ?? file} showEmpty editing={fileOpen} onEdit={() => setFileOpen((value) => !value)} />
+        {fileOpen ? (
+          <CustomerFileForm
+            contactKey={jobFileKey(job)}
+            file={briefToCustomerFile(job.customerFile ?? file)}
+            onSaved={() => {
+              setFileOpen(false);
+              onChange();
+            }}
+          />
+        ) : null}
+      </Fold>
+      <Fold title="پیامک">
+        <BookingSmsActions request={job} />
+      </Fold>
+      <Fold title="واریزی">
+        <dl className="grid gap-2 text-sm sm:grid-cols-3">
+          <div className="rounded-2xl border border-border bg-bg p-3">
+            <dt className="text-muted">مجموع واریزی</dt>
+            <dd className="mt-1 font-semibold">{formatTattooToman(balance.paid)}</dd>
+          </div>
+          <div className="rounded-2xl border border-border bg-bg p-3">
+            <dt className="text-muted">مبلغ کل</dt>
+            <dd className="mt-1 font-semibold">{formatTattooToman(balance.total)}</dd>
+          </div>
+          <div className="rounded-2xl border border-border bg-bg p-3">
+            <dt className="text-muted">مانده</dt>
+            <dd className={`mt-1 font-semibold ${balance.remaining > 0 ? "text-destructive" : ""}`}>{formatTattooToman(balance.remaining)}</dd>
+          </div>
+        </dl>
+        {job.payments?.length ? (
+          <ul className="mt-3 space-y-1 text-sm text-muted">
+            {job.payments.map((payment) => (
+              <li key={payment.id}>
+                {formatTattooToman(payment.amountToman)}
+                {payment.note ? ` · ${payment.note}` : ""}
+                {payment.createdAt ? ` · ${formatFaDateTime(payment.createdAt)}` : ""}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="mt-3 rounded-2xl border border-border bg-bg p-3">
+          <p className="text-sm font-semibold">ثبت واریز بعدی</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <NumberField label="مبلغ واریز" hint="تومان" value={amount} onChange={setAmount} money />
+            <Field label="یادداشت">
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً واریز دوم" />
+            </Field>
+          </div>
+          <Button className="mt-3" variant="outline" disabled={busy} onClick={() => void addPayment()}>
+            افزودن به مجموع واریزی
+          </Button>
         </div>
-      ) : null}
+      </Fold>
+      <Fold title="زمان و جلسه بعد">
+        <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} showSms={false} />
+      </Fold>
     </article>
   );
 }
