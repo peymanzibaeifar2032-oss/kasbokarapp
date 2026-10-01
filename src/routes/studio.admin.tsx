@@ -341,10 +341,12 @@ function StudioAdminPage() {
     <Shell>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-accent">استودیو پیمان زیبائی‌فر</p>
+          <p className="text-sm text-accent">{ownPanel ? "پنل شخصی" : "استودیو پیمان زیبائی‌فر"}</p>
           <h1 className="text-2xl font-bold">{owner ? "مدیریت تاتو و تقویم کاری" : `پنل ${chairArtist?.name || "همکار"}`}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted">
-            قیمت و زمان را بفرستید. بعد از تأیید مشتری، همان زمان ۶ ساعت قفل می‌شود. رسید که آمد تا ۱۲ ساعت قفل می‌ماند؛ با تأیید شما در تقویم قطعی می‌شود.
+            {ownPanel
+              ? "این پنل جداست. نوبت‌ها، مشتری‌ها و تقویم پیمان اینجا دیده نمی‌شود."
+              : "قیمت و زمان را بفرستید. بعد از تأیید مشتری، همان زمان ۶ ساعت قفل می‌شود. رسید که آمد تا ۱۲ ساعت قفل می‌ماند؛ با تأیید شما در تقویم قطعی می‌شود."}
           </p>
         </div>
         <div className="flex gap-2">
@@ -412,11 +414,11 @@ function StudioAdminPage() {
       {loading ? <p className="mt-6 text-sm text-muted">در حال دریافت اطلاعات…</p> : null}
 
       {!loading && !error && tab === "calendar" ? (
-        <OwnerCalendar items={bookings} businesses={businesses} onChange={() => void refresh()} />
+        <OwnerCalendar items={bookings} businesses={businesses} onChange={() => void refresh()} personal={ownPanel} />
       ) : null}
 
       {!loading && !error && tab === "jobs" ? (
-        <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} />
+        <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} personal={ownPanel} />
       ) : null}
 
       {!loading && !error && tab === "contacts" ? <YearContactsPanel /> : null}
@@ -1532,10 +1534,12 @@ function MonthJobsPanel({
   businesses,
   bookings,
   onChange,
+  personal = false,
 }: {
   businesses: Business[];
   bookings: Booking[];
   onChange: () => void;
+  personal?: boolean;
 }) {
   const clock = tehranClock();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
@@ -1755,7 +1759,7 @@ function MonthJobsPanel({
         </section>
       ) : null}
 
-      <StudioJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} />
+      <StudioJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} personal={personal} />
 
       <Input
         value={jobQuery}

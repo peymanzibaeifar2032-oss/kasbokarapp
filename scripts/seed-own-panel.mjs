@@ -3,7 +3,7 @@ import pg from "pg";
 import { hashPassword } from "better-auth/crypto";
 
 const email = "hanazibaeifar88h@gmail.com";
-const name = "حنا زیبائی‌فر";
+const name = "هانا زیبائی‌فر";
 const password = "Hana#Studio88";
 const ownerEmails = ["peyman.zibaeifar2032@gmail.com", "peymanzibaeifar2032@gmail.com"];
 
@@ -24,6 +24,7 @@ try {
         where not exists (select 1 from studio_artists where lower(email) = $2)`,
       [ownerId, email, name],
     );
+    await pool.query(`update studio_artists set name = $2 where lower(email) = $1`, [email, name]);
   }
 
   const existing = await pool.query(`select id from "user" where lower(email) = $1 limit 1`, [email]);
@@ -36,6 +37,8 @@ try {
        values ($1,$2,$3,true,$4,$4)`,
       [userId, name, email, now],
     );
+  } else {
+    await pool.query(`update "user" set name = $2, "updatedAt" = $3 where id = $1`, [userId, name, now]);
   }
   const credential = await pool.query(
     `select id from "account" where "userId" = $1 and "providerId" = 'credential' limit 1`,

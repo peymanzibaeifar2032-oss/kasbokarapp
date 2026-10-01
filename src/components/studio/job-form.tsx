@@ -42,11 +42,13 @@ export function StudioJobForm({
   bookings,
   onCreated,
   embedded = false,
+  personal = false,
 }: {
   businesses: Business[];
   bookings: Booking[];
   onCreated: () => void;
   embedded?: boolean;
+  personal?: boolean;
 }) {
   const [open, setOpen] = useState(embedded);
   const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
@@ -274,7 +276,7 @@ export function StudioJobForm({
             </NativeSelect>
           </label>
         ) : null}
-        {visibleStaff.length > 1 ? (
+        {visibleStaff.length > 1 && !personal ? (
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">کارشناس</span>
             <NativeSelect value={resourceId} onChange={(e) => setResourceId(e.target.value)}>

@@ -153,6 +153,7 @@ async function findStudioClash(
   endIso: string,
   exceptBookingId: string | null,
   resourceId: string | null,
+  artistScope: string | null = null,
 ) {
   const rows = await sql.query<{ id: string; customer_name: string | null; customer_phone: string | null; slot_start: string; slot_end: string; kind: string }>(
     `select id, customer_name, customer_phone, slot_start, slot_end, kind
@@ -172,9 +173,14 @@ async function findStudioClash(
           or resource_id is null or btrim(coalesce(resource_id,'')) = ''
           or resource_id = $5
         )
+        and (
+          $6::text is null
+          or ($6 = 'owner' and artist_id is null)
+          or ($6 <> 'owner' and artist_id = $6)
+        )
       order by slot_start
       limit 1`,
-    [startIso, endIso, exceptBookingId ?? "", businessId, resourceId],
+    [startIso, endIso, exceptBookingId ?? "", businessId, resourceId, artistScope],
   );
   return rows[0] ?? null;
 }
@@ -189,6 +195,12 @@ async function retireGhostManualBookings(sql: Awaited<ReturnType<typeof getSql>>
         and b.status in ('requested','confirmed')
         and not exists (select 1 from tattoo_requests t where t.booking_id = b.id)`,
   );
+}
+
+function panelClashScope(actor: { role: string; artistId: string | null; deal?: string }) {
+  if (actor.role === "owner") return "owner";
+  if (actor.deal === "own" && actor.artistId) return actor.artistId;
+  return null;
 }
 
 function studioClashMessage(clash: { customer_name: string | null; slot_start: string; slot_end: string; kind: string }) {
@@ -2079,7 +2091,8 @@ async function performListResources(userId: string, raw: unknown) {
   const data = z.object({ businessId: z.string() }).parse(raw);
   const sql = await getSql();
   const owned = await sql.query(`select id from businesses where id = $1 and owner_id = $2`, [data.businessId, userId]);
-  if (owned[0]) await removeRetiredCollaborators(sql, userId);
+  if (!owned[0]) return [];
+  await removeRetiredCollaborators(sql, userId);
   return loadResources(sql, data.businessId);
 }
 
@@ -3086,6 +3099,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
       end.toISOString(),
       current[0].booking_id,
       seat[0]?.resource_id ?? null,
+      panelClashScope(actor),
     );
     if (clash) throw new Error(studioClashMessage(clash));
     await sql.query(
@@ -3294,8 +3308,12 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const staffed = hasActiveResources(resources);
   const active = resources.filter((row) => row.active !== false);
   let resourceId = data.resourceId?.trim() || null;
-  if (staffed && !resourceId && active.length === 1) resourceId = active[0].id;
-  if (staffed) {
+  if (actor.role === "artist" && actor.deal === "own") {
+    resourceId = null;
+  } else if (staffed && !resourceId && active.length === 1) resourceId = active[0].id;
+  if (actor.role === "artist" && actor.deal === "own") {
+    resourceId = null;
+  } else if (staffed) {
     if (!resourceId) throw new Error("منبع را انتخاب کنید.");
     if (!resources.some((row) => row.id === resourceId && row.active !== false)) {
       throw new Error("این منبع در دسترس نیست.");
@@ -3325,7 +3343,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const requestId = crypto.randomUUID();
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
   await retireGhostManualBookings(sql);
-  const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
+  const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId, panelClashScope(actor));
   if (clash) throw new Error(studioClashMessage(clash));
   if (paid > 0 && !data.continuation) {
     const repeat = await findRepeatDeposit(sql, phone, phone2, paid);
@@ -3471,7 +3489,7 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   const price = src.price_min_toman == null ? 0 : Number(src.price_min_toman);
   const settled = tattooBalance(price, paid).settled;
   const phoneDigits = (src.customer_phone || "").replace(/\D/g, "");
-  const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId);
+  const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId, panelClashScope(actor));
   const clashDigits = (clash?.customer_phone || "").replace(/\D/g, "");
   const samePerson = Boolean(
     clash && (

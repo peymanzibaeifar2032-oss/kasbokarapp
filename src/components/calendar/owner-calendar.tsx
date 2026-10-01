@@ -56,10 +56,12 @@ export function OwnerCalendar({
   items,
   businesses,
   onChange,
+  personal = false,
 }: {
   items: Booking[];
   businesses: Business[];
   onChange: () => void;
+  personal?: boolean;
 }) {
   const [view, setView] = useState<View>("day");
   const [cursor, setCursor] = useState(() => new Date());
@@ -215,7 +217,7 @@ export function OwnerCalendar({
               ))}
             </NativeSelect>
           ) : null}
-          {visibleStaff.length > 1 ? (
+          {visibleStaff.length > 1 && !personal ? (
             <NativeSelect
               value={resourceFilter}
               onChange={(e) => setResourceFilter(e.target.value)}
@@ -246,12 +248,14 @@ export function OwnerCalendar({
           ))}
         </div>
       </div>
-      <StaffRoster
-        businessId={formBusinessId}
-        resources={resources}
-        onChange={(rows) => setResources(rows)}
-      />
-      <QuickCreate businesses={businesses} resources={resources} bookings={items} onChange={onChange} />
+      {personal ? null : (
+        <StaffRoster
+          businessId={formBusinessId}
+          resources={resources}
+          onChange={(rows) => setResources(rows)}
+        />
+      )}
+      <QuickCreate businesses={businesses} resources={resources} bookings={items} onChange={onChange} personal={personal} />
 
       {view === "month" ? (
         <MonthGrid
@@ -653,10 +657,14 @@ function QuickCreate({
   resources,
   onChange,
   bookings,
+  personal = false,
 }: {
   businesses: Business[];
   resources: BusinessResource[];
   bookings: Booking[];
+  onChange: () => void;
+  personal?: boolean;
+}) {
   onChange: () => void;
 }) {
   const [mode, setMode] = useState<"manual" | "block">("manual");
@@ -736,7 +744,7 @@ function QuickCreate({
           <p className="mt-3 text-sm leading-7 text-muted">
             اجرای تاتو را اینجا ذخیره کنید: نام، طرح، محل اجرا، ابعاد، قیمت، واریزی، عکس و شماره تماس.
           </p>
-          <StudioJobForm businesses={businesses} bookings={bookings} onCreated={onChange} embedded />
+          <StudioJobForm businesses={businesses} bookings={bookings} onCreated={onChange} embedded personal={personal} />
         </>
       ) : (
         <>

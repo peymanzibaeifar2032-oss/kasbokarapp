@@ -9,7 +9,7 @@ type Sql = Awaited<ReturnType<typeof getSql>>;
 
 export type StudioActor =
   | { role: "owner"; userId: string; artistId: null; ownerUserId: string }
-  | { role: "artist"; userId: string; artistId: string; ownerUserId: string; name: string };
+  | { role: "artist"; userId: string; artistId: string; ownerUserId: string; name: string; deal: StudioDeal };
 
 type ArtistRow = {
   id: string;
@@ -53,7 +53,7 @@ export async function studioActor(userId: string): Promise<StudioActor | null> {
   );
   const row = rows[0];
   if (!row) return null;
-  return { role: "artist", userId, artistId: row.id, ownerUserId: row.owner_user_id, name: row.name };
+  return { role: "artist", userId, artistId: row.id, ownerUserId: row.owner_user_id, name: row.name, deal: row.deal };
 }
 
 export async function performStudioWhoami(userId: string) {
