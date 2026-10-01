@@ -131,6 +131,30 @@ export function withStudioVisitDetails(message: string) {
   return `${trimmed}\n\n${studioVisitText()}`;
 }
 
+const FEMALE_FIRST_NAMES = new Set(
+  "فاطمه زهرا مریم زینب معصومه حدیث سارا شیرین نرگس مهسا مینا مونا لیلا آزاده آیدا باران بهار بهاره پریسا پریا حنانه حنا روژان رها رعنا ریحانه سحر سمیرا سونیا شیدا شبنم شیوا صبا فرانک فریبا کیمیا کیانا لادن مائده مبینا مرضیه مژگان ملیکا ملیسا مهشید نازنین ندا نسترن نگین نیلوفر هانیه هستی یاسمن یلدا ستایش ثمین تینا ترنم تارا سپیده ساناز ستاره فائزه فرشته فرزانه راضیه اسما بینا بهناز دریا دنا دلارام غزل محیا مرجان مریم مهلا میترا ناهید نوشین هاجر هدی ویدا یکتا سها دینا دنیا ژاله ژیلا کوثر گلنار عاطفه عسل شیما صدف محدثه".split(
+    " ",
+  ),
+);
+const MALE_FIRST_NAMES = new Set(
+  "رضا مرتضی مجتبی مصطفی موسی عیسی یحیی طاها پوریا ایلیا آرشا پارسا کسری صدرا پویا حمزه نیما سینا بردیا رادین آرمان شایان پیمان ماهان سامان کیان کامیار دانیال محمد امیر حسین علی رضا مهدی جواد ابراهیم یوسف حمید سعید محسن اکبر اصغر کاظم حسن احمد محمود رضا".split(
+    " ",
+  ),
+);
+
+export function customerFirstName(name: string) {
+  return name.trim().replace(/^(آقای|آقا|خانم|خانوم)\s+/, "").split(/\s+/)[0] || "مشتری";
+}
+
+export function honorificForName(name: string): "آقای" | "خانم" {
+  const first = customerFirstName(name).replace(/[^\u0600-\u06FF]/g, "");
+  if (!first) return "آقای";
+  if (FEMALE_FIRST_NAMES.has(first)) return "خانم";
+  if (MALE_FIRST_NAMES.has(first)) return "آقای";
+  if (first.endsWith("ه") || first.endsWith("ا")) return "خانم";
+  return "آقای";
+}
+
 export function bookingConfirmSms(opts: {
   honorific: "آقای" | "خانم";
   name: string;
@@ -149,13 +173,22 @@ export function bookingConfirmSms(opts: {
     ? when!.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
     : "";
   return [
-    `${opts.honorific} ${opts.name.trim() || "مشتری"}`,
+    `${opts.honorific} ${opts.name.trim().replace(/^(آقای|آقا|خانم|خانوم)\s+/, "") || "مشتری"}`,
     "نوبت تاتو شما قطعی شد.",
     `روز اجرا: ${weekday}`,
     `تاریخ اجرا: ${date}${time ? `، ساعت ${time}` : ""}`,
     `محل اجرا: ${STUDIO_ADDRESS}`,
     `مبلغ واریزی: ${formatTattooToman(opts.paidToman ?? 0)}`,
     `تلفن استودیو: ${STUDIO_CONTACT_PHONE}`,
+  ].join("\n");
+}
+
+export function sessionFoodSms(name: string) {
+  const who = `${honorificForName(name)} ${customerFirstName(name)}`;
+  return [
+    `سلام ${who}`,
+    "برای حین کار هم آب، آبمیوه، میوه مثل موز یا سیب و یه خوراکی شیرین مثل شکلات یا خرما همراهتون داشته باشید تا اگه اجرای تاتو طول کشید، بدنتون افت نکنه و ضعف نکنید.",
+    "امشب هم سعی کنید زودتر بخوابید و خواب کافی داشته باشید تا بدنتون برای فردا سرحال باشه. 🙏",
   ].join("\n");
 }
 
@@ -173,7 +206,7 @@ export function bookingReminderSms(opts: {
     : "";
   const remaining = Math.max(0, Number(opts.remainingToman) || 0);
   return [
-    `${opts.honorific} ${opts.name.trim() || "مشتری"}`,
+    `${opts.honorific} ${opts.name.trim().replace(/^(آقای|آقا|خانم|خانوم)\s+/, "") || "مشتری"}`,
     "یادآوری نوبت تاتو.",
     `فردا ${weekday}${time ? ` ساعت ${time}` : ""} وقت شماست.`,
     "شب قبل استراحت کنید و برای جلسه آماده باشید.",

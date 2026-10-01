@@ -34,6 +34,8 @@ import {
   TATTOO_ADMIN_STAGE_LABEL,
   TATTOO_SETTLEMENT_PRESETS,
   bookingConfirmSms,
+  sessionFoodSms,
+  honorificForName,
   digitsOnly,
   fillInMissedCallSms,
   formatCardNumber,
@@ -1955,20 +1957,23 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
   const phone2 = usablePhone(request.customerPhone2);
   if (!phone && !phone2) return null;
   const paid = (request.paidToman ?? 0) > 0 ? request.paidToman : request.depositToman;
+  const honorific = honorificForName(request.customerName);
 
-  function open(honorific: "آقای" | "خانم", raw: string) {
-    if (!request.proposedSlotStart) {
+  function open(raw: string, kind: "confirm" | "food") {
+    if (!request.proposedSlotStart && kind === "confirm") {
       toast.error("اول تاریخ و ساعت اجرا را ثبت کن، بعد پیامک را بفرست.");
       return;
     }
     const href = toSmsLink(
       raw,
-      bookingConfirmSms({
-        honorific,
-        name: request.customerName,
-        when: request.proposedSlotStart,
-        paidToman: paid,
-      }),
+      kind === "food"
+        ? sessionFoodSms(request.customerName)
+        : bookingConfirmSms({
+            honorific,
+            name: request.customerName,
+            when: request.proposedSlotStart,
+            paidToman: paid,
+          }),
     );
     if (!href) {
       toast.error("شماره برای پیامک معتبر نیست.");
@@ -1979,28 +1984,26 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
 
   return (
     <div className="mb-3 rounded-2xl border border-border bg-bg p-3">
-      <p className="text-sm font-semibold">پیامک قطعی نوبت از گوشی خودت</p>
-      <p className="mt-1 text-xs leading-6 text-muted">
-        متن آماده است: نام، روز، تاریخ، ساعت، محل اجرا و مبلغ واریزی. ارسال را خودت در پیامک تأیید می‌کنی.
-      </p>
+      <p className="text-sm font-semibold">پیامک از گوشی خودت</p>
+      <p className="mt-1 text-xs leading-6 text-muted">خطاب از روی اسم انتخاب می‌شود. ارسال را خودت در پیامک تأیید می‌کنی.</p>
       <div className="mt-2 flex flex-wrap gap-2">
         {phone ? (
           <>
-            <Button type="button" size="sm" onClick={() => open("آقای", phone)}>
-              پیامک برای آقا
+            <Button type="button" size="sm" onClick={() => open(phone, "confirm")}>
+              پیامک قطعی نوبت
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => open("خانم", phone)}>
-              پیامک برای خانم
+            <Button type="button" size="sm" variant="outline" onClick={() => open(phone, "food")}>
+              تغذیه زمان اجرا
             </Button>
           </>
         ) : null}
         {phone2 ? (
           <>
-            <Button type="button" size="sm" variant="outline" onClick={() => open("آقای", phone2)}>
-              شماره دوم، آقا
+            <Button type="button" size="sm" variant="outline" onClick={() => open(phone2, "confirm")}>
+              شماره دوم، قطعی
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => open("خانم", phone2)}>
-              شماره دوم، خانم
+            <Button type="button" size="sm" variant="outline" onClick={() => open(phone2, "food")}>
+              شماره دوم، تغذیه
             </Button>
           </>
         ) : null}
