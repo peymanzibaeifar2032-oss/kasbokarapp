@@ -255,7 +255,8 @@ function StudioAdminPage() {
   }, [userId, owner]);
 
   const staff = owner || Boolean(chairArtist);
-  const ownPanel = chairArtist?.deal === "own";
+  const ownPanel = !owner && Boolean(chairArtist);
+  const panelName = chairArtist?.email?.toLowerCase() === "hanazibaeifar88h@gmail.com" ? "هانا زیبائی‌فر" : chairArtist?.name;
 
   useEffect(() => {
     if (!userId || !staff) return;
@@ -342,7 +343,7 @@ function StudioAdminPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-accent">{ownPanel ? "پنل شخصی" : "استودیو پیمان زیبائی‌فر"}</p>
-          <h1 className="text-2xl font-bold">{owner ? "مدیریت تاتو و تقویم کاری" : `پنل ${chairArtist?.name || "همکار"}`}</h1>
+          <h1 className="text-2xl font-bold">{owner ? "مدیریت تاتو و تقویم کاری" : `پنل ${panelName || "همکار"}`}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted">
             {ownPanel
               ? "این پنل جداست. نوبت‌ها، مشتری‌ها و تقویم پیمان اینجا دیده نمی‌شود."

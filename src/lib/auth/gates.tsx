@@ -101,7 +101,8 @@ export function UserButton() {
     noGateSessionOnServer,
   );
   if (!user) return null;
-  const label = user.displayName ?? user.primaryEmail ?? "حساب";
+  const email = user.primaryEmail?.toLowerCase() ?? "";
+  const label = email === "hanazibaeifar88h@gmail.com" ? "هانا زیبائی‌فر" : user.displayName ?? user.primaryEmail ?? "حساب";
   return (
     <div className="flex items-center gap-2">
       {user.profileImageUrl ? (
