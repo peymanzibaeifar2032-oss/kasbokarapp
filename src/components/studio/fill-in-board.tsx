@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
-import { DurationFields } from "@/components/studio/duration-fields";
+import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { InstagramChip } from "@/components/studio/instagram-chip";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
