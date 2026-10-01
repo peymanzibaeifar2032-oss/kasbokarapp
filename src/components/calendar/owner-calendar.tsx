@@ -665,8 +665,6 @@ function QuickCreate({
   onChange: () => void;
   personal?: boolean;
 }) {
-  onChange: () => void;
-}) {
   const [mode, setMode] = useState<"manual" | "block">("manual");
   const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
   const [resourceId, setResourceId] = useState("");
