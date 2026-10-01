@@ -185,18 +185,6 @@ async function findStudioClash(
   return rows[0] ?? null;
 }
 
-/** A manual booking with no customer row is a failed save. Cancel it so the calendar cannot claim a customer the month list does not have. Finished rows stay. */
-async function retireGhostManualBookings(sql: Awaited<ReturnType<typeof getSql>>) {
-  await sql.query(
-    `update bookings b
-        set status = 'cancelled'
-      where b.kind = 'booking'
-        and b.source = 'manual'
-        and b.status in ('requested','confirmed')
-        and not exists (select 1 from tattoo_requests t where t.booking_id = b.id)`,
-  );
-}
-
 function panelClashScope(actor: { role: string; artistId: string | null; deal?: string }) {
   if (actor.role === "owner") return "owner";
   if (actor.deal === "own" && actor.artistId) return actor.artistId;
@@ -466,6 +454,7 @@ type TattooRequestRow = {
   payment_submitted_at: string | null;
   payment_review_deadline: string | null;
   receipt_image: string | null;
+  image_count?: number | string | null;
   payment_iban: string | null;
   payment_card_number: string | null;
   proposed_slot_start: string | null;
@@ -519,6 +508,7 @@ function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = [])
     preferredDates: row.preferred_dates,
     budgetToman: row.budget_toman == null ? null : Number(row.budget_toman),
     referenceImages: images(row.reference_images),
+    imageCount: row.image_count == null ? images(row.reference_images).length + images(row.body_images).length : Number(row.image_count),
     designQuotes: readDesignQuotes(row.design_quotes),
     bodyImages: images(row.body_images),
     status: row.status,
@@ -597,6 +587,17 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   coalesce(carry_closed,false) as carry_closed,
   created_at, updated_at
   from tattoo_requests`;
+
+const tattooRequestListSelect = tattooRequestSelect
+  .replace(
+    "reference_images, coalesce(design_quotes,'[]'::jsonb) as design_quotes, body_images,",
+    "'[]'::jsonb as reference_images, coalesce(design_quotes,'[]'::jsonb) as design_quotes, '[]'::jsonb as body_images,",
+  )
+  .replace("receipt_image,", "case when payment_status = 'receipt_submitted' then receipt_image else null end as receipt_image,")
+  .replace(
+    "from tattoo_requests",
+    `, (case when jsonb_typeof(reference_images) = 'array' then jsonb_array_length(reference_images) else 0 end + case when jsonb_typeof(body_images) = 'array' then jsonb_array_length(body_images) else 0 end) as image_count from tattoo_requests`,
+  );
 
 const imageDataSchema = z.string().max(1_000_000).refine(
   (value) => /^data:image\/(jpeg|png|webp);base64,/i.test(value),
@@ -699,12 +700,16 @@ async function performMyTattooRequests(userId: string) {
 async function performStudioTattooRequests(userId: string) {
   const actor = await requireStudioStaff(userId);
   const sql = await getSql();
-  await removeRetiredCollaborators(sql, userId);
   await expireOpenTattooHolds(sql);
   await remindOverdueTattooReviews(sql);
   const scope = actor.role === "artist" ? "where artist_id = $1" : "where artist_id is null";
   const params = actor.role === "artist" ? [actor.artistId] : [];
-  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} ${scope} order by
+  const open = await sql.query<{ id: string }>(
+    `select id from tattoo_requests ${scope} and status in ('submitted','needs_info') and estimate_min_toman is null limit 25`,
+    params,
+  );
+  if (open.length) await refreshTattooEstimates(sql, open.map((row) => row.id));
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestListSelect} ${scope} order by
     case
       when payment_status='receipt_submitted' and payment_review_deadline is not null and payment_review_deadline <= now() then 0
       when payment_status='receipt_submitted' then 1
@@ -715,22 +720,22 @@ async function performStudioTattooRequests(userId: string) {
       when status='approved' then 6
       else 7
     end, created_at desc`, params);
-  const open = rows.filter((row) => row.status === "submitted" || row.status === "needs_info").map((row) => row.id);
-  if (open.length) await refreshTattooEstimates(sql, open);
-  const fresh = open.length
-    ? await sql.query<TattooRequestRow>(`${tattooRequestSelect} ${scope} order by
-    case
-      when payment_status='receipt_submitted' and payment_review_deadline is not null and payment_review_deadline <= now() then 0
-      when payment_status='receipt_submitted' then 1
-      when payment_status='rejected' then 2
-      when status='submitted' then 3
-      when status='needs_info' then 4
-      when payment_status='expired' then 5
-      when status='approved' then 6
-      else 7
-    end, created_at desc`, params)
-    : rows;
-  return mapTattooRequestRows(sql, fresh);
+  return mapTattooRequestRows(sql, rows);
+}
+
+async function performStudioRequestImages(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ id: z.string() }).parse(raw);
+  const sql = await getSql();
+  const scope = actor.role === "artist" ? "and artist_id = $2" : "and artist_id is null";
+  const params = actor.role === "artist" ? [data.id, actor.artistId] : [data.id];
+  const rows = await sql.query<{ reference_images: unknown; body_images: unknown }>(
+    `select reference_images, body_images from tattoo_requests where id = $1 ${scope}`,
+    params,
+  );
+  const images = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
+  if (!rows[0]) throw new Error("درخواست پیدا نشد.");
+  return { referenceImages: images(rows[0].reference_images), bodyImages: images(rows[0].body_images) };
 }
 
 async function performDecideTattooRequest(userId: string, raw: unknown) {
@@ -1941,8 +1946,6 @@ async function performMine(userId: string) {
 
 async function performOwnerBookings(userId: string) {
   const sql = await getSql();
-  await removeRetiredCollaborators(sql, userId);
-  await retireGhostManualBookings(sql);
   const actor = await studioActor(userId);
   if (actor?.role === "artist") {
     const rows = await sql.query<BookingRow>(
@@ -2092,7 +2095,6 @@ async function performListResources(userId: string, raw: unknown) {
   const sql = await getSql();
   const owned = await sql.query(`select id from businesses where id = $1 and owner_id = $2`, [data.businessId, userId]);
   if (!owned[0]) return [];
-  await removeRetiredCollaborators(sql, userId);
   return loadResources(sql, data.businessId);
 }
 
@@ -2202,7 +2204,6 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
     })
     .parse(raw);
   const sql = await getSql();
-  await removeRetiredCollaborators(sql, userId);
   let range = jalaliYearRange(data.jy);
   if (data.start && data.end) {
     const startMs = Date.parse(data.start);
@@ -2642,7 +2643,6 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
     })
     .parse(raw);
   const sql = await getSql();
-  await removeRetiredCollaborators(sql, userId);
   let range: { start: string; end: string };
   if (data.start && data.end) {
     const startMs = Date.parse(data.start);
@@ -2658,7 +2658,7 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
     actor.role === "artist" ? "and artist_id = $3" : data.mine ? "and artist_id is null" : "";
   const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
   const rows = await sql.query<TattooRequestRow>(
-    `${tattooRequestSelect}
+    `${tattooRequestListSelect}
       where status = 'booked'
         and (
           (proposed_slot_start >= $1 and proposed_slot_start < $2)
@@ -3289,7 +3289,6 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     continuation: z.boolean().optional(),
   }).parse(raw);
   const sql = await getSql();
-  await removeRetiredCollaborators(sql, userId);
   const actor = await requireStudioStaff(userId);
   const businessId =
     actor.role === "artist"
@@ -3342,7 +3341,6 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const bookingId = crypto.randomUUID();
   const requestId = crypto.randomUUID();
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
-  await retireGhostManualBookings(sql);
   const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId, panelClashScope(actor));
   if (clash) throw new Error(studioClashMessage(clash));
   if (paid > 0 && !data.continuation) {
@@ -3455,8 +3453,6 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
     carryToman: z.number().int().min(0).max(2_000_000_000).optional(),
   }).parse(raw);
   const sql = await getSql();
-  await removeRetiredCollaborators(sql, userId);
-  await retireGhostManualBookings(sql);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const src = rows[0];
   if (!src) throw new Error("این کار پیدا نشد.");
@@ -3889,6 +3885,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performMyTattooRequests(userId);
     case "studioTattooRequests":
       return performStudioTattooRequests(userId);
+    case "studioRequestImages":
+      return performStudioRequestImages(userId, payload);
     case "decideTattooRequest":
       return performDecideTattooRequest(userId, payload);
     case "deleteTattooRequest":

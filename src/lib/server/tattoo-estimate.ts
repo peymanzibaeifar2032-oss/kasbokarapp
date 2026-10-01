@@ -176,16 +176,16 @@ export async function refreshTattooEstimates(sql: Sql, ids: string[]) {
       size_cm: string;
       color_mode: string | null;
       idea: string;
-      reference_images: unknown;
-      body_images: unknown;
+      image_count: number | string | null;
     }>(
-      `select request_type, placement, style, size_cm, color_mode, idea, reference_images, body_images
+      `select request_type, placement, style, size_cm, color_mode, idea,
+              (case when jsonb_typeof(reference_images) = 'array' then jsonb_array_length(reference_images) else 0 end
+               + case when jsonb_typeof(body_images) = 'array' then jsonb_array_length(body_images) else 0 end) as image_count
          from tattoo_requests where id=$1`,
       [id],
     );
     const row = rows[0];
     if (!row) continue;
-    const count = (value: unknown) => (Array.isArray(value) ? value.length : 0);
     await saveTattooEstimate(sql, id, {
       requestType: row.request_type,
       placement: row.placement,
@@ -193,7 +193,7 @@ export async function refreshTattooEstimates(sql: Sql, ids: string[]) {
       sizeCm: row.size_cm,
       colorMode: row.color_mode || "",
       idea: row.idea || "",
-      imageCount: count(row.reference_images) + count(row.body_images),
+      imageCount: Number(row.image_count) || 0,
     });
   }
 }

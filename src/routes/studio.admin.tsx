@@ -516,6 +516,37 @@ function oneMonthLaterKey(iso: string | null) {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
+function StoredDesigns({ request }: { request: TattooRequest }) {
+  const ready = [...request.referenceImages, ...request.bodyImages];
+  const [loaded, setLoaded] = useState<string[] | null>(ready.length ? ready : null);
+  const [busy, setBusy] = useState(false);
+  const count = request.imageCount ?? ready.length;
+  if (!count && !loaded?.length) return null;
+  return (
+    <div className="mt-3">
+      {loaded?.length ? (
+        <DesignThumbs images={loaded} filePrefix={`${request.customerName}-${request.style}`} />
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void saveAction<{ referenceImages: string[]; bodyImages: string[] }>("studioRequestImages", { id: request.id })
+              .then((row) => setLoaded([...(row.referenceImages ?? []), ...(row.bodyImages ?? [])]))
+              .catch((err) => toast.error(friendlyError(err)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? "در حال باز کردن طرح…" : "نمایش طرح ذخیره‌شده"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function ReplySeen({ request }: { request: TattooRequest }) {
   const text = (request.artistMessage || "").trim();
   if (!text || text === "ثبت دستی از تقویم کاری" || text === "جلسه دوم") return null;
@@ -691,10 +722,7 @@ function TattooAdminCard({
         {request.customerInstagram ? <InstagramChip handle={request.customerInstagram} /> : null}
         {request.preferredDates ? <span>زمان مناسب مشتری: {request.preferredDates}</span> : null}
       </div>
-      <DesignThumbs
-        images={[...request.referenceImages, ...request.bodyImages]}
-        filePrefix={`${request.customerName}-${request.style}`}
-      />
+      <StoredDesigns request={request} />
 
       {request.paymentStatus === "expired" ? (
         <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
@@ -2356,7 +2384,6 @@ function MonthJobCard({
   const when = job.proposedSlotStart || job.updatedAt;
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
   const phone2 = job.customerPhone2 || "";
-  const designs = [...(job.referenceImages ?? []), ...(job.bodyImages ?? [])];
 
   async function save() {
     setBusy(true);
@@ -2372,11 +2399,15 @@ function MonthJobCard({
         idea: idea.trim() || undefined,
         sizeCm: sizeCm.trim() || undefined,
         priceMinToman: price ? Number(price) : undefined,
-        referenceImages: images,
-        designQuotes: images.map((_, index) => ({
-          priceToman: Number(shotQuotes[index]?.price || 0),
-          sizeCm: shotQuotes[index]?.sizeCm?.trim() || "",
-        })),
+        ...(images.length
+          ? {
+              referenceImages: images,
+              designQuotes: shotQuotes.map((quote) => ({
+                priceToman: quote.price ? Number(String(quote.price).replace(/[^\d]/g, "")) : 0,
+                sizeCm: quote.sizeCm.trim(),
+              })),
+            }
+          : {}),
       });
       toast.success("کار به‌روز شد.");
       setEditing(false);
@@ -2511,11 +2542,10 @@ function MonthJobCard({
         {job.customerInstagram ? <InstagramChip handle={job.customerInstagram} /> : null}
         {job.sizeCm ? <p className="mt-2 text-sm">اندازه: {job.sizeCm}</p> : null}
         {job.idea ? <p className="mt-1 text-sm leading-7">{job.idea}</p> : null}
-        <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
+        <StoredDesigns request={job} />
         {(job.designQuotes ?? []).some((quote) => quote.priceToman || quote.sizeCm) ? (
           <div className="mt-2 grid gap-1">
-            {(job.referenceImages ?? []).map((_, index) => {
-              const quote = job.designQuotes?.[index];
+            {(job.designQuotes ?? []).map((quote, index) => {
               if (!quote?.priceToman && !quote?.sizeCm) return null;
               return (
                 <p key={index} className="text-sm">
@@ -2528,7 +2558,28 @@ function MonthJobCard({
           </div>
         ) : null}
         <div className="mt-3">
-          <Button variant="outline" size="sm" onClick={() => setEditing((value) => !value)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditing((value) => !value);
+              if (!images.length && (job.imageCount ?? 0) > 0) {
+                void saveAction<{ referenceImages: string[] }>("studioRequestImages", { id: job.id })
+                  .then((row) => {
+                    const next = row.referenceImages ?? [];
+                    if (!next.length) return;
+                    setImages(next);
+                    setShotQuotes(
+                      next.map((_, index) => ({
+                        price: job.designQuotes?.[index]?.priceToman ? String(job.designQuotes[index].priceToman) : "",
+                        sizeCm: job.designQuotes?.[index]?.sizeCm || "",
+                      })),
+                    );
+                  })
+                  .catch((err) => toast.error(friendlyError(err)));
+              }
+            }}
+          >
             {editing ? "بستن ویرایش" : "ویرایش طرح و محل اجرا"}
           </Button>
         </div>
