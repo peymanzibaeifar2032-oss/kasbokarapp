@@ -30,10 +30,7 @@ ENV NODE_ENV=production
 ENV STANDALONE=true
 ENV NITRO_PRESET=node-server
 ENV PORT=8080
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates \
-  && rm -rf /var/lib/apt/lists/* \
-  && groupadd --system kasb \
+RUN groupadd --system kasb \
   && useradd --system --gid kasb --home-dir /app --shell /usr/sbin/nologin kasb
 COPY package.json package-lock.json ./
 RUN sed -i "s#https://registry.npmjs.org#${NPM_REGISTRY}#g" package-lock.json \
