@@ -1613,7 +1613,11 @@ function MonthJobsPanel({
     .filter((job) => jobDayKey(job) < todayKey)
     .sort((a, b) => jobStamp(a) - jobStamp(b));
   const dayGroups = groupByDay(upcomingJobs);
-  const viewingToday = span === "week" ? weekOffset === 0 : month.jy === todayJ.jy && month.jm === todayJ.jm;
+  const pastWeek = span === "week" && weekOffset < 0;
+  const pastWeekLabel =
+    weekOffset === -1 ? "هفته قبل" : weekOffset === -2 ? "۲ هفته قبل" : weekOffset === -3 ? "۳ هفته قبل" : weekTitle;
+
+  const viewingToday = !pastWeek && (span === "week" ? weekOffset === 0 : month.jy === todayJ.jy && month.jm === todayJ.jm);
 
   async function refreshAll() {
     await load();
@@ -1628,19 +1632,29 @@ function MonthJobsPanel({
           <p className="mt-1 text-sm leading-7 text-muted">
             نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
             جستجو فقط همان اسم یا شماره را نشان می‌دهد و نوبت‌های چندروزه را یکی نمی‌کند.
-            ترتیب از امروز تا آخر همین بازه است. روزهای گذشته پایین‌تر می‌آیند.
+            ترتیب از امروز تا آخر همین بازه است. برای کارهایی که انجام شده، هفته قبل را بزن.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant={span === "week" ? "default" : "outline"}
-              onClick={() => {
-                setWeekOffset(0);
-                setSpan("week");
-              }}
-            >
-              این هفته
-            </Button>
+            {(
+              [
+                [0, "این هفته"],
+                [-1, "هفته قبل"],
+                [-2, "۲ هفته قبل"],
+                [-3, "۳ هفته قبل"],
+              ] as const
+            ).map(([offset, label]) => (
+              <Button
+                key={offset}
+                size="sm"
+                variant={span === "week" && weekOffset === offset ? "default" : "outline"}
+                onClick={() => {
+                  setWeekOffset(offset);
+                  setSpan("week");
+                }}
+              >
+                {label}
+              </Button>
+            ))}
             <Button size="sm" variant={span === "month" ? "default" : "outline"} onClick={() => setSpan("month")}>
               این ماه
             </Button>
@@ -1698,6 +1712,29 @@ function MonthJobsPanel({
 
       <AftercareReminders jobs={careJobs} />
 
+      {pastWeek ? (
+        <section className="grid gap-3">
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <h3 className="font-bold">{pastWeekLabel}</h3>
+            <p className="mt-1 text-sm text-muted">{weekTitle}. همین‌جا می‌توانی مشخصات را ویرایش کنی.</p>
+          </div>
+          {!loading && !pastJobs.length ? (
+            <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">در این هفته نوبتی ثبت نشده.</p>
+          ) : null}
+          {pastJobs.map((job) => (
+            <MonthJobCard
+              key={`past-${job.id}-${job.updatedAt}-${job.paidToman}`}
+              job={job}
+              busyKeys={bookings
+                .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
+                .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              onChange={() => void refreshAll()}
+              file={fileForJob(briefs, job)}
+            />
+          ))}
+        </section>
+      ) : null}
+
       <StudioJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} />
 
       <Input
@@ -1712,7 +1749,7 @@ function MonthJobsPanel({
         </div>
       ) : null}
       {loading ? <p className="text-sm text-muted">{span === "week" ? "در حال دریافت لیست هفته…" : "در حال دریافت لیست ماه…"}</p> : null}
-      {!loading && !jobs.length ? (
+      {!loading && !jobs.length && !pastWeek ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">
           {span === "week"
             ? "در این هفته کار رزرو‌شده‌ای نیست."
@@ -1745,18 +1782,20 @@ function MonthJobsPanel({
           <DayGap day={group.day} jobs={group.jobs} waiting={waiting} />
         </div>
       ))}
-      {pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
-      {pastJobs.map((job) => (
-        <MonthJobCard
-          key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
-          job={job}
-          busyKeys={bookings
-            .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
-            .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
-          onChange={() => void refreshAll()}
-          file={fileForJob(briefs, job)}
-        />
-      ))}
+      {!pastWeek && pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
+      {!pastWeek
+        ? pastJobs.map((job) => (
+            <MonthJobCard
+              key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
+              job={job}
+              busyKeys={bookings
+                .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
+                .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              onChange={() => void refreshAll()}
+              file={fileForJob(briefs, job)}
+            />
+          ))
+        : null}
 
       <ClearCalendarBox
         onCleared={() => {
