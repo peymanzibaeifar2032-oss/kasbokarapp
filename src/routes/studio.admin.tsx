@@ -2313,6 +2313,10 @@ function MonthJobCard({
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const [moveDay, setMoveDay] = useState(tehranDateInput(job.proposedSlotStart));
+  const [moveTime, setMoveTime] = useState(tehranTimeInput(job.proposedSlotStart));
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
   const when = job.proposedSlotStart || job.updatedAt;
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
@@ -2365,6 +2369,44 @@ function MonthJobCard({
     }
   }
 
+  async function moveJob() {
+    if (!moveDay || !moveTime) return toast.error("تاریخ و ساعت جدید را انتخاب کن.");
+    const [y, m, d] = moveDay.split("-").map(Number);
+    const [hh, mm] = moveTime.split(":").map(Number);
+    setBusy(true);
+    try {
+      await saveAction("updateStudioJob", {
+        id: job.id,
+        slotStart: tehranLocalToIso(y, m, d, hh, mm),
+        sessionMinutes: job.sessionMinutes ?? undefined,
+      });
+      toast.success("منتقل شد. روز قبلی در تقویم و لیست خالی شد.");
+      setMoving(false);
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeJob() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setBusy(true);
+    try {
+      await saveAction("cancelStudioJob", { id: job.id });
+      toast.success("این نوبت حذف شد و روز در تقویم خالی شد.");
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <article className="rounded-3xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
@@ -2378,6 +2420,34 @@ function MonthJobCard({
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" disabled={busy} onClick={() => { setMoving((value) => !value); setConfirmDelete(false); }}>
+          {moving ? "بستن انتقال" : "انتقال به روز دیگر"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          className={confirmDelete ? "border-destructive text-destructive" : ""}
+          onClick={() => void removeJob()}
+        >
+          {confirmDelete ? "مطمئنی؟ این روز حذف شود" : "حذف این نوبت"}
+        </Button>
+      </div>
+      {moving ? (
+        <div className="mt-3 grid gap-3 rounded-2xl border border-border p-3">
+          <p className="text-xs leading-6 text-muted">همان مشتری، طرح و واریزی می‌ماند. فقط روز و ساعت عوض می‌شود و روز قبلی خالی می‌شود.</p>
+          <Field label="تاریخ جدید">
+            <JalaliDatePicker value={moveDay} onChange={setMoveDay} label="انتخاب روز" busyKeys={busyKeys} />
+          </Field>
+          <Field label="ساعت شروع">
+            <Input type="time" value={moveTime} onChange={(e) => setMoveTime(e.target.value)} />
+          </Field>
+          <Button size="sm" disabled={busy} onClick={() => void moveJob()}>
+            {busy ? "در حال انتقال…" : "ذخیره در روز جدید"}
+          </Button>
+        </div>
+      ) : null}
       <Fold title="مشخصات">
         <ReplySeen request={job} />
         {job.sessionMinutes ? <p className="text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
