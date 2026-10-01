@@ -1,3 +1,5 @@
+import { shiftTehranDayKey, tehranDayKey } from "@/lib/hours";
+
 export function makeTattooTrackingCode() {
   return String(100000 + Math.floor(Math.random() * 900000));
 }
@@ -205,11 +207,15 @@ export function bookingReminderSms(opts: {
     ? when!.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
     : "";
   const remaining = Math.max(0, Number(opts.remainingToman) || 0);
+  const slotDay = valid ? tehranDayKey(when!) : "";
+  const today = tehranDayKey();
+  const relative = slotDay === today ? "امروز" : slotDay === shiftTehranDayKey(today, 1) ? "فردا" : weekday;
+  const ready = slotDay === today ? "سر وقت بیایید." : "شب قبل استراحت کنید و برای جلسه آماده باشید.";
   return [
     `${opts.honorific} ${opts.name.trim().replace(/^(آقای|آقا|خانم|خانوم)\s+/, "") || "مشتری"}`,
     "یادآوری نوبت تاتو.",
-    `فردا ${weekday}${time ? ` ساعت ${time}` : ""} وقت شماست.`,
-    "شب قبل استراحت کنید و برای جلسه آماده باشید.",
+    `${relative}${relative === weekday ? "" : ` ${weekday}`}${time ? ` ساعت ${time}` : ""} وقت شماست.`,
+    ready,
     `آدرس: ${STUDIO_ADDRESS}`,
     remaining > 0 ? `مانده پرداخت در استودیو: ${formatTattooToman(remaining)}` : "بیعانه ثبت شده است.",
     `تلفن استودیو: ${STUDIO_CONTACT_PHONE}`,

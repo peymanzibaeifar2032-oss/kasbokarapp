@@ -1547,7 +1547,7 @@ function MonthJobsPanel({
 }) {
   const clock = tehranClock();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
-  const [span, setSpan] = useState<"month" | "week">("month");
+  const [span, setSpan] = useState<"month" | "week" | "yesterday">("month");
   const [weekOffset, setWeekOffset] = useState(0);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [jobs, setJobs] = useState<Array<TattooRequest & { customerFile?: CustomerFileBrief | null }>>([]);
@@ -1563,9 +1563,17 @@ function MonthJobsPanel({
     setError("");
     try {
       const week = tehranWeekBounds(weekOffset);
+      const yesterdayKey = shiftTehranDayKey(tehranDayKey(), -1);
+      const [yy, ym, yd] = yesterdayKey.split("-").map(Number);
+      const yEnd = shiftTehranDayKey(yesterdayKey, 1);
+      const [ey, em, ed] = yEnd.split("-").map(Number);
       const rows = await saveAction<TattooRequest[]>(
         "studioMonthJobs",
-        span === "week" ? { start: week.start, end: week.end, mine: true } : { jy: month.jy, jm: month.jm, mine: true },
+        span === "yesterday"
+          ? { start: tehranLocalToIso(yy, ym, yd, 0, 0), end: tehranLocalToIso(ey, em, ed, 0, 0), mine: true }
+          : span === "week"
+            ? { start: week.start, end: week.end, mine: true }
+            : { jy: month.jy, jm: month.jm, mine: true },
       );
       setJobs(rows);
       try {
@@ -1616,10 +1624,19 @@ function MonthJobsPanel({
     .sort((a, b) => jobStamp(a) - jobStamp(b));
   const dayGroups = groupByDay(upcomingJobs);
   const pastWeek = span === "week" && weekOffset < 0;
+  const focusedPast = pastWeek || span === "yesterday";
   const pastWeekLabel =
-    weekOffset === -1 ? "هفته قبل" : weekOffset === -2 ? "۲ هفته قبل" : weekOffset === -3 ? "۳ هفته قبل" : weekTitle;
+    span === "yesterday"
+      ? "دیروز"
+      : weekOffset === -1
+        ? "هفته قبل"
+        : weekOffset === -2
+          ? "۲ هفته قبل"
+          : weekOffset === -3
+            ? "۳ هفته قبل"
+            : weekTitle;
 
-  const viewingToday = !pastWeek && (span === "week" ? weekOffset === 0 : month.jy === todayJ.jy && month.jm === todayJ.jm);
+  const viewingToday = !focusedPast && (span === "week" ? weekOffset === 0 : month.jy === todayJ.jy && month.jm === todayJ.jm);
 
   async function refreshAll() {
     await load();
@@ -1634,9 +1651,12 @@ function MonthJobsPanel({
           <p className="mt-1 text-sm leading-7 text-muted">
             نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
             جستجو فقط همان اسم یا شماره را نشان می‌دهد و نوبت‌های چندروزه را یکی نمی‌کند.
-            ترتیب از امروز تا آخر همین بازه است. برای کارهایی که انجام شده، هفته قبل را بزن.
+            ترتیب از امروز تا آخر همین بازه است. برای کار دیروز، دیروز را بزن.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            <Button size="sm" variant={span === "yesterday" ? "default" : "outline"} onClick={() => setSpan("yesterday")}>
+              دیروز
+            </Button>
             {(
               [
                 [0, "این هفته"],
@@ -1671,7 +1691,7 @@ function MonthJobsPanel({
               try {
                 const mode = downloadStudioJobsPdf(
                   [...upcomingJobs, ...pastJobs],
-                  span === "week" ? `لیست هفته ${weekTitle}` : `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
+                  span === "yesterday" ? "لیست دیروز" : span === "week" ? `لیست هفته ${weekTitle}` : `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
                 );
                 toast.success(
                   mode === "apk"
@@ -1686,7 +1706,9 @@ function MonthJobsPanel({
             <FileDown className="size-4" />
             دانلود PDF لیست
           </Button>
-          {span === "week" ? (
+          {span === "yesterday" ? (
+            <p className="min-w-28 text-center text-sm font-semibold">دیروز</p>
+          ) : span === "week" ? (
             <>
               <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value - 1)}>
                 هفته قبل
@@ -1714,14 +1736,18 @@ function MonthJobsPanel({
 
       <AftercareReminders jobs={careJobs} />
 
-      {pastWeek ? (
+      {focusedPast ? (
         <section className="grid gap-3">
           <div className="rounded-2xl border border-border bg-surface p-4">
             <h3 className="font-bold">{pastWeekLabel}</h3>
-            <p className="mt-1 text-sm text-muted">{weekTitle}. همین‌جا می‌توانی مشخصات را ویرایش کنی.</p>
+            <p className="mt-1 text-sm text-muted">
+              {span === "yesterday" ? "کارهای دیروز. همین‌جا می‌توانی ویرایش یا منتقل کنی." : `${weekTitle}. همین‌جا می‌توانی مشخصات را ویرایش کنی.`}
+            </p>
           </div>
           {!loading && !pastJobs.length ? (
-            <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">در این هفته نوبتی ثبت نشده.</p>
+            <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
+              {span === "yesterday" ? "دیروز نوبتی ثبت نشده." : "در این هفته نوبتی ثبت نشده."}
+            </p>
           ) : null}
           {pastJobs.map((job) => (
             <MonthJobCard
@@ -1742,7 +1768,7 @@ function MonthJobsPanel({
       <Input
         value={jobQuery}
         onChange={(e) => setJobQuery(e.target.value)}
-        placeholder={span === "week" ? "جستجوی اسم یا شماره در این هفته" : "جستجوی اسم یا شماره در این ماه"}
+        placeholder={span === "yesterday" ? "جستجوی اسم یا شماره در دیروز" : span === "week" ? "جستجوی اسم یا شماره در این هفته" : "جستجوی اسم یا شماره در این ماه"}
       />
 
       {error ? (
@@ -1750,8 +1776,8 @@ function MonthJobsPanel({
           {error}
         </div>
       ) : null}
-      {loading ? <p className="text-sm text-muted">{span === "week" ? "در حال دریافت لیست هفته…" : "در حال دریافت لیست ماه…"}</p> : null}
-      {!loading && !jobs.length && !pastWeek ? (
+      {loading ? <p className="text-sm text-muted">{span === "yesterday" ? "در حال دریافت دیروز…" : span === "week" ? "در حال دریافت لیست هفته…" : "در حال دریافت لیست ماه…"}</p> : null}
+      {!loading && !jobs.length && !focusedPast ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">
           {span === "week"
             ? "در این هفته کار رزرو‌شده‌ای نیست."
@@ -1784,8 +1810,8 @@ function MonthJobsPanel({
           <DayGap day={group.day} jobs={group.jobs} waiting={waiting} />
         </div>
       ))}
-      {!pastWeek && pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
-      {!pastWeek
+      {!focusedPast && pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
+      {!focusedPast
         ? pastJobs.map((job) => (
             <MonthJobCard
               key={`${job.id}-${job.updatedAt}-${job.paidToman}`}

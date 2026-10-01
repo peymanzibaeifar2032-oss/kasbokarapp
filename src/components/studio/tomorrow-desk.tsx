@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { toSmsLink } from "@/lib/format";
-import { shiftTehranDayKey, tehranDayKey } from "@/lib/hours";
-import { bookingReminderSms, formatTattooToman, tattooBalance } from "@/lib/tattoo-flow";
+import { tehranDayKey } from "@/lib/hours";
+import { bookingReminderSms, formatTattooToman, honorificForName, tattooBalance } from "@/lib/tattoo-flow";
 import type { TattooRequest } from "@/lib/types";
 
 function onDay(request: TattooRequest, dayKey: string) {
@@ -16,9 +16,9 @@ export function StudioTomorrowDesk({
   requests: TattooRequest[];
   onOpenReceipts: () => void;
 }) {
-  const tomorrowKey = shiftTehranDayKey(tehranDayKey(), 1);
-  const tomorrow = requests
-    .filter((request) => onDay(request, tomorrowKey))
+  const todayKey = tehranDayKey();
+  const todayJobs = requests
+    .filter((request) => onDay(request, todayKey))
     .sort((a, b) => +new Date(a.proposedSlotStart || 0) - +new Date(b.proposedSlotStart || 0));
   const receipts = requests.filter((request) => request.paymentStatus === "receipt_submitted");
   const expiring = requests.filter((request) => {
@@ -49,20 +49,20 @@ export function StudioTomorrowDesk({
       ) : null}
 
       <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-bold">فردا</h2>
+        <h2 className="font-bold">امروز</h2>
         <p className="mt-1 text-sm leading-6 text-muted">اسم، شماره، محل اجرا، واریزی و مانده. یادآوری را از پیامک خودت می‌فرستی.</p>
-        {!tomorrow.length ? <p className="mt-3 text-sm text-muted">برای فردا نوبت قطعی نیست.</p> : null}
+        {!todayJobs.length ? <p className="mt-3 text-sm text-muted">برای امروز نوبت قطعی نیست.</p> : null}
         <div className="mt-3 grid gap-3">
-          {tomorrow.map((request) => {
+          {todayJobs.map((request) => {
             const money = tattooBalance(request.priceMinToman, request.paidToman);
             const when = request.proposedSlotStart
               ? new Date(request.proposedSlotStart).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
               : "";
-            function remind(honorific: "آقای" | "خانم") {
+            function remind() {
               const href = toSmsLink(
                 request.customerPhone,
                 bookingReminderSms({
-                  honorific,
+                  honorific: honorificForName(request.customerName),
                   name: request.customerName,
                   when: request.proposedSlotStart,
                   remainingToman: money.remaining,
@@ -79,9 +79,8 @@ export function StudioTomorrowDesk({
                 <p className="mt-1 text-sm" dir="ltr">{request.customerPhone}</p>
                 <p className="mt-1 text-sm text-muted">{request.placement}{request.style ? ` · ${request.style}` : ""}</p>
                 <p className="mt-1 text-sm">واریزی {formatTattooToman(money.paid)} · مانده {formatTattooToman(money.remaining)}</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <Button type="button" className="h-11" onClick={() => remind("آقای")}>یادآوری آقا</Button>
-                  <Button type="button" variant="outline" className="h-11" onClick={() => remind("خانم")}>یادآوری خانم</Button>
+                <div className="mt-3">
+                  <Button type="button" className="h-11" onClick={() => remind()}>یادآوری</Button>
                 </div>
               </article>
             );
