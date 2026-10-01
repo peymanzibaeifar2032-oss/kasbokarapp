@@ -11,11 +11,15 @@ import { friendlyError, saveAction } from "@/lib/save";
 import { fillInMissedCallSms, fillInRegisteredSms, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
 import type { Booking } from "@/lib/types";
 
+type FillDesign = { image: string; priceToman: number; sizeCm: string };
+type DraftDesign = { image: string; price: string; sizeCm: string };
+
 type StudioFillIn = {
   id: string;
   customerName: string;
   customerPhone: string;
   customerPhone2: string;
+  customerInstagram?: string;
   idea: string;
   placement: string;
   sizeCm: string;
@@ -23,6 +27,7 @@ type StudioFillIn = {
   priceToman: number;
   paidToman: number;
   designImage: string;
+  designs?: FillDesign[];
   sessionMinutes: number;
   callCount: number;
   cameCount: number;
@@ -37,13 +42,12 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   const [honorific, setHonorific] = useState<"آقای" | "خانم" | "">("آقای");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
+  const [instagram, setInstagram] = useState("");
   const [note, setNote] = useState("");
-  const [sizeCm, setSizeCm] = useState("");
-  const [price, setPrice] = useState("");
   const [paid, setPaid] = useState("");
   const [minutes, setMinutes] = useState(0);
   const [ongoing, setOngoing] = useState(false);
-  const [image, setImage] = useState("");
+  const [designs, setDesigns] = useState<DraftDesign[]>([emptyDesign()]);
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -75,29 +79,34 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       const spoken = name.trim();
       const customerName = honorific && spoken && !spoken.startsWith(honorific) ? `${honorific} ${spoken}` : spoken;
       if (minutes < 30) throw new Error("مدت تقریبی اجرا را بنویس. حداقل نیم ساعت.");
+      const packed = designs
+        .map((design) => ({
+          image: design.image,
+          priceToman: parseToman(design.price),
+          sizeCm: design.sizeCm.trim(),
+        }))
+        .filter((design) => design.image || design.priceToman || design.sizeCm);
       await saveAction("addStudioFillIn", {
         customerName,
         customerPhone: phone,
         customerPhone2: phone2,
-        idea: note.trim() || (image ? "طرح آپلود شده" : ""),
+        customerInstagram: instagram,
+        idea: note.trim() || (packed.some((design) => design.image) ? "طرح آپلود شده" : ""),
         note,
-        sizeCm,
-        priceToman: parseToman(price),
+        designs: packed,
+        priceToman: packed.reduce((sum, design) => sum + design.priceToman, 0),
         paidToman: parseToman(paid),
-        designImage: image || undefined,
         sessionMinutes: minutes,
         ongoing,
       });
       setName("");
       setPhone("");
       setPhone2("");
+      setInstagram("");
       setNote("");
-      setSizeCm("");
-      setPrice("");
-      setPaid("");
       setMinutes(0);
       setOngoing(false);
-      setImage("");
+      setDesigns([emptyDesign()]);
       toast.success("در لیست پر کردن کنسلی ذخیره شد.");
       await load();
     } catch (err) {
@@ -121,12 +130,13 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         style: "سایر",
         idea: row.note || row.idea || "پر کردن کنسلی",
         placement: row.placement || "هماهنگ در استودیو",
-        sizeCm: row.sizeCm || undefined,
-        priceMinToman: row.priceToman || 0,
+        sizeCm: row.designs?.map((design) => design.sizeCm).filter(Boolean).join(" / ") || row.sizeCm || undefined,
+        priceMinToman: row.designs?.length ? row.designs.reduce((sum, design) => sum + (design.priceToman || 0), 0) : row.priceToman || 0,
         paidToman: row.paidToman || 0,
         sessionMinutes: row.sessionMinutes,
         slotStart: tehranLocalToIso(y, m, d, hh || 12, mm || 0),
-        referenceImages: row.designImage ? [row.designImage] : [],
+        referenceImages: (row.designs?.map((design) => design.image).filter(Boolean) || (row.designImage ? [row.designImage] : [])),
+        customerInstagram: row.customerInstagram || undefined,
       });
       await saveAction("markStudioFillIn", { id: row.id, mark: "came" });
       setPlacing(null);
@@ -165,38 +175,14 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
           </div>
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شماره موبایل" inputMode="tel" dir="ltr" className="h-12" />
           <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="شماره دوم، اختیاری" inputMode="tel" dir="ltr" className="h-12" />
+          <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="آیدی اینستاگرام، اختیاری" dir="ltr" className="h-12" />
           <div>
             <p className="text-sm font-semibold">{ongoing ? "مدت هر تکه" : "مدت تقریبی اجرا"}</p>
             <div className="mt-2">
               <DurationFields minutes={minutes} onChange={setMinutes} />
             </div>
           </div>
-          <label className="flex h-12 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm font-bold">
-            {image ? "طرح انتخاب شد · تغییر" : "آپلود طرح از گالری، اختیاری"}
-            <input
-              className="sr-only"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                void compressImage(file).then(setImage).catch((err) => toast.error(friendlyError(err)));
-              }}
-            />
-          </label>
-          {image ? <img src={image} alt="" className="mx-auto max-h-36 rounded-xl object-contain" /> : null}
-          <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۲۰ × ۱۲" className="h-12" />
-          <label className="block text-sm font-semibold">
-            قیمت طرح
-            <Input
-              value={price}
-              onChange={(e) => setPrice(formatGroupedDigits(e.target.value))}
-              inputMode="numeric"
-              dir="ltr"
-              placeholder="مثلاً ۲۲,۰۰۰,۰۰۰"
-              className="mt-2 h-12"
-            />
-          </label>
+          <DesignDrafts designs={designs} onChange={setDesigns} />
           <label className="block text-sm font-semibold">
             مبلغ واریزی
             <Input
@@ -243,6 +229,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             <p className="mt-1 text-xs font-semibold text-accent">{row.ongoing ? "ادامه دارد · بعد از تأیید در لیست می‌ماند" : "یک جلسه · بعد از تأیید از لیست می‌رود"}</p>
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
             {row.customerPhone2 ? <p className="text-sm text-muted" dir="ltr">دوم: {row.customerPhone2}</p> : null}
+            {row.customerInstagram ? <p className="text-sm text-muted" dir="ltr">اینستاگرام: {row.customerInstagram}</p> : null}
             <p className="mt-2 text-sm">
               تماس {toFaCount(row.callCount)} · آمد {toFaCount(row.cameCount)} · مراجعه نکرد {toFaCount(row.missedCount)}
             </p>
@@ -257,7 +244,14 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
               />
             ) : (
               <>
-            {row.designImage ? <img src={row.designImage} alt="" className="mt-3 max-h-40 rounded-xl object-contain" /> : null}
+            {(row.designs?.length ? row.designs : row.designImage || row.priceToman || row.sizeCm ? [{ image: row.designImage, priceToman: row.priceToman, sizeCm: row.sizeCm }] : []).map((design, index) => (
+              <div key={`${row.id}-design-${index}`} className="mt-3 rounded-xl border border-border p-3">
+                <p className="text-sm font-semibold">طرح {toFaCount(index + 1)}</p>
+                {design.image ? <img src={design.image} alt="" className="mt-2 max-h-40 rounded-xl object-contain" /> : null}
+                <p className="mt-2 text-sm text-muted">{design.sizeCm ? `اندازه ${design.sizeCm}` : "اندازه ثبت نشده"}</p>
+                <p className="mt-1 text-sm">قیمت این طرح: {design.priceToman ? formatTattooToman(design.priceToman) : "ثبت نشده"}</p>
+              </div>
+            ))}
             <p className="mt-2 text-sm text-muted">
               {row.sessionMinutes ? formatSitting(row.sessionMinutes) : "مدت اجرا ذخیره نشده"}
               {row.sizeCm ? ` · ابعاد ${row.sizeCm}` : ""}
@@ -380,39 +374,110 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   );
 }
 
+function emptyDesign(): DraftDesign {
+  return { image: "", price: "", sizeCm: "" };
+}
+
+function DesignDrafts({ designs, onChange }: { designs: DraftDesign[]; onChange: (next: DraftDesign[]) => void }) {
+  function patch(index: number, next: Partial<DraftDesign>) {
+    onChange(designs.map((design, item) => (item === index ? { ...design, ...next } : design)));
+  }
+
+  return (
+    <div className="grid gap-3">
+      {designs.map((design, index) => (
+        <div key={index} className="grid gap-2 rounded-2xl border border-border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold">طرح {toFaCount(index + 1)}</p>
+            {designs.length > 1 ? (
+              <button type="button" className="text-xs text-muted" onClick={() => onChange(designs.filter((_, item) => item !== index))}>
+                حذف این طرح
+              </button>
+            ) : null}
+          </div>
+          <label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm font-bold">
+            {design.image ? "طرح انتخاب شد · تغییر" : "آپلود طرح، اختیاری"}
+            <input
+              className="sr-only"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                void compressImage(file).then((image) => patch(index, { image })).catch((err) => toast.error(friendlyError(err)));
+              }}
+            />
+          </label>
+          {design.image ? <img src={design.image} alt="" className="mx-auto max-h-36 rounded-xl object-contain" /> : null}
+          <Input value={design.sizeCm} onChange={(e) => patch(index, { sizeCm: e.target.value })} placeholder="اندازه این طرح، اختیاری" className="h-12" />
+          <label className="block text-sm font-semibold">
+            قیمت این طرح
+            <Input
+              value={design.price}
+              onChange={(e) => patch(index, { price: formatGroupedDigits(e.target.value) })}
+              inputMode="numeric"
+              dir="ltr"
+              placeholder="مثلاً ۲۲,۰۰۰,۰۰۰"
+              className="mt-2 h-12"
+            />
+          </label>
+        </div>
+      ))}
+      {designs.length < 5 ? (
+        <Button type="button" variant="outline" className="h-11" onClick={() => onChange([...designs, emptyDesign()])}>
+          طرح بعدی
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function toFaCount(value: number) {
   return new Intl.NumberFormat("fa-IR").format(value || 0);
 }
 
 function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () => void; onSaved: () => Promise<void> }) {
+  const savedDesigns = row.designs?.length
+    ? row.designs
+    : row.designImage || row.priceToman || row.sizeCm
+      ? [{ image: row.designImage, priceToman: row.priceToman, sizeCm: row.sizeCm }]
+      : [{ image: "", priceToman: 0, sizeCm: "" }];
   const [name, setName] = useState(row.customerName);
   const [phone, setPhone] = useState(row.customerPhone);
   const [phone2, setPhone2] = useState(row.customerPhone2 || "");
-  const [sizeCm, setSizeCm] = useState(row.sizeCm || "");
-  const [price, setPrice] = useState(row.priceToman ? formatGroupedDigits(String(row.priceToman)) : "");
+  const [instagram, setInstagram] = useState(row.customerInstagram || "");
   const [paid, setPaid] = useState(row.paidToman ? formatGroupedDigits(String(row.paidToman)) : "");
   const [note, setNote] = useState(row.note || "");
   const [minutes, setMinutes] = useState(row.sessionMinutes || 0);
   const [ongoing, setOngoing] = useState(Boolean(row.ongoing));
-  const [image, setImage] = useState("");
+  const [designs, setDesigns] = useState<DraftDesign[]>(
+    savedDesigns.map((design) => ({
+      image: design.image || "",
+      price: design.priceToman ? formatGroupedDigits(String(design.priceToman)) : "",
+      sizeCm: design.sizeCm || "",
+    })),
+  );
   const [busy, setBusy] = useState(false);
 
   async function save() {
     if (minutes < 30) return toast.error("مدت اجرا را بنویس. حداقل نیم ساعت.");
     setBusy(true);
     try {
+      const packed = designs
+        .map((design) => ({ image: design.image, priceToman: parseToman(design.price), sizeCm: design.sizeCm.trim() }))
+        .filter((design) => design.image || design.priceToman || design.sizeCm);
       await saveAction("updateStudioFillIn", {
         id: row.id,
         customerName: name.trim(),
         customerPhone: phone,
         customerPhone2: phone2,
-        sizeCm,
+        customerInstagram: instagram,
         note,
-        priceToman: parseToman(price),
         paidToman: parseToman(paid),
         sessionMinutes: minutes,
         ongoing,
-        designImage: image || undefined,
+        designs: packed,
+        priceToman: packed.reduce((sum, design) => sum + design.priceToman, 0),
       });
       toast.success("مشخصات لیست انتظار ذخیره شد.");
       await onSaved();
@@ -428,12 +493,9 @@ function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () 
       <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام" className="h-12" />
       <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="شماره موبایل" inputMode="tel" dir="ltr" className="h-12" />
       <Input value={phone2} onChange={(e) => setPhone2(e.target.value)} placeholder="شماره دوم، اختیاری" inputMode="tel" dir="ltr" className="h-12" />
+      <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="آیدی اینستاگرام، اختیاری" dir="ltr" className="h-12" />
       <DurationFields minutes={minutes} onChange={setMinutes} />
-      <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد" className="h-12" />
-      <label className="block text-sm font-semibold">
-        قیمت طرح
-        <Input value={price} onChange={(e) => setPrice(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="مثلاً ۲۲,۰۰۰,۰۰۰" className="mt-2 h-12" />
-      </label>
+      <DesignDrafts designs={designs} onChange={setDesigns} />
       <label className="block text-sm font-semibold">
         مبلغ واریزی
         <Input value={paid} onChange={(e) => setPaid(formatGroupedDigits(e.target.value))} inputMode="numeric" dir="ltr" placeholder="اگر هنوز واریز نکرده، خالی بگذار" className="mt-2 h-12" />
@@ -447,19 +509,6 @@ function FillEditor({ row, onClose, onSaved }: { row: StudioFillIn; onClose: () 
           ادامه دارد
         </button>
       </div>
-      <label className="flex h-11 cursor-pointer items-center justify-center rounded-xl border border-dashed border-border text-sm font-bold">
-        {image ? "طرح جدید انتخاب شد" : "عوض کردن طرح، اختیاری"}
-        <input
-          className="sr-only"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            void compressImage(file).then(setImage).catch((err) => toast.error(friendlyError(err)));
-          }}
-        />
-      </label>
       <Button className="h-11" disabled={busy} onClick={() => void save()}>
         ذخیره ویرایش
       </Button>

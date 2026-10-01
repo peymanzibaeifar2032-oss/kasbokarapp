@@ -15,6 +15,7 @@ export type StudioFillIn = {
   priceToman: number;
   paidToman: number;
   designImage: string;
+  designs: { image: string; priceToman: number; sizeCm: string }[];
   sessionMinutes: number;
   callCount: number;
   cameCount: number;
@@ -38,6 +39,7 @@ type Row = {
   price_toman: number | null;
   paid_toman: number | null;
   design_image: string | null;
+  designs: unknown;
   session_minutes: number | null;
   call_count: number | null;
   came_count: number | null;
@@ -61,6 +63,7 @@ function mapRow(row: Row): StudioFillIn {
     priceToman: Number(row.price_toman) || 0,
     paidToman: Number(row.paid_toman) || 0,
     designImage: row.design_image || "",
+    designs: readDesigns(row),
     sessionMinutes: Number(row.session_minutes) || 0,
     callCount: Number(row.call_count) || 0,
     cameCount: Number(row.came_count) || 0,
@@ -72,11 +75,54 @@ function mapRow(row: Row): StudioFillIn {
   };
 }
 
+function readDesigns(row: Row) {
+  const raw = Array.isArray(row.designs) ? row.designs : [];
+  const parsed = raw
+    .map((item) => {
+      const design = item && typeof item === "object" ? (item as { image?: unknown; priceToman?: unknown; sizeCm?: unknown }) : {};
+      return {
+        image: typeof design.image === "string" ? design.image : "",
+        priceToman: Number(design.priceToman) || 0,
+        sizeCm: typeof design.sizeCm === "string" ? design.sizeCm : "",
+      };
+    })
+    .filter((design) => design.image || design.priceToman || design.sizeCm)
+    .slice(0, 5);
+  if (parsed.length) return parsed;
+  if (row.design_image || row.price_toman || row.size_cm) {
+    return [{ image: row.design_image || "", priceToman: Number(row.price_toman) || 0, sizeCm: row.size_cm || "" }];
+  }
+  return [];
+}
+
+const designInput = z.object({
+  image: z.string().max(700_000).optional(),
+  priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
+  sizeCm: z.string().trim().max(60).optional(),
+});
+
+function cleanDesigns(raw: z.infer<typeof designInput>[] | undefined) {
+  const designs = (raw || [])
+    .slice(0, 5)
+    .map((design) => ({
+      image: design.image || "",
+      priceToman: design.priceToman || 0,
+      sizeCm: design.sizeCm?.trim() || "",
+    }))
+    .filter((design) => design.image || design.priceToman || design.sizeCm);
+  for (const design of designs) {
+    if (design.image && !/^data:image\/(jpeg|png|webp);base64,/i.test(design.image)) {
+      throw new Error("فرمت تصویر طرح معتبر نیست.");
+    }
+  }
+  return designs;
+}
+
 export async function performListStudioFillIns(userId: string, requireAdmin: (userId: string) => Promise<unknown>) {
   await requireAdmin(userId);
   const sql = await getSql();
   const rows = await sql.query<Row>(
-    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, paid_toman, design_image, session_minutes, call_count, came_count, missed_count, ongoing, status, created_at
+    `select id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, paid_toman, design_image, designs, session_minutes, call_count, came_count, missed_count, ongoing, status, created_at
        from studio_fill_ins
       where owner_id = $1 and status <> 'dropped'
       order by case when status = 'waiting' then 0 else 1 end, created_at desc
@@ -128,6 +174,7 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
       paidToman: z.number().int().min(0).max(2_000_000_000).optional(),
       designImage: z.string().max(1_400_000).optional(),
+      designs: z.array(designInput).max(5).optional(),
       sessionMinutes: z.number().int().min(30).max(480),
       ongoing: z.boolean().optional(),
     })
@@ -139,15 +186,19 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
     phone2 = normalizeIranPhone(data.customerPhone2);
     if (!isIranMobile(phone2)) throw new Error("شماره دوم معتبر نیست.");
   }
-  if (data.designImage && !/^data:image\/(jpeg|png|webp);base64,/i.test(data.designImage)) {
+  const designs = cleanDesigns(data.designs);
+  const first = designs[0];
+  const legacyImage = first?.image || data.designImage || "";
+  if (legacyImage && !/^data:image\/(jpeg|png|webp);base64,/i.test(legacyImage)) {
     throw new Error("فرمت تصویر طرح معتبر نیست.");
   }
+  const total = designs.reduce((sum, design) => sum + design.priceToman, 0);
   const sql = await getSql();
   const id = crypto.randomUUID();
   await sql.query(
     `insert into studio_fill_ins
-      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, paid_toman, design_image, session_minutes, ongoing)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, paid_toman, design_image, designs, session_minutes, ongoing)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16)`,
     [
       id,
       userId,
@@ -157,11 +208,12 @@ export async function performAddStudioFillIn(userId: string, raw: unknown, requi
       normalizeInstagramHandle(data.customerInstagram) || null,
       data.idea?.trim() || "",
       data.placement?.trim() || "هماهنگ در استودیو",
-      data.sizeCm?.trim() || null,
+      first?.sizeCm || data.sizeCm?.trim() || null,
       data.note?.trim() || null,
-      data.priceToman ?? 0,
+      total || data.priceToman || 0,
       data.paidToman ?? 0,
-      data.designImage || null,
+      legacyImage || null,
+      JSON.stringify(designs),
       data.sessionMinutes,
       Boolean(data.ongoing),
     ],
@@ -177,11 +229,13 @@ export async function performUpdateStudioFillIn(userId: string, raw: unknown, re
       customerName: z.string().trim().min(2).max(80),
       customerPhone: z.string().trim().max(40),
       customerPhone2: z.string().trim().max(40).optional(),
+      customerInstagram: z.string().trim().max(80).optional(),
       sizeCm: z.string().trim().max(60).optional(),
       note: z.string().trim().max(300).optional(),
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
       paidToman: z.number().int().min(0).max(2_000_000_000).optional(),
       designImage: z.string().max(1_400_000).optional(),
+      designs: z.array(designInput).max(5).optional(),
       sessionMinutes: z.number().int().min(30).max(480),
       ongoing: z.boolean(),
     })
@@ -193,41 +247,47 @@ export async function performUpdateStudioFillIn(userId: string, raw: unknown, re
     phone2 = normalizeIranPhone(data.customerPhone2);
     if (!isIranMobile(phone2)) throw new Error("شماره دوم معتبر نیست.");
   }
-  if (data.designImage && !/^data:image\/(jpeg|png|webp);base64,/i.test(data.designImage)) {
+  const designs = data.designs ? cleanDesigns(data.designs) : null;
+  const first = designs?.[0];
+  const legacyImage = first?.image || data.designImage || "";
+  if (legacyImage && !/^data:image\/(jpeg|png|webp);base64,/i.test(legacyImage)) {
     throw new Error("فرمت تصویر طرح معتبر نیست.");
   }
+  const total = designs ? designs.reduce((sum, design) => sum + design.priceToman, 0) : data.priceToman ?? 0;
   const sql = await getSql();
-  const imageSql = data.designImage ? ", design_image = $12" : "";
-  const params = [
-    data.id,
-    userId,
-    data.customerName,
-    phone,
-    phone2,
-    data.sizeCm?.trim() || null,
-    data.note?.trim() || null,
-    data.priceToman ?? 0,
-    data.paidToman ?? 0,
-    data.sessionMinutes,
-    data.ongoing,
-  ];
-  if (data.designImage) params.push(data.designImage);
   const updated = await sql.query(
     `update studio_fill_ins
         set customer_name = $3,
             customer_phone = $4,
             customer_phone_2 = $5,
-            size_cm = $6,
-            note = $7::text,
-            idea = case when $7::text is null or btrim($7::text) = '' then idea else $7::text end,
-            price_toman = $8,
-            paid_toman = $9,
-            session_minutes = $10,
-            ongoing = $11
-            ${imageSql}
+            customer_instagram = $6,
+            size_cm = $7,
+            note = $8::text,
+            idea = case when $8::text is null or btrim($8::text) = '' then idea else $8::text end,
+            price_toman = $9,
+            paid_toman = $10,
+            session_minutes = $11,
+            ongoing = $12,
+            design_image = case when $13::text is null then design_image else nullif($13::text, '') end,
+            designs = case when $14::jsonb is null then designs else $14::jsonb end
       where id = $1 and owner_id = $2
       returning id`,
-    params,
+    [
+      data.id,
+      userId,
+      data.customerName,
+      phone,
+      phone2,
+      normalizeInstagramHandle(data.customerInstagram) || null,
+      first?.sizeCm || data.sizeCm?.trim() || null,
+      data.note?.trim() || null,
+      total,
+      data.paidToman ?? 0,
+      data.sessionMinutes,
+      data.ongoing,
+      designs ? legacyImage : null,
+      designs ? JSON.stringify(designs) : null,
+    ],
   );
   if (!updated[0]) throw new Error("این نفر در لیست انتظار پیدا نشد.");
   return { ok: true as const };
