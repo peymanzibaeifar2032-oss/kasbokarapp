@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { JALALI_MONTHS, gregorianToJalali } from "@/lib/calendar/jalali";
-import { getSql } from "@/lib/db";
+import { studioActor } from "@/lib/server/studio-artists";
 import { tehranClock } from "@/lib/hours";
 import {
   STUDIO_APPRENTICE_SEEDS,
@@ -190,8 +190,8 @@ async function syncDayBookings(sql: Sql, userId: string, businessId: string, day
   }
 }
 
-async function boardPayload(sql: Sql, userId: string, businessId: string, dayKey: string, jy?: number, jm?: number) {
-  await syncDayBookings(sql, userId, businessId, dayKey);
+async function boardPayload(sql: Sql, userId: string, businessId: string, dayKey: string, jy?: number, jm?: number, syncBookings = true) {
+  if (syncBookings) await syncDayBookings(sql, userId, businessId, dayKey);
   const roster = await listApprentices(sql, userId);
   const people = new Map(roster.map((row) => [row.id, row]));
   const fresh = await loadDay(sql, userId, dayKey);
@@ -223,12 +223,19 @@ async function boardPayload(sql: Sql, userId: string, businessId: string, dayKey
   };
 }
 
+async function requireApprenticeAccess(userId: string, requireAdmin: (id: string) => Promise<void>) {
+  const actor = await studioActor(userId);
+  if (!actor) throw new Error("دسترسی مدیریت ندارید.");
+  if (actor.role === "owner") await requireAdmin(userId);
+  return actor;
+}
+
 export async function performStudioApprenticeBoard(
   userId: string,
   raw: unknown,
   opts: { requireAdmin: (id: string) => Promise<void>; ensureStudioShop: (sql: Sql, id: string) => Promise<string> },
 ) {
-  await opts.requireAdmin(userId);
+  const actor = await requireApprenticeAccess(userId, opts.requireAdmin);
   const data = z.object({
     dayKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
     jy: z.number().int().optional(),
@@ -237,18 +244,21 @@ export async function performStudioApprenticeBoard(
   const dayKey = data.dayKey || upcomingThursdays()[0];
   if (!dayKey || !isTehranThursday(dayKey)) throw new Error("فقط پنجشنبه‌ها برای هنرجو است.");
   const sql = await getSql();
-  const businessId = await opts.ensureStudioShop(sql, userId);
-  await ensureStudioApprenticeRoster(sql, userId);
-  for (const key of upcomingThursdays(undefined, 16)) {
-    await ensureDaySlots(sql, userId, key);
-    await syncDayBookings(sql, userId, businessId, key);
+  const shopUserId = actor.role === "artist" ? actor.ownerUserId : userId;
+  const businessId = await opts.ensureStudioShop(sql, shopUserId);
+  if (actor.role === "owner") {
+    await ensureStudioApprenticeRoster(sql, userId);
+    for (const key of upcomingThursdays(undefined, 16)) {
+      await ensureDaySlots(sql, userId, key);
+      await syncDayBookings(sql, userId, businessId, key);
+    }
   }
   await ensureDaySlots(sql, userId, dayKey);
-  return boardPayload(sql, userId, businessId, dayKey, data.jy, data.jm);
+  return boardPayload(sql, userId, businessId, dayKey, data.jy, data.jm, actor.role === "owner");
 }
 
 export async function performSetApprenticeProgress(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
-  await requireAdmin(userId);
+  await requireApprenticeAccess(userId, requireAdmin);
   const data = z.object({
     apprenticeId: z.string(),
     sessionsDone: z.number().int().min(0).max(10),
@@ -267,7 +277,7 @@ export async function performMarkApprenticeSlot(
   raw: unknown,
   opts: { requireAdmin: (id: string) => Promise<void>; ensureStudioShop: (sql: Sql, id: string) => Promise<string> },
 ) {
-  await opts.requireAdmin(userId);
+  const actor = await requireApprenticeAccess(userId, opts.requireAdmin);
   const data = z.object({
     slotId: z.string(),
     status: z.enum(["planned", "present", "absent"]),
@@ -287,8 +297,8 @@ export async function performMarkApprenticeSlot(
     `update studio_apprentice_slots set status=$2, updated_at=now() where id=$1`,
     [data.slotId, data.status],
   );
-  const businessId = await opts.ensureStudioShop(sql, userId);
-  return boardPayload(sql, userId, businessId, slot.day_key);
+  const businessId = await opts.ensureStudioShop(sql, actor.role === "artist" ? actor.ownerUserId : userId);
+  return boardPayload(sql, userId, businessId, slot.day_key, undefined, undefined, actor.role === "owner");
 }
 
 export async function performAssignApprenticeSlot(
@@ -296,7 +306,7 @@ export async function performAssignApprenticeSlot(
   raw: unknown,
   opts: { requireAdmin: (id: string) => Promise<void>; ensureStudioShop: (sql: Sql, id: string) => Promise<string> },
 ) {
-  await opts.requireAdmin(userId);
+  const actor = await requireApprenticeAccess(userId, opts.requireAdmin);
   const data = z.object({
     slotId: z.string(),
     apprenticeId: z.string().nullable(),
@@ -341,8 +351,8 @@ export async function performAssignApprenticeSlot(
       where id=$1`,
     [data.slotId, data.apprenticeId],
   );
-  const businessId = await opts.ensureStudioShop(sql, userId);
-  return boardPayload(sql, userId, businessId, slot.day_key);
+  const businessId = await opts.ensureStudioShop(sql, actor.role === "artist" ? actor.ownerUserId : userId);
+  return boardPayload(sql, userId, businessId, slot.day_key, undefined, undefined, actor.role === "owner");
 }
 
 async function loadApprenticePayments(sql: Sql, userId: string): Promise<ApprenticePayment[]> {
@@ -369,7 +379,7 @@ async function loadApprenticePayments(sql: Sql, userId: string): Promise<Apprent
 }
 
 export async function performAddApprenticePayment(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
-  await requireAdmin(userId);
+  await requireApprenticeAccess(userId, requireAdmin);
   const data = z.object({
     apprenticeId: z.string(),
     amountToman: z.number().int().min(1).max(2_000_000_000),
@@ -391,7 +401,7 @@ export async function performAddApprenticePayment(userId: string, raw: unknown, 
 }
 
 export async function performDeleteApprenticePayment(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
-  await requireAdmin(userId);
+  await requireApprenticeAccess(userId, requireAdmin);
   const data = z.object({ id: z.string() }).parse(raw);
   const sql = await getSql();
   const row = await sql.query<{ id: string }>(
@@ -403,7 +413,7 @@ export async function performDeleteApprenticePayment(userId: string, raw: unknow
 }
 
 export async function performSetApprenticeDebt(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
-  await requireAdmin(userId);
+  await requireApprenticeAccess(userId, requireAdmin);
   const data = z.object({
     apprenticeId: z.string(),
     debtToman: z.number().int().min(0).max(2_000_000_000),

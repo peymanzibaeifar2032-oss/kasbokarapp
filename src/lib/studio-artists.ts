@@ -1,4 +1,4 @@
-export type StudioDeal = "percent" | "daily" | "weekly";
+export type StudioDeal = "percent" | "daily" | "weekly" | "own";
 
 export type StudioArtistCard = {
   id: string;
@@ -29,6 +29,7 @@ export type StudioChairRow = StudioArtistCard & {
 };
 
 export function chairCut(deal: StudioDeal, percent: number, amountToman: number, gross: number, days: number, weeks: number) {
+  if (deal === "own") return 0;
   if (deal === "percent") return Math.round((Math.max(0, gross) * Math.min(100, Math.max(0, percent))) / 100);
   if (deal === "daily") return Math.max(0, days) * Math.max(0, amountToman);
   return Math.max(0, weeks) * Math.max(0, amountToman);
@@ -36,7 +37,7 @@ export function chairCut(deal: StudioDeal, percent: number, amountToman: number,
 
 export function dealLabel(deal: StudioDeal, percent: number, amountToman: number) {
   const money = new Intl.NumberFormat("fa-IR").format(amountToman);
-  if (deal === "percent") return `${new Intl.NumberFormat("fa-IR").format(percent)} درصد از قیمت کار`;
+  if (deal === "own") return "پنل جدا، بدون سهم از کار تو";
   if (deal === "daily") return `روزانه ${money} تومان`;
   return `هفتگی ${money} تومان`;
 }

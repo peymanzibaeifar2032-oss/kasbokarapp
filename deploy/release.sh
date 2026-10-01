@@ -153,6 +153,7 @@ DB_MAY_HAVE_CHANGED=1
 $COMPOSE up -d --no-deps --force-recreate web || fail "up"
 
 wait_health || fail "health"
+$COMPOSE exec -T web node scripts/seed-own-panel.mjs || echo "WARN own-panel seed skipped"
 LIVE=$(curl -sS -m 5 http://127.0.0.1:8080/api/health 2>/dev/null || true)
 echo "$LIVE" | grep -q "$NEW_SHA" || fail "health-sha-mismatch"
 echo "$LIVE" | grep -q '"shaSource":"image"' || fail "health-sha-source"

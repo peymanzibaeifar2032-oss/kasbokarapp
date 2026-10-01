@@ -255,6 +255,7 @@ function StudioAdminPage() {
   }, [userId, owner]);
 
   const staff = owner || Boolean(chairArtist);
+  const ownPanel = chairArtist?.deal === "own";
 
   useEffect(() => {
     if (!userId || !staff) return;
@@ -365,14 +366,14 @@ function StudioAdminPage() {
             ["jobs", "نوبت‌ها"],
             ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
             ["fill", "لیست انتظار"],
-            ["money", owner ? "صندوق" : "سهم من"],
+            ["money", owner || ownPanel ? "صندوق" : "سهم من"],
             ["apprentices", "هنرجوها"],
             ["contacts", "مشتریان"],
             ["messages", "پیام‌های آماده"],
             ["artists", "همکاران"],
           ] as const
         )
-          .filter(([id]) => owner || (id !== "apprentices" && id !== "artists"))
+          .filter(([id]) => owner || (id !== "artists" && (ownPanel || id !== "apprentices")))
           .map(([id, label]) => (
             <button
               key={id}
@@ -422,11 +423,11 @@ function StudioAdminPage() {
 
       {!loading && !error && tab === "fill" ? <StudioFillInBoard bookings={bookings} onPlaced={() => void refresh()} /> : null}
 
-      {!loading && !error && tab === "apprentices" && owner ? <StudioApprenticeBoard /> : null}
+      {!loading && !error && tab === "apprentices" && (owner || ownPanel) ? <StudioApprenticeBoard /> : null}
 
       {!loading && !error && tab === "artists" && owner ? <StudioArtistBoard /> : null}
 
-      {!loading && !error && tab === "money" ? (owner ? <StudioMonthFinance /> : <StudioChairShare />) : null}
+      {!loading && !error && tab === "money" ? (owner || ownPanel ? <StudioMonthFinance /> : <StudioChairShare />) : null}
 
       {!loading && !error && tab === "requests" ? (
         <div className="mt-5">

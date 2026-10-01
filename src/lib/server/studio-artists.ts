@@ -88,7 +88,7 @@ export async function performSaveStudioArtist(userId: string, raw: unknown) {
       name: z.string().trim().min(2).max(80),
       email: z.string().trim().email(),
       phone: z.string().trim().max(40).optional(),
-      deal: z.enum(["percent", "daily", "weekly"]),
+      deal: z.enum(["percent", "daily", "weekly", "own"]),
       percent: z.number().int().min(0).max(100).optional(),
       amountToman: z.number().int().min(0).max(2_000_000_000).optional(),
       active: z.boolean().optional(),
@@ -97,7 +97,7 @@ export async function performSaveStudioArtist(userId: string, raw: unknown) {
   const email = normalizeOwnerEmail(data.email);
   if (isStudioOwnerEmail(email)) throw new Error("ایمیل خودت را به‌عنوان همکار نگذار.");
   if (data.deal === "percent" && !(data.percent && data.percent > 0)) throw new Error("درصد را از ۱ تا ۱۰۰ بنویس.");
-  if (data.deal !== "percent" && !(data.amountToman && data.amountToman > 0)) throw new Error("مبلغ روزانه یا هفتگی را بنویس.");
+  if (data.deal !== "percent" && data.deal !== "own" && !(data.amountToman && data.amountToman > 0)) throw new Error("مبلغ روزانه یا هفتگی را بنویس.");
   const sql = await getSql();
   const id = data.id || crypto.randomUUID();
   try {
@@ -190,7 +190,7 @@ export async function performStudioChairLedger(userId: string, raw: unknown) {
     actor.role === "owner"
       ? await sql.query<ArtistRow>(
           `select id, owner_user_id, email, name, phone, deal, percent, amount_toman, active
-             from studio_artists where owner_user_id = $1 and active = true order by name`,
+             from studio_artists where owner_user_id = $1 and active = true and deal <> 'own' order by name`,
           [actor.userId],
         )
       : await sql.query<ArtistRow>(

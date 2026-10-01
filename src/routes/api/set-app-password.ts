@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { auth, authConfigured } from "@/lib/auth/server";
+import { getSql } from "@/lib/db";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
 
 function json(data: unknown, status = 200) {
@@ -23,6 +24,12 @@ async function handle(request: Request) {
   const accounts = await ctx.internalAdapter.findAccounts(session.user.id);
   const credential = accounts.find((account: { providerId?: string }) => account.providerId === "credential");
   const owner = isStudioOwnerEmail(session.user.email);
+  const sql = await getSql();
+  const staff = await sql.query(
+    `select id from studio_artists where lower(email) = lower($1) and active = true limit 1`,
+    [session.user.email || ""],
+  );
+  const canReset = owner || Boolean(staff[0]);
   if (!credential) {
     await ctx.internalAdapter.linkAccount({
       userId: session.user.id,
@@ -30,7 +37,7 @@ async function handle(request: Request) {
       accountId: session.user.id,
       password: hash,
     });
-  } else if (owner) {
+  } else if (canReset) {
     await ctx.internalAdapter.updatePassword(session.user.id, hash);
   } else {
     return json({ error: "رمز قبلاً گذاشته شده. برای عوض کردنش باید ایمیل بازیابی بیاید." }, 400);

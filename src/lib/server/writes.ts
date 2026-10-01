@@ -2752,6 +2752,46 @@ async function applyStudioExpenseTemplates(
   }
 }
 
+function remainingForArtistSql(scopedToRange: boolean) {
+  const range = scopedToRange
+    ? `and booking_id in (
+            select id from bookings
+             where status not in ('cancelled')
+               and kind = 'booking'
+               and slot_start >= $1 and slot_start < $2
+          )`
+    : "";
+  const artist = scopedToRange ? "$3" : "$1";
+  return `select coalesce(sum(greatest(price - paid, 0)), 0) as remaining
+    from (
+      select max(price) as price, least(max(price), sum(paid)) as paid
+      from (
+        select
+          case
+            when length(right(regexp_replace(coalesce(customer_phone,''), '\\D', '', 'g'), 10)) >= 10
+             and right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) <> '9000000000'
+              then right(regexp_replace(customer_phone, '\\D', '', 'g'), 10)
+            when length(right(regexp_replace(coalesce(customer_phone_2,''), '\\D', '', 'g'), 10)) >= 10
+              then right(regexp_replace(customer_phone_2, '\\D', '', 'g'), 10)
+            else lower(btrim(customer_name))
+          end as who,
+          lower(btrim(coalesce(style,''))) as style,
+          lower(btrim(coalesce(placement,''))) as placement,
+          coalesce(price_min_toman,0) as price,
+          coalesce(paid_toman,0) as paid
+        from tattoo_requests
+        where status not in ('rejected','cancelled')
+          and artist_id = ${artist}
+          and coalesce(is_continuation, false) = false
+          and coalesce(carry_closed, false) = false
+          and coalesce(artist_message, '') <> 'جلسه دوم'
+          and coalesce(price_min_toman,0) > 0
+          ${range}
+      ) jobs
+      group by who, style, placement, price
+    ) once`;
+}
+
 function remainingTotalSql(scopedToRange: boolean) {
   const range = scopedToRange
     ? `and booking_id in (
@@ -2792,11 +2832,15 @@ function remainingTotalSql(scopedToRange: boolean) {
 }
 
 async function performStudioMonthFinance(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  const actor = await requireStudioStaff(userId);
   const data = z.object({ jy: z.number().int(), jm: z.number().int().min(1).max(12) }).parse(raw);
   const sql = await getSql();
   const range = jalaliMonthRange(data.jy, data.jm);
   await applyStudioExpenseTemplates(sql, userId, data.jy, data.jm);
+  const paymentScope = actor.role === "artist"
+    ? "and r.artist_id = $3"
+    : "and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')";
+  const paymentParams = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
   const [payments, monthRemain, allRemain, expenses] = await Promise.all([
     sql.query<{
       id: string;
@@ -2816,11 +2860,12 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
          from tattoo_payments p
          join tattoo_requests r on r.id = p.request_id
         where p.created_at >= $1 and p.created_at < $2
+          ${paymentScope}
         order by p.created_at`,
-      [range.start, range.end],
+      paymentParams,
     ),
-    sql.query<{ remaining: number | string }>(remainingTotalSql(true), [range.start, range.end]),
-    sql.query<{ remaining: number | string }>(remainingTotalSql(false)),
+    sql.query<{ remaining: number | string }>(actor.role === "artist" ? remainingForArtistSql(true) : remainingTotalSql(true), actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end]),
+    sql.query<{ remaining: number | string }>(actor.role === "artist" ? remainingForArtistSql(false) : remainingTotalSql(false), actor.role === "artist" ? [actor.artistId] : []),
     sql.query<{
       id: string;
       category: string;
@@ -2853,9 +2898,9 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
   const week = tehranWeekBounds(0);
   const today = tehranDayBounds();
   const [continuationMonth, continuationWeek, continuationToday] = await Promise.all([
-    continuationRemaining(sql, range.start, range.end),
-    continuationRemaining(sql, week.start, week.end),
-    continuationRemaining(sql, today.start, today.end),
+    continuationRemaining(sql, range.start, range.end, actor.role === "artist" ? actor.artistId : null),
+    continuationRemaining(sql, week.start, week.end, actor.role === "artist" ? actor.artistId : null),
+    continuationRemaining(sql, today.start, today.end, actor.role === "artist" ? actor.artistId : null),
   ]);
   return {
     payments: mappedPayments,
@@ -2874,25 +2919,27 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
   };
 }
 
-async function continuationRemaining(sql: Awaited<ReturnType<typeof getSql>>, start: string, end: string) {
+async function continuationRemaining(sql: Awaited<ReturnType<typeof getSql>>, start: string, end: string, artistId: string | null = null) {
   const rows = await sql.query<{ remaining: number | string }>(
     `select coalesce(sum(greatest(coalesce(price_min_toman,0) - coalesce(paid_toman,0), 0)), 0) as remaining
        from tattoo_requests
       where status not in ('rejected')
         and is_continuation = true
+        and ($3::text is null or artist_id = $3)
+        and ($3::text is not null or artist_id is null or artist_id not in (select id from studio_artists where deal = 'own'))
         and booking_id in (
           select id from bookings
            where status not in ('cancelled')
              and kind = 'booking'
              and slot_start >= $1 and slot_start < $2
         )`,
-    [start, end],
+    [start, end, artistId],
   );
   return Number(rows[0]?.remaining) || 0;
 }
 
 async function performAddStudioExpense(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  await requireStudioStaff(userId);
   const data = z.object({
     category: z.enum(expenseCategoryIds),
     title: z.string().trim().min(2).max(80),
@@ -2921,7 +2968,7 @@ async function performAddStudioExpense(userId: string, raw: unknown) {
 }
 
 async function performDeleteStudioExpense(userId: string, raw: unknown) {
-  await requireAdmin(userId);
+  await requireStudioStaff(userId);
   const data = z.object({
     id: z.string(),
     stopRecurring: z.boolean().optional(),
@@ -3945,19 +3992,19 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     case "clearStudioCalendar":
       return performClearStudioCalendar(userId, payload);
     case "listStudioFillIns":
-      return performListStudioFillIns(userId, requireAdmin);
+      return performListStudioFillIns(userId, requireStudioStaff);
     case "addStudioFillIn":
-      return performAddStudioFillIn(userId, payload, requireAdmin);
+      return performAddStudioFillIn(userId, payload, requireStudioStaff);
     case "setStudioFillIn":
-      return performSetStudioFillIn(userId, payload, requireAdmin);
+      return performSetStudioFillIn(userId, payload, requireStudioStaff);
     case "setStudioFillInMinutes":
-      return performSetStudioFillInMinutes(userId, payload, requireAdmin);
+      return performSetStudioFillInMinutes(userId, payload, requireStudioStaff);
     case "markStudioFillIn":
-      return performMarkStudioFillIn(userId, payload, requireAdmin);
+      return performMarkStudioFillIn(userId, payload, requireStudioStaff);
     case "setStudioFillInPlan":
-      return performSetStudioFillInPlan(userId, payload, requireAdmin);
+      return performSetStudioFillInPlan(userId, payload, requireStudioStaff);
     case "updateStudioFillIn":
-      return performUpdateStudioFillIn(userId, payload, requireAdmin);
+      return performUpdateStudioFillIn(userId, payload, requireStudioStaff);
     case "studioWhoami":
       return performStudioWhoami(userId);
     case "listStudioArtists":
