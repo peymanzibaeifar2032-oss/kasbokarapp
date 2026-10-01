@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { InstagramChip } from "@/components/studio/instagram-chip";
+import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
 import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-board";
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
@@ -216,14 +217,19 @@ function StudioAdminPage() {
     setLoading(true);
     setError("");
     try {
-      const [nextBusinesses, nextBookings, nextRequests] = await Promise.all([
+      const [nextBusinesses, nextBookings] = await Promise.all([
         saveAction<Business[]>("mine"),
         saveAction<Booking[]>("ownerBookings"),
-        saveAction<TattooRequest[]>("studioTattooRequests"),
       ]);
       setBusinesses(nextBusinesses);
       setBookings(nextBookings);
-      setRequests(nextRequests);
+      setLoading(false);
+      try {
+        const nextRequests = await saveAction<TattooRequest[]>("studioTattooRequests");
+        setRequests(nextRequests);
+      } catch (err) {
+        setError(friendlyError(err));
+      }
     } catch (err) {
       setError(friendlyError(err));
     } finally {
