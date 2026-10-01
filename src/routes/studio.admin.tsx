@@ -2336,6 +2336,12 @@ function MonthJobCard({
   const [phone2Edit, setPhone2Edit] = useState(job.customerPhone2 || "");
   const [instagramEdit, setInstagramEdit] = useState(job.customerInstagram || "");
   const [images, setImages] = useState<string[]>([...(job.referenceImages ?? [])]);
+  const [shotQuotes, setShotQuotes] = useState<{ price: string; sizeCm: string }[]>(
+    (job.referenceImages ?? []).map((_, index) => ({
+      price: job.designQuotes?.[index]?.priceToman ? String(job.designQuotes[index].priceToman) : "",
+      sizeCm: job.designQuotes?.[index]?.sizeCm || "",
+    })),
+  );
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2364,6 +2370,10 @@ function MonthJobCard({
         sizeCm: sizeCm.trim() || undefined,
         priceMinToman: price ? Number(price) : undefined,
         referenceImages: images,
+        designQuotes: images.map((_, index) => ({
+          priceToman: Number(shotQuotes[index]?.price || 0),
+          sizeCm: shotQuotes[index]?.sizeCm?.trim() || "",
+        })),
       });
       toast.success("کار به‌روز شد.");
       setEditing(false);
@@ -2503,6 +2513,21 @@ function MonthJobCard({
         {job.sizeCm ? <p className="mt-2 text-sm">اندازه: {job.sizeCm}</p> : null}
         {job.idea ? <p className="mt-1 text-sm leading-7">{job.idea}</p> : null}
         <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
+        {(job.designQuotes ?? []).some((quote) => quote.priceToman || quote.sizeCm) ? (
+          <div className="mt-2 grid gap-1">
+            {(job.referenceImages ?? []).map((_, index) => {
+              const quote = job.designQuotes?.[index];
+              if (!quote?.priceToman && !quote?.sizeCm) return null;
+              return (
+                <p key={index} className="text-sm">
+                  طرح {index + 1}
+                  {quote.sizeCm ? ` · اندازه ${quote.sizeCm}` : ""}
+                  {quote.priceToman ? ` · قیمت ${formatTattooToman(quote.priceToman)}` : ""}
+                </p>
+              );
+            })}
+          </div>
+        ) : null}
         <div className="mt-3">
           <Button variant="outline" size="sm" onClick={() => setEditing((value) => !value)}>
             {editing ? "بستن ویرایش" : "ویرایش طرح و محل اجرا"}
@@ -2540,9 +2565,32 @@ function MonthJobCard({
             <DesignThumbs
               images={images}
               filePrefix={`${name}-${style}`}
-              onFiles={(urls) => setImages((current) => [...current, ...urls].slice(0, 3))}
-              onRemove={(index) => setImages((current) => current.filter((_, i) => i !== index))}
+              onFiles={(urls) => {
+                setImages((current) => [...current, ...urls].slice(0, 3));
+                setShotQuotes((current) => [...current, ...urls.map(() => ({ price: "", sizeCm: "" }))].slice(0, 3));
+              }}
+              onRemove={(index) => {
+                setImages((current) => current.filter((_, i) => i !== index));
+                setShotQuotes((current) => current.filter((_, i) => i !== index));
+              }}
             />
+            {images.map((src, index) => (
+              <div key={`${src.slice(-16)}-${index}`} className="mt-2 grid gap-2 rounded-xl border border-border p-3">
+                <p className="text-sm font-semibold">طرح {index + 1}</p>
+                <Input
+                  value={shotQuotes[index]?.sizeCm || ""}
+                  onChange={(e) => setShotQuotes((current) => current.map((item, i) => (i === index ? { ...item, sizeCm: e.target.value } : item)))}
+                  placeholder="اندازه این طرح"
+                />
+                <Input
+                  value={formatGroupedDigits(shotQuotes[index]?.price || "")}
+                  onChange={(e) => setShotQuotes((current) => current.map((item, i) => (i === index ? { ...item, price: digitsOnly(e.target.value) } : item)))}
+                  inputMode="numeric"
+                  dir="ltr"
+                  placeholder="قیمت گفته‌شده"
+                />
+              </div>
+            ))}
             <Button className="mt-3" disabled={busy} onClick={() => void save()}>
               ذخیره تغییرات
             </Button>

@@ -202,6 +202,7 @@ export type TattooRequest = {
   preferredDates: string | null;
   budgetToman: number | null;
   referenceImages: string[];
+  designQuotes?: { priceToman: number; sizeCm: string }[];
   bodyImages: string[];
   status: TattooRequestStatus;
   priceMinToman: number | null;

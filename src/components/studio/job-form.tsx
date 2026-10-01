@@ -73,6 +73,7 @@ export function StudioJobForm({
   const [resourceId, setResourceId] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
   const [images, setImages] = useState<string[]>([]);
+  const [shotQuotes, setShotQuotes] = useState<{ price: string; sizeCm: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const busyKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -205,6 +206,7 @@ export function StudioJobForm({
     setCustomerFile(null);
     setDay("");
     setImages([]);
+    setShotQuotes([]);
   }
 
   async function submit() {
@@ -241,6 +243,10 @@ export function StudioJobForm({
         slotStart: tehranLocalToIso(y, m, d, hh, mm),
         resourceId: resourceId || undefined,
         referenceImages: images,
+        designQuotes: images.map((_, index) => ({
+          priceToman: Number(shotQuotes[index]?.price || 0),
+          sizeCm: shotQuotes[index]?.sizeCm?.trim() || "",
+        })),
       });
       toast.success("اجرا در تقویم و لیست ماه ثبت شد.");
       reset();
@@ -405,14 +411,37 @@ export function StudioJobForm({
       </label>
       <div className="mt-3">
         <p className="text-sm font-medium">عکس طرح</p>
-        <p className="mt-1 text-xs text-muted">آپلود کنید؛ بعداً هم می‌توانید دانلود کنید. حداکثر ۳ عکس.</p>
+        <p className="mt-1 text-xs text-muted">برای هر عکس اندازه و قیمت گفته‌شده را جدا بنویس. حداکثر ۳ عکس. بعداً همین‌ها ثابت می‌ماند.</p>
         <DesignThumbs
           images={images}
           filePrefix={style || name || "tarh"}
           max={3}
-          onFiles={(urls) => setImages((current) => [...current, ...urls].slice(0, 3))}
-          onRemove={(index) => setImages((current) => current.filter((_, i) => i !== index))}
+          onFiles={(urls) => {
+            setImages((current) => [...current, ...urls].slice(0, 3));
+            setShotQuotes((current) => [...current, ...urls.map(() => ({ price: "", sizeCm: "" }))].slice(0, 3));
+          }}
+          onRemove={(index) => {
+            setImages((current) => current.filter((_, i) => i !== index));
+            setShotQuotes((current) => current.filter((_, i) => i !== index));
+          }}
         />
+        {images.map((src, index) => (
+          <div key={`${src.slice(-16)}-${index}`} className="mt-2 grid gap-2 rounded-xl border border-border p-3">
+            <p className="text-sm font-semibold">طرح {index + 1}</p>
+            <Input
+              value={shotQuotes[index]?.sizeCm || ""}
+              onChange={(e) => setShotQuotes((current) => current.map((item, i) => (i === index ? { ...item, sizeCm: e.target.value } : item)))}
+              placeholder="اندازه این طرح، اختیاری"
+            />
+            <Input
+              value={formatGroupedDigits(shotQuotes[index]?.price || "")}
+              onChange={(e) => setShotQuotes((current) => current.map((item, i) => (i === index ? { ...item, price: digitsOnly(e.target.value) } : item)))}
+              inputMode="numeric"
+              dir="ltr"
+              placeholder="قیمت گفته‌شده برای این طرح"
+            />
+          </div>
+        ))}
       </div>
       <Button className="mt-3" disabled={busy} onClick={() => void submit()}>
         ثبت اجرا در تقویم

@@ -430,6 +430,7 @@ type TattooRequestRow = {
   preferred_dates: string | null;
   budget_toman: number | null;
   reference_images: unknown;
+  design_quotes: unknown;
   body_images: unknown;
   status: TattooRequest["status"];
   price_min_toman: number | null;
@@ -465,6 +466,17 @@ type TattooRequestRow = {
   updated_at: string;
 };
 
+function readDesignQuotes(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 3).map((item) => {
+    const quote = item && typeof item === "object" ? (item as { priceToman?: unknown; sizeCm?: unknown }) : {};
+    return {
+      priceToman: Number(quote.priceToman) || 0,
+      sizeCm: typeof quote.sizeCm === "string" ? quote.sizeCm : "",
+    };
+  });
+}
+
 function mapTattooPayments(rows: { id: string; request_id: string; amount_toman: number | string; note: string | null; created_at: string }[]): TattooPayment[] {
   return rows.map((row) => ({
     id: row.id,
@@ -495,6 +507,7 @@ function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = [])
     preferredDates: row.preferred_dates,
     budgetToman: row.budget_toman == null ? null : Number(row.budget_toman),
     referenceImages: images(row.reference_images),
+    designQuotes: readDesignQuotes(row.design_quotes),
     bodyImages: images(row.body_images),
     status: row.status,
     priceMinToman: row.price_min_toman == null ? null : Number(row.price_min_toman),
@@ -562,7 +575,7 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   coalesce(customer_phone_2,'') as customer_phone_2,
   coalesce(customer_instagram,'') as customer_instagram,
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
-  reference_images, body_images, status, price_min_toman, price_max_toman,
+  reference_images, coalesce(design_quotes,'[]'::jsonb) as design_quotes, body_images, status, price_min_toman, price_max_toman,
   session_minutes, session_count, deposit_toman, artist_message, message_seen_at, artist_id,
   estimate_min_toman, estimate_max_toman, estimate_minutes, estimate_sessions, complexity_score, estimate_confidence,
   color_mode, coalesce(is_price_anchor,false) as is_price_anchor, payment_status, payment_hold_until,
@@ -2943,6 +2956,10 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     priceMinToman: z.number().int().min(0).max(2_000_000_000).optional(),
     settled: z.boolean().optional(),
     referenceImages: z.array(imageDataSchema).max(3).optional(),
+    designQuotes: z.array(z.object({
+      priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      sizeCm: z.string().trim().max(60).optional(),
+    })).max(3).optional(),
     slotStart: z.string().optional(),
     sessionMinutes: z.number().int().min(10).max(4320).optional(),
   }).parse(raw);
@@ -2976,6 +2993,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
        price_min_toman=coalesce($9, price_min_toman),
        settled=$10,
        reference_images=coalesce($12::jsonb, reference_images),
+       design_quotes=case when $15::jsonb is null then design_quotes else $15::jsonb end,
        customer_instagram=case when $13 then $14 else customer_instagram end,
        updated_at=now()
      where id=$1`,
@@ -2994,6 +3012,14 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
       data.referenceImages ? JSON.stringify(data.referenceImages) : null,
       data.customerInstagram !== undefined,
       instagram ?? null,
+      data.designQuotes
+        ? JSON.stringify(
+            (data.referenceImages || []).map((_, index) => ({
+              priceToman: data.designQuotes?.[index]?.priceToman || 0,
+              sizeCm: data.designQuotes?.[index]?.sizeCm?.trim() || "",
+            })),
+          )
+        : null,
     ],
   );
   if (data.slotStart) {
@@ -3195,6 +3221,10 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     slotStart: z.string(),
     resourceId: z.string().max(80).optional().nullable(),
     referenceImages: z.array(imageDataSchema).max(3).default([]),
+    designQuotes: z.array(z.object({
+      priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
+      sizeCm: z.string().trim().max(60).optional(),
+    })).max(3).optional(),
     continuation: z.boolean().optional(),
   }).parse(raw);
   const sql = await getSql();
@@ -3310,6 +3340,13 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
         ],
       );
       stored = true;
+      if (data.designQuotes?.length) {
+        const quotes = images.map((_, index) => ({
+          priceToman: data.designQuotes?.[index]?.priceToman || 0,
+          sizeCm: data.designQuotes?.[index]?.sizeCm?.trim() || "",
+        }));
+        await sql.query(`update tattoo_requests set design_quotes=$2::jsonb where id=$1`, [requestId, JSON.stringify(quotes)]);
+      }
       break;
     } catch (error) {
       if (isOccupancyConflict(error)) throw new Error("این بازه با نوبت دیگری تداخل دارد.");
