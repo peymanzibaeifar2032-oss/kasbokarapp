@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
-import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
+import { InstagramChip } from "@/components/studio/instagram-chip";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { compressImage } from "@/lib/design-images";
@@ -229,7 +229,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
             <p className="mt-1 text-xs font-semibold text-accent">{row.ongoing ? "ادامه دارد · بعد از تأیید در لیست می‌ماند" : "یک جلسه · بعد از تأیید از لیست می‌رود"}</p>
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
             {row.customerPhone2 ? <p className="text-sm text-muted" dir="ltr">دوم: {row.customerPhone2}</p> : null}
-            {row.customerInstagram ? <p className="text-sm text-muted" dir="ltr">اینستاگرام: {row.customerInstagram}</p> : null}
+            {row.customerInstagram ? <div className="mt-1"><InstagramChip handle={row.customerInstagram} /></div> : null}
             <p className="mt-2 text-sm">
               تماس {toFaCount(row.callCount)} · آمد {toFaCount(row.cameCount)} · مراجعه نکرد {toFaCount(row.missedCount)}
             </p>

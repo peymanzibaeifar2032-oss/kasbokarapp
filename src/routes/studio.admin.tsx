@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
-import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { InstagramChip } from "@/components/studio/instagram-chip";
 import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
 import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-board";
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDateTime, instagramProfileUrl, normalizeInstagramHandle, toSmsLink, toTelLink } from "@/lib/format";
+import { formatFaDateTime, toSmsLink, toTelLink } from "@/lib/format";
 import { firstOpenCustomerDay, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
@@ -678,16 +678,7 @@ function TattooAdminCard({
             دوم: {request.customerPhone2}
           </a>
         ) : null}
-        {request.customerInstagram ? (
-          <a
-            className="text-accent"
-            href={instagramProfileUrl(request.customerInstagram) ?? undefined}
-            target="_blank"
-            rel="noreferrer"
-          >
-            اینستاگرام: @{normalizeInstagramHandle(request.customerInstagram)}
-          </a>
-        ) : null}
+        {request.customerInstagram ? <InstagramChip handle={request.customerInstagram} /> : null}
         {request.preferredDates ? <span>زمان مناسب مشتری: {request.preferredDates}</span> : null}
       </div>
       <DesignThumbs
@@ -2505,11 +2496,7 @@ function MonthJobCard({
             دوم: {phone2}
           </a>
         ) : null}
-        {job.customerInstagram ? (
-          <a className="mt-1 mr-3 inline-block text-sm text-accent" href={instagramProfileUrl(job.customerInstagram) ?? undefined} target="_blank" rel="noreferrer">
-            @{normalizeInstagramHandle(job.customerInstagram)}
-          </a>
-        ) : null}
+        {job.customerInstagram ? <InstagramChip handle={job.customerInstagram} /> : null}
         {job.sizeCm ? <p className="mt-2 text-sm">اندازه: {job.sizeCm}</p> : null}
         {job.idea ? <p className="mt-1 text-sm leading-7">{job.idea}</p> : null}
         <DesignThumbs images={designs} filePrefix={`${job.customerName}-${job.style}`} />
