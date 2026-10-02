@@ -194,6 +194,31 @@ export function sessionFoodSms(name: string) {
   ].join("\n");
 }
 
+export function depositCardSms(name: string) {
+  const who = `${honorificForName(name)} ${customerFirstName(name)}`;
+  const mehr = TATTOO_SETTLEMENT_PRESETS[0];
+  const maskan = TATTOO_SETTLEMENT_PRESETS[1];
+  return [
+    `سلام ${who}`,
+    "واریز به نام پیمان زیبائی‌فر",
+    `بانک مهر، کارت ${formatCardNumber(mehr.card)}`,
+    `شبا ${mehr.iban}`,
+    `بانک مسکن، کارت ${formatCardNumber(maskan.card)}`,
+    `شبا ${maskan.iban}`,
+  ].join("\n");
+}
+
+export function aftercareGuideSms(name: string) {
+  const who = `${honorificForName(name)} ${customerFirstName(name)}`;
+  return [
+    `سلام ${who}`,
+    "۲ ساعت بعد سلفون را بردار و دوش بگیر.",
+    "۳ روز اول، هر روز صبح و ظهر و شب دوش بگیر. چرب نکن.",
+    "روز چهارم تاتو را باز بگذار.",
+    "از روز پنجم تا یک ماه، روزی ۵ بار با پماد دکسپانتونل ملایم چرب کن.",
+  ].join("\n");
+}
+
 export function bookingReminderSms(opts: {
   honorific: "آقای" | "خانم";
   name: string;

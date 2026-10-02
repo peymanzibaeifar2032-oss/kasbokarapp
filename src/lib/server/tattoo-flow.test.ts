@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, isRetiredCollaborator, tattooBalance, tattooStage, withStudioVisitDetails } from "../tattoo-flow.ts";
+import { STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, aftercareGuideSms, depositCardSms, isRetiredCollaborator, tattooBalance, tattooStage, withStudioVisitDetails } from "../tattoo-flow.ts";
 import { googleCalendarUrl, normalizeInstagramHandle } from "../format.ts";
 import { studioJobsReportHtml } from "../studio-list-pdf.ts";
 import {
@@ -389,6 +389,16 @@ describe("tattooBalance and bank presets", () => {
     assert.equal(TATTOO_SETTLEMENT_PRESETS[1].title, "پیمان زیبائی‌فر بانک مسکن");
     assert.equal(TATTOO_SETTLEMENT_PRESETS[1].card, "6280231566846282");
     assert.equal(TATTOO_SETTLEMENT_PRESETS[1].iban, "IR160140040000152900013417");
+    const card = depositCardSms("شایان");
+    assert.match(card, /سلام آقای شایان/);
+    assert.match(card, /6063-7311-9775-3891/);
+    assert.match(card, /IR680600581470017758851001/);
+    assert.match(card, /6280-2315-6684-6282/);
+    assert.match(card, /IR160140040000152900013417/);
+    const care = aftercareGuideSms("شیرین");
+    assert.match(care, /سلام خانم شیرین/);
+    assert.match(care, /دکسپانتونل/);
+    assert.match(care, /روزی ۵ بار/);
   });
 
   it("keeps only Peyman as studio staff and drops Mehrdad spellings", () => {
