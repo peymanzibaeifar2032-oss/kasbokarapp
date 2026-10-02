@@ -14,6 +14,26 @@ import { digitsOnly, formatGroupedDigits, formatTattooToman, isRetiredCollaborat
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { Booking, Business } from "@/lib/types";
 
+function uniqueStaff(rows: BusinessResource[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = row.name.replace(/\s+/g, "").replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/‌/g, "");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function ownStudioId(businesses: Business[], personal: boolean) {
+  if (personal) return businesses[0]?.id ?? "";
+  return (
+    businesses.find((business) => business.id === "biz-peyman-studio")?.id
+    ?? businesses.find((business) => !/هانا|هانی/.test(business.name))?.id
+    ?? businesses[0]?.id
+    ?? ""
+  );
+}
+
 type WorkCarry = {
   price: number;
   paid: number;
@@ -51,7 +71,7 @@ export function StudioJobForm({
   personal?: boolean;
 }) {
   const [open, setOpen] = useState(embedded);
-  const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
+  const [businessId, setBusinessId] = useState(() => ownStudioId(businesses, personal));
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [phone2, setPhone2] = useState("");
@@ -90,17 +110,18 @@ export function StudioJobForm({
     if (dayTouched) return;
     setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));
   }, [busyKeys, dayTouched]);
-  const visibleStaff = resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name));
+  const visibleStaff = uniqueStaff(resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name)));
+  const shownBusinesses = personal ? businesses : businesses.filter((business) => business.id === businessId || !/هانا|هانی/.test(business.name));
 
   useEffect(() => {
-    if (!businessId && businesses[0]) setBusinessId(businesses[0].id);
+    if (!businessId && businesses[0]) setBusinessId(ownStudioId(businesses, personal));
   }, [businesses, businessId]);
 
   useEffect(() => {
     if (!businessId) return;
     void saveAction<BusinessResource[]>("listResources", { businessId })
       .then((rows) => {
-        const active = rows.filter((row) => row.active !== false && !isRetiredCollaborator(row.name));
+        const active = uniqueStaff(rows.filter((row) => row.active !== false && !isRetiredCollaborator(row.name)));
         setResources(active);
         if (active.length === 1) setResourceId(active[0].id);
       })
@@ -264,11 +285,11 @@ export function StudioJobForm({
   const fields = (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {businesses.length > 1 ? (
+        {shownBusinesses.length > 1 ? (
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">صفحه کسب‌وکار</span>
             <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
-              {businesses.map((business) => (
+              {shownBusinesses.map((business) => (
                 <option key={business.id} value={business.id}>
                   {business.name}
                 </option>

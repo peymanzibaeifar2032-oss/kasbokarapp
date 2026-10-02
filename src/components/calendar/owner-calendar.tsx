@@ -191,7 +191,7 @@ export function OwnerCalendar({
     setCursor(new Date(next.getTime() + 12 * 3600000));
   }
 
-  const visibleStaff = resources.filter((r) => r.active !== false && !isRetiredCollaborator(r.name));
+  const visibleStaff = uniqueStaff(resources.filter((r) => r.active !== false && !isRetiredCollaborator(r.name)));
   const dayKey = gregKey(clock.y, clock.m, clock.day);
   const dayRows = byDay.get(dayKey) ?? [];
 
@@ -248,10 +248,10 @@ export function OwnerCalendar({
           ))}
         </div>
       </div>
-      {personal ? null : (
+      {personal || visibleStaff.length <= 1 ? null : (
         <StaffRoster
           businessId={formBusinessId}
-          resources={resources}
+          resources={visibleStaff}
           onChange={(rows) => setResources(rows)}
         />
       )}
@@ -561,6 +561,16 @@ function MonthBusyHint({ byDay, except }: { byDay: Map<string, Booking[]>; excep
       }).join("، ")}
     </p>
   );
+}
+
+function uniqueStaff(rows: BusinessResource[]) {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = row.name.replace(/\s+/g, "").replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/‌/g, "");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function StaffRoster({

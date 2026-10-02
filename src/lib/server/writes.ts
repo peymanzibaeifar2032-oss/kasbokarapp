@@ -2090,11 +2090,46 @@ async function performBusy(raw: unknown) {
   return rows.map((r) => ({ start: r.slot_start, end: r.slot_end, resourceId: r.resource_id }));
 }
 
+async function collapseDuplicateStaff(sql: Sql, businessId: string) {
+  const rows = await sql.query<{ id: string; name: string }>(
+    `select id, name from business_resources
+      where business_id = $1 and kind = 'staff'
+      order by sort_order, created_at`,
+    [businessId],
+  );
+  const seen = new Map<string, string>();
+  for (const row of rows) {
+    const key = row.name.replace(/\s+/g, "").replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/‌/g, "");
+    const keep = seen.get(key);
+    if (!keep) {
+      seen.set(key, row.id);
+      continue;
+    }
+    await sql.query(
+      `update bookings
+          set resource_id = $1,
+              staff_id = case when staff_id = $2 then $1 else staff_id end
+        where resource_id = $2 or staff_id = $2`,
+      [keep, row.id],
+    );
+    await sql.query(
+      `update booking_holds
+          set resource_id = $1,
+              staff_id = case when staff_id = $2 then $1 else staff_id end
+        where resource_id = $2 or staff_id = $2`,
+      [keep, row.id],
+    );
+    await sql.query(`delete from business_resources where id = $1 and business_id = $2`, [row.id, businessId]);
+  }
+}
+
 async function performListResources(userId: string, raw: unknown) {
   const data = z.object({ businessId: z.string() }).parse(raw);
   const sql = await getSql();
   const owned = await sql.query(`select id from businesses where id = $1 and owner_id = $2`, [data.businessId, userId]);
   if (!owned[0]) return [];
+  const shops = await sql.query<{ id: string }>(`select id from businesses where owner_id = $1`, [userId]);
+  for (const shop of shops) await collapseDuplicateStaff(sql, shop.id);
   return loadResources(sql, data.businessId);
 }
 
