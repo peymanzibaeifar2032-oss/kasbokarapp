@@ -68,14 +68,13 @@ export function OwnerCalendar({
   const [selected, setSelected] = useState<Booking | null>(null);
   const [resourceFilter, setResourceFilter] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
-  const [selectedBusinessId, setSelectedBusinessId] = useState("");
   const [monthJobs, setMonthJobs] = useState<TattooRequest[]>([]);
   const clock = tehranClock(cursor);
   const todayKey = tehranDayKey();
   const cursorJ = gregorianToJalali(clock.y, clock.m, clock.day);
   const [month, setMonth] = useState({ jy: cursorJ.jy, jm: cursorJ.jm });
-  const formBusinessId = selectedBusinessId || businesses[0]?.id || "";
-  const businessId = selectedBusinessId;
+  const formBusinessId = panelStudioId(businesses, personal);
+  const businessId = "";
 
   useEffect(() => {
     const focus = view === "month" ? month : cursorJ;
@@ -91,12 +90,6 @@ export function OwnerCalendar({
       cancelled = true;
     };
   }, [view, month.jy, month.jm, cursorJ.jy, cursorJ.jm, items]);
-
-  useEffect(() => {
-    if (selectedBusinessId && !businesses.some((b) => b.id === selectedBusinessId)) {
-      setSelectedBusinessId("");
-    }
-  }, [businesses, selectedBusinessId]);
 
   useEffect(() => {
     if (!formBusinessId) return;
@@ -200,23 +193,6 @@ export function OwnerCalendar({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">{t("navCalendar")}</h2>
         <div className="flex flex-wrap gap-1">
-          {businesses.length > 1 ? (
-            <NativeSelect
-              value={businessId}
-              onChange={(e) => {
-                setSelectedBusinessId(e.target.value);
-                setResourceFilter("");
-              }}
-              className="h-10"
-            >
-              <option value="">همه نوبت‌های ثبت‌شده</option>
-              {businesses.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </NativeSelect>
-          ) : null}
           {visibleStaff.length > 1 && !personal ? (
             <NativeSelect
               value={resourceFilter}
@@ -563,6 +539,14 @@ function MonthBusyHint({ byDay, except }: { byDay: Map<string, Booking[]>; excep
   );
 }
 
+function panelStudioId(rows: { id: string; name: string }[], personal: boolean) {
+  const norm = (name: string) => name.replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/‌/g, "").replace(/\s+/g, "");
+  const hana = (row: { name: string }) => /هانا|هانی/.test(norm(row.name));
+  if (!rows.length) return "";
+  if (personal) return (rows.find(hana) ?? rows.find((row) => row.id !== "biz-peyman-studio") ?? rows[0]).id;
+  return (rows.find((row) => row.id === "biz-peyman-studio") ?? rows.find((row) => !hana(row)) ?? rows[0]).id;
+}
+
 function uniqueStaff(rows: BusinessResource[]) {
   const seen = new Set<string>();
   return rows.filter((row) => {
@@ -676,7 +660,7 @@ function QuickCreate({
   personal?: boolean;
 }) {
   const [mode, setMode] = useState<"manual" | "block">("manual");
-  const [businessId, setBusinessId] = useState(businesses[0]?.id ?? "");
+  const [businessId, setBusinessId] = useState(() => panelStudioId(businesses, personal));
   const [resourceId, setResourceId] = useState("");
   const [day, setDay] = useState("");
   const [start, setStart] = useState("12:00");
@@ -686,7 +670,7 @@ function QuickCreate({
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!businessId && businesses[0]) setBusinessId(businesses[0].id);
+    if (!businessId) setBusinessId(panelStudioId(businesses, personal));
   }, [businesses, businessId]);
 
   useEffect(() => {
@@ -760,15 +744,6 @@ function QuickCreate({
             این بخش برای اجرای کار نیست. وقتی آن ساعت کار نمی‌کنید — استراحت، کار شخصی یا تعطیلی — ساعت را ببندید تا کسی رزرو نکند.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {businesses.length > 1 ? (
-              <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
-                {businesses.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </NativeSelect>
-            ) : null}
             <NativeSelect
               value={eventType}
               onChange={(e) => setEventType(e.target.value as typeof eventType)}

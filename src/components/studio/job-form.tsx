@@ -25,13 +25,11 @@ function uniqueStaff(rows: BusinessResource[]) {
 }
 
 function ownStudioId(businesses: Business[], personal: boolean) {
-  if (personal) return businesses[0]?.id ?? "";
-  return (
-    businesses.find((business) => business.id === "biz-peyman-studio")?.id
-    ?? businesses.find((business) => !/هانا|هانی/.test(business.name))?.id
-    ?? businesses[0]?.id
-    ?? ""
-  );
+  const norm = (name: string) => name.replace(/ي/g, "ی").replace(/ك/g, "ک").replace(/‌/g, "").replace(/\s+/g, "");
+  const hana = (business: Business) => /هانا|هانی/.test(norm(business.name));
+  if (!businesses.length) return "";
+  if (personal) return (businesses.find(hana) ?? businesses.find((business) => business.id !== "biz-peyman-studio") ?? businesses[0]).id;
+  return (businesses.find((business) => business.id === "biz-peyman-studio") ?? businesses.find((business) => !hana(business)) ?? businesses[0]).id;
 }
 
 type WorkCarry = {
@@ -111,7 +109,6 @@ export function StudioJobForm({
     setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));
   }, [busyKeys, dayTouched]);
   const visibleStaff = uniqueStaff(resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name)));
-  const shownBusinesses = personal ? businesses : businesses.filter((business) => business.id === businessId || !/هانا|هانی/.test(business.name));
 
   useEffect(() => {
     if (!businessId && businesses[0]) setBusinessId(ownStudioId(businesses, personal));
@@ -285,18 +282,6 @@ export function StudioJobForm({
   const fields = (
     <>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {shownBusinesses.length > 1 ? (
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-medium">صفحه کسب‌وکار</span>
-            <NativeSelect value={businessId} onChange={(e) => setBusinessId(e.target.value)}>
-              {shownBusinesses.map((business) => (
-                <option key={business.id} value={business.id}>
-                  {business.name}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-        ) : null}
         {visibleStaff.length > 1 && !personal ? (
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">کارشناس</span>
