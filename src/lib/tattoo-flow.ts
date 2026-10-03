@@ -334,6 +334,15 @@ export function tattooBalance(priceToman: number | null | undefined, paidToman: 
   };
 }
 
+/** Studio share of a colleague's takings. 10_000_000 at 30% is 3_000_000. */
+export function studioPercentCut(grossToman: number, percent: number) {
+  const gross = Math.max(0, Math.round(Number(grossToman) || 0));
+  const rate = Math.min(100, Math.max(0, Number(percent) || 0));
+  const basis = Math.round(rate * 100);
+  const studio = Math.round((gross * basis) / 10000);
+  return { studio, artist: gross - studio };
+}
+
 export function formatTattooToman(value: number) {
   return `${new Intl.NumberFormat("fa-IR").format(Math.max(0, Math.round(Number(value) || 0)))} تومان`;
 }

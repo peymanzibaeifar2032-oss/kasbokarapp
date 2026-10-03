@@ -7,7 +7,7 @@ import { formatFaDateTime } from "@/lib/format";
 import { tehranClock } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { dealLabel, type StudioArtistCard, type StudioChairRow, type StudioDeal } from "@/lib/studio-artists";
-import { digitsOnly, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
+import { digitsOnly, formatGroupedDigits, formatTattooToman, studioPercentCut } from "@/lib/tattoo-flow";
 
 type Ledger = { studioCutToman: number; artists: StudioChairRow[] };
 
@@ -88,6 +88,8 @@ export function StudioArtistBoard() {
         </div>
       </section>
 
+      <StudioCutCalculator />
+
       <p className="text-sm font-semibold">سهم استودیو این ماه: {formatTattooToman(ledger?.studioCutToman ?? 0)}</p>
       {rows.map((row) => {
         const money = byId.get(row.id);
@@ -128,6 +130,79 @@ export function StudioArtistBoard() {
         );
       })}
     </div>
+  );
+}
+
+function percentNumber(value: string) {
+  const normalized = value
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace("٫", ".")
+    .replace("،", ".")
+    .replace(/[^\d.]/g, "");
+  const [whole, fraction = ""] = normalized.split(".");
+  const text = fraction ? `${whole || "0"}.${fraction.slice(0, 2)}` : whole;
+  const rate = Number(text);
+  return Number.isFinite(rate) ? rate : 0;
+}
+
+function StudioCutCalculator() {
+  const [gross, setGross] = useState("");
+  const [percent, setPercent] = useState("30");
+  const [result, setResult] = useState<{ gross: number; percent: number; studio: number; artist: number } | null>(null);
+
+  function calculate() {
+    const amount = Number(digitsOnly(gross));
+    const rate = percentNumber(percent);
+    if (!amount) {
+      toast.error("مبلغ دریافتی همکار را وارد کن.");
+      setResult(null);
+      return;
+    }
+    if (rate <= 0 || rate > 100) {
+      toast.error("درصد را بین ۱ تا ۱۰۰ بنویس.");
+      setResult(null);
+      return;
+    }
+    const cut = studioPercentCut(amount, rate);
+    setResult({ gross: amount, percent: rate, studio: cut.studio, artist: cut.artist });
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-4">
+      <h2 className="font-bold">محاسبه سهم سالن</h2>
+      <p className="mt-2 text-sm leading-7 text-muted">
+        مبلغی که همکار از مشتری گرفته و درصد سالن را بنویس. با زدن محاسبه، سهم سالن از همان ضرب واقعی درمی‌آید.
+      </p>
+      <div className="mt-4 grid gap-3">
+        <Input
+          value={gross}
+          onChange={(e) => setGross(formatGroupedDigits(e.target.value))}
+          inputMode="numeric"
+          dir="ltr"
+          placeholder="مبلغ دریافتی همکار، مثلاً ۱۰,۰۰۰,۰۰۰"
+          className="h-12"
+        />
+        <Input
+          value={percent}
+          onChange={(e) => setPercent(e.target.value.replace(/[^\d۰-۹٠-٩.]/g, "").slice(0, 5))}
+          inputMode="decimal"
+          dir="ltr"
+          placeholder="درصد سالن، مثلاً ۳۰"
+          className="h-12"
+        />
+        <Button type="button" className="h-12" onClick={calculate}>محاسبه</Button>
+      </div>
+      {result ? (
+        <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <p className="text-sm text-muted">
+            {formatTattooToman(result.gross)} × {new Intl.NumberFormat("fa-IR").format(result.percent)}٪
+          </p>
+          <p className="mt-2 text-lg font-bold">سهم سالن: {formatTattooToman(result.studio)}</p>
+          <p className="mt-1 text-sm">مانده همکار: {formatTattooToman(result.artist)}</p>
+        </div>
+      ) : null}
+    </section>
   );
 }
 

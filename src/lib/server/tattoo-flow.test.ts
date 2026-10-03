@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, aftercareGuideSms, depositCardSms, isRetiredCollaborator, tattooBalance, tattooStage, withStudioVisitDetails } from "../tattoo-flow.ts";
+import { STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, aftercareGuideSms, depositCardSms, isRetiredCollaborator, studioPercentCut, tattooBalance, tattooStage, withStudioVisitDetails } from "../tattoo-flow.ts";
 import { googleCalendarUrl, normalizeInstagramHandle } from "../format.ts";
 import { studioJobsReportHtml } from "../studio-list-pdf.ts";
 import {
@@ -399,6 +399,15 @@ describe("tattooBalance and bank presets", () => {
     assert.match(care, /سلام خانم شیرین/);
     assert.match(care, /دکسپانتونل/);
     assert.match(care, /روزی ۵ بار/);
+  });
+
+  it("calculates the studio percent from the colleague takings", () => {
+    assert.equal(studioPercentCut(10_000_000, 30).studio, 3_000_000);
+    assert.equal(studioPercentCut(10_000_000, 10).studio, 1_000_000);
+    assert.equal(studioPercentCut(10_000_000, 20).studio, 2_000_000);
+    assert.equal(studioPercentCut(10_000_000, 15).studio, 1_500_000);
+    assert.equal(studioPercentCut(10_000_000, 12).studio, 1_200_000);
+    assert.equal(studioPercentCut(10_000_000, 30).artist, 7_000_000);
   });
 
   it("keeps only Peyman as studio staff and drops Mehrdad spellings", () => {
