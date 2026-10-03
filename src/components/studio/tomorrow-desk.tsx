@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { toSmsLink } from "@/lib/format";
 import { tehranDayKey } from "@/lib/hours";
-import { bookingReminderSms, formatTattooToman, honorificForName, tattooBalance } from "@/lib/tattoo-flow";
+import { bookingReminderSms, aftercareGuideSms, depositCardSms, formatTattooToman, honorificForName, tattooBalance } from "@/lib/tattoo-flow";
 import type { TattooRequest } from "@/lib/types";
 
 function onDay(request: TattooRequest, dayKey: string) {
@@ -50,7 +50,7 @@ export function StudioTomorrowDesk({
 
       <section className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-bold">امروز</h2>
-        <p className="mt-1 text-sm leading-6 text-muted">اسم، شماره، محل اجرا، واریزی و مانده. یادآوری را از پیامک خودت می‌فرستی.</p>
+        <p className="mt-1 text-sm leading-6 text-muted">اسم، شماره، محل اجرا، واریزی و مانده. یادآوری، کارت و شبا، و مراقبت بعد را همین امروز از پیامک خودت می‌فرستی.</p>
         {!todayJobs.length ? <p className="mt-3 text-sm text-muted">برای امروز نوبت قطعی نیست.</p> : null}
         <div className="mt-3 grid gap-3">
           {todayJobs.map((request) => {
@@ -58,9 +58,12 @@ export function StudioTomorrowDesk({
             const when = request.proposedSlotStart
               ? new Date(request.proposedSlotStart).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
               : "";
+            function send(text: string) {
+              const href = toSmsLink(request.customerPhone, text);
+              if (href) window.location.assign(href);
+            }
             function remind() {
-              const href = toSmsLink(
-                request.customerPhone,
+              send(
                 bookingReminderSms({
                   honorific: honorificForName(request.customerName),
                   name: request.customerName,
@@ -68,7 +71,6 @@ export function StudioTomorrowDesk({
                   remainingToman: money.remaining,
                 }),
               );
-              if (href) window.location.assign(href);
             }
             return (
               <article key={request.id} className="rounded-2xl border border-border p-3">
@@ -79,8 +81,10 @@ export function StudioTomorrowDesk({
                 <p className="mt-1 text-sm" dir="ltr">{request.customerPhone}</p>
                 <p className="mt-1 text-sm text-muted">{request.placement}{request.style ? ` · ${request.style}` : ""}</p>
                 <p className="mt-1 text-sm">واریزی {formatTattooToman(money.paid)} · مانده {formatTattooToman(money.remaining)}</p>
-                <div className="mt-3">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button type="button" className="h-11" onClick={() => remind()}>یادآوری</Button>
+                  <Button type="button" variant="outline" className="h-11" onClick={() => send(depositCardSms(request.customerName))}>کارت و شبا</Button>
+                  <Button type="button" variant="outline" className="col-span-2 h-11" onClick={() => send(aftercareGuideSms(request.customerName))}>مراقبت بعد تاتو</Button>
                 </div>
               </article>
             );
