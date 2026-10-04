@@ -217,6 +217,17 @@ export function depositCardSms(name: string) {
   return [`سلام ${who}`, paymentDetailsText()].join("\n");
 }
 
+export function balanceSms(name: string, totalToman: number | null | undefined, paidToman: number | null | undefined) {
+  const who = `${honorificForName(name)} ${customerFirstName(name)}`;
+  const money = tattooBalance(totalToman, paidToman);
+  return [
+    `سلام ${who}`,
+    `مبلغ کل: ${formatTattooToman(money.total)}`,
+    `مجموع واریزی: ${formatTattooToman(money.paid)}`,
+    `مانده: ${formatTattooToman(money.remaining)}`,
+  ].join("\n");
+}
+
 export function aftercareGuideSms(name: string) {
   const who = `${honorificForName(name)} ${customerFirstName(name)}`;
   return [

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { PGlite } from "@electric-sql/pglite";
-import { STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, aftercareGuideSms, depositCardSms, isRetiredCollaborator, studioPercentCut, tattooBalance, tattooStage, withStudioVisitDetails } from "../tattoo-flow.ts";
+import { STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, TATTOO_CUSTOMER_STAGE_LABEL, TATTOO_SETTLEMENT_PRESETS, aftercareGuideSms, balanceSms, depositCardSms, isRetiredCollaborator, studioPercentCut, tattooBalance, tattooStage, withStudioVisitDetails } from "../tattoo-flow.ts";
 import { googleCalendarUrl, normalizeInstagramHandle } from "../format.ts";
 import { studioJobsReportHtml } from "../studio-list-pdf.ts";
 import {
@@ -399,6 +399,14 @@ describe("tattooBalance and bank presets", () => {
     assert.match(care, /سلام خانم شیرین/);
     assert.match(care, /دکسپانتونل/);
     assert.match(care, /روزی ۵ بار/);
+  });
+
+  it("writes the customer name, total, paid and remaining into one sms", () => {
+    const text = balanceSms("امیر محمد ضیائی وفا", 60_000_000, 27_000_000);
+    assert.match(text, /سلام آقای امیر/);
+    assert.match(text, /مبلغ کل: ۶۰٬۰۰۰٬۰۰۰ تومان/);
+    assert.match(text, /مجموع واریزی: ۲۷٬۰۰۰٬۰۰۰ تومان/);
+    assert.match(text, /مانده: ۳۳٬۰۰۰٬۰۰۰ تومان/);
   });
 
   it("calculates the studio percent from the colleague takings", () => {

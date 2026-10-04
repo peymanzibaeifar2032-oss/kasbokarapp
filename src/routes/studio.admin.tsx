@@ -45,6 +45,7 @@ import {
   isTattooReviewOverdue,
   aftercareSms,
   aftercareGuideSms,
+  balanceSms,
   depositCardSms,
   proposalSeenSms,
   paymentDetailsText,
@@ -2006,7 +2007,7 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
   const paid = (request.paidToman ?? 0) > 0 ? request.paidToman : request.depositToman;
   const honorific = honorificForName(request.customerName);
 
-  function open(raw: string, kind: "confirm" | "food" | "card" | "care") {
+  function open(raw: string, kind: "confirm" | "food" | "card" | "care" | "balance") {
     if (!request.proposedSlotStart && kind === "confirm") {
       toast.error("اول تاریخ و ساعت اجرا را ثبت کن، بعد پیامک را بفرست.");
       return;
@@ -2018,12 +2019,14 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
           ? depositCardSms(request.customerName)
           : kind === "care"
             ? aftercareGuideSms(request.customerName)
-            : bookingConfirmSms({
-                honorific,
-                name: request.customerName,
-                when: request.proposedSlotStart,
-                paidToman: paid,
-              });
+            : kind === "balance"
+              ? balanceSms(request.customerName, request.priceMinToman, request.paidToman)
+              : bookingConfirmSms({
+                  honorific,
+                  name: request.customerName,
+                  when: request.proposedSlotStart,
+                  paidToman: paid,
+                });
     const href = toSmsLink(raw, text);
     if (!href) {
       toast.error("شماره برای پیامک معتبر نیست.");
@@ -2051,6 +2054,9 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
             <Button type="button" size="sm" variant="outline" onClick={() => open(phone, "care")}>
               مراقبت بعد تاتو
             </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => open(phone, "balance")}>
+              مبلغ و مانده
+            </Button>
           </>
         ) : null}
         {phone2 ? (
@@ -2066,6 +2072,9 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => open(phone2, "care")}>
               شماره دوم، مراقبت
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => open(phone2, "balance")}>
+              شماره دوم، مانده
             </Button>
           </>
         ) : null}
