@@ -48,7 +48,7 @@ import {
   studioActor,
   type StudioActor,
 } from "@/lib/server/studio-artists";
-import { STUDIO_EXPENSE_CATEGORIES, openReceivable, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
+import { STUDIO_EXPENSE_CATEGORIES, accountTotals, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -934,18 +934,36 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
       [data.requestId],
     );
     const deposit = Number(current[0]?.deposit_toman) || 0;
-    const paid = (Number(current[0]?.paid_toman) || 0) + deposit;
-    const settled = tattooBalance(current[0]?.price_min_toman, paid).settled;
+    const recorded = Number(current[0]?.paid_toman) || 0;
     await sql.query(
-      `update tattoo_requests set status='booked', payment_status='approved', paid_toman=$3, settled=$4, artist_message=$2, message_seen_at=null, updated_at=now() where id=$1`,
-      [data.requestId, data.message, paid, settled],
+      `create table if not exists tattoo_payments (
+         id text primary key,
+         request_id text not null references tattoo_requests(id) on delete cascade,
+         amount_toman int not null check (amount_toman > 0),
+         note text,
+         created_at timestamptz not null default now()
+       )`,
     );
-    if (deposit > 0) {
+    const summed = await sql.query<{ total: number | string }>(
+      `select coalesce(sum(amount_toman), 0) as total from tattoo_payments where request_id=$1`,
+      [data.requestId],
+    );
+    const already = await sql.query<{ id: string }>(
+      `select id from tattoo_payments where request_id=$1 and note='بیعانه' limit 1`,
+      [data.requestId],
+    );
+    const plan = receiptPlan(recorded, Number(summed[0]?.total) || 0, deposit, Boolean(already[0]));
+    for (const row of plan.inserts) {
       await sql.query(
         `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
-        [crypto.randomUUID(), data.requestId, deposit, "بیعانه"],
+        [crypto.randomUUID(), data.requestId, row.amount, row.note === "واریز" ? "بیعانه" : row.note],
       );
     }
+    const settled = tattooBalance(current[0]?.price_min_toman, plan.paid).settled;
+    await sql.query(
+      `update tattoo_requests set status='booked', payment_status='approved', paid_toman=$3, settled=$4, artist_message=$2, message_seen_at=null, updated_at=now() where id=$1`,
+      [data.requestId, data.message, plan.paid, settled],
+    );
     await sql.query(`update bookings set status='confirmed', finance_status=$2 where id=$1`, [
       r.booking_id,
       settled ? "fully_paid" : "deposit_paid",
@@ -2827,7 +2845,7 @@ function financeWho(phone: string | null | undefined, phone2: string | null | un
     if (digits.length < 10 || digits.endsWith("9000000000")) return "";
     return digits.slice(-10);
   };
-  return tail(phone) || tail(phone2) || (name || "").trim().toLowerCase() || "بدون نام";
+  return tail(phone) || tail(phone2) || normalizeLedgerName(name || "") || "بدون نام";
 }
 
 async function loadOpenReceivable(sql: Awaited<ReturnType<typeof getSql>>, actor: { role: string; artistId: string | null }, start: string, end: string) {
@@ -2863,10 +2881,13 @@ async function loadOpenReceivable(sql: Awaited<ReturnType<typeof getSql>>, actor
   );
   const startMs = Date.parse(start);
   const endMs = Date.parse(end);
-  const jobs: ReceivableJob[] = rows.map((row) => {
+  const jobs: Array<ReceivableJob & { name: string; phone: string; phone2: string }> = rows.map((row) => {
     const slotMs = row.slot_start ? Date.parse(row.slot_start) : NaN;
     return {
       who: financeWho(row.customer_phone, row.customer_phone_2, row.customer_name),
+      name: row.customer_name || "",
+      phone: row.customer_phone || "",
+      phone2: row.customer_phone_2 || "",
       style: row.style,
       placement: row.placement,
       price: Number(row.price_min_toman) || 0,
@@ -2877,7 +2898,7 @@ async function loadOpenReceivable(sql: Awaited<ReturnType<typeof getSql>>, actor
       inMonth: Number.isFinite(slotMs) && slotMs >= startMs && slotMs < endMs,
     };
   });
-  return { month: openReceivable(jobs, true), all: openReceivable(jobs, false) };
+  return { month: openReceivable(jobs, true), all: openReceivable(jobs, false), jobs };
 }
 
 async function performStudioMonthFinance(userId: string, raw: unknown) {
@@ -2943,9 +2964,20 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
     placement: row.placement,
   })).reverse();
   const paid = mappedPayments.reduce((sum, row) => sum + row.amountToman, 0);
+  const customers = monthCustomerLines(
+    receivable.jobs,
+    payments.map((row) => ({
+      who: financeWho(row.customer_phone, row.customer_phone_2, row.customer_name),
+      amount: Number(row.amount_toman) || 0,
+      name: row.customer_name,
+    })),
+  );
+  const warnings = samePersonWarnings(receivable.jobs);
   return {
     payments: mappedPayments,
     expenses: mappedExpenses,
+    customers,
+    warnings,
     summary: studioMonthSummary(paid, receivable.month, receivable.all, mappedExpenses),
   };
 }
@@ -3191,14 +3223,50 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
     note: z.string().trim().max(200).optional(),
   }).parse(raw);
   const sql = await getSql();
-  const current = await sql.query<{ id: string; paid_toman: number | null; price_min_toman: number | null; booking_id: string | null; artist_id: string | null; opened_at: string }>(
+  const current = await sql.query<{
+    id: string;
+    paid_toman: number | null;
+    price_min_toman: number | null;
+    booking_id: string | null;
+    artist_id: string | null;
+    artist_message: string | null;
+    customer_phone: string | null;
+    customer_phone_2: string | null;
+    opened_at: string;
+  }>(
     `select id, coalesce(paid_toman,0) as paid_toman, price_min_toman, booking_id, artist_id,
+            coalesce(artist_message,'') as artist_message, customer_phone, customer_phone_2,
             coalesce(created_at, proposed_slot_start, now()) as opened_at
        from tattoo_requests where id=$1`,
     [data.requestId],
   );
   if (!current[0]) throw new Error("کار پیدا نشد.");
   assertOwnArtistJob(actor, current[0].artist_id);
+  let target = current[0];
+  if (current[0].artist_message === "جلسه دوم") {
+    const tail = phoneTail(current[0].customer_phone) || phoneTail(current[0].customer_phone_2);
+    if (tail) {
+      const primary = await sql.query<typeof current[0]>(
+        `select id, coalesce(paid_toman,0) as paid_toman, price_min_toman, booking_id, artist_id,
+                coalesce(artist_message,'') as artist_message, customer_phone, customer_phone_2,
+                coalesce(created_at, proposed_slot_start, now()) as opened_at
+           from tattoo_requests
+          where status = 'booked'
+            and id <> $1
+            and coalesce(artist_message,'') <> 'جلسه دوم'
+            and coalesce(is_continuation, false) = false
+            and coalesce(carry_closed, false) = false
+            and (
+              right(regexp_replace(coalesce(customer_phone,''), '\\D', '', 'g'), 10) = $2
+              or right(regexp_replace(coalesce(customer_phone_2,''), '\\D', '', 'g'), 10) = $2
+            )
+          order by coalesce(price_min_toman,0) desc
+          limit 1`,
+        [data.requestId, tail],
+      );
+      if (primary[0]) target = primary[0];
+    }
+  }
   await sql.query(
     `create table if not exists tattoo_payments (
        id text primary key,
@@ -3210,29 +3278,31 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
   );
   const summed = await sql.query<{ total: number | string }>(
     `select coalesce(sum(amount_toman), 0) as total from tattoo_payments where request_id=$1`,
-    [data.requestId],
+    [target.id],
   );
   const ledger = Number(summed[0]?.total) || 0;
-  const recorded = Number(current[0].paid_toman) || 0;
-  if (recorded > ledger) {
+  const recorded = Number(target.paid_toman) || 0;
+  const plan = paymentPlan(recorded, ledger, data.amountToman);
+  for (const row of plan.inserts) {
     await sql.query(
       `insert into tattoo_payments (id, request_id, amount_toman, note, created_at) values ($1,$2,$3,$4,$5)`,
-      [crypto.randomUUID(), data.requestId, recorded - ledger, "واریز قبلی", current[0].opened_at],
+      [
+        crypto.randomUUID(),
+        target.id,
+        row.amount,
+        row.note === "واریز" ? data.note?.trim() || "واریز بعدی" : row.note,
+        row.note === "واریز قبلی" ? target.opened_at : new Date().toISOString(),
+      ],
     );
   }
-  await sql.query(
-    `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
-    [crypto.randomUUID(), data.requestId, data.amountToman, data.note?.trim() || "واریز بعدی"],
-  );
-  const next = await sql.query<{ total: number | string }>(
-    `select coalesce(sum(amount_toman), 0) as total from tattoo_payments where request_id=$1`,
-    [data.requestId],
-  );
-  const paid = Number(next[0]?.total) || 0;
-  const settled = tattooBalance(current[0].price_min_toman, paid).settled;
-  await sql.query(`update tattoo_requests set paid_toman=$2, settled=$3, updated_at=now() where id=$1`, [data.requestId, paid, settled]);
-  if (current[0].booking_id) {
-    await sql.query(`update bookings set finance_status=$2 where id=$1`, [current[0].booking_id, settled ? "fully_paid" : "deposit_paid"]);
+  const paid = plan.paid;
+  const settled = tattooBalance(target.price_min_toman, paid).settled;
+  await sql.query(`update tattoo_requests set paid_toman=$2, settled=$3, updated_at=now() where id=$1`, [target.id, paid, settled]);
+  if (target.id !== current[0].id) {
+    await sql.query(`update tattoo_requests set paid_toman=$2, updated_at=now() where id=$1`, [current[0].id, paid]);
+  }
+  if (target.booking_id) {
+    await sql.query(`update bookings set finance_status=$2 where id=$1`, [target.booking_id, settled ? "fully_paid" : "deposit_paid"]);
   }
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.requestId]);
   const mapped = await mapTattooRequestRows(sql, rows);
@@ -3253,14 +3323,22 @@ async function customerCarry(
   if (!unique.length) return { price: 0, paid: 0, remaining: 0, settled: false, sessions: 0 };
   const scope = actor.role === "artist" ? "and artist_id = $2" : "and artist_id is null";
   const params = actor.role === "artist" ? [unique, actor.artistId] : [unique];
-  const rows = await sql.query<{ price: number | string; paid: number | string; sessions: number | string }>(
-    `select coalesce(sum(coalesce(price_min_toman,0)),0) as price,
-            coalesce(sum(coalesce(paid_toman,0)),0) as paid,
-            count(*)::int as sessions
+  const rows = await sql.query<{
+    customer_name: string | null;
+    style: string | null;
+    placement: string | null;
+    price_min_toman: number | string | null;
+    paid_toman: number | string | null;
+    is_continuation: boolean | null;
+    artist_message: string | null;
+    carry_closed: boolean | null;
+  }>(
+    `select customer_name, coalesce(style,'') as style, coalesce(placement,'') as placement,
+            coalesce(price_min_toman,0) as price_min_toman, coalesce(paid_toman,0) as paid_toman,
+            coalesce(is_continuation,false) as is_continuation, coalesce(artist_message,'') as artist_message,
+            coalesce(carry_closed,false) as carry_closed
        from tattoo_requests
       where status = 'booked'
-        and coalesce(is_continuation, false) = false
-        and coalesce(carry_closed, false) = false
         and (
           right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) = any($1::text[])
           or right(regexp_replace(coalesce(customer_phone_2,''), '\\D', '', 'g'), 10) = any($1::text[])
@@ -3268,10 +3346,19 @@ async function customerCarry(
         ${scope}`,
     params,
   );
-  const price = Number(rows[0]?.price) || 0;
-  const paid = Number(rows[0]?.paid) || 0;
-  const remaining = Math.max(0, price - paid);
-  return { price, paid, remaining, settled: price > 0 && paid >= price, sessions: Number(rows[0]?.sessions) || 0 };
+  const jobs: ReceivableJob[] = rows.map((row) => ({
+    who: unique[0] || "",
+    style: row.style || "",
+    placement: row.placement || "",
+    price: Number(row.price_min_toman) || 0,
+    paid: Number(row.paid_toman) || 0,
+    continuation: Boolean(row.is_continuation),
+    followUp: row.artist_message === "جلسه دوم",
+    closed: Boolean(row.carry_closed),
+    inMonth: true,
+  }));
+  const totals = accountTotals(jobs);
+  return { ...totals, sessions: rows.length };
 }
 
 async function performStudioContinuationBalance(userId: string, raw: unknown) {

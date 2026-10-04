@@ -10,6 +10,7 @@ import {
   STUDIO_EXPENSE_CATEGORIES,
   expenseCategoryMeta,
   studioMonthSummary,
+  type MonthCustomerLine,
   type StudioExpense,
   type StudioMonthPayment,
 } from "@/lib/studio-finance";
@@ -20,6 +21,8 @@ type Summary = ReturnType<typeof studioMonthSummary>;
 type FinancePayload = {
   payments: StudioMonthPayment[];
   expenses: StudioExpense[];
+  customers?: MonthCustomerLine[];
+  warnings?: string[];
   summary: Summary;
 };
 
@@ -113,6 +116,13 @@ export function StudioMonthFinance() {
         </div>
       </div>
 
+      {data?.warnings?.length ? (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm leading-7">
+          {data.warnings.map((warning) => (
+            <p key={warning}>{warning}</p>
+          ))}
+        </div>
+      ) : null}
       {error ? (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>
       ) : null}
@@ -144,6 +154,28 @@ export function StudioMonthFinance() {
           </div>
         </div>
       ) : null}
+
+      <section className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
+        <h3 className="font-bold">حساب هر مشتری</h3>
+        <p className="mt-1 text-sm leading-7 text-muted">شماره، معیار یک نفر است. اسم با «آقای» یا بدون آن جدا حساب نمی‌شود.</p>
+        {!data?.customers?.length ? (
+          <p className="mt-3 text-sm leading-7 text-muted">این ماه برای مشتری‌ها واریز یا نوبتی نیست.</p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-sm">
+            {data.customers.map((row) => (
+              <li key={row.who} className="rounded-2xl border border-border bg-bg px-3 py-3">
+                <p className="font-semibold">{row.name}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs leading-6 sm:grid-cols-4">
+                  <p>قیمت کل<br /><span className="text-sm font-semibold">{formatTattooToman(row.price)}</span></p>
+                  <p>واریزی این ماه<br /><span className="text-sm font-semibold">{formatTattooToman(row.paidThisMonth)}</span></p>
+                  <p>جمع واریزی<br /><span className="text-sm font-semibold">{formatTattooToman(row.paid)}</span></p>
+                  <p>مانده<br /><span className="text-sm font-semibold">{formatTattooToman(row.remaining)}</span></p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
         <h3 className="font-bold">ثبت هزینه</h3>

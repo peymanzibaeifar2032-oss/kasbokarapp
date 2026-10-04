@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { openReceivable, studioMonthSummary, type ReceivableJob } from "./studio-finance.ts";
+import { accountTotals, monthCustomerLines, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob } from "./studio-finance.ts";
 
 describe("studio month money", () => {
   it("keeps salon profit separate from rent and home costs", () => {
@@ -51,5 +51,46 @@ describe("studio month money", () => {
       { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 33_000_000, paid: 22_000_000, continuation: true, followUp: false, closed: false, inMonth: true },
     ];
     assert.equal(openReceivable(rows, true), 11_000_000);
+  });
+
+  it("does not add the same paid amount twice when the name was saved twice", () => {
+    const rows: ReceivableJob[] = [
+      { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 54_000_000, continuation: false, followUp: false, closed: false, inMonth: true },
+      { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 54_000_000, continuation: false, followUp: false, closed: false, inMonth: true },
+    ];
+    assert.equal(accountTotals(rows).paid, 54_000_000);
+    assert.equal(accountTotals(rows).remaining, 6_000_000);
+  });
+
+  it("rolls one phone into one customer line even if one name has a title", () => {
+    const lines = monthCustomerLines(
+      [
+        { who: "09120000000", name: "آقای امیر محمد ضیائی وفا", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 54_000_000, continuation: false, followUp: false, closed: false, inMonth: true },
+        { who: "09120000000", name: "امیر محمد ضیائی وفا", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 54_000_000, continuation: false, followUp: true, closed: false, inMonth: false },
+      ],
+      [{ who: "09120000000", amount: 22_000_000, name: "امیر محمد ضیائی وفا" }],
+    );
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].name, "امیر محمد ضیائی وفا");
+    assert.equal(lines[0].price, 60_000_000);
+    assert.equal(lines[0].paid, 54_000_000);
+    assert.equal(lines[0].paidThisMonth, 22_000_000);
+    assert.equal(lines[0].remaining, 6_000_000);
+  });
+
+  it("warns when the same name has two different phones", () => {
+    const warnings = samePersonWarnings([
+      { name: "امیر محمد ضیائی وفا", phone: "09120000000" },
+      { name: "آقای امیر محمد ضیائی وفا", phone: "09121111111" },
+    ]);
+    assert.equal(warnings.length, 1);
+    assert.equal(samePersonWarnings([{ name: "امیر محمد ضیائی وفا", phone: "09120000000" }, { name: "آقای امیر محمد ضیائی وفا", phone: "09120000000" }]).length, 0);
+  });
+
+  it("adds a new deposit once and does not repeat a receipt that is already recorded", () => {
+    assert.deepEqual(paymentPlan(27_000_000, 0, 22_000_000).paid, 49_000_000);
+    assert.equal(receiptPlan(0, 0, 27_000_000, false).paid, 27_000_000);
+    assert.equal(receiptPlan(27_000_000, 0, 27_000_000, false).paid, 27_000_000);
+    assert.equal(receiptPlan(27_000_000, 27_000_000, 27_000_000, true).paid, 27_000_000);
   });
 });
