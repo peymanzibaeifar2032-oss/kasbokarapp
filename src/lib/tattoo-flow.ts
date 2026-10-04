@@ -194,18 +194,27 @@ export function sessionFoodSms(name: string) {
   ].join("\n");
 }
 
-export function depositCardSms(name: string) {
-  const who = `${honorificForName(name)} ${customerFirstName(name)}`;
+export function smsLtr(value: string) {
+  return `\u202A${value}\u202C`;
+}
+
+export function paymentDetailsText() {
   const mehr = TATTOO_SETTLEMENT_PRESETS[0];
   const maskan = TATTOO_SETTLEMENT_PRESETS[1];
   return [
-    `سلام ${who}`,
     "واریز به نام پیمان زیبائی‌فر",
-    `بانک مهر، کارت ${formatCardNumber(mehr.card)}`,
-    `شبا ${mehr.iban}`,
-    `بانک مسکن، کارت ${formatCardNumber(maskan.card)}`,
-    `شبا ${maskan.iban}`,
+    "بانک مهر ایران",
+    `کارت ${smsLtr(formatCardNumber(mehr.card))}`,
+    `شبا ${smsLtr(mehr.iban)}`,
+    "بانک مسکن",
+    `کارت ${smsLtr(formatCardNumber(maskan.card))}`,
+    `شبا ${smsLtr(maskan.iban)}`,
   ].join("\n");
+}
+
+export function depositCardSms(name: string) {
+  const who = `${honorificForName(name)} ${customerFirstName(name)}`;
+  return [`سلام ${who}`, paymentDetailsText()].join("\n");
 }
 
 export function aftercareGuideSms(name: string) {

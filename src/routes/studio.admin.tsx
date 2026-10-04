@@ -47,6 +47,7 @@ import {
   aftercareGuideSms,
   depositCardSms,
   proposalSeenSms,
+  paymentDetailsText,
   studioVisitText,
   STUDIO_ADDRESS,
   STUDIO_CONTACT_PHONE,
@@ -70,23 +71,10 @@ export const Route = createFileRoute("/studio/admin")({
 type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
 
 function ReadyMessages() {
-  const mehr = TATTOO_SETTLEMENT_PRESETS[0];
-  const maskan = TATTOO_SETTLEMENT_PRESETS[1];
   const boxes = [
     {
       title: "۱. مشخصات واریز",
-      text: [
-        "مشخصات واریز",
-        "به نام پیمان زیبائی‌فر",
-        "",
-        "بانک مهر ایران",
-        `شماره کارت: ${formatCardNumber(mehr.card)}`,
-        `شبا: ${mehr.iban}`,
-        "",
-        "بانک مسکن",
-        `شماره کارت: ${formatCardNumber(maskan.card)}`,
-        `شبا: ${maskan.iban}`,
-      ].join("\n"),
+      text: paymentDetailsText(),
     },
     {
       title: "۲. آدرس",
