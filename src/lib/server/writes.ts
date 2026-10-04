@@ -2666,6 +2666,26 @@ function contactPhone(raw: string | null | undefined) {
   return digits.length > 10 ? `0${digits.slice(-10)}` : digits;
 }
 
+async function reconcilePaidFromPayments(sql: Awaited<ReturnType<typeof getSql>>) {
+  try {
+    await sql.query(
+      `update tattoo_requests t
+          set paid_toman = s.total,
+              settled = s.total >= coalesce(t.price_min_toman, 0) and coalesce(t.price_min_toman, 0) > 0,
+              updated_at = now()
+         from (
+           select request_id, sum(amount_toman)::int as total
+             from tattoo_payments
+            group by request_id
+         ) s
+        where t.id = s.request_id
+          and s.total > coalesce(t.paid_toman, 0)`,
+    );
+  } catch {
+    // The payment table is optional until the first extra deposit.
+  }
+}
+
 async function performStudioMonthJobs(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z
@@ -2678,6 +2698,7 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
     })
     .parse(raw);
   const sql = await getSql();
+  await reconcilePaidFromPayments(sql);
   let range: { start: string; end: string };
   if (data.start && data.end) {
     const startMs = Date.parse(data.start);
@@ -3223,7 +3244,7 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z.object({
     requestId: z.string(),
-    amountToman: z.number().int().min(1).max(2_000_000_000),
+    amountToman: z.coerce.number().int().min(1).max(2_000_000_000),
     note: z.string().trim().max(200).optional(),
   }).parse(raw);
   const sql = await getSql();
@@ -3233,18 +3254,36 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
   );
   if (!current[0]) throw new Error("کار پیدا نشد.");
   assertOwnArtistJob(actor, current[0].artist_id);
-  const recent = await sql.query<{ id: string }>(
-    `select id from tattoo_payments
-      where request_id=$1 and amount_toman=$2 and created_at > now() - interval '2 minutes'
-      limit 1`,
-    [data.requestId, data.amountToman],
+  await sql.query(
+    `create table if not exists tattoo_payments (
+       id text primary key,
+       request_id text not null references tattoo_requests(id) on delete cascade,
+       amount_toman int not null check (amount_toman > 0),
+       note text,
+       created_at timestamptz not null default now()
+     )`,
   );
-  if (recent[0]) throw new Error("این مبلغ همین الان ثبت شد. دوباره نزن.");
+  const summed = await sql.query<{ total: number | string }>(
+    `select coalesce(sum(amount_toman), 0) as total from tattoo_payments where request_id=$1`,
+    [data.requestId],
+  );
+  const ledger = Number(summed[0]?.total) || 0;
+  const recorded = Number(current[0].paid_toman) || 0;
+  if (recorded > ledger) {
+    await sql.query(
+      `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
+      [crypto.randomUUID(), data.requestId, recorded - ledger, "واریز قبلی"],
+    );
+  }
   await sql.query(
     `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
     [crypto.randomUUID(), data.requestId, data.amountToman, data.note?.trim() || "واریز بعدی"],
   );
-  const paid = (Number(current[0].paid_toman) || 0) + data.amountToman;
+  const next = await sql.query<{ total: number | string }>(
+    `select coalesce(sum(amount_toman), 0) as total from tattoo_payments where request_id=$1`,
+    [data.requestId],
+  );
+  const paid = Number(next[0]?.total) || 0;
   const settled = tattooBalance(current[0].price_min_toman, paid).settled;
   await sql.query(`update tattoo_requests set paid_toman=$2, settled=$3, updated_at=now() where id=$1`, [data.requestId, paid, settled]);
   if (current[0].booking_id) {

@@ -2425,15 +2425,17 @@ function MonthJobCard({
   }
 
   async function addPayment() {
-    if (!amount || Number(amount) <= 0) return toast.error("مبلغ واریز را بنویسید.");
+    const toman = Number(digitsOnly(amount));
+    if (!toman) return toast.error("مبلغ واریز را بنویسید.");
     setBusy(true);
     try {
-      await saveAction("addStudioPayment", {
+      const saved = await saveAction<TattooRequest>("addStudioPayment", {
         requestId: job.id,
-        amountToman: Number(amount),
+        amountToman: toman,
         note: note.trim() || "واریز بعدی",
       });
-      toast.success("واریز به مجموع اضافه شد.");
+      const next = tattooBalance(saved.priceMinToman ?? job.priceMinToman, saved.paidToman);
+      toast.success(`واریز ثبت شد. مجموع ${formatTattooToman(next.paid)} و مانده ${formatTattooToman(next.remaining)}.`);
       setAmount("");
       setNote("");
       onChange();
