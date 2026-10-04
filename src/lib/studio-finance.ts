@@ -61,3 +61,36 @@ export function studioMonthSummary(
     leftover: paid - salonCost - lifeCost,
   };
 }
+
+export type ReceivableJob = {
+  who: string;
+  style: string;
+  placement: string;
+  price: number;
+  paid: number;
+  continuation: boolean;
+  followUp: boolean;
+  closed: boolean;
+  inMonth: boolean;
+};
+
+/** One open balance per customer and design. A later session does not create a second price. */
+export function openReceivable(rows: ReceivableJob[], monthOnly: boolean) {
+  const grouped = new Map<string, { price: number; paid: number; inMonth: boolean }>();
+  for (const row of rows) {
+    const key = `${row.who}|${row.style.trim().toLowerCase()}|${row.placement.trim().toLowerCase()}`;
+    const current = grouped.get(key) ?? { price: 0, paid: 0, inMonth: false };
+    if (!row.continuation && !row.followUp && !row.closed) current.price = Math.max(current.price, row.price);
+    if (row.continuation) current.price = Math.max(current.price, row.price);
+    if (!row.followUp && !(row.closed && !row.continuation)) current.paid += Math.max(0, row.paid);
+    if (row.inMonth) current.inMonth = true;
+    grouped.set(key, current);
+  }
+  let total = 0;
+  for (const row of grouped.values()) {
+    if (monthOnly && !row.inMonth) continue;
+    const paid = Math.min(row.price, row.paid);
+    total += Math.max(0, row.price - paid);
+  }
+  return total;
+}

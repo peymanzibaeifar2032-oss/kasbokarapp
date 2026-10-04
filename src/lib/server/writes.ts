@@ -48,7 +48,7 @@ import {
   studioActor,
   type StudioActor,
 } from "@/lib/server/studio-artists";
-import { STUDIO_EXPENSE_CATEGORIES, studioMonthSummary, type StudioExpenseCategory } from "@/lib/studio-finance";
+import { STUDIO_EXPENSE_CATEGORIES, openReceivable, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -2821,83 +2821,63 @@ async function applyStudioExpenseTemplates(
   }
 }
 
-function remainingForArtistSql(scopedToRange: boolean) {
-  const range = scopedToRange
-    ? `and booking_id in (
-            select id from bookings
-             where status not in ('cancelled')
-               and kind = 'booking'
-               and slot_start >= $1 and slot_start < $2
-          )`
-    : "";
-  const artist = scopedToRange ? "$3" : "$1";
-  return `select coalesce(sum(greatest(price - paid, 0)), 0) as remaining
-    from (
-      select max(price) as price, least(max(price), sum(paid)) as paid
-      from (
-        select
-          case
-            when length(right(regexp_replace(coalesce(customer_phone,''), '\\D', '', 'g'), 10)) >= 10
-             and right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) <> '9000000000'
-              then right(regexp_replace(customer_phone, '\\D', '', 'g'), 10)
-            when length(right(regexp_replace(coalesce(customer_phone_2,''), '\\D', '', 'g'), 10)) >= 10
-              then right(regexp_replace(customer_phone_2, '\\D', '', 'g'), 10)
-            else lower(btrim(customer_name))
-          end as who,
-          lower(btrim(coalesce(style,''))) as style,
-          lower(btrim(coalesce(placement,''))) as placement,
-          coalesce(price_min_toman,0) as price,
-          coalesce(paid_toman,0) as paid
-        from tattoo_requests
-        where status not in ('rejected','cancelled')
-          and artist_id = ${artist}
-          and coalesce(is_continuation, false) = false
-          and coalesce(carry_closed, false) = false
-          and coalesce(artist_message, '') <> 'جلسه دوم'
-          and coalesce(price_min_toman,0) > 0
-          ${range}
-      ) jobs
-      group by who, style, placement, price
-    ) once`;
+function financeWho(phone: string | null | undefined, phone2: string | null | undefined, name: string | null | undefined) {
+  const tail = (raw: string | null | undefined) => {
+    const digits = (raw || "").replace(/\D/g, "");
+    if (digits.length < 10 || digits.endsWith("9000000000")) return "";
+    return digits.slice(-10);
+  };
+  return tail(phone) || tail(phone2) || (name || "").trim().toLowerCase() || "بدون نام";
 }
 
-function remainingTotalSql(scopedToRange: boolean) {
-  const range = scopedToRange
-    ? `and booking_id in (
-            select id from bookings
-             where status not in ('cancelled')
-               and kind = 'booking'
-               and slot_start >= $1 and slot_start < $2
-          )`
-    : "";
-  return `select coalesce(sum(greatest(price - paid, 0)), 0) as remaining
-    from (
-      select max(price) as price, least(max(price), sum(paid)) as paid
-      from (
-        select
-          case
-            when length(right(regexp_replace(coalesce(customer_phone,''), '\\D', '', 'g'), 10)) >= 10
-             and right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) <> '9000000000'
-              then right(regexp_replace(customer_phone, '\\D', '', 'g'), 10)
-            when length(right(regexp_replace(coalesce(customer_phone_2,''), '\\D', '', 'g'), 10)) >= 10
-              then right(regexp_replace(customer_phone_2, '\\D', '', 'g'), 10)
-            else lower(btrim(customer_name))
-          end as who,
-          lower(btrim(coalesce(style,''))) as style,
-          lower(btrim(coalesce(placement,''))) as placement,
-          coalesce(price_min_toman,0) as price,
-          coalesce(paid_toman,0) as paid
-        from tattoo_requests
-        where status not in ('rejected','cancelled')
-          and artist_id is null
-          and coalesce(is_continuation, false) = false
-          and coalesce(carry_closed, false) = false
-          and coalesce(artist_message, '') <> 'جلسه دوم'
-          and coalesce(price_min_toman,0) > 0
-          ${range}
-      ) jobs
-      group by who, style, placement, price
-    ) once`;
+async function loadOpenReceivable(sql: Awaited<ReturnType<typeof getSql>>, actor: { role: string; artistId: string | null }, start: string, end: string) {
+  const artist = actor.role === "artist";
+  const scope = artist
+    ? "and t.artist_id = $1"
+    : "and not exists (select 1 from studio_artists a where a.id = t.artist_id and a.deal = 'own')";
+  const params = artist ? [actor.artistId] : [];
+  const rows = await sql.query<{
+    customer_name: string | null;
+    customer_phone: string | null;
+    customer_phone_2: string | null;
+    style: string;
+    placement: string;
+    price_min_toman: number | string;
+    paid_toman: number | string;
+    is_continuation: boolean;
+    artist_message: string;
+    carry_closed: boolean;
+    slot_start: string | null;
+  }>(
+    `select t.customer_name, t.customer_phone, coalesce(t.customer_phone_2,'') as customer_phone_2,
+            coalesce(t.style,'') as style, coalesce(t.placement,'') as placement,
+            coalesce(t.price_min_toman,0) as price_min_toman, coalesce(t.paid_toman,0) as paid_toman,
+            coalesce(t.is_continuation,false) as is_continuation, coalesce(t.artist_message,'') as artist_message,
+            coalesce(t.carry_closed,false) as carry_closed,
+            coalesce(b.slot_start, t.proposed_slot_start) as slot_start
+       from tattoo_requests t
+       left join bookings b on b.id = t.booking_id and b.status not in ('cancelled') and b.kind = 'booking'
+      where t.status not in ('rejected','cancelled')
+        ${scope}`,
+    params,
+  );
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+  const jobs: ReceivableJob[] = rows.map((row) => {
+    const slotMs = row.slot_start ? Date.parse(row.slot_start) : NaN;
+    return {
+      who: financeWho(row.customer_phone, row.customer_phone_2, row.customer_name),
+      style: row.style,
+      placement: row.placement,
+      price: Number(row.price_min_toman) || 0,
+      paid: Number(row.paid_toman) || 0,
+      continuation: Boolean(row.is_continuation),
+      followUp: row.artist_message === "جلسه دوم",
+      closed: Boolean(row.carry_closed),
+      inMonth: Number.isFinite(slotMs) && slotMs >= startMs && slotMs < endMs,
+    };
+  });
+  return { month: openReceivable(jobs, true), all: openReceivable(jobs, false) };
 }
 
 async function performStudioMonthFinance(userId: string, raw: unknown) {
@@ -2910,7 +2890,7 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
     ? "and r.artist_id = $3"
     : "and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')";
   const paymentParams = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
-  const [payments, monthRemain, allRemain, expenses] = await Promise.all([
+  const [payments, receivable, expenses] = await Promise.all([
     sql.query<{
       id: string;
       request_id: string;
@@ -2933,8 +2913,7 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
         order by p.created_at`,
       paymentParams,
     ),
-    sql.query<{ remaining: number | string }>(actor.role === "artist" ? remainingForArtistSql(true) : remainingTotalSql(true), actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end]),
-    sql.query<{ remaining: number | string }>(actor.role === "artist" ? remainingForArtistSql(false) : remainingTotalSql(false), actor.role === "artist" ? [actor.artistId] : []),
+    loadOpenReceivable(sql, actor, range.start, range.end),
     sql.query<{
       id: string;
       category: string;
@@ -2964,47 +2943,11 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
     placement: row.placement,
   })).reverse();
   const paid = mappedPayments.reduce((sum, row) => sum + row.amountToman, 0);
-  const week = tehranWeekBounds(0);
-  const today = tehranDayBounds();
-  const [continuationMonth, continuationWeek, continuationToday] = await Promise.all([
-    continuationRemaining(sql, range.start, range.end, actor.role === "artist" ? actor.artistId : null),
-    continuationRemaining(sql, week.start, week.end, actor.role === "artist" ? actor.artistId : null),
-    continuationRemaining(sql, today.start, today.end, actor.role === "artist" ? actor.artistId : null),
-  ]);
   return {
     payments: mappedPayments,
     expenses: mappedExpenses,
-    summary: studioMonthSummary(
-      paid,
-      Number(monthRemain[0]?.remaining) || 0,
-      Number(allRemain[0]?.remaining) || 0,
-      mappedExpenses,
-    ),
-    continuation: {
-      month: continuationMonth,
-      week: continuationWeek,
-      today: continuationToday,
-    },
+    summary: studioMonthSummary(paid, receivable.month, receivable.all, mappedExpenses),
   };
-}
-
-async function continuationRemaining(sql: Awaited<ReturnType<typeof getSql>>, start: string, end: string, artistId: string | null = null) {
-  const rows = await sql.query<{ remaining: number | string }>(
-    `select coalesce(sum(greatest(coalesce(price_min_toman,0) - coalesce(paid_toman,0), 0)), 0) as remaining
-       from tattoo_requests
-      where status not in ('rejected')
-        and is_continuation = true
-        and ($3::text is null or artist_id = $3)
-        and ($3::text is not null or artist_id is null or artist_id not in (select id from studio_artists where deal = 'own'))
-        and booking_id in (
-          select id from bookings
-           where status not in ('cancelled')
-             and kind = 'booking'
-             and slot_start >= $1 and slot_start < $2
-        )`,
-    [start, end, artistId],
-  );
-  return Number(rows[0]?.remaining) || 0;
 }
 
 async function performAddStudioExpense(userId: string, raw: unknown) {
@@ -3248,8 +3191,10 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
     note: z.string().trim().max(200).optional(),
   }).parse(raw);
   const sql = await getSql();
-  const current = await sql.query<{ id: string; paid_toman: number | null; price_min_toman: number | null; booking_id: string | null; artist_id: string | null }>(
-    `select id, coalesce(paid_toman,0) as paid_toman, price_min_toman, booking_id, artist_id from tattoo_requests where id=$1`,
+  const current = await sql.query<{ id: string; paid_toman: number | null; price_min_toman: number | null; booking_id: string | null; artist_id: string | null; opened_at: string }>(
+    `select id, coalesce(paid_toman,0) as paid_toman, price_min_toman, booking_id, artist_id,
+            coalesce(created_at, proposed_slot_start, now()) as opened_at
+       from tattoo_requests where id=$1`,
     [data.requestId],
   );
   if (!current[0]) throw new Error("کار پیدا نشد.");
@@ -3271,8 +3216,8 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
   const recorded = Number(current[0].paid_toman) || 0;
   if (recorded > ledger) {
     await sql.query(
-      `insert into tattoo_payments (id, request_id, amount_toman, note) values ($1,$2,$3,$4)`,
-      [crypto.randomUUID(), data.requestId, recorded - ledger, "واریز قبلی"],
+      `insert into tattoo_payments (id, request_id, amount_toman, note, created_at) values ($1,$2,$3,$4,$5)`,
+      [crypto.randomUUID(), data.requestId, recorded - ledger, "واریز قبلی", current[0].opened_at],
     );
   }
   await sql.query(

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { studioMonthSummary } from "./studio-finance.ts";
+import { openReceivable, studioMonthSummary, type ReceivableJob } from "./studio-finance.ts";
 
 describe("studio month money", () => {
   it("keeps salon profit separate from rent and home costs", () => {
@@ -33,5 +33,23 @@ describe("studio month money", () => {
     assert.equal(out.paid, 0);
     assert.equal(out.salonProfit, 0);
     assert.equal(out.remainingAll, 5_000_000);
+  });
+
+  it("keeps one price when the same tattoo continues into later months", () => {
+    const rows: ReceivableJob[] = [
+      { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 49_000_000, continuation: false, followUp: false, closed: false, inMonth: true },
+      { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 49_000_000, continuation: false, followUp: true, closed: false, inMonth: true },
+      { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 49_000_000, continuation: false, followUp: true, closed: false, inMonth: false },
+    ];
+    assert.equal(openReceivable(rows, true), 11_000_000);
+    assert.equal(openReceivable(rows, false), 11_000_000);
+  });
+
+  it("uses the carried remainder after the first session is closed", () => {
+    const rows: ReceivableJob[] = [
+      { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 60_000_000, paid: 27_000_000, continuation: false, followUp: false, closed: true, inMonth: false },
+      { who: "09120000000", style: "گلادیاتور", placement: "ساعد", price: 33_000_000, paid: 22_000_000, continuation: true, followUp: false, closed: false, inMonth: true },
+    ];
+    assert.equal(openReceivable(rows, true), 11_000_000);
   });
 });

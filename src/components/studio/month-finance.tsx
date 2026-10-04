@@ -21,7 +21,6 @@ type FinancePayload = {
   payments: StudioMonthPayment[];
   expenses: StudioExpense[];
   summary: Summary;
-  continuation?: { month: number; week: number; today: number };
 };
 
 export function StudioMonthFinance() {
@@ -100,7 +99,7 @@ export function StudioMonthFinance() {
         <div>
           <h2 className="text-lg font-bold">صندوق {monthLabel}</h2>
           <p className="mt-1 max-w-2xl text-sm leading-7 text-muted">
-            دریافتی همین ماه، منهای خرج سالن، منهای خرج زندگی. اگر کم بیاید، مانده دست تو با علامت منها می‌ماند و صفر نمی‌شود. پول هنرجو اینجا نیست.
+            دریافتی فقط پولی است که در همین ماه ثبت شده، حتی اگر جلسه مال ماه دیگری باشد. قیمت طرح یک بار است و جلسهٔ بعد درآمد تازه نمی‌سازد. طلب هنوز نقد نیست و داخل دریافتی نمی‌آید.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -124,7 +123,7 @@ export function StudioMonthFinance() {
           <div>
             <p className="mb-2 text-xs font-semibold text-muted">دریافتی و خرج</p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <MoneyCard label="دریافتی" value={summary.paid} hint="بیعانه و پرداخت دستی مشتریان همین ماه" />
+              <MoneyCard label="دریافتی" value={summary.paid} hint="واریزی‌هایی که تاریخ ثبت‌شان در همین ماه است" />
               <MoneyCard label="خرج سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
               <MoneyCard label="خرج زندگی" value={summary.lifeCost} hint="کرایه خانه + بیمه + هزینه خانه" />
               <MoneyCard label="سود سالن" value={summary.salonProfit} hint="دریافتی منهای خرج سالن" accent allowNegative />
@@ -137,13 +136,10 @@ export function StudioMonthFinance() {
             </div>
           </div>
           <div>
-            <p className="mb-2 text-xs font-semibold text-muted">طلب · هنوز نقد نیست</p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <MoneyCard label="مانده کارهای این ماه" value={summary.remainingMonth} hint="هر طرح یک بار؛ چند روز همان کار دوباره جمع نمی‌شود" />
-              <MoneyCard label="مانده کل مشتریان" value={summary.remainingAll} hint="طلب واقعی، بدون تکرار قیمت روی جلسه‌های بعدی" />
-              <MoneyCard label="مانده ادامه کار امروز" value={data?.continuation?.today ?? 0} hint="طلبی که باید همین امروز بگیری" />
-              <MoneyCard label="مانده ادامه کار این هفته" value={data?.continuation?.week ?? 0} hint="طلب نوبت‌های ادامه در این هفته" />
-              <MoneyCard label="مانده ادامه کار این ماه" value={data?.continuation?.month ?? 0} hint="طلب نوبت‌های ادامه در این ماه" />
+            <p className="mb-2 text-xs font-semibold text-muted">طلب · هنوز نقد نیست و با دریافتی جمع نمی‌شود</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MoneyCard label="طلب نوبت‌های این ماه" value={summary.remainingMonth} hint="مشتری‌هایی که در این ماه جلسه دارند. اگر چند جلسه باشد، قیمت دوباره جمع نمی‌شود." />
+              <MoneyCard label="طلب کل مشتریان" value={summary.remainingAll} hint="ماندهٔ همه، هر طرح یک بار. تا واریز نشود درآمد هیچ ماهی نیست." />
             </div>
           </div>
         </div>
