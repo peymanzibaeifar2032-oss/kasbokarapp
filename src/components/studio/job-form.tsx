@@ -109,6 +109,19 @@ export function StudioJobForm({
     if (dayTouched || !serverBusy.length) return;
     setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));
   }, [busyKeys, dayTouched, serverBusy.length]);
+  useEffect(() => {
+    let gone = false;
+    void saveAction<string[]>("studioOccupiedDays")
+      .then((keys) => {
+        if (!gone) setServerBusy(keys);
+      })
+      .catch((err) => {
+        if (!gone) toast.error(friendlyError(err));
+      });
+    return () => {
+      gone = true;
+    };
+  }, []);
   const visibleStaff = uniqueStaff(resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name)));
 
   useEffect(() => {
@@ -367,7 +380,7 @@ export function StudioJobForm({
         <label className="grid gap-1.5 text-sm sm:col-span-2">
           <span className="font-medium">ساعت شروع</span>
           <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-          <span className="text-xs text-muted">روز را بعد از عکس طرح، فقط از بین روزهای کاملاً خالی انتخاب می‌کنی.</span>
+          <span className="text-xs text-muted">روز را از تقویم پایین بزن. فقط روز کاملاً خالی باز است.</span>
         </label>
       </div>
       {designTimes?.typicalMinutes ? (
@@ -417,8 +430,8 @@ export function StudioJobForm({
         <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} placeholder="اختیاری" />
       </label>
       <div className="mt-3">
-        <p className="text-sm font-medium">عکس طرح</p>
-        <p className="mt-1 text-xs text-muted">برای هر عکس اندازه و قیمت گفته‌شده را جدا بنویس. حداکثر ۳ عکس. بعداً همین‌ها ثابت می‌ماند.</p>
+        <p className="text-sm font-medium">عکس طرح، اختیاری</p>
+        <p className="mt-1 text-xs text-muted">ادامه کار می‌تواند بدون عکس ثبت شود. اگر عکس داری، برای هر کدام اندازه و قیمت را جدا بنویس.</p>
         <DesignThumbs
           images={images}
           filePrefix={style || name || "tarh"}
@@ -426,19 +439,6 @@ export function StudioJobForm({
           onFiles={(urls) => {
             setImages((current) => [...current, ...urls].slice(0, 3));
             setShotQuotes((current) => [...current, ...urls.map(() => ({ price: "", sizeCm: "" }))].slice(0, 3));
-            setDayTouched(false);
-            void saveAction<string[]>("studioOccupiedDays")
-              .then((keys) => {
-                setServerBusy(keys);
-                const taken = new Set(keys);
-                for (const booking of bookings) {
-                  if (booking.businessId === businessId && booking.status !== "cancelled" && booking.kind === "booking") {
-                    taken.add(tehranDayKey(new Date(booking.slotStart)));
-                  }
-                }
-                setDay(firstOpenCustomerDay(taken, thursdayBusyKeys()));
-              })
-              .catch((err) => toast.error(friendlyError(err)));
           }}
           onRemove={(index) => {
             setImages((current) => current.filter((_, i) => i !== index));
@@ -463,16 +463,12 @@ export function StudioJobForm({
           </div>
         ))}
       </div>
-      {images.length ? (
-        <div className="mt-4 rounded-2xl border border-emerald-700/30 bg-emerald-50 p-3 text-emerald-950">
-          <p className="text-sm font-bold">روز کاملاً خالی، بعد از آخرین نوبت</p>
-          <p className="mt-1 text-xs leading-6">روزی که حتی دو ساعت کار دارد اینجا نیست. روی روز سبز بزن.</p>
-          <JalaliDatePicker alwaysOpen emptyOnly value={day} busyKeys={busyKeys} onChange={(next) => { setDayTouched(true); setDay(next); }} />
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-muted">اول عکس طرح را بگذار. بعد تقویم خودش می‌رود روی اولین روز کاملاً خالی.</p>
-      )}
-      <Button className="mt-3" disabled={busy || !images.length} onClick={() => void submit()}>
+      <div className="mt-4 rounded-2xl border border-emerald-700/30 bg-emerald-50 p-3 text-emerald-950">
+        <p className="text-sm font-bold">روز کاملاً خالی</p>
+        <p className="mt-1 text-xs leading-6">تقویم روی اولین ماه خالی است. روزی که حتی دو ساعت کار دارد اینجا انتخاب نمی‌شود. ساعت خالی همان روز را بعداً از لیست انتظار پر کن.</p>
+        <JalaliDatePicker alwaysOpen emptyOnly value={day} busyKeys={busyKeys} onChange={(next) => { setDayTouched(true); setDay(next); }} />
+      </div>
+      <Button className="mt-3" disabled={busy} onClick={() => void submit()}>
         ثبت روی همین روز خالی
       </Button>
     </>
@@ -485,7 +481,7 @@ export function StudioJobForm({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h3 className="font-semibold">ثبت نوبت</h3>
-          <p className="mt-1 text-sm text-muted">مشخصات، عکس طرح، بعد فقط روز کاملاً خالی.</p>
+          <p className="mt-1 text-sm text-muted">عکس اجباری نیست. روز ثبت فقط روز کاملاً خالی است.</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => setOpen((value) => !value)}>
           {open ? "بستن فرم" : "افزودن به تقویم کاری"}

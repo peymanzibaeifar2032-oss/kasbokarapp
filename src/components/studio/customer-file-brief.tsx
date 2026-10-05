@@ -9,6 +9,7 @@ export type CustomerFileBrief = {
   arrival: string;
   pain: string;
   healing: string;
+  inflammation?: string;
   notes: string;
   numbing: string;
   bleeding: string;
@@ -27,7 +28,12 @@ const TOLERANCE_MINUTES: Record<string, number> = {
 };
 
 export function toleranceMinutes(value: string) {
-  return TOLERANCE_MINUTES[value] ?? null;
+  const known = TOLERANCE_MINUTES[value];
+  if (known) return known;
+  const digits = value.replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit))).replace(/\D/g, "");
+  const hours = Number(digits);
+  if (!hours || hours > 16) return null;
+  return hours * 60;
 }
 
 export function customerFileLines(file: CustomerFileBrief) {
@@ -45,6 +51,7 @@ export function customerFileLines(file: CustomerFileBrief) {
     file.sleepNote ? `خواب: ${file.sleepNote}` : "",
     file.arrival,
     file.healing,
+    file.inflammation || "",
     file.sensitivity,
     file.notes,
   ].filter(Boolean);

@@ -1308,6 +1308,7 @@ type CustomerFile = {
   arrival: string;
   pain: string;
   healing: string;
+  inflammation: string;
   notes: string;
   numbing: string;
   bleeding: string;
@@ -1342,6 +1343,7 @@ function fileSummary(file: CustomerFile) {
     file.arrival,
     file.pain,
     file.healing,
+    file.inflammation,
     file.numbing,
     file.bleeding ? `خونریزی ${file.bleeding}` : "",
     file.bloodType ? `گروه ${file.bloodType}` : "",
@@ -1403,6 +1405,7 @@ function CustomerFileForm({
   const [draft, setDraft] = useState(file);
   const [busy, setBusy] = useState(false);
   const [imageTouched, setImageTouched] = useState(false);
+  const [step, setStep] = useState(0);
 
   useEffect(() => {
     if (!file.hasHealedImage) return;
@@ -1451,76 +1454,120 @@ function CustomerFileForm({
     }
   }
 
+  const steps = ["پوست و رنگ", "جلسه", "ترمیم", "بقیه"];
+  const hours = digitsOnly(draft.toleranceHours).slice(0, 2);
+
   return (
     <div className="mt-4 border-t border-border pt-4">
-      <Choice label="رنگ پوست" value={draft.skinTone} options={["روشن", "گندمی", "تیره"]} onChange={(value) => setField("skinTone", value)} />
-      <Choice label="گرفتن رنگ" value={draft.inkHold} options={["خوب رنگ می‌گیرد", "سخت رنگ می‌گیرد", "رنگ نمی‌گیرد"]} onChange={(value) => setField("inkHold", value)} />
-      <Choice label="ماندن رنگ روی بدن" value={draft.fade} options={["ماندگار می‌ماند", "کمی کمرنگ می‌شود", "زود کمرنگ می‌شود"]} onChange={(value) => setField("fade", value)} />
-      <Choice label="مشروب" value={draft.alcohol} options={["مشروب نمی‌خورد", "گاهی می‌خورد", "قبل از جلسه خورده بود"]} onChange={(value) => setField("alcohol", value)} />
-      <label className="mt-3 block text-sm font-semibold">
-        ساعت خواب
-        <Input
-          className="mt-2"
-          value={draft.sleepNote}
-          onChange={(event) => setDraft((current) => ({ ...current, sleepNote: event.target.value }))}
-          placeholder="مثلاً ۵ ساعت، شب قبل دیر خوابیده"
-        />
-      </label>
-      <Choice label="آمدن به استودیو" value={draft.arrival} options={["سر وقت می‌آید", "معمولاً دیر می‌آید", "زودتر می‌آید"]} onChange={(value) => setField("arrival", value)} />
-      <Choice label="تحمل جلسه" value={draft.pain} options={["درد را راحت تحمل می‌کند", "تحمل معمولی", "زود خسته می‌شود"]} onChange={(value) => setField("pain", value)} />
-      <Choice label="ترمیم" value={draft.healing} options={["پوسته را دست نمی‌زند", "می‌خارد یا پوسته را می‌کند", "التهابش طول می‌کشد"]} onChange={(value) => setField("healing", value)} />
-      <Choice label="بی‌حسی" value={draft.numbing} options={["نزدم", "زدم و خوب بود", "زدم و پوست را خراب کرد"]} onChange={(value) => setField("numbing", value)} />
-      <Choice label="خونریزی" value={draft.bleeding} options={["کم", "معمولی", "زیاد"]} onChange={(value) => setField("bleeding", value)} />
-      <Choice label="تحمل جلسه" value={draft.toleranceHours} options={["۲ ساعت", "۳ ساعت", "۴ ساعت", "۵ ساعت", "۶ ساعت"]} onChange={(value) => setField("toleranceHours", value)} />
-      <Choice label="آب پوست" value={draft.hydration} options={["پوست کم‌آب", "پوست معمولی", "پوست آبدار"]} onChange={(value) => setField("hydration", value)} />
-      <Choice label="گروه خونی" value={draft.bloodType} options={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "نمی‌داند"]} onChange={(value) => setField("bloodType", value)} />
-      <p className="mt-1 text-xs leading-6 text-muted">برای مقایسه تحمل و سرعت ترمیم بین مشتری‌هاست، نه برای کار پزشکی.</p>
-      <label className="mt-3 block text-sm font-semibold">
-        دارو یا حساسیت پوست
-        <Input
-          className="mt-2"
-          value={draft.sensitivity}
-          onChange={(event) => setDraft((current) => ({ ...current, sensitivity: event.target.value }))}
-          placeholder="مثلاً آسپرین می‌خورد، یا پوستش به چسب حساس است"
-        />
-      </label>
-      <div className="mt-3">
-        <p className="text-sm font-semibold">عکس بعد از ترمیم</p>
-        <p className="mt-1 text-xs leading-6 text-muted">یک عکس از کار جاافتاده. جلسه بعد همان را با پوست مقایسه می‌کنی.</p>
-        {draft.healedImage ? <img src={draft.healedImage} alt="تاتو بعد از ترمیم" className="mt-2 max-h-64 rounded-2xl object-contain" /> : null}
-        <div className="mt-2 flex flex-wrap gap-2">
-          <label className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-border px-3 text-sm">
-            انتخاب عکس
-            <input type="file" accept="image/*" className="hidden" onChange={(event) => void pickHealed(event.target.files)} />
-          </label>
-          {draft.healedImage || draft.hasHealedImage ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setImageTouched(true);
-                setDraft((current) => ({ ...current, healedImage: "", hasHealedImage: false }));
-              }}
-            >
-              حذف عکس
-            </Button>
-          ) : null}
-        </div>
+      <div className="grid grid-cols-4 gap-1">
+        {steps.map((label, index) => (
+          <button
+            key={label}
+            type="button"
+            className={cn("h-10 rounded-xl px-1 text-[11px] font-bold", step === index ? "bg-primary text-primary-fg" : "border border-border text-muted")}
+            onClick={() => setStep(index)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
-      <label className="mt-3 block text-sm font-semibold">
-        نکته برای کار بعدی
-        <Textarea
-          className="mt-2"
-          rows={3}
-          value={draft.notes}
-          onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))}
-          placeholder="هر چیزی که جلسه بعد باید یادت بماند"
-        />
-      </label>
-      <Button className="mt-3" disabled={busy} onClick={() => void save()}>
-        {busy ? "در حال ذخیره…" : "ذخیره پرونده"}
-      </Button>
+      {step === 0 ? (
+        <>
+          <Choice label="رنگ پوست" value={draft.skinTone} options={["روشن", "گندمی", "تیره"]} onChange={(value) => setField("skinTone", value)} />
+          <Choice label="گرفتن رنگ" value={draft.inkHold} options={["خوب رنگ می‌گیرد", "معمولی بود", "سخت رنگ می‌گیرد", "رنگ نمی‌گیرد"]} onChange={(value) => setField("inkHold", value)} />
+          <Choice label="ماندن رنگ روی بدن" value={draft.fade} options={["ماندگار می‌ماند", "معمولی بود", "کمی کمرنگ می‌شود", "زود کمرنگ می‌شود"]} onChange={(value) => setField("fade", value)} />
+          <Choice label="آب پوست" value={draft.hydration} options={["پوست کم‌آب", "پوست معمولی", "پوست آبدار"]} onChange={(value) => setField("hydration", value)} />
+        </>
+      ) : null}
+      {step === 1 ? (
+        <>
+          <Choice label="آمدن به استودیو" value={draft.arrival} options={["سر وقت می‌آید", "معمولاً دیر می‌آید", "زودتر می‌آید", "بدقول است"]} onChange={(value) => setField("arrival", value)} />
+          <Choice label="تحمل درد" value={draft.pain} options={["درد را راحت تحمل می‌کند", "تحمل معمولی", "درد داشت"]} onChange={(value) => setField("pain", value)} />
+          <label className="mt-3 block text-sm font-semibold">
+            تحمل جلسه، ساعت
+            <Input
+              className="mt-2"
+              inputMode="numeric"
+              dir="ltr"
+              value={hours}
+              placeholder="مثلاً ۱۰ یا ۱۲"
+              onChange={(event) => {
+                const next = Math.min(16, Number(digitsOnly(event.target.value).slice(0, 2)) || 0);
+                setDraft((current) => ({ ...current, toleranceHours: next ? `${toFaDigits(next)} ساعت` : "" }));
+              }}
+            />
+            <span className="mt-1 block text-xs font-normal text-muted">هر ساعتی که جلسه طول کشید، حتی ۱۰ یا ۱۲. گزینه‌های دیگر این بخش سر جایش است.</span>
+          </label>
+          <Choice label="بی‌حسی" value={draft.numbing} options={["نزدم", "زدم و خوب بود", "زدم و پوست را خراب کرد"]} onChange={(value) => setField("numbing", value)} />
+          <Choice label="خونریزی" value={draft.bleeding} options={["کم", "معمولی", "زیاد"]} onChange={(value) => setField("bleeding", value)} />
+        </>
+      ) : null}
+      {step === 2 ? (
+        <>
+          <Choice label="مراقبت و ترمیم" value={draft.healing} options={["مراقبت خوب", "مراقبت معمولی", "مراقبت بد", "مراقبت خیلی بد"]} onChange={(value) => setField("healing", value)} />
+          <Choice label="التهاب" value={draft.inflammation} options={["التهاب نداشت", "التهاب داشت", "در آخر کار التهاب پیدا کرد", "از همان ابتدا التهاب داشت"]} onChange={(value) => setField("inflammation", value)} />
+        </>
+      ) : null}
+      {step === 3 ? (
+        <>
+          <Choice label="مشروب" value={draft.alcohol} options={["مشروب نمی‌خورد", "گاهی می‌خورد", "قبل از جلسه خورده بود"]} onChange={(value) => setField("alcohol", value)} />
+          <label className="mt-3 block text-sm font-semibold">
+            ساعت خواب
+            <Input
+              className="mt-2"
+              value={draft.sleepNote}
+              onChange={(event) => setDraft((current) => ({ ...current, sleepNote: event.target.value }))}
+              placeholder="مثلاً ۵ ساعت، شب قبل دیر خوابیده"
+            />
+          </label>
+          <Choice label="گروه خونی" value={draft.bloodType} options={["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "نمی‌داند"]} onChange={(value) => setField("bloodType", value)} />
+          <p className="mt-1 text-xs leading-6 text-muted">برای مقایسه تحمل و سرعت ترمیم بین مشتری‌هاست، نه برای کار پزشکی.</p>
+          <label className="mt-3 block text-sm font-semibold">
+            دارو یا حساسیت پوست
+            <Input
+              className="mt-2"
+              value={draft.sensitivity}
+              onChange={(event) => setDraft((current) => ({ ...current, sensitivity: event.target.value }))}
+              placeholder="مثلاً آسپرین می‌خورد، یا پوستش به چسب حساس است"
+            />
+          </label>
+          <div className="mt-3">
+            <p className="text-sm font-semibold">عکس بعد از ترمیم</p>
+            {draft.healedImage ? <img src={draft.healedImage} alt="تاتو بعد از ترمیم" className="mt-2 max-h-64 rounded-2xl object-contain" /> : null}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <label className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-border px-3 text-sm">
+                انتخاب عکس
+                <input type="file" accept="image/*" className="hidden" onChange={(event) => void pickHealed(event.target.files)} />
+              </label>
+              {draft.healedImage || draft.hasHealedImage ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => { setImageTouched(true); setDraft((current) => ({ ...current, healedImage: "", hasHealedImage: false })); }}>
+                  حذف عکس
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <label className="mt-3 block text-sm font-semibold">
+            نکته برای کار بعدی
+            <Textarea className="mt-2" rows={3} value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="هر چیزی که جلسه بعد باید یادت بماند" />
+          </label>
+        </>
+      ) : null}
+      <div className="mt-4 flex gap-2">
+        {step > 0 ? (
+          <Button type="button" variant="outline" onClick={() => setStep((value) => value - 1)}>
+            قبلی
+          </Button>
+        ) : null}
+        {step < 3 ? (
+          <Button type="button" onClick={() => setStep((value) => value + 1)}>
+            بعدی
+          </Button>
+        ) : (
+          <Button disabled={busy} onClick={() => void save()}>
+            {busy ? "در حال ذخیره…" : "ذخیره پرونده"}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -2393,6 +2440,7 @@ function briefToCustomerFile(file: CustomerFileBrief | null): CustomerFile {
     arrival: file?.arrival || "",
     pain: file?.pain || "",
     healing: file?.healing || "",
+    inflammation: file?.inflammation || "",
     notes: file?.notes || "",
     numbing: file?.numbing || "",
     bleeding: file?.bleeding || "",

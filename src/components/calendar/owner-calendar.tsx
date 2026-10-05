@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MonthGrid } from "@/components/calendar/month-grid";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
@@ -23,6 +23,7 @@ import {
 import { t } from "@/lib/i18n";
 import { friendlyError, saveAction } from "@/lib/save";
 import { isRetiredCollaborator } from "@/lib/tattoo-flow";
+import { isTehranThursday } from "@/lib/studio-apprentices";
 import type { Booking, Business, TattooRequest } from "@/lib/types";
 import type { BusinessResource } from "@/lib/calendar/resources";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,8 @@ export function OwnerCalendar({
   const [resourceFilter, setResourceFilter] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
   const [monthJobs, setMonthJobs] = useState<TattooRequest[]>([]);
+  const [occupied, setOccupied] = useState<Set<string>>(new Set());
+  const jumped = useRef(false);
   const clock = tehranClock(cursor);
   const todayKey = tehranDayKey();
   const cursorJ = gregorianToJalali(clock.y, clock.m, clock.day);
@@ -90,6 +93,36 @@ export function OwnerCalendar({
       cancelled = true;
     };
   }, [view, month.jy, month.jm, cursorJ.jy, cursorJ.jm, items]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void saveAction<string[]>("studioOccupiedDays")
+      .then((days) => {
+        if (!cancelled) setOccupied(new Set(days));
+      })
+      .catch(() => {
+        if (!cancelled) setOccupied(new Set());
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
+
+  useEffect(() => {
+    if (jumped.current || occupied.size === 0) return;
+    jumped.current = true;
+    let cursorMonth = { jy: cursorJ.jy, jm: cursorJ.jm };
+    for (let i = 0; i < 8; i += 1) {
+      const open = jalaliMonthGrid(cursorMonth.jy, cursorMonth.jm).some(
+        (cell) => cell.inMonth && cell.dayKey >= todayKey && !occupied.has(cell.dayKey) && !isTehranThursday(cell.dayKey),
+      );
+      if (open) {
+        setMonth(cursorMonth);
+        return;
+      }
+      cursorMonth = shiftJalaliMonth(cursorMonth.jy, cursorMonth.jm, 1);
+    }
+  }, [occupied, cursorJ.jy, cursorJ.jm, todayKey]);
 
   useEffect(() => {
     if (!formBusinessId) return;
@@ -171,13 +204,14 @@ export function OwnerCalendar({
       const rows = byDay.get(cell.dayKey) ?? [];
       const closed = rows.some((b) => b.kind === "block" && b.eventType === "holiday");
       const count = rows.filter((b) => b.kind !== "block" && b.status !== "cancelled").length;
-      return {
-        cell,
-        status: (closed ? "closed" : count ? "limited" : "free") as DayStatus,
-        badge: cell.inMonth ? (closed ? "تعطیل" : count ? toFaDigits(count) : "—") : undefined,
-      };
+      const taken = occupied.has(cell.dayKey) || count > 0;
+      const thursday = isTehranThursday(cell.dayKey);
+      const past = cell.inMonth && cell.dayKey < todayKey;
+      const status: DayStatus = !cell.inMonth ? "beyond" : past ? "past" : thursday ? "thursday" : taken || closed ? (closed && !taken ? "closed" : "booked") : "free";
+      const badge = !cell.inMonth || past ? undefined : thursday ? "آموزش" : taken ? "پر" : closed ? "تعطیل" : "خالی";
+      return { cell, status, badge };
     });
-  }, [byDay, month.jy, month.jm]);
+  }, [byDay, month.jy, month.jm, occupied, todayKey]);
 
   function jumpDay(delta: number) {
     const next = new Date(Date.UTC(clock.y, clock.m - 1, clock.day + delta));

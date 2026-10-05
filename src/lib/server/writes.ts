@@ -2344,6 +2344,10 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
   return [...grouped.values()].sort((a, b) => b.paidToman - a.paidToman || b.sessions - a.sessions || a.name.localeCompare(b.name, "fa"));
 }
 
+async function ensureInflammationColumn(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql.query(`alter table studio_customer_files add column if not exists inflammation text not null default ''`);
+}
+
 function emptyCustomerFile() {
   return {
     skinTone: "",
@@ -2354,6 +2358,7 @@ function emptyCustomerFile() {
     arrival: "",
     pain: "",
     healing: "",
+    inflammation: "",
     notes: "",
     numbing: "",
     bleeding: "",
@@ -2374,6 +2379,7 @@ async function attachCustomerFiles(
   const keys = [...grouped.keys()];
   if (!keys.length) return;
   try {
+    await ensureInflammationColumn(sql);
     const files = await sql.query<{
       contact_key: string;
       skin_tone: string;
@@ -2384,6 +2390,7 @@ async function attachCustomerFiles(
       arrival: string;
       pain: string;
       healing: string;
+      inflammation: string;
       notes: string;
       numbing: string;
       bleeding: string;
@@ -2393,7 +2400,7 @@ async function attachCustomerFiles(
       hydration: string;
       has_healed_image: boolean;
     }>(
-      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
+      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, coalesce(inflammation, '') as inflammation, notes,
               numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration,
               (healed_image <> '') as has_healed_image
          from studio_customer_files where user_id=$1 and contact_key = any($2::text[])`,
@@ -2411,6 +2418,7 @@ async function attachCustomerFiles(
         arrival: file.arrival || "",
         pain: file.pain || "",
         healing: file.healing || "",
+        inflammation: file.inflammation || "",
         notes: file.notes || "",
         numbing: file.numbing || "",
         bleeding: file.bleeding || "",
@@ -2437,6 +2445,7 @@ const customerFileSchema = z.object({
   arrival: z.string().trim().max(40),
   pain: z.string().trim().max(40),
   healing: z.string().trim().max(80),
+  inflammation: z.string().trim().max(80).optional(),
   notes: z.string().trim().max(1500),
   numbing: z.string().trim().max(40),
   bleeding: z.string().trim().max(40),
@@ -2499,16 +2508,18 @@ async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
   const data = customerFileSchema.parse(raw);
   const sql = await getSql();
   const updateImage = data.healedImage !== undefined;
+  await ensureInflammationColumn(sql);
   await sql.query(
     `insert into studio_customer_files
        (id, user_id, contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
-        numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration, healed_image)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+        numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration, healed_image, inflammation)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$21)
      on conflict (user_id, contact_key) do update set
        skin_tone=excluded.skin_tone, ink_hold=excluded.ink_hold, fade=excluded.fade, alcohol=excluded.alcohol,
        sleep_note=excluded.sleep_note, arrival=excluded.arrival, pain=excluded.pain, healing=excluded.healing,
        notes=excluded.notes, numbing=excluded.numbing, bleeding=excluded.bleeding, sensitivity=excluded.sensitivity,
        blood_type=excluded.blood_type, tolerance_hours=excluded.tolerance_hours, hydration=excluded.hydration,
+       inflammation=excluded.inflammation,
        healed_image=case when $20 then excluded.healed_image else studio_customer_files.healed_image end,
        updated_at=now()`,
     [
@@ -2532,6 +2543,7 @@ async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
       data.hydration,
       updateImage ? data.healedImage : "",
       updateImage,
+      data.inflammation || "",
     ],
   );
   return { ok: true as const, hasHealedImage: updateImage ? Boolean(data.healedImage) : undefined };
@@ -2558,6 +2570,7 @@ type CustomerFileBriefRow = {
   arrival: string;
   pain: string;
   healing: string;
+  inflammation?: string;
   notes: string;
   numbing: string;
   bleeding: string;
@@ -2577,6 +2590,7 @@ function mapCustomerFileBrief(row: CustomerFileBriefRow) {
     arrival: row.arrival || "",
     pain: row.pain || "",
     healing: row.healing || "",
+    inflammation: row.inflammation || "",
     notes: row.notes || "",
     numbing: row.numbing || "",
     bleeding: row.bleeding || "",
@@ -2603,8 +2617,9 @@ async function loadCustomerFileBriefs(userId: string, phones: string[], names: s
   }
   if (!keys.size) return {} as Record<string, ReturnType<typeof mapCustomerFileBrief>>;
   const sql = await getSql();
+  await ensureInflammationColumn(sql);
   const rows = await sql.query<CustomerFileBriefRow>(
-    `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
+    `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, coalesce(inflammation, '') as inflammation, notes,
             numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration
        from studio_customer_files where user_id=$1 and contact_key = any($2::text[])`,
     [userId, [...keys]],
@@ -2809,8 +2824,9 @@ async function filesForJobs(
 ) {
   if (!jobs.length) return [] as Array<ReturnType<typeof mapCustomerFileBrief> | null>;
   try {
+    await ensureInflammationColumn(sql);
     const stored = await sql.query<CustomerFileBriefRow>(
-      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, notes,
+      `select contact_key, skin_tone, ink_hold, fade, alcohol, sleep_note, arrival, pain, healing, coalesce(inflammation, '') as inflammation, notes,
               numbing, bleeding, sensitivity, blood_type, tolerance_hours, hydration
          from studio_customer_files where user_id=$1`,
       [userId],
