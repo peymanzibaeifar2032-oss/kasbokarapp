@@ -4,7 +4,7 @@ import { getSql } from "@/lib/db";
 import { env, isStandalone, isWorkspacePreview } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, normalizeInstagramHandle, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, shouldGrantPreviewStudioAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
-import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, tehranClock, tehranDayBounds, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
+import { buildSlots, DEFAULT_BOOKING_HORIZON_DAYS, serviceBuffers, serviceDurationMinutes, swapDaySlots, tehranClock, tehranDayBounds, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import {
   RESOURCE_KINDS,
   assignResourceAtIso,
@@ -3234,6 +3234,78 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
   return mapped[0];
 }
 
+function slotMinutes(start: string | null, end: string | null, fallback: number | null) {
+  const from = start ? Date.parse(start) : NaN;
+  const to = end ? Date.parse(end) : NaN;
+  if (Number.isFinite(from) && Number.isFinite(to) && to > from) return Math.max(10, Math.round((to - from) / 60000));
+  return fallback && fallback >= 10 ? fallback : 180;
+}
+
+async function performSwapStudioJobs(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ id: z.string(), otherBookingId: z.string() }).parse(raw);
+  const sql = await getSql();
+  const mine = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
+  const other = await sql.query<TattooRequestRow>(
+    `${tattooRequestSelect} where booking_id=$1 and status='booked' order by created_at desc limit 1`,
+    [data.otherBookingId],
+  );
+  const left = mine[0];
+  const right = other[0];
+  if (!left || !right) throw new Error("یکی از این دو نوبت پیدا نشد.");
+  if (left.id === right.id) throw new Error("یک نوبت را نمی‌شود با خودش جابه‌جا کرد.");
+  assertOwnArtistJob(actor, left.artist_id);
+  assertOwnArtistJob(actor, right.artist_id);
+  if (!left.booking_id || !right.booking_id || !left.business_id || left.business_id !== right.business_id) {
+    throw new Error("این دو نوبت به یک تقویم وصل نیستند.");
+  }
+  const leftStart = left.proposed_slot_start;
+  const rightStart = right.proposed_slot_start;
+  if (!leftStart || !rightStart) throw new Error("یکی از این دو نوبت تاریخ ندارد.");
+  const next = swapDaySlots(leftStart, slotMinutes(leftStart, left.proposed_slot_end, left.session_minutes), rightStart, slotMinutes(rightStart, right.proposed_slot_end, right.session_minutes));
+  if (!next) throw new Error("هر دو نوبت در یک روز هستند. برای جابه‌جایی باید دو روز مختلف باشند.");
+  rejectCustomerThursday(next.a.start);
+  rejectCustomerThursday(next.b.start);
+  const scope = panelClashScope(actor);
+  const leftSeat = await sql.query<{ resource_id: string | null }>("select resource_id from bookings where id=$1", [left.booking_id]);
+  const rightSeat = await sql.query<{ resource_id: string | null }>("select resource_id from bookings where id=$1", [right.booking_id]);
+  const clashLeft = await findStudioClash(sql, left.business_id, next.a.start, next.a.end, left.booking_id, leftSeat[0]?.resource_id ?? null, scope);
+  if (clashLeft && clashLeft.id !== right.booking_id) throw new Error(studioClashMessage(clashLeft));
+  const clashRight = await findStudioClash(sql, left.business_id, next.b.start, next.b.end, right.booking_id, rightSeat[0]?.resource_id ?? null, scope);
+  if (clashRight && clashRight.id !== left.booking_id) throw new Error(studioClashMessage(clashRight));
+  await sql.query(`update bookings set status='cancelled' where id in ($1,$2)`, [left.booking_id, right.booking_id]);
+  try {
+    await sql.query(
+      `update bookings
+          set slot_start = case id when $1 then $2::timestamptz else $4::timestamptz end,
+              slot_end = case id when $1 then $3::timestamptz else $5::timestamptz end
+        where id in ($1,$6)`,
+      [left.booking_id, next.a.start, next.a.end, next.b.start, next.b.end, right.booking_id],
+    );
+    await sql.query(`update bookings set status='confirmed' where id in ($1,$2)`, [left.booking_id, right.booking_id]);
+  } catch (error) {
+    await sql.query(
+      `update bookings
+          set status='confirmed',
+              slot_start = case id when $1 then $2::timestamptz else $4::timestamptz end,
+              slot_end = case id when $1 then $3::timestamptz else $5::timestamptz end
+        where id in ($1,$6)`,
+      [left.booking_id, leftStart, left.proposed_slot_end, rightStart, right.proposed_slot_end, right.booking_id],
+    );
+    if (isOccupancyConflict(error)) throw new Error("این جابه‌جایی با نوبت دیگری تداخل دارد.");
+    throw error;
+  }
+  await sql.query(
+    `update tattoo_requests
+        set proposed_slot_start = case id when $1 then $3::timestamptz else $5::timestamptz end,
+            proposed_slot_end = case id when $1 then $4::timestamptz else $6::timestamptz end,
+            updated_at = now()
+      where id in ($1,$2)`,
+    [left.id, right.id, next.a.start, next.a.end, next.b.start, next.b.end],
+  );
+  return { ok: true as const, leftName: left.customer_name, rightName: right.customer_name };
+}
+
 async function performCancelStudioJob(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z.object({ id: z.string() }).parse(raw);
@@ -4135,6 +4207,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performDeleteStudioExpense(userId, payload);
     case "updateStudioJob":
       return performUpdateStudioJob(userId, payload);
+    case "swapStudioJobs":
+      return performSwapStudioJobs(userId, payload);
     case "cancelStudioJob":
       return performCancelStudioJob(userId, payload);
     case "addStudioPayment":

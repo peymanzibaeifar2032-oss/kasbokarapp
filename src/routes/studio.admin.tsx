@@ -1824,6 +1824,7 @@ function MonthJobsPanel({
               busyKeys={bookings
                 .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
                 .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              bookings={bookings}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
             />
@@ -1871,6 +1872,7 @@ function MonthJobsPanel({
               busyKeys={bookings
                 .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
                 .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              bookings={bookings}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
             />
@@ -1887,6 +1889,7 @@ function MonthJobsPanel({
               busyKeys={bookings
                 .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
                 .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              bookings={bookings}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
             />
@@ -2407,11 +2410,13 @@ function Fold({ title, children }: { title: string; children: ReactNode }) {
 function MonthJobCard({
   job,
   busyKeys,
+  bookings,
   onChange,
   file,
 }: {
   job: TattooRequest & { customerFile?: CustomerFileBrief | null };
   busyKeys: string[];
+  bookings: Booking[];
   onChange: () => void;
   file: CustomerFileBrief | null;
 }) {
@@ -2522,6 +2527,25 @@ function MonthJobCard({
     }
   }
 
+  async function swapJob(otherBookingId: string, otherName: string) {
+    setBusy(true);
+    try {
+      await saveAction("swapStudioJobs", { id: job.id, otherBookingId });
+      toast.success(`روز ${job.customerName} با ${otherName} عوض شد. ساعت هر کدام سر جای خودش ماند.`);
+      setMoving(false);
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const swapPartners = bookings.filter((booking) => {
+    if (booking.kind !== "booking" || booking.status === "cancelled" || booking.id === job.bookingId) return false;
+    return tehranDayKey(new Date(booking.slotStart)) === moveDay;
+  });
+
   async function removeJob() {
     if (!confirmDelete) {
       setConfirmDelete(true);
@@ -2578,6 +2602,14 @@ function MonthJobCard({
           <Button size="sm" disabled={busy} onClick={() => void moveJob()}>
             {busy ? "در حال انتقال…" : "ذخیره در روز جدید"}
           </Button>
+          {swapPartners.map((partner) => (
+            <Button key={partner.id} size="sm" variant="outline" disabled={busy} onClick={() => void swapJob(partner.id, partner.customerName || "این مشتری")}>
+              {busy ? "در حال جابه‌جایی…" : `جابه‌جایی با ${partner.customerName || "این مشتری"}`}
+            </Button>
+          ))}
+          {swapPartners.length ? (
+            <p className="text-xs leading-6 text-muted">روزها عوض می‌شود و ساعت شروع هر مشتری همان ساعت قبلی خودش می‌ماند. پول و طرح جابه‌جا نمی‌شود.</p>
+          ) : null}
         </div>
       ) : null}
       <Fold title="مشخصات">

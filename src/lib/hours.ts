@@ -29,6 +29,19 @@ export function tehranLocalToIso(y: number, m: number, day: number, hh: number, 
   return new Date(Date.UTC(y, m - 1, day, hh, mm) - TEHRAN_OFFSET_MS).toISOString();
 }
 
+/** Keep each person's clock time, exchange only the Tehran calendar day. */
+export function swapDaySlots(aStart: string, aMinutes: number, bStart: string, bMinutes: number) {
+  const aTime = tehranClock(new Date(aStart));
+  const bTime = tehranClock(new Date(bStart));
+  if (aTime.y === bTime.y && aTime.m === bTime.m && aTime.day === bTime.day) return null;
+  const aNext = tehranLocalToIso(bTime.y, bTime.m, bTime.day, aTime.hh, aTime.mm);
+  const bNext = tehranLocalToIso(aTime.y, aTime.m, aTime.day, bTime.hh, bTime.mm);
+  return {
+    a: { start: aNext, end: new Date(Date.parse(aNext) + aMinutes * 60000).toISOString() },
+    b: { start: bNext, end: new Date(Date.parse(bNext) + bMinutes * 60000).toISOString() },
+  };
+}
+
 export function tehranDayKey(date = new Date()) {
   const clock = tehranClock(date);
   return `${clock.y}-${String(clock.m).padStart(2, "0")}-${String(clock.day).padStart(2, "0")}`;
