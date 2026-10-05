@@ -12,9 +12,11 @@ function onDay(request: TattooRequest, dayKey: string) {
 export function StudioTomorrowDesk({
   requests,
   onOpenReceipts,
+  showToday = false,
 }: {
   requests: TattooRequest[];
   onOpenReceipts: () => void;
+  showToday?: boolean;
 }) {
   const todayKey = tehranDayKey();
   const todayJobs = requests
@@ -27,6 +29,8 @@ export function StudioTomorrowDesk({
     const left = new Date(request.paymentHoldUntil).getTime() - Date.now();
     return left > 0 && left <= 2 * 60 * 60 * 1000;
   });
+
+  if (!showToday && !receipts.length && !expiring.length) return null;
 
   return (
     <div className="mt-5 grid gap-3">
@@ -48,6 +52,7 @@ export function StudioTomorrowDesk({
         </div>
       ) : null}
 
+      {showToday ? (
       <section className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="font-bold">امروز</h2>
         <p className="mt-1 text-sm leading-6 text-muted">اسم، شماره، محل اجرا، واریزی و مانده. یادآوری، کارت و شبا، و مراقبت بعد را همین امروز از پیامک خودت می‌فرستی.</p>
@@ -91,6 +96,7 @@ export function StudioTomorrowDesk({
           })}
         </div>
       </section>
+      ) : null}
     </div>
   );
 }

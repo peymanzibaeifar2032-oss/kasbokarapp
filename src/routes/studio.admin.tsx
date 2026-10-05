@@ -400,9 +400,10 @@ function StudioAdminPage() {
       {tab === "messages" ? <ReadyMessages /> : null}
       {tab === "consent" ? <ConsentBoard /> : null}
 
-      {!loading && !error && tab !== "messages" && tab !== "consent" ? (
+      {!loading && !error && (tab === "calendar" || tab === "jobs" || tab === "requests") ? (
         <StudioTomorrowDesk
           requests={requests}
+          showToday={tab === "calendar" || tab === "jobs"}
           onOpenReceipts={() => {
             setTab("requests");
             setFilter("receipt");
@@ -1954,12 +1955,6 @@ function MonthJobsPanel({
           ))
         : null}
 
-      <ClearCalendarBox
-        onCleared={() => {
-          setJobs([]);
-          void refreshAll();
-        }}
-      />
     </div>
   );
 }
@@ -2506,6 +2501,7 @@ function MonthJobCard({
   const [moveDay, setMoveDay] = useState(tehranDateInput(job.proposedSlotStart));
   const [moveTime, setMoveTime] = useState(tehranTimeInput(job.proposedSlotStart));
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [details, setDetails] = useState(false);
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
   const when = job.proposedSlotStart || job.updatedAt;
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
@@ -2670,6 +2666,9 @@ function MonthJobCard({
         >
           {confirmDelete ? "مطمئنی؟ این روز حذف شود" : "حذف این نوبت"}
         </Button>
+        <Button size="sm" variant="outline" onClick={() => setDetails((value) => !value)}>
+          {details ? "بستن جزئیات" : "جزئیات بیشتر"}
+        </Button>
       </div>
       {moving ? (
         <div className="mt-3 grid gap-3 rounded-2xl border border-border p-3">
@@ -2693,6 +2692,8 @@ function MonthJobCard({
           </Button>
         </div>
       ) : null}
+      {details ? (
+      <>
       <Fold title="مشخصات">
         <ReplySeen request={job} />
         {job.sessionMinutes ? <p className="text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
@@ -2880,42 +2881,8 @@ function MonthJobCard({
       <Fold title="زمان و جلسه بعد">
         <BookedSlotActions request={job} busyKeys={busyKeys} onChange={onChange} showSms={false} />
       </Fold>
-    </article>
-  );
-}
-
-function ClearCalendarBox({ onCleared }: { onCleared: () => void }) {
-  const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function clear() {
-    if (confirm !== "پاک شود") {
-      toast.error('برای تأیید بنویسید: پاک شود');
-      return;
-    }
-    setBusy(true);
-    try {
-      await saveAction("clearStudioCalendar", { confirm: "پاک شود" });
-      toast.success("ثبت‌های تقویم کاری پاک شد. لیست تمیز است؛ نوبت‌ها را دستی وارد کنید.");
-      setConfirm("");
-      onCleared();
-    } catch (err) {
-      toast.error(friendlyError(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <article className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
-      <h3 className="font-semibold text-destructive">پاک‌کردن ثبت‌های تقویم کاری</h3>
-      <p className="mt-2 text-sm leading-7 text-muted">
-        نوبت‌های ثبت‌شده تا الان لغو می‌شوند تا لیست تمیز شود. درخواست‌های مشتری سر جایشان می‌مانند. تاریخ‌های ۵، ۹ و ۱۴ آبان را بعداً دستی وارد کنید.
-      </p>
-      <Field label='برای تأیید بنویسید: پاک شود'>
-        <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="پاک شود" />
-      </Field>
-      <Button className="mt-3" variant="danger" disabled={busy || confirm !== "پاک شود"} onClick={() => void clear()}>
-        پاک‌کردن تقویم کاری
-      </Button>
+      </>
+      ) : null}
     </article>
   );
 }
