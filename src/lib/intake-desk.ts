@@ -17,6 +17,7 @@ export type IntakeDraft = {
   sizeLabel: string;
   imageDesign: boolean;
   imageCurrent: boolean;
+  preferredDay: string;
 };
 
 export type IntakeChip = { id: string; label: string };
@@ -44,6 +45,7 @@ export type IntakePayload = {
   sizeMode: string;
   colorMode: string;
   bodySide: string;
+  preferredDates?: string;
 };
 
 const ORDER: IntakeStep[] = ["name", "phone", "type", "part", "side", "size", "design", "body", "confirm"];
@@ -57,12 +59,12 @@ const TYPES = [
   ["custom", "طراحی اختصاصی"],
 ] as const;
 
-export function startIntake(): IntakeTurn {
-  return speak(blank(), [
-    "پاسخ سریع درخواست.",
-    "اگر سؤالی درباره تاتو داری همین حالا بپرس. هر سؤالی.",
-    "وقتی سؤال‌هایت تمام شد بنویس درخواست، تا فرم را با هم کامل کنیم.",
-  ]);
+export function startIntake(preferredDay = ""): IntakeTurn {
+  const draft = { ...blank(), preferredDay };
+  const say = preferredDay
+    ? [`روز انتخابی تو: ${preferredDay}.`, "اگر سؤالی درباره تاتو داری همین حالا بپرس.", "وقتی سؤال‌هایت تمام شد بنویس درخواست."]
+    : ["پاسخ سریع درخواست.", "اگر سؤالی درباره تاتو داری همین حالا بپرس. هر سؤالی.", "وقتی سؤال‌هایت تمام شد بنویس درخواست، تا فرم را با هم کامل کنیم."];
+  return speak(draft, say);
 }
 
 export function answerIntake(draft: IntakeDraft, raw: string, images?: { design?: boolean; current?: boolean }): IntakeTurn {
@@ -248,6 +250,7 @@ function summary(draft: IntakeDraft) {
     `اندازه: ${sizeText(draft)}`,
     `عکس طرح: ${draft.imageDesign ? "دارد" : "ندارد"}`,
     needsBody(draft) ? `عکس تاتوی فعلی: ${draft.imageCurrent ? "دارد" : "ندارد"}` : "",
+    draft.preferredDay ? `روز درخواستی: ${draft.preferredDay}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -268,6 +271,7 @@ function toPayload(draft: IntakeDraft): IntakePayload {
     sizeMode: draft.sizeLabel ? "approx" : "cm",
     colorMode: "",
     bodySide: draft.side,
+    preferredDates: draft.preferredDay || undefined,
   };
 }
 
@@ -293,6 +297,7 @@ function blank(): IntakeDraft {
     sizeLabel: "",
     imageDesign: false,
     imageCurrent: false,
+    preferredDay: "",
   };
 }
 

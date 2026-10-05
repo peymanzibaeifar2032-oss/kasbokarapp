@@ -10,9 +10,11 @@ type Line = { from: "desk" | "customer"; text: string };
 
 export function IntakeDesk({
   busy,
+  preferredDay = "",
   onSubmit,
 }: {
   busy: boolean;
+  preferredDay?: string;
   onSubmit: (payload: IntakePayload & { images: WizardImage[] }) => void;
 }) {
   const opened = useRef(false);
@@ -28,7 +30,7 @@ export function IntakeDesk({
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
-    const first = startIntake();
+    const first = startIntake(preferredDay);
     setDraft(first.draft);
     setLines(first.say.map((text) => ({ from: "desk", text })));
     setChips(first.chips);

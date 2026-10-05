@@ -53,11 +53,13 @@ export function TattooRequestWizard({
   busy,
   initialName,
   initialPhone,
+  initialPreferred = "",
   onSubmit,
 }: {
   busy: boolean;
   initialName: string;
   initialPhone: string;
+  initialPreferred?: string;
   onSubmit: (payload: WizardPayload) => void;
 }) {
   const [step, setStep] = useState(0);
@@ -76,7 +78,7 @@ export function TattooRequestWizard({
   const [colorMode, setColorMode] = useState("blackgrey");
   const [images, setImages] = useState<WizardImage[]>([]);
   const [idea, setIdea] = useState("");
-  const [preferredDates, setPreferredDates] = useState("");
+  const [preferredDates, setPreferredDates] = useState(initialPreferred);
 
   useEffect(() => {
     if (initialName) setName((current) => current || initialName);

@@ -244,6 +244,50 @@ async function lookup(request: Request) {
   return json({ error: "کد پیگیری ۶ رقمی یا شماره موبایل را بنویس." }, 400);
 }
 
+async function openDays() {
+  const sql = await getSql();
+  try {
+    const owners = await sql.query<{ id: string }>(
+      `select id from "user" where lower(email) = $1 limit 1`,
+      ["peyman.zibaeifar2032@gmail.com"],
+    );
+    const ownerId = owners[0]?.id;
+    if (!ownerId) return json({ ok: false, days: [] });
+    const shops = await sql.query<{ id: string }>(
+      `select id from businesses
+        where owner_id = $1
+        order by case when name ilike '%پیمان%' or name ilike '%تاتو%' then 0 else 1 end
+        limit 1`,
+      [ownerId],
+    );
+    const businessId = shops[0]?.id;
+    if (!businessId) return json({ ok: false, days: [] });
+    const rows = await sql.query<{ day: string }>(
+      `select distinct to_char((slot_start at time zone 'Asia/Tehran')::date, 'YYYY-MM-DD') as day
+         from bookings
+        where business_id = $1
+          and status in ('requested', 'confirmed')
+          and kind in ('booking', 'block')
+          and artist_id is null
+          and slot_start >= now() - interval '2 days'
+          and slot_start < now() + interval '75 days'
+       union
+       select distinct to_char((proposed_slot_start at time zone 'Asia/Tehran')::date, 'YYYY-MM-DD')
+         from tattoo_requests
+        where business_id = $1
+          and status = 'booked'
+          and artist_id is null
+          and proposed_slot_start is not null
+          and proposed_slot_start >= now() - interval '2 days'
+          and proposed_slot_start < now() + interval '75 days'`,
+      [businessId],
+    );
+    return json({ ok: true, days: rows.map((row) => row.day).filter(Boolean) });
+  } catch {
+    return json({ ok: false, days: [] });
+  }
+}
+
 async function handle(request: Request) {
   try {
     if (!sameOrigin(request)) return json({ error: "این درخواست مجاز نیست." }, 403);
@@ -263,6 +307,11 @@ async function handle(request: Request) {
 export const Route = createFileRoute("/api/tattoo-public")({
   server: {
     handlers: {
+      GET: ({ request }) => {
+        const op = new URL(request.url).searchParams.get("op");
+        if (op === "open-days") return openDays();
+        return json({ error: "این درخواست مجاز نیست." }, 404);
+      },
       POST: ({ request }) => handle(request),
     },
   },

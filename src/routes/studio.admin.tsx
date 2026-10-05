@@ -88,6 +88,11 @@ function ReadyMessages() {
       ltr: true,
     },
     {
+      title: "روزهای خالی برای استوری",
+      text: "https://kasbokarapp.com/studio/open",
+      ltr: true,
+    },
+    {
       title: "۴. لینک پنل ادمین",
       text: "https://kasbokarapp.com/studio/admin",
       ltr: true,

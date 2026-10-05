@@ -37,6 +37,9 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                 <Link to="/studio/request" className="flex h-14 items-center justify-center rounded-2xl bg-[#b7955b] text-sm font-bold text-black">
                   درخواست نوبت
                 </Link>
+                <Link to="/studio/open" className="flex h-14 items-center justify-center rounded-2xl bg-emerald-500/20 text-sm font-bold text-emerald-50">
+                  روزهای خالی
+                </Link>
                 <Link to="/studio/status" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
                   وضعیت نوبت{unread > 0 ? ` · ${new Intl.NumberFormat("fa-IR").format(unread)}` : ""}
                 </Link>
@@ -93,6 +96,12 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                     {unread > 9 ? "۹+" : new Intl.NumberFormat("fa-IR").format(unread)}
                   </span>
                 ) : null}
+              </Link>
+              <Link
+                to="/studio/open"
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-emerald-300/40 px-3 text-sm text-emerald-100"
+              >
+                روز خالی
               </Link>
               <Link
                 to="/studio/designs"

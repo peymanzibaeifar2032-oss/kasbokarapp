@@ -106,6 +106,12 @@ function StudioLanding() {
                     اپ روی گوشی
                   </Link>
                   <Link
+                    to="/studio/open"
+                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-emerald-300/40 px-3 text-sm text-emerald-100"
+                  >
+                    روزهای خالی
+                  </Link>
+                  <Link
                     to="/studio/designs"
                     className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
                   >

@@ -14,16 +14,24 @@ import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { compressImage, designFileName, downloadImage } from "@/lib/design-images";
 import { formatFaDate, formatFaDateTime, formatToman, addBookingToPhoneCalendar } from "@/lib/format";
+import { jalaliDayLabel } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { TATTOO_CUSTOMER_STAGE_LABEL, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
 import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
 import type { Profile, TattooRequest } from "@/lib/types";
 
-export const Route = createFileRoute("/studio/request")({ component: StudioRequestPage });
+export const Route = createFileRoute("/studio/request")({
+  validateSearch: (search: Record<string, unknown>): { day?: string } => {
+    return typeof search.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(search.day) ? { day: search.day } : {};
+  },
+  component: StudioRequestPage,
+});
 
 function StudioRequestPage() {
   const { user } = useCurrentUserState();
   const { showAdmin } = useStudioAdminEntry();
+  const { day } = Route.useSearch();
+  const preferredDay = dayLabel(day);
   const userId = user?.id;
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [name, setName] = useState("");
@@ -154,10 +162,15 @@ function StudioRequestPage() {
             </a>
           ) : null}
 
+          {preferredDay ? (
+            <p className="mt-4 rounded-2xl bg-emerald-500/15 px-4 py-3 text-sm leading-7 text-emerald-50">
+              روزی که انتخاب کردی: {preferredDay}. این درخواست است، هنوز نوبت قطعی نیست.
+            </p>
+          ) : null}
           {useForm ? (
-            <TattooRequestWizard busy={busy} initialName={name} initialPhone={phone} onSubmit={(payload) => void submit(payload)} />
+            <TattooRequestWizard busy={busy} initialName={name} initialPhone={phone} initialPreferred={preferredDay} onSubmit={(payload) => void submit(payload)} />
           ) : (
-            <IntakeDesk busy={busy} onSubmit={(payload) => void submit(payload)} />
+            <IntakeDesk busy={busy} preferredDay={preferredDay} onSubmit={(payload) => void submit(payload)} />
           )}
           <button type="button" className="mt-4 text-sm text-[#e5d2ae]" onClick={() => setUseForm((value) => !value)}>
             {useForm ? "برگشت به پاسخ سریع" : "اگر گفتگو قطع شد، فرم را خودم پر می‌کنم"}
@@ -206,6 +219,13 @@ function StudioRequestPage() {
       </main>
     </StudioRequestChrome>
   );
+}
+
+function dayLabel(day: string | undefined) {
+  if (!day) return "";
+  const [y, m, d] = day.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return jalaliDayLabel(y, m, d);
 }
 
 function StudioRequestChrome({ children }: { children: React.ReactNode }) {

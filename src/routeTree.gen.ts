@@ -43,6 +43,7 @@ import { Route as StudioAppRouteImport } from './routes/studio.app'
 import { Route as StudioCareRouteImport } from './routes/studio.care'
 import { Route as StudioDesignsRouteImport } from './routes/studio.designs'
 import { Route as StudioGuideRouteImport } from './routes/studio.guide'
+import { Route as StudioOpenRouteImport } from './routes/studio.open'
 import { Route as StudioPocketRouteImport } from './routes/studio.pocket'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
 import { Route as StudioStatusRouteImport } from './routes/studio.status'
@@ -221,6 +222,11 @@ const StudioGuideRoute = StudioGuideRouteImport.update({
   path: '/guide',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioOpenRoute = StudioOpenRouteImport.update({
+  id: '/open',
+  path: '/open',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioPocketRoute = StudioPocketRouteImport.update({
   id: '/pocket',
   path: '/pocket',
@@ -292,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
@@ -335,6 +342,7 @@ export interface FileRoutesByTo {
   '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
@@ -379,6 +387,7 @@ export interface FileRoutesById {
   '/studio/care': typeof StudioCareRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
@@ -424,6 +433,7 @@ export interface FileRouteTypes {
     | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
@@ -467,6 +477,7 @@ export interface FileRouteTypes {
     | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
@@ -510,6 +521,7 @@ export interface FileRouteTypes {
     | '/studio/care'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
@@ -794,6 +806,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioGuideRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/open': {
+      id: '/studio/open'
+      path: '/open'
+      fullPath: '/studio/open'
+      preLoaderRoute: typeof StudioOpenRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/pocket': {
       id: '/studio/pocket'
       path: '/pocket'
@@ -864,6 +883,7 @@ interface StudioRouteChildren {
   StudioCareRoute: typeof StudioCareRoute
   StudioDesignsRoute: typeof StudioDesignsRoute
   StudioGuideRoute: typeof StudioGuideRoute
+  StudioOpenRoute: typeof StudioOpenRoute
   StudioPocketRoute: typeof StudioPocketRoute
   StudioRequestRoute: typeof StudioRequestRoute
   StudioStatusRoute: typeof StudioStatusRoute
@@ -875,6 +895,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioCareRoute: StudioCareRoute,
   StudioDesignsRoute: StudioDesignsRoute,
   StudioGuideRoute: StudioGuideRoute,
+  StudioOpenRoute: StudioOpenRoute,
   StudioPocketRoute: StudioPocketRoute,
   StudioRequestRoute: StudioRequestRoute,
   StudioStatusRoute: StudioStatusRoute,
