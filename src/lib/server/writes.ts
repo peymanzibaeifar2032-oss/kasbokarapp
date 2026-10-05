@@ -3101,6 +3101,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     })).max(3).optional(),
     slotStart: z.string().optional(),
     sessionMinutes: z.number().int().min(10).max(4320).optional(),
+    exchangeDay: z.boolean().optional(),
   }).parse(raw);
   const sql = await getSql();
   const current = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
@@ -3180,7 +3181,14 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
       seat[0]?.resource_id ?? null,
       panelClashScope(actor),
     );
-    if (clash) throw new Error(studioClashMessage(clash));
+    if (clash) {
+      const ownDay = current[0].proposed_slot_start ? tehranDayKey(new Date(current[0].proposed_slot_start)) : "";
+      const otherDay = tehranDayKey(new Date(clash.slot_start));
+      if (data.exchangeDay && clash.kind !== "block" && clash.id && ownDay && ownDay !== otherDay) {
+        return performSwapStudioJobs(userId, { id: data.id, otherBookingId: clash.id });
+      }
+      throw new Error(studioClashMessage(clash));
+    }
     await sql.query(
       `update tattoo_requests
           set proposed_slot_start=$2, proposed_slot_end=$3, session_minutes=$4, updated_at=now()

@@ -1825,6 +1825,7 @@ function MonthJobsPanel({
                 .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
                 .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
               bookings={bookings}
+              peers={jobs}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
             />
@@ -1873,6 +1874,7 @@ function MonthJobsPanel({
                 .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
                 .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
               bookings={bookings}
+              peers={jobs}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
             />
@@ -1890,6 +1892,7 @@ function MonthJobsPanel({
                 .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
                 .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
               bookings={bookings}
+              peers={jobs}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
             />
@@ -2411,12 +2414,14 @@ function MonthJobCard({
   job,
   busyKeys,
   bookings,
+  peers = [],
   onChange,
   file,
 }: {
   job: TattooRequest & { customerFile?: CustomerFileBrief | null };
   busyKeys: string[];
   bookings: Booking[];
+  peers?: TattooRequest[];
   onChange: () => void;
   file: CustomerFileBrief | null;
 }) {
@@ -2508,16 +2513,26 @@ function MonthJobCard({
 
   async function moveJob() {
     if (!moveDay || !moveTime) return toast.error("تاریخ و ساعت جدید را انتخاب کن.");
+    const partner = swapPartners.length === 1 ? swapPartners[0] : null;
+    if (partner) {
+      await swapJob(partner.id, partner.customerName || "این مشتری");
+      return;
+    }
     const [y, m, d] = moveDay.split("-").map(Number);
     const [hh, mm] = moveTime.split(":").map(Number);
     setBusy(true);
     try {
-      await saveAction("updateStudioJob", {
+      const saved = await saveAction<{ rightName?: string }>("updateStudioJob", {
         id: job.id,
         slotStart: tehranLocalToIso(y, m, d, hh, mm),
         sessionMinutes: job.sessionMinutes ?? undefined,
+        exchangeDay: true,
       });
-      toast.success("منتقل شد. روز قبلی در تقویم و لیست خالی شد.");
+      toast.success(
+        saved?.rightName
+          ? `روز ${job.customerName} با ${saved.rightName} عوض شد. مشخصات هر کدام سر جایش ماند.`
+          : "منتقل شد. روز قبلی در تقویم و لیست خالی شد.",
+      );
       setMoving(false);
       onChange();
     } catch (err) {
@@ -2541,10 +2556,20 @@ function MonthJobCard({
     }
   }
 
-  const swapPartners = bookings.filter((booking) => {
-    if (booking.kind !== "booking" || booking.status === "cancelled" || booking.id === job.bookingId) return false;
-    return tehranDayKey(new Date(booking.slotStart)) === moveDay;
-  });
+  const swapPartners = (() => {
+    const rows = new Map<string, { id: string; customerName: string }>();
+    for (const booking of bookings) {
+      if (booking.kind !== "booking" || booking.status === "cancelled" || booking.id === job.bookingId) continue;
+      if (tehranDayKey(new Date(booking.slotStart)) !== moveDay) continue;
+      rows.set(booking.id, { id: booking.id, customerName: booking.customerName || "این مشتری" });
+    }
+    for (const peer of peers) {
+      if (peer.id === job.id || !peer.bookingId || !peer.proposedSlotStart) continue;
+      if (tehranDayKey(new Date(peer.proposedSlotStart)) !== moveDay) continue;
+      if (!rows.has(peer.bookingId)) rows.set(peer.bookingId, { id: peer.bookingId, customerName: peer.customerName });
+    }
+    return [...rows.values()];
+  })();
 
   async function removeJob() {
     if (!confirmDelete) {
@@ -2592,7 +2617,11 @@ function MonthJobCard({
       </div>
       {moving ? (
         <div className="mt-3 grid gap-3 rounded-2xl border border-border p-3">
-          <p className="text-xs leading-6 text-muted">همان مشتری، طرح و واریزی می‌ماند. فقط روز و ساعت عوض می‌شود و روز قبلی خالی می‌شود.</p>
+          <p className="text-xs leading-6 text-muted">
+            {swapPartners.length
+              ? `اگر ذخیره را بزنی، فقط روز ${job.customerName} با ${swapPartners.map((partner) => partner.customerName).join(" و ")} عوض می‌شود. طرح، عکس و واریزی هر کدام سر جایش می‌ماند.`
+              : "اگر این روز خالی باشد فقط همین مشتری منتقل می‌شود. اگر مشتری دیگری همان ساعت را داشته باشد، روزشان با هم عوض می‌شود و مشخصات قاطی نمی‌شود."}
+          </p>
           <Field label="تاریخ جدید">
             <JalaliDatePicker value={moveDay} onChange={setMoveDay} label="انتخاب روز" busyKeys={busyKeys} />
           </Field>
@@ -2600,16 +2629,12 @@ function MonthJobCard({
             <Input type="time" value={moveTime} onChange={(e) => setMoveTime(e.target.value)} />
           </Field>
           <Button size="sm" disabled={busy} onClick={() => void moveJob()}>
-            {busy ? "در حال انتقال…" : "ذخیره در روز جدید"}
+            {busy
+              ? "در حال جابه‌جایی…"
+              : swapPartners.length === 1
+                ? `جابه‌جایی روز با ${swapPartners[0]?.customerName}`
+                : "ذخیره در روز جدید"}
           </Button>
-          {swapPartners.map((partner) => (
-            <Button key={partner.id} size="sm" variant="outline" disabled={busy} onClick={() => void swapJob(partner.id, partner.customerName || "این مشتری")}>
-              {busy ? "در حال جابه‌جایی…" : `جابه‌جایی با ${partner.customerName || "این مشتری"}`}
-            </Button>
-          ))}
-          {swapPartners.length ? (
-            <p className="text-xs leading-6 text-muted">روزها عوض می‌شود و ساعت شروع هر مشتری همان ساعت قبلی خودش می‌ماند. پول و طرح جابه‌جا نمی‌شود.</p>
-          ) : null}
         </div>
       ) : null}
       <Fold title="مشخصات">
