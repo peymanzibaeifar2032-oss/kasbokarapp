@@ -13,6 +13,8 @@ const consentInput = z.object({
   phone: z.string().trim().min(10).max(20),
   placement: z.string().trim().min(2).max(120),
   sizeCm: z.string().trim().min(1).max(40),
+  priceToman: z.number().int().min(0).max(5_000_000_000),
+  paidToman: z.number().int().min(0).max(5_000_000_000),
   designImage: imageDataSchema,
 });
 
@@ -28,9 +30,13 @@ async function ensureConsentTable(sql: Awaited<ReturnType<typeof getSql>>) {
       placement text not null,
       size_cm text not null,
       design_image text not null,
+      price_toman bigint not null default 0,
+      paid_toman bigint not null default 0,
       created_at timestamptz not null default now()
     )`,
   );
+  await sql.query(`alter table studio_consents add column if not exists price_toman bigint not null default 0`);
+  await sql.query(`alter table studio_consents add column if not exists paid_toman bigint not null default 0`);
 }
 
 export async function performSaveStudioConsent(sql: Awaited<ReturnType<typeof getSql>>, userId: string, raw: unknown) {
@@ -41,9 +47,9 @@ export async function performSaveStudioConsent(sql: Awaited<ReturnType<typeof ge
     try {
       const id = crypto.randomUUID();
       await sql.query(
-        `insert into studio_consents (id, user_id, code, customer_name, national_id, phone, placement, size_cm, design_image)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [id, userId, code, data.customerName, data.nationalId, data.phone, data.placement, data.sizeCm, data.designImage],
+        `insert into studio_consents (id, user_id, code, customer_name, national_id, phone, placement, size_cm, design_image, price_toman, paid_toman)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [id, userId, code, data.customerName, data.nationalId, data.phone, data.placement, data.sizeCm, data.designImage, data.priceToman, data.paidToman],
       );
       return { id, code };
     } catch (error) {
@@ -84,9 +90,12 @@ export async function performStudioConsent(sql: Awaited<ReturnType<typeof getSql
     placement: string;
     size_cm: string;
     design_image: string;
+    price_toman: string | number;
+    paid_toman: string | number;
     created_at: string;
   }>(
-    `select code, customer_name, national_id, phone, placement, size_cm, design_image, created_at
+    `select code, customer_name, national_id, phone, placement, size_cm, design_image,
+            coalesce(price_toman, 0) as price_toman, coalesce(paid_toman, 0) as paid_toman, created_at
        from studio_consents
       where user_id = $1 and code = $2
       limit 1`,
@@ -101,6 +110,8 @@ export async function performStudioConsent(sql: Awaited<ReturnType<typeof getSql
     phone: row.phone,
     placement: row.placement,
     sizeCm: row.size_cm,
+    priceToman: Number(row.price_toman) || 0,
+    paidToman: Number(row.paid_toman) || 0,
     designImage: row.design_image,
     createdAt: row.created_at,
   };

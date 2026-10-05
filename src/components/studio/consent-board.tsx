@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { compressImage, downloadImage } from "@/lib/design-images";
 import { formatFaDate, isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
-import { digitsOnly } from "@/lib/tattoo-flow";
+import { digitsOnly, formatGroupedDigits, formatTattooToman } from "@/lib/tattoo-flow";
 
 type ConsentRecord = {
   code: string;
@@ -14,6 +14,8 @@ type ConsentRecord = {
   phone: string;
   placement: string;
   sizeCm: string;
+  priceToman: number;
+  paidToman: number;
   designImage: string;
   createdAt: string;
 };
@@ -34,7 +36,7 @@ const LINES = [
   "۵. بارداری، شیردهی، بیماری پوستی فعال، دیابت کنترل‌نشده، مشکل انعقاد، مصرف الکل یا داروی رقیق‌کننده را پنهان نکرده‌ام. اگر چیزی را نگفته باشم، عارضهٔ ناشی از آن بر عهدهٔ خودم است.",
   "۶. مراقبت بعد از تاتو را که آرتیست گفته انجام می‌دهم. کوتاهی در شستشو، چرب کردن، آفتاب، استخر، سونا و مشروب بر عهدهٔ خودم است.",
   "۷. مبلغ و بیعانهٔ توافق‌شده را قبول دارم. با شروع اجرا، بیعانه بابت وقت رزروشده برنمی‌گردد.",
-  "۸. اجازه می‌دهم عکس کار، بدون چهره، برای نمونه کار استودیو استفاده شود. اگر این بند را نمی‌خواهم، همین خط را خط می‌زنم.",
+  "۸. اجازه می‌دهم عکس کار، بدون چهره، برای نمونه کار استودیو استفاده شود.",
 ];
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, width: number) {
@@ -61,70 +63,116 @@ async function loadImage(src: string) {
 
 export async function drawConsentSheet(form: ConsentRecord) {
   await document.fonts.load("16px Vazirmatn Variable");
-  const width = 1240;
-  const height = 1754;
+  const width = 1654;
+  const height = 2339;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("برگه ساخته نشد.");
+  const margin = 72;
+  const right = width - margin;
   ctx.fillStyle = "#fffdf8";
   ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#b7955b";
+  ctx.fillRect(0, 0, width, 16);
   ctx.direction = "rtl";
   ctx.textAlign = "right";
-  ctx.fillStyle = "#1a1a1a";
-  ctx.font = "700 42px Vazirmatn Variable";
-  ctx.fillText("رضایت‌نامه اجرای تاتو", width - 64, 90);
+  ctx.fillStyle = "#1c1c1c";
+  ctx.font = "700 54px Vazirmatn Variable";
+  ctx.fillText("رضایت‌نامه اجرای تاتو", right, 96);
   ctx.font = "28px Vazirmatn Variable";
   ctx.fillStyle = "#6b5424";
-  ctx.fillText("استودیو پیمان زیبائی‌فر · کرمانشاه", width - 64, 136);
-  ctx.fillStyle = "#1a1a1a";
+  ctx.fillText("استودیو پیمان زیبائی‌فر  ·  کرمانشاه", right, 146);
+  ctx.fillStyle = "#1c1c1c";
   ctx.font = "700 26px Vazirmatn Variable";
-  ctx.fillText(`کد پیگیری: ${form.code}`, width - 64, 184);
-  const date = formatFaDate(form.createdAt);
-  const facts = [
-    `نام: ${form.customerName}`,
-    `کد ملی: ${form.nationalId}`,
-    `تلفن: ${form.phone}`,
-    `محل اجرا: ${form.placement}`,
-    `ابعاد: ${form.sizeCm}`,
-    `تاریخ تنظیم: ${date}`,
-  ];
+  ctx.fillText(`کد پیگیری  ${form.code}`, right, 196);
   ctx.font = "26px Vazirmatn Variable";
-  facts.forEach((line, index) => ctx.fillText(line, width - 64, 250 + index * 40));
+  ctx.fillText(formatFaDate(form.createdAt), margin + 280, 196);
+
+  const photoX = margin;
+  const photoY = 240;
+  const photoW = 680;
+  const photoH = 760;
+  ctx.fillStyle = "#f6f1e7";
+  ctx.fillRect(photoX, photoY, photoW, photoH);
+  ctx.strokeStyle = "#d9c7a2";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(photoX, photoY, photoW, photoH);
   const photo = await loadImage(form.designImage);
-  const maxW = 460;
-  const maxH = 320;
-  const scale = Math.min(maxW / photo.width, maxH / photo.height, 1);
+  const scale = Math.min(photoW / photo.width, photoH / photo.height);
   const pw = photo.width * scale;
   const ph = photo.height * scale;
-  const px = 64;
-  const py = 230;
-  ctx.strokeStyle = "#d8ccb4";
-  ctx.strokeRect(px - 8, py - 8, pw + 16, ph + 16);
-  ctx.drawImage(photo, px, py, pw, ph);
+  ctx.drawImage(photo, photoX + (photoW - pw) / 2, photoY + (photoH - ph) / 2, pw, ph);
   ctx.font = "22px Vazirmatn Variable";
-  ctx.fillText("تصویر طرح مورد تأیید", px + pw - 8, py + ph + 36);
-  let y = 540;
-  ctx.font = "24px Vazirmatn Variable";
-  for (const paragraph of LINES) {
-    for (const line of wrap(ctx, paragraph, width - 128)) {
-      ctx.fillText(line, width - 64, y);
-      y += 36;
-    }
-    y += 10;
-  }
-  y = Math.max(y + 20, 1420);
-  ctx.strokeStyle = "#1a1a1a";
+  ctx.fillStyle = "#6b5424";
+  ctx.textAlign = "center";
+  ctx.direction = "rtl";
+  ctx.fillText("طرح مورد تأیید", photoX + photoW / 2, photoY + photoH + 36);
+  ctx.textAlign = "right";
+
+  const facts: Array<[string, string]> = [
+    ["نام", form.customerName],
+    ["کد ملی", form.nationalId],
+    ["تلفن", form.phone],
+    ["محل اجرا", form.placement],
+    ["ابعاد", form.sizeCm],
+    ["مبلغ اجرا", formatTattooToman(form.priceToman)],
+    ["واریزی", formatTattooToman(form.paidToman)],
+  ];
+  const factLeft = photoX + photoW + 48;
+  facts.forEach(([label, value], index) => {
+    const y = photoY + 28 + index * 104;
+    ctx.font = "22px Vazirmatn Variable";
+    ctx.fillStyle = "#8a7040";
+    ctx.fillText(label, right, y);
+    ctx.font = "700 32px Vazirmatn Variable";
+    ctx.fillStyle = "#1c1c1c";
+    ctx.fillText(value, right, y + 44);
+    ctx.strokeStyle = "#eadfcb";
+    ctx.beginPath();
+    ctx.moveTo(factLeft, y + 64);
+    ctx.lineTo(right, y + 64);
+    ctx.stroke();
+  });
+
+  let y = photoY + photoH + 78;
+  ctx.strokeStyle = "#b7955b";
   ctx.lineWidth = 2;
-  ctx.strokeRect(64, y, 420, 180);
-  ctx.strokeRect(width - 64 - 420, y, 420, 180);
-  ctx.font = "22px Vazirmatn Variable";
-  ctx.fillText("اثر انگشت", width - 80, y + 36);
-  ctx.fillText("امضا", 468, y + 36);
+  ctx.beginPath();
+  ctx.moveTo(margin, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+  y += 48;
+  ctx.fillStyle = "#1c1c1c";
+  ctx.font = "28px Vazirmatn Variable";
+  const signatureTop = height - margin - 250;
+  for (const paragraph of LINES) {
+    const lines = wrap(ctx, paragraph, width - margin * 2);
+    for (const line of lines) {
+      if (y > signatureTop - 24) break;
+      ctx.fillText(line, right, y);
+      y += 42;
+    }
+    y += 12;
+  }
+
+  const boxW = 620;
+  const boxH = 190;
+  const boxY = height - margin - boxH;
+  ctx.strokeStyle = "#1c1c1c";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(margin, boxY, boxW, boxH);
+  ctx.strokeRect(right - boxW, boxY, boxW, boxH);
+  ctx.font = "24px Vazirmatn Variable";
+  ctx.fillStyle = "#1c1c1c";
+  ctx.fillText("اثر انگشت", right - 16, boxY - 16);
+  ctx.textAlign = "left";
+  ctx.fillText("امضا", margin + 8, boxY - 16);
+  ctx.textAlign = "right";
   ctx.font = "20px Vazirmatn Variable";
-  ctx.fillStyle = "#666";
-  ctx.fillText("این برگه با امضا و اثر انگشت مشتری معتبر است.", width - 64, height - 48);
+  ctx.fillStyle = "#777";
+  ctx.fillText("این برگه با امضا و اثر انگشت مشتری معتبر است.", right, height - 36);
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
@@ -134,6 +182,8 @@ export function ConsentBoard() {
   const [phone, setPhone] = useState("");
   const [placement, setPlacement] = useState("");
   const [sizeCm, setSizeCm] = useState("");
+  const [price, setPrice] = useState("");
+  const [paid, setPaid] = useState("");
   const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
   const [lookup, setLookup] = useState("");
@@ -160,6 +210,7 @@ export function ConsentBoard() {
     if (!isIranMobile(normalized)) return toast.error("شماره موبایل درست نیست.");
     if (placement.trim().length < 2) return toast.error("محل اجرا را بنویس.");
     if (!sizeCm.trim()) return toast.error("ابعاد را بنویس.");
+    if (!price) return toast.error("مبلغ اجرا را بنویس.");
     if (!image) return toast.error("تصویر طرح را بگذار.");
     setBusy(true);
     try {
@@ -169,6 +220,8 @@ export function ConsentBoard() {
         phone: normalized,
         placement: placement.trim(),
         sizeCm: sizeCm.trim(),
+        priceToman: Number(price || 0),
+        paidToman: Number(paid || 0),
         designImage: image,
       });
       const record: ConsentRecord = {
@@ -178,6 +231,8 @@ export function ConsentBoard() {
         phone: normalized,
         placement: placement.trim(),
         sizeCm: sizeCm.trim(),
+        priceToman: Number(price || 0),
+        paidToman: Number(paid || 0),
         designImage: image,
         createdAt: new Date().toISOString(),
       };
@@ -188,6 +243,8 @@ export function ConsentBoard() {
       setPhone("");
       setPlacement("");
       setSizeCm("");
+      setPrice("");
+      setPaid("");
       setImage("");
       await refresh();
     } catch (err) {
@@ -224,6 +281,8 @@ export function ConsentBoard() {
           <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" dir="ltr" placeholder="شماره تماس" />
           <Input value={placement} onChange={(e) => setPlacement(e.target.value)} placeholder="محل اجرا" />
           <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۱۲ در ۲۰ سانتی‌متر" />
+          <Input value={formatGroupedDigits(price)} onChange={(e) => setPrice(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" placeholder="مبلغ اجرا، تومان" />
+          <Input value={formatGroupedDigits(paid)} onChange={(e) => setPaid(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" placeholder="واریزی مشتری، تومان" />
           <label className="text-sm">
             تصویر طرح
             <input
