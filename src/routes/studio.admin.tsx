@@ -27,6 +27,7 @@ import { friendlyError, saveAction } from "@/lib/save";
 import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
 import { isTehranThursday, thursdayBusyKeys } from "@/lib/studio-apprentices";
 import { compressImage } from "@/lib/design-images";
+import type { CustomerFileSummary } from "@/lib/customer-file-summary";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import { TATTOO_REQUEST_LABEL } from "@/lib/tattoo-estimate";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
@@ -1102,6 +1103,58 @@ function CustomerTempPassword() {
   );
 }
 
+function CustomerFileSummaryPanel() {
+  const [data, setData] = useState<CustomerFileSummary | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    void saveAction<CustomerFileSummary>("studioCustomerFileSummary")
+      .then((next) => {
+        if (!cancelled) setData(next);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(friendlyError(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <section className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
+      <h2 className="text-lg font-bold">جمع‌بندی پرونده‌ها</h2>
+      <p className="mt-1 text-sm leading-7 text-muted">از همهٔ پرونده‌ها، بدون اسم. فقط الگوهایی که برای تاتو مهم است.</p>
+      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+      {!data ? <p className="mt-3 text-sm text-muted">در حال جمع‌کردن پرونده‌ها…</p> : null}
+      {data ? (
+        <div className="mt-3 grid gap-3">
+          {data.lines.map((line) => (
+            <p key={line} className="text-sm leading-7">{line}</p>
+          ))}
+          {data.groups.length ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {data.groups.map((group) => (
+                <div key={group.title} className="rounded-2xl border border-border bg-bg p-3">
+                  <p className="text-sm font-semibold">{group.title}</p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {group.rows.map((row) => (
+                      <li key={row.label} className="flex items-center justify-between gap-3">
+                        <span>{row.label}</span>
+                        <span className="font-semibold">{toFaDigits(row.count)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function YearContactsPanel() {
   const clock = tehranClock();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
@@ -1155,6 +1208,7 @@ function YearContactsPanel() {
 
   return (
     <div className="mt-5 grid gap-4">
+      <CustomerFileSummaryPanel />
       <div className="rounded-2xl border border-border bg-surface p-4">
         <h2 className="text-lg font-bold">مشتریان</h2>
         <p className="mt-1 text-sm leading-7 text-muted">

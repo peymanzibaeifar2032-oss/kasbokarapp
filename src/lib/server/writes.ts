@@ -48,6 +48,7 @@ import {
   studioActor,
   type StudioActor,
 } from "@/lib/server/studio-artists";
+import { summarizeCustomerFiles, type FileSample } from "@/lib/customer-file-summary";
 import { STUDIO_EXPENSE_CATEGORIES, accountTotals, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
@@ -2444,6 +2445,53 @@ const customerFileSchema = z.object({
   healedImage: z.union([z.literal(""), imageDataSchema]).optional(),
 });
 
+async function performStudioCustomerFileSummary(userId: string) {
+  await requireStudioStaff(userId);
+  const sql = await getSql();
+  const rows = await sql.query<{
+    skin_tone: string;
+    ink_hold: string;
+    fade: string;
+    alcohol: string;
+    arrival: string;
+    pain: string;
+    healing: string;
+    numbing: string;
+    bleeding: string;
+    blood_type: string;
+    tolerance_hours: string;
+    hydration: string;
+    sensitivity: string;
+    notes: string;
+    has_healed_image: boolean;
+  }>(
+    `select skin_tone, ink_hold, fade, alcohol, arrival, pain, healing, numbing, bleeding,
+            blood_type, tolerance_hours, hydration, sensitivity, notes,
+            (healed_image <> '') as has_healed_image
+       from studio_customer_files
+      where user_id=$1`,
+    [userId],
+  );
+  const samples: FileSample[] = rows.map((row) => ({
+    skinTone: row.skin_tone || "",
+    inkHold: row.ink_hold || "",
+    fade: row.fade || "",
+    alcohol: row.alcohol || "",
+    arrival: row.arrival || "",
+    pain: row.pain || "",
+    healing: row.healing || "",
+    numbing: row.numbing || "",
+    bleeding: row.bleeding || "",
+    bloodType: row.blood_type || "",
+    toleranceHours: row.tolerance_hours || "",
+    hydration: row.hydration || "",
+    sensitivity: row.sensitivity || "",
+    notes: row.notes || "",
+    hasHealedImage: Boolean(row.has_healed_image),
+  }));
+  return summarizeCustomerFiles(samples);
+}
+
 async function performSaveStudioCustomerFile(userId: string, raw: unknown) {
   await requireStudioStaff(userId);
   const data = customerFileSchema.parse(raw);
@@ -4065,6 +4113,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioMonthJobs(userId, payload);
     case "studioYearContacts":
       return performStudioYearContacts(userId, payload);
+    case "studioCustomerFileSummary":
+      return performStudioCustomerFileSummary(userId);
     case "saveStudioCustomerFile":
       return performSaveStudioCustomerFile(userId, payload);
     case "studioCustomerHealedImage":
