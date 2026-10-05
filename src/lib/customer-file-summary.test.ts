@@ -24,19 +24,24 @@ function sample(patch: Partial<FileSample>): FileSample {
 }
 
 describe("customer file summary", () => {
-  it("counts patterns without naming anyone", () => {
+  it("compares skin and blood with pain instead of listing raw counts", () => {
     const out = summarizeCustomerFiles([
-      sample({ skinTone: "روشن", inkHold: "خوب رنگ می‌گیرد", toleranceHours: "۴ ساعت", bloodType: "O+" }),
-      sample({ skinTone: "روشن", inkHold: "خوب رنگ می‌گیرد", toleranceHours: "۶ ساعت", bloodType: "A+" }),
-      sample({ skinTone: "تیره", inkHold: "سخت رنگ می‌گیرد", toleranceHours: "۲ ساعت", alcohol: "قبل از جلسه خورده بود" }),
-      sample({}),
+      sample({ skinTone: "روشن", pain: "درد را راحت تحمل می‌کند", toleranceHours: "۶ ساعت", inkHold: "خوب رنگ می‌گیرد", bloodType: "O+" }),
+      sample({ skinTone: "روشن", pain: "درد را راحت تحمل می‌کند", toleranceHours: "۵ ساعت", inkHold: "خوب رنگ می‌گیرد", bloodType: "O+" }),
+      sample({ skinTone: "گندمی", pain: "زود خسته می‌شود", toleranceHours: "۲ ساعت", inkHold: "سخت رنگ می‌گیرد", bloodType: "A+" }),
+      sample({ skinTone: "گندمی", pain: "زود خسته می‌شود", toleranceHours: "۳ ساعت", inkHold: "سخت رنگ می‌گیرد", bloodType: "A+" }),
     ]);
-    assert.equal(out.files, 4);
-    assert.equal(out.filled, 3);
-    assert.equal(out.groups.find((group) => group.title === "رنگ پوست")?.rows[0].label, "روشن");
-    assert.equal(out.groups.find((group) => group.title === "رنگ پوست")?.rows[0].count, 2);
-    assert.equal(out.averageToleranceHours, 4);
-    assert.match(out.lines.join("\n"), /بیشتر «روشن»/);
-    assert.equal(JSON.stringify(out).includes("مشتری"), false);
+    const skin = out.relations.find((item) => item.title === "پوست و درد");
+    const blood = out.relations.find((item) => item.title === "گروه خونی و درد");
+    const ink = out.relations.find((item) => item.title === "پوست و نشستن رنگ");
+    assert.ok(skin);
+    assert.match(skin.finding, /پوست روشن \(سفید\)/);
+    assert.match(skin.finding, /پوست گندمی \(سبزه\)/);
+    assert.match(skin.finding, /بیشتر کشیده/);
+    assert.ok(blood);
+    assert.match(blood.finding, /گروه O\+/);
+    assert.ok(ink);
+    assert.match(ink.finding, /سخت رنگ گرفته/);
+    assert.equal(out.relations.some((item) => item.finding.includes("از ۷")), false);
   });
 });

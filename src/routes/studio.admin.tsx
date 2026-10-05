@@ -1124,33 +1124,25 @@ function CustomerFileSummaryPanel() {
   return (
     <section className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
       <h2 className="text-lg font-bold">جمع‌بندی پرونده‌ها</h2>
-      <p className="mt-1 text-sm leading-7 text-muted">از همهٔ پرونده‌ها، بدون اسم. فقط الگوهایی که برای تاتو مهم است.</p>
+      <p className="mt-1 text-sm leading-7 text-muted">
+        ارتباط بین پوست، درد، رنگ و گروه خونی. اسم کسی اینجا نیست. این تجربهٔ پرونده‌های خودت است، نه قانون پزشکی.
+      </p>
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
-      {!data ? <p className="mt-3 text-sm text-muted">در حال جمع‌کردن پرونده‌ها…</p> : null}
-      {data ? (
-        <div className="mt-3 grid gap-3">
-          {data.lines.map((line) => (
-            <p key={line} className="text-sm leading-7">{line}</p>
-          ))}
-          {data.groups.length ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {data.groups.map((group) => (
-                <div key={group.title} className="rounded-2xl border border-border bg-bg p-3">
-                  <p className="text-sm font-semibold">{group.title}</p>
-                  <ul className="mt-2 space-y-1 text-sm">
-                    {group.rows.map((row) => (
-                      <li key={row.label} className="flex items-center justify-between gap-3">
-                        <span>{row.label}</span>
-                        <span className="font-semibold">{toFaDigits(row.count)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
+      {!data ? <p className="mt-3 text-sm text-muted">در حال سنجیدن ارتباط‌ها…</p> : null}
+      {data && !data.relations.length ? (
+        <p className="mt-3 text-sm leading-7 text-muted">برای مقایسه هنوز حداقل دو گروه، مثلاً پوست روشن و سبزه، با هم پر نشده.</p>
       ) : null}
+      {data?.relations.map((item) => (
+        <article key={item.title} className="mt-4 rounded-2xl border border-border bg-bg p-3">
+          <h3 className="text-sm font-bold">{item.title}</h3>
+          <p className="mt-2 text-sm font-semibold leading-7">{item.finding}</p>
+          <div className="mt-2 grid gap-1">
+            {item.rows.map((row) => (
+              <p key={row} className="text-sm leading-7 text-muted">{row}</p>
+            ))}
+          </div>
+        </article>
+      ))}
     </section>
   );
 }
