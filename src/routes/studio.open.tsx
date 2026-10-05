@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { JALALI_MONTHS, WEEKDAY_SHORT_FA, gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { jalaliDayLabel, tehranClock, tehranDayKey } from "@/lib/hours";
+import { tehranClock, tehranDayKey } from "@/lib/hours";
 import { isTehranThursday } from "@/lib/studio-apprentices";
 
 export const Route = createFileRoute("/studio/open")({
@@ -15,6 +15,12 @@ export const Route = createFileRoute("/studio/open")({
   }),
 });
 
+function monthHasOpen(jy: number, jm: number, busy: Set<string>, todayKey: string) {
+  return jalaliMonthGrid(jy, jm).some(
+    (cell) => cell.inMonth && cell.dayKey >= todayKey && !isTehranThursday(cell.dayKey) && !busy.has(cell.dayKey),
+  );
+}
+
 function OpenDaysPage() {
   const now = tehranClock();
   const todayJ = gregorianToJalali(now.y, now.m, now.day);
@@ -22,6 +28,7 @@ function OpenDaysPage() {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const jumped = useRef(false);
   const todayKey = tehranDayKey();
 
   useEffect(() => {
@@ -45,6 +52,19 @@ function OpenDaysPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!ready || jumped.current) return;
+    jumped.current = true;
+    let cursor = { jy: todayJ.jy, jm: todayJ.jm };
+    for (let i = 0; i < 8; i += 1) {
+      if (monthHasOpen(cursor.jy, cursor.jm, busy, todayKey)) {
+        setMonth(cursor);
+        return;
+      }
+      cursor = shiftJalaliMonth(cursor.jy, cursor.jm, 1);
+    }
+  }, [ready, busy, todayJ.jy, todayJ.jm, todayKey]);
+
   const cells = useMemo(() => jalaliMonthGrid(month.jy, month.jm), [month.jy, month.jm]);
   const openCount = cells.filter((cell) => cell.inMonth && cell.dayKey >= todayKey && !isTehranThursday(cell.dayKey) && !busy.has(cell.dayKey)).length;
 
@@ -53,15 +73,14 @@ function OpenDaysPage() {
       <StudioTopBar compact />
       <main className="mx-auto max-w-3xl px-4 py-6">
         <p className="text-xs tracking-[.18em] text-[#b7955b]">نوبت</p>
-        <h1 className="mt-2 text-3xl font-black">روزهای خالی</h1>
+        <h1 className="mt-2 text-3xl font-black">روز خالی را بزن</h1>
         <p className="mt-3 text-sm leading-7 text-white/60">
-          اسم هیچ مشتری‌ای اینجا نیست. سبز یعنی آن روز هیچ کاری ثبت نشده. اگر حتی یک کار باشد، روز بسته است. پنجشنبه فقط آموزش است.
-          انتخاب روز یعنی درخواست، نه قطعی شدن نوبت.
+          فقط روز سبز قابل انتخاب است. اگر حتی یک کار در آن روز باشد، بسته است. پنجشنبه آموزش است. زدن روز یعنی درخواست، نه قطعی شدن نوبت.
         </p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-emerald-100">خالی</span>
+          <span className="rounded-full bg-emerald-500 px-3 py-1 font-bold text-black">سبز را بزن</span>
           <span className="rounded-full bg-white/10 px-3 py-1 text-white/70">پر</span>
-          <span className="rounded-full bg-violet-500/20 px-3 py-1 text-violet-100">پنجشنبه آموزش</span>
+          <span className="rounded-full bg-violet-500/20 px-3 py-1 text-violet-100">آموزش</span>
         </div>
 
         <div className="mt-6 flex items-center justify-between gap-3">
@@ -84,6 +103,8 @@ function OpenDaysPage() {
             </Link>
           </p>
         ) : null}
+        {!ready && !failed ? <p className="mt-4 text-sm text-white/50">در حال پیدا کردن اولین ماه خالی…</p> : null}
+        {ready && openCount === 0 ? <p className="mt-4 text-sm leading-7 text-white/60">این ماه روز خالی ندارد. ماه بعد را بزن.</p> : null}
 
         <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] text-white/40">
           {WEEKDAY_SHORT_FA.map((name) => (
@@ -92,7 +113,7 @@ function OpenDaysPage() {
         </div>
         <div className="mt-1 grid grid-cols-7 gap-1">
           {cells.map((cell) => {
-            if (!cell.inMonth) return <span key={cell.dayKey + "-pad"} />;
+            if (!cell.inMonth) return <span key={`${cell.dayKey}-pad`} />;
             const past = cell.dayKey < todayKey;
             const thursday = isTehranThursday(cell.dayKey);
             const taken = busy.has(cell.dayKey);
@@ -104,34 +125,32 @@ function OpenDaysPage() {
                 : taken
                   ? "border-white/10 bg-white/[.04] text-white/45"
                   : open
-                    ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-50"
+                    ? "border-emerald-300 bg-emerald-500 text-black"
                     : "border-white/10 text-white/40";
-            return (
-              <div key={cell.dayKey} className={`flex min-h-16 flex-col items-center justify-center rounded-xl border px-1 py-2 text-center ${tone}`}>
-                <span className="text-sm font-bold">{toFaDigits(cell.jd)}</span>
-                <span className="mt-1 text-[10px] leading-4">{past ? "" : thursday ? "آموزش" : taken ? "پر" : open ? "خالی" : "…"}</span>
-              </div>
+            const body = (
+              <>
+                <span className="text-sm font-black">{toFaDigits(cell.jd)}</span>
+                <span className="mt-1 text-[10px] font-bold leading-4">{past ? "" : thursday ? "آموزش" : taken ? "پر" : open ? "بزن" : "…"}</span>
+              </>
             );
-          })}
-        </div>
-
-        <section className="mt-6 grid gap-2">
-          <h2 className="text-sm font-bold">درخواست برای یک روز خالی</h2>
-          {!ready && !failed ? <p className="text-sm text-white/50">در حال خواندن تقویم…</p> : null}
-          {ready && openCount === 0 ? <p className="text-sm leading-7 text-white/60">در این ماه روز کاملاً خالی نمانده. ماه بعد را ببین.</p> : null}
-          {cells
-            .filter((cell) => cell.inMonth && ready && cell.dayKey >= todayKey && !isTehranThursday(cell.dayKey) && !busy.has(cell.dayKey))
-            .map((cell) => (
+            if (!open) {
+              return (
+                <div key={cell.dayKey} className={`flex min-h-16 flex-col items-center justify-center rounded-xl border px-1 py-2 text-center ${tone}`}>
+                  {body}
+                </div>
+              );
+            }
+            return (
               <a
                 key={cell.dayKey}
                 href={`/studio/request?day=${cell.dayKey}`}
-                className="flex h-12 items-center justify-between rounded-2xl bg-emerald-500/15 px-4 text-sm font-bold text-emerald-50"
+                className={`flex min-h-16 flex-col items-center justify-center rounded-xl border px-1 py-2 text-center ${tone}`}
               >
-                <span>{jalaliDayLabel(cell.gy, cell.gm, cell.gd)}</span>
-                <span>برای این روز درخواست بده</span>
+                {body}
               </a>
-            ))}
-        </section>
+            );
+          })}
+        </div>
       </main>
     </div>
   );

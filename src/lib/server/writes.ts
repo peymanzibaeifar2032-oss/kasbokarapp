@@ -48,6 +48,8 @@ import {
   studioActor,
   type StudioActor,
 } from "@/lib/server/studio-artists";
+import { occupiedDayKeys } from "@/lib/server/studio-open-days";
+import { performListStudioConsents, performSaveStudioConsent, performStudioConsent } from "@/lib/server/studio-consent";
 import { summarizeCustomerFiles, type FileSample } from "@/lib/customer-file-summary";
 import { STUDIO_EXPENSE_CATEGORIES, accountTotals, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
@@ -4223,6 +4225,26 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performAddStudioPayment(userId, payload);
     case "createStudioJob":
       return performCreateStudioJob(userId, payload);
+    case "studioOccupiedDays": {
+      const actor = await requireStudioStaff(userId);
+      const sql = await getSql();
+      return occupiedDayKeys(sql, actor.role === "artist" ? actor.artistId : null);
+    }
+    case "saveStudioConsent": {
+      await requireStudioStaff(userId);
+      const sql = await getSql();
+      return performSaveStudioConsent(sql, userId, payload);
+    }
+    case "listStudioConsents": {
+      await requireStudioStaff(userId);
+      const sql = await getSql();
+      return performListStudioConsents(sql, userId);
+    }
+    case "studioConsent": {
+      await requireStudioStaff(userId);
+      const sql = await getSql();
+      return performStudioConsent(sql, userId, payload);
+    }
     case "studioPocketPull":
       return performStudioPocketPull(userId);
     case "studioPocketPush":

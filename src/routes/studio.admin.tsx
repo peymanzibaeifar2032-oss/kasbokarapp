@@ -12,6 +12,7 @@ import { StudioFillInBoard } from "@/components/studio/fill-in-board";
 import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
 import { CustomerFileDetails, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
+import { ConsentBoard } from "@/components/studio/consent-board";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { SignedOutPanel } from "@/components/layout/auth-required";
@@ -59,9 +60,9 @@ import {
 import type { Booking, Business, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type PanelTab = "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists";
+type PanelTab = "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists" | "consent";
 
-const panelTabs: PanelTab[] = ["requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists"];
+const panelTabs: PanelTab[] = ["requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists", "consent"];
 
 export const Route = createFileRoute("/studio/admin")({
   validateSearch: (search: Record<string, unknown>): { tab?: PanelTab } => {
@@ -376,6 +377,7 @@ function StudioAdminPage() {
             ["apprentices", "هنرجوها"],
             ["contacts", "مشتریان"],
             ["messages", "پیام‌های آماده"],
+            ["consent", "رضایت‌نامه"],
             ["artists", "همکاران"],
           ] as const
         )
@@ -396,8 +398,9 @@ function StudioAdminPage() {
       </div>
 
       {tab === "messages" ? <ReadyMessages /> : null}
+      {tab === "consent" ? <ConsentBoard /> : null}
 
-      {!loading && !error && tab !== "messages" ? (
+      {!loading && !error && tab !== "messages" && tab !== "consent" ? (
         <StudioTomorrowDesk
           requests={requests}
           onOpenReceipts={() => {
