@@ -23,10 +23,11 @@ import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { formatFaDateTime, toSmsLink, toTelLink } from "@/lib/format";
-import { firstOpenCustomerDay, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
+import { firstOpenCustomerDay, jalaliDayLabel, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
 import { isTehranThursday, thursdayBusyKeys } from "@/lib/studio-apprentices";
+import type { StudioFillIn } from "@/lib/server/studio-fill-ins";
 import { compressImage } from "@/lib/design-images";
 import type { CustomerFileSummary } from "@/lib/customer-file-summary";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
@@ -1676,7 +1677,7 @@ function MonthJobsPanel({
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [jobs, setJobs] = useState<Array<TattooRequest & { customerFile?: CustomerFileBrief | null }>>([]);
   const [careJobs, setCareJobs] = useState<TattooRequest[]>([]);
-  const [waiting, setWaiting] = useState<WaitRow[]>([]);
+  const [waiting, setWaiting] = useState<StudioFillIn[]>([]);
   const [briefs, setBriefs] = useState<Record<string, CustomerFileBrief>>({});
   const [jobQuery, setJobQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1719,7 +1720,7 @@ function MonthJobsPanel({
       const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones, names });
       setBriefs(nextBriefs);
       try {
-        const fills = await saveAction<WaitRow[]>("listStudioFillIns");
+        const fills = await saveAction<StudioFillIn[]>("listStudioFillIns");
         setWaiting(fills.filter((row) => row.status === "waiting"));
       } catch {
         setWaiting([]);
@@ -1920,7 +1921,10 @@ function MonthJobsPanel({
       {viewingToday && !dayGroups.some((group) => group.day === todayKey) ? (
         <DayGap day={todayKey} jobs={[]} waiting={waiting} />
       ) : null}
-      {dayGroups.map((group) => (
+      {dayGroups.map((group, index) => {
+        const next = dayGroups[index + 1];
+        const holes = !jobQuery.trim() && next ? daysBetween(group.day, next.day) : [];
+        return (
         <div key={group.day} className="grid gap-4">
           {group.jobs.map((job) => (
             <MonthJobCard
@@ -1936,8 +1940,12 @@ function MonthJobsPanel({
             />
           ))}
           <DayGap day={group.day} jobs={group.jobs} waiting={waiting} />
+          {holes.map((day) => (
+            <EmptyDayOffer key={day} day={day} waiting={waiting} onBooked={() => void refreshAll()} />
+          ))}
         </div>
-      ))}
+        );
+      })}
       {!focusedPast && pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
       {!focusedPast
         ? pastJobs.map((job) => (
@@ -1959,6 +1967,102 @@ function MonthJobsPanel({
   );
 }
 
+function daysBetween(from: string, to: string) {
+  const out: string[] = [];
+  let cursor = shiftTehranDayKey(from, 1);
+  for (let guard = 0; cursor && cursor < to && guard < 40; guard += 1) {
+    if (cursor >= tehranDayKey()) out.push(cursor);
+    cursor = shiftTehranDayKey(cursor, 1);
+  }
+  return out;
+}
+
+function dayHeading(day: string) {
+  const [y, m, d] = day.split("-").map(Number);
+  return jalaliDayLabel(y, m, d);
+}
+
+function EmptyDayOffer({ day, waiting, onBooked }: { day: string; waiting: StudioFillIn[]; onBooked: () => void }) {
+  const [time, setTime] = useState("10:30");
+  const [busy, setBusy] = useState(false);
+  const title = dayHeading(day);
+  if (isTehranThursday(day)) {
+    return (
+      <aside className="rounded-2xl border border-violet-400/40 bg-violet-50 p-4 text-violet-950">
+        <p className="font-bold">این روز خالی از مشتری است</p>
+        <p className="mt-1 text-sm leading-7">{title} · پنجشنبه، روز هنرجوها. مشتری اینجا ثبت نمی‌شود.</p>
+      </aside>
+    );
+  }
+  const open = waiting
+    .filter((row) => {
+      const minutes = row.sessionMinutes >= 30 ? row.sessionMinutes : row.historyMinutes;
+      return minutes >= 30 && minutes <= 8 * 60;
+    })
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  async function book(row: StudioFillIn) {
+    const [y, m, d] = day.split("-").map(Number);
+    const [hh, mm] = time.split(":").map(Number);
+    if (!y || Number.isNaN(hh)) return toast.error("ساعت این روز را مشخص کن.");
+    const minutes = row.sessionMinutes >= 30 ? row.sessionMinutes : row.historyMinutes;
+    setBusy(true);
+    try {
+      await saveAction("createStudioJob", {
+        customerName: row.customerName,
+        customerPhone: row.customerPhone,
+        customerPhone2: row.customerPhone2 || undefined,
+        style: "سایر",
+        idea: row.note || row.idea || "پر کردن روز خالی",
+        placement: row.placement || "هماهنگ در استودیو",
+        sizeCm: row.designs?.map((design) => design.sizeCm).filter(Boolean).join(" / ") || row.sizeCm || undefined,
+        priceMinToman: row.designs?.length ? row.designs.reduce((sum, design) => sum + (design.priceToman || 0), 0) : row.priceToman || 0,
+        paidToman: row.paidToman || 0,
+        sessionMinutes: minutes,
+        slotStart: tehranLocalToIso(y, m, d, hh || 10, mm || 0),
+        referenceImages: (row.designs?.map((design) => design.image).filter((image) => image.startsWith("data:image/")) || (row.designImage?.startsWith("data:image/") ? [row.designImage] : [])).slice(0, 3),
+        customerInstagram: row.customerInstagram || undefined,
+      });
+      await saveAction("markStudioFillIn", { id: row.id, mark: "came" });
+      toast.success(row.ongoing ? `${row.customerName} برای ${title} ثبت شد و در لیست انتظار ماند.` : `${row.customerName} برای ${title} ثبت شد و از لیست انتظار خارج شد.`);
+      onBooked();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <aside className="rounded-2xl border border-emerald-700/30 bg-emerald-50 p-4 text-emerald-950">
+      <p className="font-bold">این روز خالی است</p>
+      <p className="mt-1 text-sm leading-7">{title}</p>
+      <label className="mt-3 block text-sm font-semibold">
+        ساعت شروع
+        <Input className="mt-2 max-w-[140px] bg-white" type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+      </label>
+      {open.length ? (
+        <div className="mt-3 grid gap-2">
+          {open.slice(0, 3).map((row) => {
+            const minutes = row.sessionMinutes >= 30 ? row.sessionMinutes : row.historyMinutes;
+            return (
+              <div key={row.id} className="rounded-xl border border-emerald-800/15 bg-white/70 p-3">
+                <p className="text-sm leading-7">
+                  {row.customerName} · {formatSitting(minutes)}
+                  {row.placement ? ` · ${row.placement}` : ""}
+                </p>
+                <Button className="mt-2" size="sm" disabled={busy} onClick={() => void book(row)}>
+                  ثبت این روز برای این مشتری
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-2 text-sm leading-7">در لیست انتظار کسی با مدت مشخص نیست. اول در لیست انتظار مدت کار را ذخیره کن.</p>
+      )}
+    </aside>
+  );
+}
+
 function groupByDay(jobs: TattooRequest[]) {
   const groups: { day: string; jobs: TattooRequest[] }[] = [];
   for (const job of jobs) {
@@ -1970,21 +2074,7 @@ function groupByDay(jobs: TattooRequest[]) {
   return groups;
 }
 
-type WaitRow = {
-  id: string;
-  customerName: string;
-  customerPhone: string;
-  customerPhone2: string;
-  sessionMinutes: number;
-  historyMinutes: number;
-  missedCount: number;
-  ongoing: boolean;
-  createdAt: string;
-  status: string;
-  priceToman: number;
-};
-
-function DayGap({ day, jobs, waiting }: { day: string; jobs: TattooRequest[]; waiting: WaitRow[] }) {
+function DayGap({ day, jobs, waiting }: { day: string; jobs: TattooRequest[]; waiting: StudioFillIn[] }) {
   if (day < tehranDayKey() || isTehranThursday(day)) return null;
   if (jobs.some((job) => !job.sessionMinutes)) {
     return (
