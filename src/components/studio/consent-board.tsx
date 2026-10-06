@@ -283,10 +283,14 @@ export function ConsentBoard() {
           <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۱۲ در ۲۰ سانتی‌متر" />
           <Input value={formatGroupedDigits(price)} onChange={(e) => setPrice(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" placeholder="مبلغ اجرا، تومان" />
           <Input value={formatGroupedDigits(paid)} onChange={(e) => setPaid(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" placeholder="واریزی مشتری، تومان" />
-          <label className="text-sm">
-            تصویر طرح
+          <label className="grid cursor-pointer gap-2 rounded-2xl border-2 border-dashed border-primary bg-primary/5 p-4 text-center">
+            <span className="text-base font-bold">تصویر طرح</span>
+            <span className="text-sm leading-6 text-muted">اینجا بزن و عکس طرح را از گالری انتخاب کن.</span>
+            <span className="mx-auto inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-sm font-bold text-primary-fg">
+              {image ? "عوض کردن تصویر طرح" : "انتخاب تصویر طرح"}
+            </span>
             <input
-              className="mt-2 block w-full text-sm"
+              className="sr-only"
               type="file"
               accept="image/*"
               onChange={(event) => {
@@ -295,8 +299,8 @@ export function ConsentBoard() {
                 void compressImage(file).then(setImage).catch((err) => toast.error(friendlyError(err)));
               }}
             />
+            {image ? <img src={image} alt="پیش‌نمایش طرح" className="mx-auto mt-1 h-44 max-w-full rounded-xl object-contain" /> : null}
           </label>
-          {image ? <img src={image} alt="" className="h-36 w-36 rounded-xl object-cover" /> : null}
           <Button disabled={busy} onClick={() => void save()}>
             {busy ? "در حال ساخت…" : "ساخت برگه و دانلود"}
           </Button>
