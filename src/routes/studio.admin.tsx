@@ -13,6 +13,7 @@ import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
 import { CustomerFileDetails, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { ConsentBoard } from "@/components/studio/consent-board";
+import { ReferralAdmin } from "@/components/studio/referral-admin";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { SignedOutPanel } from "@/components/layout/auth-required";
@@ -61,9 +62,9 @@ import {
 import type { Booking, Business, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type PanelTab = "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists" | "consent";
+type PanelTab = "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists" | "consent" | "club";
 
-const panelTabs: PanelTab[] = ["requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists", "consent"];
+const panelTabs: PanelTab[] = ["requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists", "consent", "club"];
 
 export const Route = createFileRoute("/studio/admin")({
   validateSearch: (search: Record<string, unknown>): { tab?: PanelTab } => {
@@ -379,10 +380,11 @@ function StudioAdminPage() {
             ["contacts", "مشتریان"],
             ["messages", "پیام‌های آماده"],
             ["consent", "رضایت‌نامه"],
+            ["club", "باشگاه"],
             ["artists", "همکاران"],
           ] as const
         )
-          .filter(([id]) => owner || (id !== "artists" && (ownPanel || id !== "apprentices")))
+          .filter(([id]) => owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices")))
           .map(([id, label]) => (
             <button
               key={id}
@@ -400,6 +402,7 @@ function StudioAdminPage() {
 
       {tab === "messages" ? <ReadyMessages /> : null}
       {tab === "consent" ? <ConsentBoard /> : null}
+      {tab === "club" && owner ? <ReferralAdmin /> : null}
 
       {!loading && !error && (tab === "calendar" || tab === "jobs" || tab === "requests") ? (
         <StudioTomorrowDesk
@@ -491,6 +494,7 @@ function StudioAdminPage() {
                 requests={requests}
                 businesses={businesses}
                 bookings={bookings}
+                canEnroll={owner}
                 onChange={() => void refresh()}
               />
             ))}
@@ -571,12 +575,14 @@ function TattooAdminCard({
   requests,
   businesses,
   bookings,
+  canEnroll,
   onChange,
 }: {
   request: TattooRequest;
   requests: TattooRequest[];
   businesses: Business[];
   bookings: Booking[];
+  canEnroll?: boolean;
   onChange: () => void;
 }) {
   const [businessId, setBusinessId] = useState(request.businessId ?? businesses[0]?.id ?? "");
@@ -723,6 +729,24 @@ function TattooAdminCard({
         ) : null}
         {request.customerInstagram ? <InstagramChip handle={request.customerInstagram} /> : null}
         {request.preferredDates ? <span>زمان مناسب مشتری: {request.preferredDates}</span> : null}
+        {canEnroll ? (
+          <button
+            type="button"
+            className="text-sm font-semibold text-accent"
+            onClick={() => {
+              void saveAction("setReferralMember", {
+                name: request.customerName,
+                phone: request.customerPhone,
+                active: true,
+                tier: "active",
+              })
+                .then((saved) => toast.success(`عضو باشگاه شد. کد ${(saved as { code: string }).code}`))
+                .catch((err) => toast.error(friendlyError(err)));
+            }}
+          >
+            عضو باشگاه معرفین
+          </button>
+        ) : null}
       </div>
       <StoredDesigns request={request} />
 

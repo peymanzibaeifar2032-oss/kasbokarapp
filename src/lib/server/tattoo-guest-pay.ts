@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getSql } from "@/lib/db";
+import { syncReferralRequest } from "@/lib/server/studio-referrals";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { isOccupancyConflict } from "@/lib/server/admin-bootstrap";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
@@ -108,6 +109,7 @@ export async function acceptGuestByPhone(request: Request) {
       ],
     );
   }
+  await syncReferralRequest(sql, row.id);
   return json({ ok: true, bookingId });
 }
 
@@ -138,6 +140,7 @@ export async function submitGuestReceiptByPhone(request: Request) {
       `update tattoo_requests set payment_status='expired', booking_id=null, updated_at=now() where id=$1 and payment_status in ('awaiting_payment','rejected')`,
       [row.id],
     );
+    await syncReferralRequest(sql, row.id);
     return json({ error: "مهلت پرداخت تمام شد. وقت آزاد شد؛ از پیمان زمان تازه بخواه." }, 400);
   }
   await sql.query(
@@ -155,5 +158,6 @@ export async function submitGuestReceiptByPhone(request: Request) {
       [crypto.randomUUID(), admin.user_id, "رسید پرداخت جدید", `رسید بیعانه از ${row.customer_name} رسید.`, row.business_id],
     );
   }
+  await syncReferralRequest(sql, row.id);
   return json({ ok: true });
 }

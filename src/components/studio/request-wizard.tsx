@@ -30,6 +30,7 @@ export type WizardPayload = {
   colorMode: string;
   bodySide: string;
   preferredDates?: string;
+  referralCode?: string;
   images: WizardImage[];
 };
 
@@ -79,6 +80,7 @@ export function TattooRequestWizard({
   const [images, setImages] = useState<WizardImage[]>([]);
   const [idea, setIdea] = useState("");
   const [preferredDates, setPreferredDates] = useState(initialPreferred);
+  const [referralCode, setReferralCode] = useState("");
 
   useEffect(() => {
     if (initialName) setName((current) => current || initialName);
@@ -230,6 +232,10 @@ export function TattooRequestWizard({
         <div className="mt-4 grid gap-3">
           <Textarea rows={7} value={idea} onChange={(e) => setIdea(e.target.value)} placeholder="ایده‌ای که تو ذهنت داری رو توضیح بده." />
           <Input className="h-12" value={preferredDates} onChange={(e) => setPreferredDates(e.target.value)} placeholder="روزهای مناسب، اختیاری" />
+          <label className="grid gap-2 text-sm">
+            کد معرف دارید؟
+            <Input className="h-12" value={referralCode} onChange={(e) => setReferralCode(e.target.value.toUpperCase())} dir="ltr" placeholder="اختیاری، مثل PEYMAN-2847" />
+          </label>
         </div>
       ) : null}
       {step === 5 ? (
@@ -241,6 +247,7 @@ export function TattooRequestWizard({
           <p>رنگ: {TATTOO_COLORS.find((item) => item[0] === colorMode)?.[1]}</p>
           <p>تعداد تصاویر: {new Intl.NumberFormat("fa-IR").format(images.length)}</p>
           <p>توضیح: {idea}</p>
+          {referralCode.trim() ? <p>کد معرف: <span dir="ltr">{referralCode.trim().toUpperCase()}</span></p> : <p>کد معرف: ندارد</p>}
         </div>
       ) : null}
       <div className="mt-5 flex gap-2">
@@ -261,6 +268,7 @@ export function TattooRequestWizard({
             colorMode,
             bodySide: side,
             preferredDates: preferredDates.trim() || undefined,
+            referralCode: referralCode.trim() || undefined,
             images,
           })}>
             {busy ? <Loader2 className="size-5 animate-spin" /> : "ثبت درخواست"}

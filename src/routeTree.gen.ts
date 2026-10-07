@@ -41,6 +41,7 @@ import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
 import { Route as StudioAppRouteImport } from './routes/studio.app'
 import { Route as StudioCareRouteImport } from './routes/studio.care'
+import { Route as StudioClubRouteImport } from './routes/studio.club'
 import { Route as StudioDesignsRouteImport } from './routes/studio.designs'
 import { Route as StudioGuideRouteImport } from './routes/studio.guide'
 import { Route as StudioOpenRouteImport } from './routes/studio.open'
@@ -212,6 +213,11 @@ const StudioCareRoute = StudioCareRouteImport.update({
   path: '/care',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioClubRoute = StudioClubRouteImport.update({
+  id: '/club',
+  path: '/club',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioDesignsRoute = StudioDesignsRouteImport.update({
   id: '/designs',
   path: '/designs',
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
   '/studio/care': typeof StudioCareRoute
+  '/studio/club': typeof StudioClubRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/open': typeof StudioOpenRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByTo {
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
   '/studio/care': typeof StudioCareRoute
+  '/studio/club': typeof StudioClubRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/open': typeof StudioOpenRoute
@@ -385,6 +393,7 @@ export interface FileRoutesById {
   '/studio/admin': typeof StudioAdminRoute
   '/studio/app': typeof StudioAppRoute
   '/studio/care': typeof StudioCareRoute
+  '/studio/club': typeof StudioClubRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/open': typeof StudioOpenRoute
@@ -431,6 +440,7 @@ export interface FileRouteTypes {
     | '/studio/admin'
     | '/studio/app'
     | '/studio/care'
+    | '/studio/club'
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/open'
@@ -475,6 +485,7 @@ export interface FileRouteTypes {
     | '/studio/admin'
     | '/studio/app'
     | '/studio/care'
+    | '/studio/club'
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/open'
@@ -519,6 +530,7 @@ export interface FileRouteTypes {
     | '/studio/admin'
     | '/studio/app'
     | '/studio/care'
+    | '/studio/club'
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/open'
@@ -792,6 +804,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioCareRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/club': {
+      id: '/studio/club'
+      path: '/club'
+      fullPath: '/studio/club'
+      preLoaderRoute: typeof StudioClubRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/designs': {
       id: '/studio/designs'
       path: '/designs'
@@ -881,6 +900,7 @@ interface StudioRouteChildren {
   StudioAdminRoute: typeof StudioAdminRoute
   StudioAppRoute: typeof StudioAppRoute
   StudioCareRoute: typeof StudioCareRoute
+  StudioClubRoute: typeof StudioClubRoute
   StudioDesignsRoute: typeof StudioDesignsRoute
   StudioGuideRoute: typeof StudioGuideRoute
   StudioOpenRoute: typeof StudioOpenRoute
@@ -893,6 +913,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioAdminRoute: StudioAdminRoute,
   StudioAppRoute: StudioAppRoute,
   StudioCareRoute: StudioCareRoute,
+  StudioClubRoute: StudioClubRoute,
   StudioDesignsRoute: StudioDesignsRoute,
   StudioGuideRoute: StudioGuideRoute,
   StudioOpenRoute: StudioOpenRoute,

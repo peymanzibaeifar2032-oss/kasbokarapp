@@ -6,6 +6,7 @@ import { isIranMobile, normalizeInstagramHandle, normalizeIranPhone } from "@/li
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
+import { attachReferral } from "@/lib/server/studio-referrals";
 import { finalizeNewTattooRequest, refreshTattooEstimates } from "@/lib/server/tattoo-estimate";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -31,6 +32,7 @@ const requestSchema = z.object({
   referenceImages: z.array(imageDataSchema).max(3).default([]),
   bodyImages: z.array(imageDataSchema).max(2).default([]),
   images: z.array(z.object({ kind: z.string().max(20), data: imageDataSchema })).max(8).optional(),
+  referralCode: z.string().trim().max(20).optional(),
 });
 
 function json(data: unknown, status = 200) {
@@ -191,6 +193,13 @@ async function createGuest(request: Request) {
       [crypto.randomUUID(), admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} · کد ${trackingCode}`],
     );
   }
+  const referral = await attachReferral(sql, {
+    requestId: id,
+    customerName: data.customerName,
+    customerPhone: phone,
+    customerPhone2: phone2,
+    code: data.referralCode,
+  });
   const priced = await finalizeNewTattooRequest(sql, id, {
     requestType: data.requestType,
     placement: data.placement,
@@ -209,7 +218,7 @@ async function createGuest(request: Request) {
           ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
         ],
   });
-  return json({ id, trackingCode });
+  return json({ id, trackingCode, referralNote: referral.note });
 }
 
 async function lookup(request: Request) {

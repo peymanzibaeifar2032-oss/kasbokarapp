@@ -43,6 +43,9 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                 <Link to="/studio/status" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
                   وضعیت نوبت{unread > 0 ? ` · ${new Intl.NumberFormat("fa-IR").format(unread)}` : ""}
                 </Link>
+                <Link to="/studio/club" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
+                  باشگاه
+                </Link>
                 <Link to="/studio/designs" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
                   انتخاب طرح
                 </Link>
@@ -114,6 +117,12 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
                 className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
               >
                 آموزش
+              </Link>
+              <Link
+                to="/studio/club"
+                className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
+              >
+                باشگاه
               </Link>
               <Link
                 to="/studio/care"

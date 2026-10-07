@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DEFAULT_HOURS, KERMANSHAH_CENTER } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
+import { attachReferral, performMarkReferralSms, performMyReferralClub, performReferralDesk, performReferralFile, performSaveReferralSettings, performSetReferralMember, performSetReferralOverride, performSetReferralReward, syncReferralRequest } from "@/lib/server/studio-referrals";
 import { env, isStandalone, isWorkspacePreview } from "@/lib/env.server";
 import { isIranMobile, normalizeIranPhone, normalizeInstagramHandle, parseToman, toWebsiteHref } from "@/lib/format";
 import { shouldGrantBootstrapAdmin, shouldGrantPreviewStudioAdmin, isOccupancyConflict } from "@/lib/server/admin-bootstrap";
@@ -295,8 +296,19 @@ async function ensureStudioShop(sql: Awaited<ReturnType<typeof getSql>>, userId:
 async function expireOpenTattooHolds(sql: Awaited<ReturnType<typeof getSql>>, customerId?: string) {
   const q = expireTattooHoldSql({ customerScoped: Boolean(customerId) });
   const params = customerId ? [customerId] : [];
+  const customer = customerId ? " and customer_id = $1" : "";
+  const expiring = await sql.query<{ id: string }>(
+    `select id from tattoo_requests
+      where status='approved'
+        and payment_status in ('awaiting_payment','rejected')
+        and payment_hold_until is not null
+        and payment_hold_until <= now()
+        ${customer}`,
+    params,
+  );
   await sql.query(q.cancelBookings, params);
   await sql.query(q.expireRequests, params);
+  for (const row of expiring) await syncReferralRequest(sql, row.id);
 }
 
 async function remindOverdueTattooReviews(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -626,6 +638,7 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     referenceImages: z.array(imageDataSchema).max(3).default([]),
     bodyImages: z.array(imageDataSchema).max(2).default([]),
     images: z.array(z.object({ kind: z.string().max(20), data: imageDataSchema })).max(8).optional(),
+    referralCode: z.string().trim().max(20).optional(),
   }).parse(raw);
   const phone = normalizeIranPhone(data.customerPhone);
   if (!isIranMobile(phone)) throw new Error("شماره موبایل ایرانی معتبر وارد کنید.");
@@ -666,6 +679,14 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     await notify(sql, admin.user_id, "درخواست جدید تاتو", `درخواست تازه از ${data.customerName} دریافت شد.`, "tattoo_request_new");
   }
   await notify(sql, userId, "درخواست تاتو ثبت شد", "درخواست شما برای بررسی پیمان زیبائی‌فر ارسال شد.", "tattoo_request_created");
+  const referral = await attachReferral(sql, {
+    requestId: id,
+    customerName: data.customerName,
+    customerPhone: phone,
+    customerPhone2: phone2,
+    customerUserId: userId,
+    code: data.referralCode,
+  });
   const priced = await finalizeNewTattooRequest(sql, id, {
     requestType: data.requestType,
     placement: data.placement,
@@ -684,7 +705,7 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
           ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
         ],
   });
-  return { id, trackingCode, estimateMin: priced.estimateMin, estimateMax: priced.estimateMax };
+  return { id, trackingCode, estimateMin: priced.estimateMin, estimateMax: priced.estimateMax, referralNote: referral.note };
 }
 
 async function performMyTattooRequests(userId: string) {
@@ -832,6 +853,7 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
   if (!updated[0]) throw new Error("درخواست پیدا نشد.");
   const titles = { approved: "پیشنهاد قیمت و زمان تاتو", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
   await notify(sql, updated[0].customer_id, titles[data.status], artistMessage, `tattoo_request_${data.status}`);
+  await syncReferralRequest(sql, data.id);
   return { ok: true as const };
 }
 
@@ -857,6 +879,7 @@ async function performDeleteTattooRequest(userId: string, raw: unknown) {
   await sql.query(`delete from tattoo_request_files where request_id=$1`, [data.id]);
   await sql.query(`delete from tattoo_price_feedback where request_id=$1`, [data.id]);
   await sql.query(`delete from tattoo_requests where id=$1`, [data.id]);
+  await syncReferralRequest(sql, data.id);
   return { ok: true as const };
 }
 
@@ -897,6 +920,7 @@ async function performAcceptTattooProposal(userId: string, raw: unknown) {
   await notify(sql, userId, "مهلت پرداخت آغاز شد", "زمان پیشنهادی تأیید شد. برای ارسال رسید بیعانه ۶ ساعت فرصت دارید.", "tattoo_proposal_accepted", { bookingId, businessId: r.business_id });
   const owners = await sql.query<{ owner_id: string }>("select owner_id from businesses where id=$1", [r.business_id]);
   if (owners[0]) await notify(sql, owners[0].owner_id, "زمان پیشنهادی پذیرفته شد", "مشتری زمان تاتو را پذیرفت؛ مهلت پرداخت ۶ ساعته آغاز شد.", "tattoo_proposal_accepted", { bookingId, businessId: r.business_id });
+  await syncReferralRequest(sql, r.id);
   return { ok: true as const, bookingId };
 }
 
@@ -914,12 +938,14 @@ async function performSubmitTattooReceipt(userId: string, raw: unknown) {
   if (!r.payment_hold_until || new Date(r.payment_hold_until).getTime() <= Date.now()) {
     await sql.query(`update bookings set status='cancelled' where id in (select booking_id from tattoo_requests where id=$1) and status='requested'`, [r.id]);
     await sql.query(`update tattoo_requests set payment_status='expired', booking_id=null, updated_at=now() where id=$1 and payment_status in ('awaiting_payment','rejected')`, [r.id]);
+    await syncReferralRequest(sql, r.id);
     throw new Error("مهلت پرداخت تمام شد. وقت آزاد شد، اما درخواست شما همچنان باز است.");
   }
   await sql.query(`update tattoo_requests set payment_status='receipt_submitted', payment_submitted_at=now(), payment_review_deadline=now()+interval '12 hours', receipt_image=$2, updated_at=now() where id=$1`, [r.id, data.receiptImage]);
   const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin=true");
   for (const a of admins) await notify(sql, a.user_id, "رسید پرداخت جدید", "رسید بیعانه برای بررسی ارسال شد.", "tattoo_receipt_submitted", { businessId: r.business_id ?? undefined });
   await notify(sql, userId, "رسید در دست بررسی", "رسید شما دریافت شد و حداکثر تا ۱۲ ساعت آینده بررسی می‌شود.", "tattoo_receipt_review", { businessId: r.business_id ?? undefined });
+  await syncReferralRequest(sql, r.id);
   return { ok: true as const };
 }
 
@@ -980,6 +1006,7 @@ async function performDecideTattooReceipt(userId: string, raw: unknown) {
     );
   }
   await notify(sql, r.customer_id, data.approved ? "رزرو تاتو قطعی شد" : "رسید نیاز به اصلاح دارد", data.message, data.approved ? "tattoo_receipt_approved" : "tattoo_receipt_rejected", { bookingId: r.booking_id ?? undefined, businessId: r.business_id ?? undefined });
+  await syncReferralRequest(sql, data.requestId);
   return { ok: true as const };
 }
 
@@ -3358,6 +3385,7 @@ async function performCancelStudioJob(userId: string, raw: unknown) {
     "tattoo_cancelled",
     { businessId: current[0].business_id ?? undefined },
   );
+  await syncReferralRequest(sql, data.id);
   return { ok: true as const };
 }
 
@@ -4133,6 +4161,29 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performCreateBooking(userId, payload);
     case "createTattooRequest":
       return performCreateTattooRequest(userId, payload);
+    case "myReferralClub":
+      return performMyReferralClub(await getSql(), userId, payload);
+    case "referralDesk":
+      await requireAdmin(userId);
+      return performReferralDesk(await getSql());
+    case "referralFile":
+      await requireAdmin(userId);
+      return performReferralFile(await getSql(), payload);
+    case "setReferralMember":
+      await requireAdmin(userId);
+      return performSetReferralMember(await getSql(), payload);
+    case "setReferralOverride":
+      await requireAdmin(userId);
+      return performSetReferralOverride(await getSql(), payload);
+    case "setReferralReward":
+      await requireAdmin(userId);
+      return performSetReferralReward(await getSql(), payload);
+    case "saveReferralSettings":
+      await requireAdmin(userId);
+      return performSaveReferralSettings(await getSql(), payload);
+    case "markReferralSms":
+      await requireAdmin(userId);
+      return performMarkReferralSms(await getSql(), payload);
     case "myTattooRequests":
       return performMyTattooRequests(userId);
     case "studioTattooRequests":

@@ -78,23 +78,26 @@ function StudioRequestPage() {
         colorMode: payload.colorMode,
         bodySide: payload.bodySide,
         preferredDates: payload.preferredDates,
+        referralCode: payload.referralCode,
         images: payload.images,
         referenceImages: [] as string[],
         bodyImages: [] as string[],
       };
       let code = "";
       if (userId) {
-        const created = await saveAction<{ id: string; trackingCode?: string }>("createTattooRequest", body);
+        const created = await saveAction<{ id: string; trackingCode?: string; referralNote?: string }>("createTattooRequest", body);
         code = created.trackingCode || "";
+        if (created.referralNote) toast.message(created.referralNote);
       } else {
         const res = await fetch("/api/tattoo-public", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string } | null;
+        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string; referralNote?: string } | null;
         if (!res.ok) throw new Error(data?.error || "ثبت انجام نشد.");
         code = data?.trackingCode || "";
+        if (data?.referralNote) toast.message(data.referralNote);
       }
       setSent({ code, phone: payload.customerPhone });
       refresh();
