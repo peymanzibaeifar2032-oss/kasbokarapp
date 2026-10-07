@@ -6,6 +6,14 @@ const PRIZE5 = "یک طرح مینیمال تا ۱۲ سانتی‌متر";
 const PRIZE10 = "یک طرح تا ۲۶ سانتی‌متر";
 
 const DEFAULT_SMS = {
+  submitted: "یکی از دوستانی که با کد معرف شما درخواست داده، وارد مرحله بررسی شد.\nکد عضویت شما: {code}",
+  priced: "برای یکی از معرفی‌های شما قیمت و شرایط مشخص شد.\nکد عضویت شما: {code}",
+  booked: "یک معرفی موفق برای شما ثبت شد. اکنون {count} معرفی موفق از ۱۰ معرفی دارید.\nکد عضویت شما: {code}",
+  prize5: "تبریک! شما ۵ معرفی موفق دارید. جایزه شما فعال شد: {prize}. برای هماهنگی ثبت نوبت از پنل خود اقدام کنید.\nکد عضویت شما: {code}",
+  prize10: "تبریک! شما ۱۰ معرفی موفق دارید. جایزه دوم شما فعال شد: {prize}.\nکد عضویت شما: {code}",
+};
+
+const PREVIOUS_SMS = {
   submitted: "یکی از دوستانی که با کد معرف شما درخواست داده، وارد مرحله بررسی شد.",
   priced: "برای یکی از معرفی‌های شما قیمت و شرایط مشخص شد.",
   booked: "یک معرفی موفق برای شما ثبت شد. اکنون {count} معرفی موفق از ۱۰ معرفی دارید.",
@@ -57,8 +65,10 @@ function faCount(value: number) {
   return new Intl.NumberFormat("fa-IR").format(value);
 }
 
-function fillTemplate(text: string, count: number, prize: string) {
-  return text.replaceAll("{count}", faCount(count)).replaceAll("{prize}", prize);
+function fillTemplate(text: string, count: number, prize: string, code = "") {
+  const body = text.replaceAll("{count}", faCount(count)).replaceAll("{prize}", prize).replaceAll("{code}", code);
+  if (!code || body.includes(code)) return body;
+  return `${body}\nکد عضویت شما: ${code}`;
 }
 
 function phoneKey(value: string) {
@@ -120,6 +130,16 @@ async function ensureTables(sql: Sql) {
      values ('main',$1,$2,$3,$4,$5,$6,$7)
      on conflict (id) do nothing`,
     [PRIZE5, PRIZE10, DEFAULT_SMS.submitted, DEFAULT_SMS.priced, DEFAULT_SMS.booked, DEFAULT_SMS.prize5, DEFAULT_SMS.prize10],
+  );
+  await sql.query(
+    `update studio_referral_settings
+        set sms_submitted=$1, sms_priced=$2, sms_booked=$3, sms_prize5=$4, sms_prize10=$5
+      where id='main'
+        and sms_submitted=$6 and sms_priced=$7 and sms_booked=$8 and sms_prize5=$9 and sms_prize10=$10`,
+    [
+      DEFAULT_SMS.submitted, DEFAULT_SMS.priced, DEFAULT_SMS.booked, DEFAULT_SMS.prize5, DEFAULT_SMS.prize10,
+      PREVIOUS_SMS.submitted, PREVIOUS_SMS.priced, PREVIOUS_SMS.booked, PREVIOUS_SMS.prize5, PREVIOUS_SMS.prize10,
+    ],
   );
   await sql.query(
     `create table if not exists studio_referral_outbox (
@@ -218,8 +238,8 @@ async function attachReferralInner(
   await ensureTables(sql);
   const phone = phoneKey(input.customerPhone);
   const phone2 = phoneKey(input.customerPhone2 || "");
-  const referrers = await sql.query<{ id: string; phone: string; name: string; active: boolean; tier: string; user_id: string | null }>(
-    `select id, phone, name, active, tier, user_id from studio_referrers where upper(code)=$1 limit 1`,
+  const referrers = await sql.query<{ id: string; phone: string; name: string; active: boolean; tier: string; user_id: string | null; code: string }>(
+    `select id, phone, name, active, tier, user_id, code from studio_referrers where upper(code)=$1 limit 1`,
     [raw],
   );
   const referrer = referrers[0];
@@ -260,12 +280,12 @@ async function attachReferralInner(
     [id, referrer.id, input.requestId, phone || phone2],
   );
   const config = await settings(sql);
-  await queueSms(sql, referrer.id, id, referrer.phone, "submitted", config.sms_submitted);
+  await queueSms(sql, referrer.id, id, referrer.phone, "submitted", fillTemplate(config.sms_submitted, 0, "", referrer.code));
   await notifyAdmins(sql, "معرفی جدید", `${input.customerName} با کد ${raw} درخواست داد. هنوز امتیاز حساب نشده.`);
   return { attached: true as const, note: "" };
 }
 
-async function rewardState(sql: Sql, referrerId: string, count: number, phone: string, name: string) {
+async function rewardState(sql: Sql, referrerId: string, count: number, phone: string, name: string, code: string) {
   const config = await settings(sql);
   for (const milestone of [5, 10] as const) {
     const title = milestone === 5 ? config.prize5 : config.prize10;
@@ -286,7 +306,7 @@ async function rewardState(sql: Sql, referrerId: string, count: number, phone: s
           null,
           phone,
           kind,
-          fillTemplate(milestone === 5 ? config.sms_prize5 : config.sms_prize10, count, title),
+          fillTemplate(milestone === 5 ? config.sms_prize5 : config.sms_prize10, count, title, code),
         );
         await notifyAdmins(sql, "جایزه باشگاه فعال شد", `${name} به ${faCount(milestone)} معرفی موفق رسید و جایزه او فعال شد: ${title}`);
       }
@@ -353,14 +373,14 @@ async function applyReferralSync(sql: Sql, requestId: string) {
   const pricedNow = stage === "priced" || stage === "time" || stage === "paid" || stage === "booked";
   const pricedBefore = row.stage === "priced" || row.stage === "time" || row.stage === "paid" || row.stage === "booked";
   if (changed && pricedNow && !pricedBefore) {
-    await queueSms(sql, row.referrer_id, row.id, row.referrer_phone, "priced", config.sms_priced);
+    await queueSms(sql, row.referrer_id, row.id, row.referrer_phone, "priced", fillTemplate(config.sms_priced, count, "", row.referrer_code));
   }
   if (changed && !row.successful && successful) {
-    await queueSms(sql, row.referrer_id, row.id, row.referrer_phone, "booked", fillTemplate(config.sms_booked, count, ""));
+    await queueSms(sql, row.referrer_id, row.id, row.referrer_phone, "booked", fillTemplate(config.sms_booked, count, "", row.referrer_code));
     const who = row.customer_name || "یک مشتری";
     await notifyAdmins(sql, "معرفی موفق", `${who} که با کد ${row.referrer_code} معرفی شده بود، نوبت خود را قطعی کرد.`);
   }
-  await rewardState(sql, row.referrer_id, count, row.referrer_phone, row.referrer_name);
+  await rewardState(sql, row.referrer_id, count, row.referrer_phone, row.referrer_name, row.referrer_code);
 }
 
 async function phonesForUser(sql: Sql, userId: string) {

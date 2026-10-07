@@ -430,7 +430,7 @@ function StudioAdminPage() {
       ) : null}
 
       {!loading && !error && tab === "jobs" ? (
-        <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} personal={ownPanel} />
+        <MonthJobsPanel businesses={businesses} bookings={bookings} onChange={() => void refresh()} personal={ownPanel} canEnroll={owner} />
       ) : null}
 
       {!loading && !error && tab === "contacts" ? <YearContactsPanel /> : null}
@@ -733,16 +733,7 @@ function TattooAdminCard({
           <button
             type="button"
             className="text-sm font-semibold text-accent"
-            onClick={() => {
-              void saveAction("setReferralMember", {
-                name: request.customerName,
-                phone: request.customerPhone,
-                active: true,
-                tier: "active",
-              })
-                .then((saved) => toast.success(`عضو باشگاه شد. کد ${(saved as { code: string }).code}`))
-                .catch((err) => toast.error(friendlyError(err)));
-            }}
+            onClick={() => enrollReferrer(request.customerName, request.customerPhone)}
           >
             عضو باشگاه معرفین
           </button>
@@ -1683,16 +1674,29 @@ function AftercareReminders({ jobs }: { jobs: TattooRequest[] }) {
   );
 }
 
+function enrollReferrer(name: string, phone: string) {
+  void saveAction<{ code: string }>("setReferralMember", {
+    name,
+    phone,
+    active: true,
+    tier: "active",
+  })
+    .then((saved) => toast.success(`عضو باشگاه شد. کد ${saved.code}`))
+    .catch((err) => toast.error(friendlyError(err)));
+}
+
 function MonthJobsPanel({
   businesses,
   bookings,
   onChange,
   personal = false,
+  canEnroll = false,
 }: {
   businesses: Business[];
   bookings: Booking[];
   onChange: () => void;
   personal?: boolean;
+  canEnroll?: boolean;
 }) {
   const clock = tehranClock();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
@@ -1909,6 +1913,7 @@ function MonthJobsPanel({
               peers={jobs}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
+              canEnroll={canEnroll}
             />
           ))}
         </section>
@@ -1961,6 +1966,7 @@ function MonthJobsPanel({
               peers={jobs}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
+              canEnroll={canEnroll}
             />
           ))}
           <DayGap day={group.day} jobs={group.jobs} waiting={waiting} />
@@ -1983,6 +1989,7 @@ function MonthJobsPanel({
               peers={jobs}
               onChange={() => void refreshAll()}
               file={fileForJob(briefs, job)}
+              canEnroll={canEnroll}
             />
           ))
         : null}
@@ -2582,6 +2589,7 @@ function MonthJobCard({
   peers = [],
   onChange,
   file,
+  canEnroll = false,
 }: {
   job: TattooRequest & { customerFile?: CustomerFileBrief | null };
   busyKeys: string[];
@@ -2589,6 +2597,7 @@ function MonthJobCard({
   peers?: TattooRequest[];
   onChange: () => void;
   file: CustomerFileBrief | null;
+  canEnroll?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [fileOpen, setFileOpen] = useState(false);
@@ -2783,6 +2792,11 @@ function MonthJobCard({
         <Button size="sm" variant="outline" onClick={() => setDetails((value) => !value)}>
           {details ? "بستن جزئیات" : "جزئیات بیشتر"}
         </Button>
+        {canEnroll && phone ? (
+          <Button size="sm" variant="outline" onClick={() => enrollReferrer(job.customerName, phone)}>
+            عضو باشگاه معرفین
+          </Button>
+        ) : null}
       </div>
       {moving ? (
         <div className="mt-3 grid gap-3 rounded-2xl border border-border p-3">

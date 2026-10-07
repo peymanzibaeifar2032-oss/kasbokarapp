@@ -98,7 +98,6 @@ export function ReferralAdmin() {
     const success = file.referrals.filter((row) => row.successful).length;
     const pending = file.referrals.filter((row) => !row.successful && !row.closed).length;
     const tel = toTelLink(person.phone);
-    const sms = toSmsLink(person.phone, `سلام ${person.name}`);
     return (
       <section className="mt-5 grid gap-4">
         <Button variant="outline" className="w-fit" onClick={() => setFile(null)}>بازگشت به لیست</Button>
@@ -119,8 +118,8 @@ export function ReferralAdmin() {
           </p>
           <div className="mt-3 flex gap-2">
             {tel ? <a className="inline-flex h-11 items-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-fg" href={tel}>تماس</a> : null}
-            {sms ? <a className="inline-flex h-11 items-center rounded-xl border border-border px-4 text-sm font-bold" href={sms}>ارسال پیامک</a> : null}
           </div>
+          <MemberSms person={person} success={success} rewards={file.rewards} settings={desk?.settings} />
           <div className="mt-4 grid gap-2">
             <Input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} dir="ltr" placeholder="کد معرف" />
             <NativeSelect value={tier} onChange={(event) => setTier(event.target.value as typeof tier)}>
@@ -200,12 +199,26 @@ export function ReferralAdmin() {
       {(desk?.outbox || []).length ? (
         <article className="rounded-2xl border border-border bg-surface p-4">
           <h3 className="font-bold">پیامک‌های آماده</h3>
-          <p className="mt-1 text-xs leading-6 text-muted">سایت سرویس پیامکی جدا ندارد. با زدن ارسال، پیام در پیامک گوشی خودت باز می‌شود.</p>
+          <p className="mt-1 text-xs leading-6 text-muted">این‌ها همان پیام‌های مرحله‌ای هستند. با زدن ارسال، شماره و متن در پیامک گوشی باز می‌شود.</p>
           {desk?.outbox.map((item) => (
             <div key={item.id} className="mt-3 border-t border-border pt-3 text-sm">
               <p dir="ltr">{item.phone}</p>
               <p className="mt-1 leading-7">{item.body}</p>
-              <a className="mt-2 inline-flex h-10 items-center rounded-xl bg-primary px-3 font-bold text-primary-fg" href={toSmsLink(item.phone, item.body) || "#"} onClick={() => void saveAction("markReferralSms", { id: item.id }).then(load)}>ارسال پیامک</a>
+              <a
+                className="mt-2 inline-flex h-10 items-center rounded-xl bg-primary px-3 font-bold text-primary-fg"
+                href={toSmsLink(item.phone, item.body) || "#"}
+                onClick={(event) => {
+                  const href = toSmsLink(item.phone, item.body);
+                  if (!href) {
+                    event.preventDefault();
+                    toast.error("شماره برای پیامک معتبر نیست.");
+                    return;
+                  }
+                  void saveAction("markReferralSms", { id: item.id }).then(load);
+                }}
+              >
+                ارسال پیامک
+              </a>
             </div>
           ))}
         </article>
@@ -252,7 +265,76 @@ function SettingsForm({ settings, onSaved }: { settings: Desk["settings"]; onSav
           <Textarea className="mt-1" rows={2} value={draft[key]} onChange={(event) => set(key, event.target.value)} />
         </label>
       ))}
+      <p className="text-xs leading-6 text-muted">در متن می‌توانی {"{code}"} برای کد عضویت، {"{count}"} برای تعداد و {"{prize}"} برای جایزه بگذاری.</p>
       <Button onClick={() => void saveAction("saveReferralSettings", draft).then(() => { toast.success("متن‌ها ذخیره شد."); onSaved(); }).catch((err) => toast.error(friendlyError(err)))}>ذخیره متن‌ها</Button>
     </article>
+  );
+}
+
+const FALLBACK_SMS = {
+  smsSubmitted: "یکی از دوستانی که با کد معرف شما درخواست داده، وارد مرحله بررسی شد.\nکد عضویت شما: {code}",
+  smsPriced: "برای یکی از معرفی‌های شما قیمت و شرایط مشخص شد.\nکد عضویت شما: {code}",
+  smsBooked: "یک معرفی موفق برای شما ثبت شد. اکنون {count} معرفی موفق از ۱۰ معرفی دارید.\nکد عضویت شما: {code}",
+  smsPrize5: "تبریک! شما ۵ معرفی موفق دارید. جایزه شما فعال شد: {prize}. برای هماهنگی ثبت نوبت از پنل خود اقدام کنید.\nکد عضویت شما: {code}",
+  smsPrize10: "تبریک! شما ۱۰ معرفی موفق دارید. جایزه دوم شما فعال شد: {prize}.\nکد عضویت شما: {code}",
+  prize5: "یک طرح مینیمال تا ۱۲ سانتی‌متر",
+  prize10: "یک طرح تا ۲۶ سانتی‌متر",
+};
+
+function fillClubSms(text: string, count: number, prize: string, code: string) {
+  const body = text
+    .replaceAll("{count}", new Intl.NumberFormat("fa-IR").format(count))
+    .replaceAll("{prize}", prize)
+    .replaceAll("{code}", code);
+  if (!code || body.includes(code)) return body;
+  return `${body}\nکد عضویت شما: ${code}`;
+}
+
+function openClubSms(phone: string, text: string) {
+  const href = toSmsLink(phone, text);
+  if (!href) {
+    toast.error("شماره برای پیامک معتبر نیست.");
+    return;
+  }
+  window.location.assign(href);
+}
+
+function MemberSms({
+  person,
+  success,
+  rewards,
+  settings,
+}: {
+  person: { name: string; phone: string; code: string };
+  success: number;
+  rewards: { milestone: number; title: string; status: string }[];
+  settings?: Desk["settings"];
+}) {
+  const prize5 = rewards.find((item) => item.milestone === 5)?.title || settings?.prize5 || FALLBACK_SMS.prize5;
+  const prize10 = rewards.find((item) => item.milestone === 10)?.title || settings?.prize10 || FALLBACK_SMS.prize10;
+  const texts = settings || FALLBACK_SMS;
+  const ready = [
+    {
+      label: "کد عضویت",
+      body: `سلام ${person.name}\nکد عضویت باشگاه مشتریان تو: ${person.code}\nاین کد را به دوستت بده. وقتی نوبت او قطعی شد، یک معرفی موفق برای تو ثبت می‌شود.\n۵ معرفی موفق: ${prize5}\n۱۰ معرفی موفق: ${prize10}`,
+    },
+    { label: "وارد بررسی شد", body: fillClubSms(texts.smsSubmitted, success, "", person.code) },
+    { label: "قیمت اعلام شد", body: fillClubSms(texts.smsPriced, success, "", person.code) },
+    { label: "معرفی موفق", body: fillClubSms(texts.smsBooked, success, "", person.code) },
+    { label: "جایزه ۵", body: fillClubSms(texts.smsPrize5, success, prize5, person.code) },
+    { label: "جایزه ۱۰", body: fillClubSms(texts.smsPrize10, success, prize10, person.code) },
+  ];
+  return (
+    <div className="mt-4 rounded-2xl border border-border bg-bg p-3">
+      <p className="text-sm font-semibold">پیامک از گوشی خودت</p>
+      <p className="mt-1 text-xs leading-6 text-muted">با زدن هر دکمه، شماره همین عضو در پیامک باز می‌شود و متن، همراه کد عضویت، آماده ارسال است.</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {ready.map((item) => (
+          <Button key={item.label} type="button" size="sm" variant={item.label === "کد عضویت" ? "default" : "outline"} onClick={() => openClubSms(person.phone, item.body)}>
+            {item.label}
+          </Button>
+        ))}
+      </div>
+    </div>
   );
 }
