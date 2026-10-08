@@ -11,6 +11,8 @@ export function DesignThumbs({
   onRemove,
   max = 3,
   tone = "light",
+  uploadLabel = "آپلود طرح",
+  kindLabel = "طرح",
 }: {
   images: string[];
   filePrefix: string;
@@ -18,6 +20,8 @@ export function DesignThumbs({
   onRemove?: (index: number) => void;
   max?: number;
   tone?: "light" | "dark";
+  uploadLabel?: string;
+  kindLabel?: string;
 }) {
   const dark = tone === "dark";
   async function pick(files: FileList | null) {
@@ -39,12 +43,12 @@ export function DesignThumbs({
             dark ? "border-white/15" : "border-border bg-bg",
           )}
         >
-          <ImagePlus className="size-4" /> آپلود طرح
+          <ImagePlus className="size-4" /> {uploadLabel}
           <input
             className="sr-only"
             type="file"
             accept="image/*"
-            multiple
+            multiple={max > 1}
             onChange={(e) => {
               void pick(e.target.files);
               e.currentTarget.value = "";
@@ -58,7 +62,7 @@ export function DesignThumbs({
             <div key={`${src.slice(-24)}-${index}`} className="relative size-24 shrink-0">
               <img
                 src={src}
-                alt={`طرح ${index + 1}`}
+                alt={`${kindLabel} ${index + 1}`}
                 className={cn(
                   "size-24 rounded-xl border object-cover",
                   dark ? "border-white/10" : "border-border",

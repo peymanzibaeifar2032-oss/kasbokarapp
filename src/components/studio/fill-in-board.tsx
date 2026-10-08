@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
+import { UnreliableBadge } from "@/components/studio/customer-file-brief";
 import { InstagramChip } from "@/components/studio/instagram-chip";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
@@ -226,7 +227,10 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         const missedSms = toSmsLink(row.customerPhone, fillInMissedCallSms(row.customerName));
         return (
           <article key={row.id} className="rounded-2xl border border-border p-4">
-            <strong>{row.customerName}</strong>
+            <strong className="inline-flex flex-wrap items-center gap-2">
+              {row.missedCount > 0 ? <UnreliableBadge /> : null}
+              <span>{row.customerName}</span>
+            </strong>
             <p className="mt-1 text-xs font-semibold text-accent">{row.ongoing ? "ادامه دارد · بعد از تأیید در لیست می‌ماند" : "یک جلسه · بعد از تأیید از لیست می‌رود"}</p>
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
             {row.customerPhone2 ? <p className="text-sm text-muted" dir="ltr">دوم: {row.customerPhone2}</p> : null}

@@ -118,6 +118,7 @@ export type Booking = {
   tattooSessionCount?: number | null;
   tattooSessionMinutes?: number | null;
   tattooDepositToman?: number | null;
+  unreliable?: boolean;
 };
 
 export type NotificationItem = {
@@ -235,6 +236,8 @@ export type TattooRequest = {
   isContinuation: boolean;
   carryClosed: boolean;
   payments: TattooPayment[];
+  hasConsentImage?: boolean;
+  consentImage?: string;
   createdAt: string;
   updatedAt: string;
 };

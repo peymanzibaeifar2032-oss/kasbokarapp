@@ -19,6 +19,20 @@ export type CustomerFileBrief = {
   hydration: string;
 };
 
+export const UNRELIABLE_ARRIVAL = "بدقول است";
+
+export function isUnreliableCustomer(arrival?: string | null) {
+  return arrival === UNRELIABLE_ARRIVAL;
+}
+
+export function UnreliableBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold leading-5 text-amber-950">
+      مشتری بدقول
+    </span>
+  );
+}
+
 const TOLERANCE_MINUTES: Record<string, number> = {
   "۲ ساعت": 120,
   "۳ ساعت": 180,

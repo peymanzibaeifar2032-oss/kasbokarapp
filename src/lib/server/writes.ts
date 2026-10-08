@@ -74,7 +74,7 @@ import {
   TATTOO_PENDING_PROPOSAL_OVERLAP_SQL,
   TATTOO_SLOT_OVERLAP_SQL,
 } from "@/lib/server/tattoo-holds";
-import type { MehrLoanLead, OwnerStats, PriceItem, Profile, TattooPayment, TattooRequest, WorkHour } from "@/lib/types";
+import type { Booking, MehrLoanLead, OwnerStats, PriceItem, Profile, TattooPayment, TattooRequest, WorkHour } from "@/lib/types";
 
 const hoursSchema = z.array(
   z.object({
@@ -619,6 +619,15 @@ const imageDataSchema = z.string().max(1_000_000).refine(
   "فرمت تصویر معتبر نیست.",
 );
 
+const UNRELIABLE_ARRIVAL = "بدقول است";
+let jobConsentReady = false;
+
+async function ensureJobConsentColumn(sql: Awaited<ReturnType<typeof getSql>>) {
+  if (jobConsentReady) return;
+  await sql.query(`alter table tattoo_requests add column if not exists consent_image text`);
+  jobConsentReady = true;
+}
+
 async function performCreateTattooRequest(userId: string, raw: unknown) {
   const data = z.object({
     customerName: z.string().trim().min(2, "نام را کامل بنویسید.").max(80),
@@ -751,15 +760,21 @@ async function performStudioRequestImages(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z.object({ id: z.string() }).parse(raw);
   const sql = await getSql();
+  await ensureJobConsentColumn(sql);
   const scope = actor.role === "artist" ? "and artist_id = $2" : "and artist_id is null";
   const params = actor.role === "artist" ? [data.id, actor.artistId] : [data.id];
-  const rows = await sql.query<{ reference_images: unknown; body_images: unknown }>(
-    `select reference_images, body_images from tattoo_requests where id = $1 ${scope}`,
+  const rows = await sql.query<{ reference_images: unknown; body_images: unknown; consent_image: string | null }>(
+    `select reference_images, body_images, coalesce(consent_image, '') as consent_image
+       from tattoo_requests where id = $1 ${scope}`,
     params,
   );
   const images = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
   if (!rows[0]) throw new Error("درخواست پیدا نشد.");
-  return { referenceImages: images(rows[0].reference_images), bodyImages: images(rows[0].body_images) };
+  return {
+    referenceImages: images(rows[0].reference_images),
+    bodyImages: images(rows[0].body_images),
+    consentImage: rows[0].consent_image || "",
+  };
 }
 
 async function performDecideTattooRequest(userId: string, raw: unknown) {
@@ -1502,6 +1517,58 @@ async function performBookingStatus(userId: string, raw: unknown) {
   if (data.status === "cancelled") {
     await notifyWaitlist(sql, row.business_id, tehranDayKey(new Date(row.slot_start)), row.business_name);
   }
+  if (data.status === "no_show" && isOwner && kind === "booking") {
+    try {
+      const people = await sql.query<{ customer_name: string | null; customer_phone: string | null; customer_phone_2: string | null }>(
+        `select k.customer_name, k.customer_phone, t.customer_phone_2
+           from bookings k
+           left join tattoo_requests t on t.booking_id = k.id
+          where k.id = $1
+          limit 1`,
+        [data.id],
+      );
+      const person = people[0];
+      if (person) await markCustomerUnreliable(sql, userId, person.customer_phone, person.customer_phone_2, person.customer_name);
+    } catch {
+      // The visit is already marked. The name badge can be set again from the appointment card.
+    }
+  }
+  return { ok: true as const };
+}
+
+async function performMarkStudioNoShow(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ id: z.string() }).parse(raw);
+  const sql = await getSql();
+  const rows = await sql.query<{
+    artist_id: string | null;
+    booking_id: string | null;
+    customer_name: string;
+    customer_phone: string;
+    customer_phone_2: string | null;
+  }>(
+    `select artist_id, booking_id, customer_name, customer_phone, customer_phone_2
+       from tattoo_requests where id=$1`,
+    [data.id],
+  );
+  const row = rows[0];
+  if (!row) throw new Error("این نوبت پیدا نشد.");
+  assertOwnArtistJob(actor, row.artist_id);
+  await markCustomerUnreliable(sql, userId, row.customer_phone, row.customer_phone_2, row.customer_name);
+  if (row.booking_id) {
+    const current = await sql.query<{ status: string; customer_id: string | null; business_id: string }>(
+      `select status, customer_id, business_id from bookings where id=$1`,
+      [row.booking_id],
+    );
+    await sql.query(`update bookings set status='no_show' where id=$1 and status <> 'cancelled'`, [row.booking_id]);
+    if (current[0]) {
+      await audit(sql, row.booking_id, userId, "no_show", { status: current[0].status }, { status: "no_show" });
+      await notify(sql, current[0].customer_id, "عدم مراجعه", "این نوبت به‌عنوان عدم مراجعه ثبت شد.", "booking_no_show", {
+        bookingId: row.booking_id,
+        businessId: current[0].business_id,
+      });
+    }
+  }
   return { ok: true as const };
 }
 
@@ -1994,6 +2061,7 @@ async function performMine(userId: string) {
 
 async function performOwnerBookings(userId: string) {
   const sql = await getSql();
+  await rememberUnreliableCustomers(sql, userId);
   const actor = await studioActor(userId);
   if (actor?.role === "artist") {
     const rows = await sql.query<BookingRow>(
@@ -2006,7 +2074,7 @@ async function performOwnerBookings(userId: string) {
        order by k.slot_start desc`,
       [actor.artistId],
     );
-    return rows.map(mapBooking);
+    return annotateUnreliableBookings(userId, rows.map(mapBooking));
   }
   const rows = await sql.query<BookingRow>(
     `select ${BOOKING_SELECT}
@@ -2018,7 +2086,24 @@ async function performOwnerBookings(userId: string) {
      order by k.slot_start desc`,
     [userId],
   );
-  return rows.map(mapBooking);
+  return annotateUnreliableBookings(userId, rows.map(mapBooking));
+}
+
+async function annotateUnreliableBookings(userId: string, bookings: Booking[]) {
+  if (!bookings.length) return bookings;
+  try {
+    const briefs = await loadCustomerFileBriefs(
+      userId,
+      bookings.map((row) => row.customerPhone || ""),
+      bookings.map((row) => row.customerName || ""),
+    );
+    return bookings.map((row) => ({
+      ...row,
+      unreliable: customerIsUnreliable(briefs, row.customerPhone, row.customerName) || row.status === "no_show",
+    }));
+  } catch {
+    return bookings;
+  }
 }
 
 async function performOwnerStats(userId: string): Promise<OwnerStats> {
@@ -2776,6 +2861,83 @@ function contactPhone(raw: string | null | undefined) {
   return digits.length > 10 ? `0${digits.slice(-10)}` : digits;
 }
 
+function personContactKey(phone?: string | null, phone2?: string | null, name?: string | null) {
+  const first = contactPhone(normalizeIranPhone(phone || "") || phone || "");
+  if (first) return first;
+  const second = contactPhone(normalizeIranPhone(phone2 || "") || phone2 || "");
+  if (second) return second;
+  const trimmed = (name || "").replace(/\s+/g, " ").trim();
+  return trimmed ? `name:${trimmed}` : "";
+}
+
+function customerIsUnreliable(
+  briefs: Record<string, { arrival: string }>,
+  phone?: string | null,
+  name?: string | null,
+) {
+  const key = personContactKey(phone, null, null);
+  if (key && briefs[key]?.arrival === UNRELIABLE_ARRIVAL) return true;
+  const tail = (key || "").replace(/\D/g, "").slice(-10);
+  if (tail.length === 10) {
+    for (const [stored, brief] of Object.entries(briefs)) {
+      if (stored.replace(/\D/g, "").slice(-10) === tail && brief.arrival === UNRELIABLE_ARRIVAL) return true;
+    }
+  }
+  const trimmed = (name || "").replace(/\s+/g, " ").trim();
+  return Boolean(trimmed && briefs[`name:${trimmed}`]?.arrival === UNRELIABLE_ARRIVAL);
+}
+
+async function markCustomerUnreliable(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  userId: string,
+  phone?: string | null,
+  phone2?: string | null,
+  name?: string | null,
+  force = true,
+) {
+  const key = personContactKey(phone, phone2, name);
+  if (!key) return;
+  await ensureInflammationColumn(sql);
+  await sql.query(
+    `insert into studio_customer_files (id, user_id, contact_key, arrival)
+     values ($1,$2,$3,$4)
+     on conflict (user_id, contact_key) do update set
+       arrival = case when $5 then excluded.arrival when studio_customer_files.arrival = '' then excluded.arrival else studio_customer_files.arrival end,
+       updated_at = now()`,
+    [crypto.randomUUID(), userId, key, UNRELIABLE_ARRIVAL, force],
+  );
+}
+
+const rememberedUnreliable = new Set<string>();
+
+async function rememberUnreliableCustomers(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
+  if (rememberedUnreliable.has(userId)) return;
+  rememberedUnreliable.add(userId);
+  try {
+    const visits = await sql.query<{ customer_name: string | null; customer_phone: string | null; customer_phone_2: string | null }>(
+      `select k.customer_name, k.customer_phone, t.customer_phone_2
+         from bookings k
+         join businesses b on b.id = k.business_id
+         left join tattoo_requests t on t.booking_id = k.id
+        where k.status = 'no_show' and k.kind = 'booking' and b.owner_id = $1
+        limit 300`,
+      [userId],
+    );
+    const waiting = await sql.query<{ customer_name: string | null; customer_phone: string | null; customer_phone_2: string | null }>(
+      `select customer_name, customer_phone, customer_phone_2
+         from studio_fill_ins
+        where owner_id = $1 and coalesce(missed_count, 0) > 0
+        limit 300`,
+      [userId],
+    );
+    for (const person of [...visits, ...waiting]) {
+      await markCustomerUnreliable(sql, userId, person.customer_phone, person.customer_phone_2, person.customer_name, false);
+    }
+  } catch {
+    rememberedUnreliable.delete(userId);
+  }
+}
+
 async function reconcilePaidFromPayments(sql: Awaited<ReturnType<typeof getSql>>) {
   try {
     await sql.query(
@@ -2808,6 +2970,7 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
     })
     .parse(raw);
   const sql = await getSql();
+  await rememberUnreliableCustomers(sql, userId);
   await reconcilePaidFromPayments(sql);
   let range: { start: string; end: string };
   if (data.start && data.end) {
@@ -2841,7 +3004,20 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
   );
   const mapped = await mapTattooRequestRows(sql, rows);
   const files = await filesForJobs(sql, userId, mapped);
-  return mapped.map((job, index) => ({ ...job, customerFile: files[index] }));
+  let consentIds = new Set<string>();
+  if (mapped.length) {
+    try {
+      await ensureJobConsentColumn(sql);
+      const flags = await sql.query<{ id: string }>(
+        `select id from tattoo_requests where id = any($1::text[]) and coalesce(consent_image, '') <> ''`,
+        [mapped.map((job) => job.id)],
+      );
+      consentIds = new Set(flags.map((row) => row.id));
+    } catch {
+      consentIds = new Set();
+    }
+  }
+  return mapped.map((job, index) => ({ ...job, customerFile: files[index], hasConsentImage: consentIds.has(job.id) }));
 }
 
 async function filesForJobs(
@@ -3140,6 +3316,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     priceMinToman: z.number().int().min(0).max(2_000_000_000).optional(),
     settled: z.boolean().optional(),
     referenceImages: z.array(imageDataSchema).max(3).optional(),
+    consentImage: z.union([z.literal(""), imageDataSchema]).optional(),
     designQuotes: z.array(z.object({
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
       sizeCm: z.string().trim().max(60).optional(),
@@ -3207,6 +3384,13 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
         : null,
     ],
   );
+  if (data.consentImage !== undefined) {
+    await ensureJobConsentColumn(sql);
+    await sql.query(`update tattoo_requests set consent_image = nullif($2, ''), updated_at = now() where id = $1`, [
+      data.id,
+      data.consentImage,
+    ]);
+  }
   if (data.slotStart) {
     if (!current[0].business_id) throw new Error("این کار به استودیو وصل نیست.");
     const start = new Date(data.slotStart);
@@ -3562,6 +3746,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
     slotStart: z.string(),
     resourceId: z.string().max(80).optional().nullable(),
     referenceImages: z.array(imageDataSchema).max(3).default([]),
+    consentImage: z.union([z.literal(""), imageDataSchema]).optional(),
     designQuotes: z.array(z.object({
       priceToman: z.number().int().min(0).max(2_000_000_000).optional(),
       sizeCm: z.string().trim().max(60).optional(),
@@ -3612,8 +3797,9 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   }
   const instagram = normalizeInstagramHandle(data.customerInstagram);
   const images = data.referenceImages ?? [];
-  const bytes = images.reduce((sum, value) => sum + value.length, 0);
-  if (bytes > 3_500_000) throw new Error("حجم عکس‌ها زیاد است. عکس کم‌حجم‌تر بفرستید.");
+  const consentImage = data.consentImage || "";
+  const bytes = images.reduce((sum, value) => sum + value.length, 0) + consentImage.length;
+  if (bytes > 4_500_000) throw new Error("حجم عکس‌ها زیاد است. عکس کم‌حجم‌تر بفرستید.");
   const carry = data.continuation ? await customerCarry(sql, actor, phone, phone2) : null;
   const priceMin = data.continuation ? (carry?.settled ? 0 : data.priceMinToman || carry?.remaining || 0) : data.priceMinToman;
   const paid = data.continuation ? (carry?.settled ? 0 : data.paidToman ?? 0) : data.paidToman ?? 0;
@@ -3689,6 +3875,10 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
           sizeCm: data.designQuotes?.[index]?.sizeCm?.trim() || "",
         }));
         await sql.query(`update tattoo_requests set design_quotes=$2::jsonb where id=$1`, [requestId, JSON.stringify(quotes)]);
+      }
+      if (consentImage) {
+        await ensureJobConsentColumn(sql);
+        await sql.query(`update tattoo_requests set consent_image=$2 where id=$1`, [requestId, consentImage]);
       }
       break;
     } catch (error) {
@@ -3850,6 +4040,18 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
       } catch (error) {
         if (attempt === 5 || !/unique|duplicate/i.test(error instanceof Error ? error.message : "")) throw error;
       }
+    }
+    try {
+      await ensureJobConsentColumn(sql);
+      await sql.query(
+        `update tattoo_requests dst
+            set consent_image = src.consent_image
+           from tattoo_requests src
+          where dst.id = $1 and src.id = $2 and coalesce(src.consent_image, '') <> ''`,
+        [requestId, src.id],
+      );
+    } catch {
+      // A missing consent sheet must not block the next session.
     }
   } catch (err) {
     if (createdBooking) await sql.query(`delete from bookings where id=$1`, [bookingId]);
@@ -4210,6 +4412,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performCreateBlock(userId, payload);
     case "bookingStatus":
       return performBookingStatus(userId, payload);
+    case "markStudioNoShow":
+      return performMarkStudioNoShow(userId, payload);
     case "manualAppointment":
       return performManualAppointment(userId, payload);
     case "reschedule":
@@ -4342,8 +4546,24 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performSetStudioFillIn(userId, payload, requireStudioStaff);
     case "setStudioFillInMinutes":
       return performSetStudioFillInMinutes(userId, payload, requireStudioStaff);
-    case "markStudioFillIn":
-      return performMarkStudioFillIn(userId, payload, requireStudioStaff);
+    case "markStudioFillIn": {
+      const saved = await performMarkStudioFillIn(userId, payload, requireStudioStaff);
+      const marked = z.object({ id: z.string(), mark: z.enum(["called", "missed", "came"]) }).safeParse(payload);
+      if (marked.success && marked.data.mark === "missed") {
+        try {
+          const sql = await getSql();
+          const people = await sql.query<{ customer_name: string; customer_phone: string; customer_phone_2: string | null }>(
+            `select customer_name, customer_phone, customer_phone_2 from studio_fill_ins where id=$1 and owner_id=$2`,
+            [marked.data.id, userId],
+          );
+          const person = people[0];
+          if (person) await markCustomerUnreliable(sql, userId, person.customer_phone, person.customer_phone_2, person.customer_name);
+        } catch {
+          // The waitlist mark is already saved.
+        }
+      }
+      return saved;
+    }
     case "setStudioFillInPlan":
       return performSetStudioFillInPlan(userId, payload, requireStudioStaff);
     case "updateStudioFillIn":

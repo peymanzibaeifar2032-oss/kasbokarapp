@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
-import { CustomerFileDetails, toleranceMinutes, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
+import { CustomerFileDetails, toleranceMinutes, isUnreliableCustomer, UnreliableBadge, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { Button } from "@/components/ui/button";
@@ -93,6 +93,7 @@ export function StudioJobForm({
   const [resourceId, setResourceId] = useState("");
   const [resources, setResources] = useState<BusinessResource[]>([]);
   const [images, setImages] = useState<string[]>([]);
+  const [consentImage, setConsentImage] = useState("");
   const [shotQuotes, setShotQuotes] = useState<{ price: string; sizeCm: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [serverBusy, setServerBusy] = useState<string[]>([]);
@@ -240,6 +241,7 @@ export function StudioJobForm({
     setCustomerFile(null);
     setDay("");
     setImages([]);
+    setConsentImage("");
     setShotQuotes([]);
   }
 
@@ -278,6 +280,7 @@ export function StudioJobForm({
         slotStart: tehranLocalToIso(y, m, d, hh, mm),
         resourceId: resourceId || undefined,
         referenceImages: images,
+        consentImage: consentImage || undefined,
         designQuotes: images.map((_, index) => ({
           priceToman: Number(shotQuotes[index]?.price || 0),
           sizeCm: shotQuotes[index]?.sizeCm?.trim() || "",
@@ -310,7 +313,10 @@ export function StudioJobForm({
           </label>
         ) : null}
         <label className="grid gap-1.5 text-sm">
-          <span className="font-medium">نام مشتری</span>
+          <span className="flex flex-wrap items-center gap-2 font-medium">
+            نام مشتری
+            {isUnreliableCustomer(customerFile?.arrival) ? <UnreliableBadge /> : null}
+          </span>
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً محمد محمدی" />
         </label>
         <label className="grid gap-1.5 text-sm">
@@ -429,22 +435,38 @@ export function StudioJobForm({
         <span className="font-medium">توضیح طرح</span>
         <Textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={2} placeholder="اختیاری" />
       </label>
-      <div className="mt-3">
-        <p className="text-sm font-medium">عکس طرح، اختیاری</p>
-        <p className="mt-1 text-xs text-muted">ادامه کار می‌تواند بدون عکس ثبت شود. اگر عکس داری، برای هر کدام اندازه و قیمت را جدا بنویس.</p>
-        <DesignThumbs
-          images={images}
-          filePrefix={style || name || "tarh"}
-          max={3}
-          onFiles={(urls) => {
-            setImages((current) => [...current, ...urls].slice(0, 3));
-            setShotQuotes((current) => [...current, ...urls.map(() => ({ price: "", sizeCm: "" }))].slice(0, 3));
-          }}
-          onRemove={(index) => {
-            setImages((current) => current.filter((_, i) => i !== index));
-            setShotQuotes((current) => current.filter((_, i) => i !== index));
-          }}
-        />
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-sm font-medium">عکس طرح، اختیاری</p>
+          <p className="mt-1 text-xs leading-5 text-muted">برای ثبت نوبت لازم نیست. اگر عکس داری، اندازه و قیمت هر کدام را پایین بنویس.</p>
+          <DesignThumbs
+            images={images}
+            filePrefix={style || name || "tarh"}
+            max={3}
+            onFiles={(urls) => {
+              setImages((current) => [...current, ...urls].slice(0, 3));
+              setShotQuotes((current) => [...current, ...urls.map(() => ({ price: "", sizeCm: "" }))].slice(0, 3));
+            }}
+            onRemove={(index) => {
+              setImages((current) => current.filter((_, i) => i !== index));
+              setShotQuotes((current) => current.filter((_, i) => i !== index));
+            }}
+          />
+        </div>
+        <div>
+          <p className="text-sm font-medium">رضایت‌نامه، اختیاری</p>
+          <p className="mt-1 text-xs leading-5 text-muted">همان برگه‌ای که ذخیره کردی را اینجا بگذار. برای ثبت نوبت لازم نیست.</p>
+          <DesignThumbs
+            images={consentImage ? [consentImage] : []}
+            filePrefix={`${name || "consent"}-rezayat`}
+            max={1}
+            uploadLabel="آپلود رضایت‌نامه"
+            kindLabel="رضایت‌نامه"
+            onFiles={(urls) => setConsentImage(urls[0] || "")}
+            onRemove={() => setConsentImage("")}
+          />
+        </div>
+      </div>
         {images.map((src, index) => (
           <div key={`${src.slice(-16)}-${index}`} className="mt-2 grid gap-2 rounded-xl border border-border p-3">
             <p className="text-sm font-semibold">طرح {index + 1}</p>
@@ -462,7 +484,6 @@ export function StudioJobForm({
             />
           </div>
         ))}
-      </div>
       <div className="mt-4 rounded-2xl border border-emerald-700/30 bg-emerald-50 p-3 text-emerald-950">
         <p className="text-sm font-bold">روز کاملاً خالی</p>
         <p className="mt-1 text-xs leading-6">تقویم روی اولین ماه خالی است. روزی که حتی دو ساعت کار دارد اینجا انتخاب نمی‌شود. ساعت خالی همان روز را بعداً از لیست انتظار پر کن.</p>

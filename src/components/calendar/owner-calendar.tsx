@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MonthGrid } from "@/components/calendar/month-grid";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
+import { UnreliableBadge } from "@/components/studio/customer-file-brief";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -371,7 +372,12 @@ export function OwnerCalendar({
                     {formatFaDateTime(b.slotStart)}
                   </span>
                   {b.resourceName ? <span className="block text-xs">{b.resourceName}</span> : null}
-                  {b.kind !== "block" ? <span className="block">{b.customerName}</span> : null}
+                  {b.kind !== "block" ? (
+                    <span className="mt-1 flex flex-wrap items-center gap-2">
+                      {b.unreliable || b.status === "no_show" ? <UnreliableBadge /> : null}
+                      <span>{b.customerName}</span>
+                    </span>
+                  ) : null}
                   {b.serviceTitle ? (
                     <span className="block text-xs text-muted">{b.serviceTitle}</span>
                   ) : null}
@@ -462,7 +468,12 @@ function AppointmentCard({
           بستن
         </button>
       </div>
-      {!isBlock ? <p className="mt-1">{booking.customerName}</p> : null}
+      {!isBlock ? (
+        <p className="mt-1 flex flex-wrap items-center gap-2">
+          {booking.unreliable || booking.status === "no_show" ? <UnreliableBadge /> : null}
+          <span>{booking.customerName}</span>
+        </p>
+      ) : null}
       {!isBlock && booking.customerPhone ? (
         <div className="mt-1 flex gap-3 text-sm">
           <a className="text-accent" href={`tel:${booking.customerPhone}`}>
@@ -532,7 +543,7 @@ function AppointmentCard({
               تکمیل شد
             </Button>
             <Button size="sm" variant="outline" onClick={() => void setStatus("no_show")}>
-              {t("noShow")}
+              مشتری نیامد
             </Button>
           </>
         ) : null}

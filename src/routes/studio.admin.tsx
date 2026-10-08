@@ -10,7 +10,7 @@ import { StudioApprenticeBoard } from "@/components/studio/apprentice-board";
 import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-board";
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
 import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
-import { CustomerFileDetails, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
+import { CustomerFileDetails, isUnreliableCustomer, UnreliableBadge, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { ConsentBoard } from "@/components/studio/consent-board";
 import { ReferralAdmin } from "@/components/studio/referral-admin";
@@ -520,6 +520,36 @@ function oneMonthLaterKey(iso: string | null) {
   const clock = tehranClock(iso ? new Date(iso) : new Date());
   const next = new Date(Date.UTC(clock.y, clock.m, clock.day));
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
+}
+
+function StoredConsent({ request }: { request: TattooRequest }) {
+  const [image, setImage] = useState(request.consentImage || "");
+  const [busy, setBusy] = useState(false);
+  if (!request.hasConsentImage && !image) return null;
+  return (
+    <div className="mt-3">
+      <p className="text-sm font-semibold">رضایت‌نامه</p>
+      {image ? (
+        <DesignThumbs images={[image]} filePrefix={`${request.customerName}-rezayat`} kindLabel="رضایت‌نامه" />
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-2 h-11"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void saveAction<{ consentImage?: string }>("studioRequestImages", { id: request.id })
+              .then((row) => setImage(row.consentImage || ""))
+              .catch((err) => toast.error(friendlyError(err)))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? "در حال باز کردن رضایت‌نامه…" : "نمایش رضایت‌نامه"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 function StoredDesigns({ request }: { request: TattooRequest }) {
@@ -1376,7 +1406,10 @@ function ContactCard({ row, onSaved }: { row: YearContact; onSaved: (file: Custo
   return (
     <article className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3 className="text-base font-bold">{row.name}</h3>
+        <h3 className="flex flex-wrap items-center gap-2 text-base font-bold">
+          {isUnreliableCustomer(row.file.arrival) ? <UnreliableBadge /> : null}
+          <span>{row.name}</span>
+        </h3>
         <p className="text-sm font-semibold">{toFaDigits(row.sessions)} جلسه</p>
       </div>
       <div className="mt-2 flex flex-wrap gap-3 text-sm">
@@ -1629,7 +1662,7 @@ function daysBetweenKeys(fromKey: string, toKey: string) {
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(y, m - 1, d)) / 86400000);
 }
 
-function AftercareReminders({ jobs }: { jobs: TattooRequest[] }) {
+function AftercareReminders({ jobs }: { jobs: Array<TattooRequest & { customerFile?: CustomerFileBrief | null }> }) {
   const today = tehranDayKey();
   const due = jobs
     .map((job) => {
@@ -1638,7 +1671,7 @@ function AftercareReminders({ jobs }: { jobs: TattooRequest[] }) {
       const stage = age === 1 ? "wash" : age === 4 ? "itch" : age === 5 ? "month" : null;
       return stage ? { job, stage, age } : null;
     })
-    .filter((row): row is { job: TattooRequest; stage: "wash" | "itch" | "month"; age: number } => Boolean(row))
+    .filter((row): row is { job: TattooRequest & { customerFile?: CustomerFileBrief | null }; stage: "wash" | "itch" | "month"; age: number } => Boolean(row))
     .sort((a, b) => a.age - b.age || jobStamp(a.job) - jobStamp(b.job));
   if (!due.length) return null;
   return (
@@ -1652,7 +1685,10 @@ function AftercareReminders({ jobs }: { jobs: TattooRequest[] }) {
           return (
             <article key={`${job.id}-${stage}`} className="rounded-2xl border border-amber-300 bg-white/70 p-3">
               <p className="text-xs font-bold text-amber-800">{label}</p>
-              <p className="mt-1 font-bold">{job.customerName}</p>
+              <p className="mt-1 flex flex-wrap items-center gap-2 font-bold">
+                {isUnreliableCustomer(job.customerFile?.arrival) ? <UnreliableBadge /> : null}
+                <span>{job.customerName}</span>
+              </p>
               <p className="text-sm text-amber-900">{formatFaDateTime(job.proposedSlotStart || job.updatedAt)}</p>
               {phone ? (
                 <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1704,7 +1740,7 @@ function MonthJobsPanel({
   const [weekOffset, setWeekOffset] = useState(0);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [jobs, setJobs] = useState<Array<TattooRequest & { customerFile?: CustomerFileBrief | null }>>([]);
-  const [careJobs, setCareJobs] = useState<TattooRequest[]>([]);
+  const [careJobs, setCareJobs] = useState<Array<TattooRequest & { customerFile?: CustomerFileBrief | null }>>([]);
   const [waiting, setWaiting] = useState<StudioFillIn[]>([]);
   const [briefs, setBriefs] = useState<Record<string, CustomerFileBrief>>({});
   const [jobQuery, setJobQuery] = useState("");
@@ -2611,6 +2647,7 @@ function MonthJobCard({
   const [phone2Edit, setPhone2Edit] = useState(job.customerPhone2 || "");
   const [instagramEdit, setInstagramEdit] = useState(job.customerInstagram || "");
   const [images, setImages] = useState<string[]>([...(job.referenceImages ?? [])]);
+  const [consentImage, setConsentImage] = useState<string | undefined>(undefined);
   const [shotQuotes, setShotQuotes] = useState<{ price: string; sizeCm: string }[]>(
     (job.referenceImages ?? []).map((_, index) => ({
       price: job.designQuotes?.[index]?.priceToman ? String(job.designQuotes[index].priceToman) : "",
@@ -2629,6 +2666,21 @@ function MonthJobCard({
   const when = job.proposedSlotStart || job.updatedAt;
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
   const phone2 = job.customerPhone2 || "";
+  const unreliable = isUnreliableCustomer((job.customerFile ?? file)?.arrival) || bookings.some((booking) => booking.id === job.bookingId && (booking.status === "no_show" || booking.unreliable));
+  const missedVisit = bookings.some((booking) => booking.id === job.bookingId && booking.status === "no_show");
+
+  async function markMissed() {
+    setBusy(true);
+    try {
+      await saveAction("markStudioNoShow", { id: job.id });
+      toast.success("ثبت شد. از این به بعد جلوی اسمش می‌ماند: مشتری بدقول");
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function save() {
     setBusy(true);
@@ -2653,6 +2705,7 @@ function MonthJobCard({
               })),
             }
           : {}),
+        ...(consentImage !== undefined ? { consentImage } : {}),
       });
       toast.success("کار به‌روز شد.");
       setEditing(false);
@@ -2767,12 +2820,16 @@ function MonthJobCard({
     <article className="rounded-3xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-lg font-bold">{job.customerName}</h3>
+          <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold">
+            {unreliable ? <UnreliableBadge /> : null}
+            <span>{job.customerName}</span>
+          </h3>
           <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
           <p className="mt-1 text-sm text-muted">
             {job.style}
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
+          {job.hasConsentImage ? <p className="mt-1 text-xs font-semibold text-accent">رضایت‌نامه ذخیره شده</p> : null}
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
@@ -2797,6 +2854,11 @@ function MonthJobCard({
             عضو باشگاه معرفین
           </Button>
         ) : null}
+        {missedVisit ? null : (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => void markMissed()}>
+            مشتری نیامد
+          </Button>
+        )}
       </div>
       {moving ? (
         <div className="mt-3 grid gap-3 rounded-2xl border border-border p-3">
@@ -2847,6 +2909,7 @@ function MonthJobCard({
         {job.sizeCm ? <p className="mt-2 text-sm">اندازه: {job.sizeCm}</p> : null}
         {job.idea ? <p className="mt-1 text-sm leading-7">{job.idea}</p> : null}
         <StoredDesigns request={job} />
+        <StoredConsent request={job} />
         {(job.designQuotes ?? []).some((quote) => quote.priceToman || quote.sizeCm) ? (
           <div className="mt-2 grid gap-1">
             {(job.designQuotes ?? []).map((quote, index) => {
@@ -2945,6 +3008,22 @@ function MonthJobCard({
                 />
               </div>
             ))}
+            <p className="mt-3 text-sm font-medium">رضایت‌نامه، اختیاری</p>
+            <p className="mt-1 text-xs text-muted">برای ذخیره نوبت لازم نیست. اگر برگه تازه بگذاری، قبلی عوض می‌شود.</p>
+            <DesignThumbs
+              images={consentImage ? [consentImage] : []}
+              filePrefix={`${name}-rezayat`}
+              max={1}
+              uploadLabel="آپلود رضایت‌نامه"
+              kindLabel="رضایت‌نامه"
+              onFiles={(urls) => setConsentImage(urls[0] || "")}
+              onRemove={() => setConsentImage("")}
+            />
+            {job.hasConsentImage && consentImage === undefined ? (
+              <Button className="mt-2" type="button" variant="outline" size="sm" onClick={() => setConsentImage("")}>
+                حذف رضایت‌نامه ذخیره‌شده
+              </Button>
+            ) : null}
             <Button className="mt-3" disabled={busy} onClick={() => void save()}>
               ذخیره تغییرات
             </Button>
