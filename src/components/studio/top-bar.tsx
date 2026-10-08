@@ -14,6 +14,7 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
   const { showAdmin } = useStudioAdminEntry();
   const [inApp, setInApp] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   useEffect(() => setInApp(inStudioApp()), []);
   return (
     <>
@@ -31,39 +32,35 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
             </button>
             {menuOpen ? (
               <nav className="mt-3 grid grid-cols-2 gap-2" aria-label="منوی استودیو">
-                <Link to="/studio" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
-                  صفحه استودیو
-                </Link>
                 <Link to="/studio/request" className="flex h-14 items-center justify-center rounded-2xl bg-[#b7955b] text-sm font-bold text-black">
                   درخواست نوبت
-                </Link>
-                <Link to="/studio/open" className="flex h-14 items-center justify-center rounded-2xl bg-emerald-500/20 text-sm font-bold text-emerald-50">
-                  روزهای خالی
                 </Link>
                 <Link to="/studio/status" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
                   وضعیت نوبت{unread > 0 ? ` · ${new Intl.NumberFormat("fa-IR").format(unread)}` : ""}
                 </Link>
-                <Link to="/studio/club" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
-                  باشگاه
+                <Link to="/studio/open" className="col-span-2 flex h-14 items-center justify-center rounded-2xl bg-emerald-500/20 text-sm font-bold text-emerald-50">
+                  روزهای خالی
                 </Link>
-                <Link to="/studio/designs" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
-                  انتخاب طرح
-                </Link>
-                <Link to="/studio/guide" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
-                  آموزش فرم
-                </Link>
-                <Link to="/studio/care" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">
-                  مراقبت
-                </Link>
+                <button
+                  type="button"
+                  className="col-span-2 flex h-12 items-center justify-center rounded-2xl border border-white/10 text-sm"
+                  onClick={() => setMoreOpen((open) => !open)}
+                >
+                  {moreOpen ? "بستن بقیه" : "بیشتر"}
+                </button>
+                {moreOpen ? (
+                  <>
+                    <Link to="/studio/club" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">باشگاه</Link>
+                    <Link to="/studio/care" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">مراقبت</Link>
+                    <Link to="/studio/guide" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">آموزش فرم</Link>
+                    <Link to="/studio/designs" className="flex h-14 items-center justify-center rounded-2xl bg-white/[.06] text-sm">انتخاب طرح</Link>
+                  </>
+                ) : null}
                 <a href={ADMIN_URL} className="col-span-2 flex h-14 items-center justify-center rounded-2xl bg-black text-sm font-bold text-[#b7955b]">
                   پنل ادمین · در مرورگر
                 </a>
-                <a href={LOGIN_URL} className="flex h-14 items-center justify-center rounded-2xl border border-white/10 text-sm">
-                  ورود
-                </a>
-                <a href={LOGOUT_URL} className="flex h-14 items-center justify-center rounded-2xl border border-white/10 text-sm">
-                  خروج
-                </a>
+                <a href={LOGIN_URL} className="flex h-14 items-center justify-center rounded-2xl border border-white/10 text-sm">ورود</a>
+                <a href={LOGOUT_URL} className="flex h-14 items-center justify-center rounded-2xl border border-white/10 text-sm">خروج</a>
               </nav>
             ) : null}
           </div>
@@ -106,30 +103,21 @@ export function StudioTopBar({ compact }: { compact?: boolean }) {
               >
                 روز خالی
               </Link>
-              <Link
-                to="/studio/designs"
+              <button
+                type="button"
                 className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
+                onClick={() => setMoreOpen((open) => !open)}
               >
-                طرح
-              </Link>
-              <Link
-                to="/studio/guide"
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
-              >
-                آموزش
-              </Link>
-              <Link
-                to="/studio/club"
-                className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
-              >
-                باشگاه
-              </Link>
-              <Link
-                to="/studio/care"
-                className="col-span-2 inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80 sm:col-span-1"
-              >
-                مراقبت قبل و بعد
-              </Link>
+                {moreOpen ? "بستن" : "بیشتر"}
+              </button>
+              {moreOpen ? (
+                <>
+                  <Link to="/studio/club" className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]">باشگاه</Link>
+                  <Link to="/studio/care" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">مراقبت</Link>
+                  <Link to="/studio/guide" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">آموزش</Link>
+                  <Link to="/studio/designs" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">طرح</Link>
+                </>
+              ) : null}
               </nav>
             </div>
           </>

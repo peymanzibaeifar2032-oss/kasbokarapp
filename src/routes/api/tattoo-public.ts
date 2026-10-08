@@ -7,7 +7,7 @@ import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
 import { attachReferral } from "@/lib/server/studio-referrals";
-import { finalizeNewTattooRequest, refreshTattooEstimates } from "@/lib/server/tattoo-estimate";
+import { finalizeNewTattooRequest } from "@/lib/server/tattoo-estimate";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
   (value) => /^data:image\/(jpeg|png|webp);base64,/i.test(value),
@@ -231,10 +231,8 @@ async function lookup(request: Request) {
   const sql = await getSql();
   if (code.length === 6) {
     const rows = await queryStatus(sql, "where tracking_code = $1 limit 1", [code]);
-    await refreshTattooEstimates(sql, rows.map((row) => row.id));
-    const fresh = await queryStatus(sql, "where tracking_code = $1 limit 1", [code]);
-    await markRepliesSeen(sql, fresh.map((row) => row.id));
-    return json({ items: fresh.map(mapStatus) });
+    await markRepliesSeen(sql, rows.map((row) => row.id));
+    return json({ items: rows.map(mapStatus) });
   }
   if (isIranMobile(phone)) {
     const rows = await queryStatus(
@@ -242,14 +240,8 @@ async function lookup(request: Request) {
       "where customer_phone = $1 or customer_phone_2 = $1 order by created_at desc limit 20",
       [phone],
     );
-    await refreshTattooEstimates(sql, rows.map((row) => row.id));
-    const fresh = await queryStatus(
-      sql,
-      "where customer_phone = $1 or customer_phone_2 = $1 order by created_at desc limit 20",
-      [phone],
-    );
-    await markRepliesSeen(sql, fresh.map((row) => row.id));
-    return json({ items: fresh.map(mapStatus) });
+    await markRepliesSeen(sql, rows.map((row) => row.id));
+    return json({ items: rows.map(mapStatus) });
   }
   return json({ error: "کد پیگیری ۶ رقمی یا شماره موبایل را بنویس." }, 400);
 }

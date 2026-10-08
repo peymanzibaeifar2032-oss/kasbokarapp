@@ -12,7 +12,6 @@ import {
   Sparkles,
   Upload,
 } from "lucide-react";
-import { useEffect } from "react";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { StudioGuideGallery } from "@/components/studio/guide-gallery";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
@@ -44,12 +43,6 @@ const faqs = [
 function StudioLanding() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { showAdmin } = useStudioAdminEntry();
-
-  useEffect(() => {
-    if (pathname === "/studio" && navigator.userAgent.includes("TattooApp")) {
-      window.location.replace("/studio/pocket");
-    }
-  }, [pathname]);
 
   if (pathname !== "/studio") return <Outlet />;
 
@@ -100,42 +93,21 @@ function StudioLanding() {
                     بررسی وضعیت
                   </Link>
                   <Link
-                    to="/studio/pocket"
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm"
-                  >
-                    اپ روی گوشی
-                  </Link>
-                  <Link
                     to="/studio/open"
                     className="inline-flex h-12 items-center justify-center rounded-2xl border border-emerald-300/40 px-3 text-sm text-emerald-100"
                   >
                     روزهای خالی
                   </Link>
-                  <Link
-                    to="/studio/designs"
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]"
-                  >
-                    انتخاب طرح
-                  </Link>
-                  <Link
-                    to="/studio/care"
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
-                  >
-                    مراقبت
-                  </Link>
-                  <Link
-                    to="/studio/guide"
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
-                  >
-                    آموزش فرم
-                  </Link>
-                  <Link
-                    to="/studio/app"
-                    className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80"
-                  >
-                    دانلود اپ
-                  </Link>
                 </div>
+                <details className="rounded-2xl border border-white/10 px-3 py-2">
+                  <summary className="cursor-pointer text-sm text-white/70">بیشتر: طرح، مراقبت، آموزش، باشگاه</summary>
+                  <div className="mt-3 grid grid-cols-2 gap-3 pb-1">
+                    <Link to="/studio/designs" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">طرح</Link>
+                    <Link to="/studio/care" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">مراقبت</Link>
+                    <Link to="/studio/guide" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">آموزش</Link>
+                    <Link to="/studio/club" className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]">باشگاه</Link>
+                  </div>
+                </details>
               </div>
               <div className="mt-10 flex flex-wrap gap-x-6 gap-y-3 text-xs text-white/45">
                 <span className="inline-flex items-center gap-2"><MapPin className="size-4 text-[#b7955b]" />کرمانشاه</span>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronLeft, Copy, CreditCard, FileDown, RefreshCw } from "lucide-react";
+import { Copy, CreditCard, FileDown, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
@@ -356,48 +356,50 @@ function StudioAdminPage() {
               : "قیمت و زمان را بفرستید. بعد از تأیید مشتری، همان زمان ۶ ساعت قفل می‌شود. رسید که آمد تا ۱۲ ساعت قفل می‌ماند؛ با تأیید شما در تقویم قطعی می‌شود."}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+        <Button variant="outline" size="sm" onClick={() => void refresh()}>
             <RefreshCw className="size-4" /> تازه‌سازی
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/dashboard">
-              پنل اصلی <ChevronLeft className="size-4" />
-            </Link>
-          </Button>
-        </div>
       </div>
 
-      <div className="mt-5 flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
+      <div className="mt-5 grid gap-2">
         {(
           [
-            ["calendar", "امروز"],
-            ["jobs", "نوبت‌ها"],
-            ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
-            ["fill", "لیست انتظار"],
-            ["money", owner || ownPanel ? "صندوق" : "سهم من"],
-            ["apprentices", "هنرجوها"],
-            ["contacts", "مشتریان"],
-            ["messages", "پیام‌های آماده"],
-            ["consent", "رضایت‌نامه"],
-            ["club", "باشگاه"],
-            ["artists", "همکاران"],
+            [
+              ["calendar", "امروز"],
+              ["jobs", "نوبت‌ها"],
+              ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
+              ["contacts", "مشتریان"],
+            ],
+            [
+              ["money", owner || ownPanel ? "صندوق" : "سهم من"],
+              ["fill", "لیست انتظار"],
+              ["consent", "رضایت‌نامه"],
+              ["club", "باشگاه"],
+              ["apprentices", "هنرجوها"],
+              ["messages", "پیام‌های آماده"],
+              ["artists", "همکاران"],
+            ],
           ] as const
-        )
-          .filter(([id]) => owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices")))
-          .map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className={cn(
-                "h-12 shrink-0 rounded-2xl border border-border px-4 text-sm font-semibold",
-                tab === id ? "bg-primary text-primary-fg" : "text-muted",
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        ).map((row, rowIndex) => (
+          <div key={rowIndex} className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
+            {row
+              .filter(([id]) => owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices")))
+              .map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setTab(id)}
+                  className={cn(
+                    "h-12 shrink-0 rounded-2xl border px-4 text-sm font-semibold",
+                    rowIndex === 0 ? "border-border" : "border-border/70",
+                    tab === id ? "bg-primary text-primary-fg" : "text-muted",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+          </div>
+        ))}
       </div>
 
       {tab === "messages" ? <ReadyMessages /> : null}

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarPlus, ChevronLeft, Download, Loader2, Smartphone } from "lucide-react";
+import { CalendarPlus, ChevronLeft, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { GuestPayCard, type GuestStatus } from "@/components/studio/guest-pay-card";
@@ -31,27 +31,6 @@ function stageRank(item: GuestStatus) {
   if (stage === "booked") return 0;
   if (stage === "rejected" || stage === "expired") return 2;
   return 1;
-}
-
-function AppDownloadBar() {
-  return (
-    <div className="border-b border-[#b7955b]/30 bg-[#b7955b]/12">
-      <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="flex items-center gap-2 text-sm leading-6 text-[#e5d2ae]">
-          <Smartphone className="size-4 shrink-0" />
-          آخرین نسخهٔ اپ اندروید
-        </p>
-        <a
-          href="/api/tattoo-apk?v=13"
-          download="rezerv-vaght-tatoo.apk"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#b7955b] px-4 text-sm font-bold text-black"
-        >
-          <Download className="size-4" />
-          دانلود اندروید
-        </a>
-      </div>
-    </div>
-  );
 }
 
 function StudioStatusPage() {
@@ -168,7 +147,6 @@ function StudioStatusPage() {
     return (
       <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
         <StudioTopBar compact />
-        <AppDownloadBar />
         <main className="mx-auto max-w-3xl px-4 py-10">
           <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6">
             <h1 className="text-2xl font-black">بررسی وضعیت نوبت</h1>
@@ -211,7 +189,6 @@ function StudioStatusPage() {
   return (
     <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
       <StudioTopBar compact />
-      <AppDownloadBar />
       <main className="mx-auto grid max-w-3xl gap-5 px-4 py-8">
         <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-7">
           <h2 className="text-xl font-black">وضعیت با شماره موبایل</h2>
