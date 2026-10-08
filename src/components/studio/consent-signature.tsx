@@ -1,14 +1,19 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { stampSignatureOnConsent } from "@/components/studio/consent-board";
 
-/** Optional finger signature. Nothing is stored until the user taps save. */
+/** Draws a finger signature into the امضا box of an existing consent sheet. */
 export function ConsentSignature({
+  sheet,
+  loadSheet,
   onPick,
   busy = false,
-  saveLabel = "ذخیره امضا",
+  saveLabel = "نشاندن امضا روی برگه",
 }: {
-  onPick: (dataUrl: string) => void;
+  sheet: string;
+  loadSheet?: () => Promise<string>;
+  onPick: (stampedSheet: string) => void;
   busy?: boolean;
   saveLabel?: string;
 }) {
@@ -16,6 +21,12 @@ export function ConsentSignature({
   const drawing = useRef(false);
   const [open, setOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [page, setPage] = useState(sheet);
+  const [stamping, setStamping] = useState(false);
+
+  useEffect(() => {
+    setPage(sheet);
+  }, [sheet]);
 
   useEffect(() => {
     if (!open) return;
@@ -29,11 +40,10 @@ export function ConsentSignature({
     canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, height);
     ctx.scale(scale, scale);
-    ctx.strokeStyle = "#1c3d52";
-    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = "#1c1c1c";
+    ctx.lineWidth = 2.6;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     setDirty(false);
@@ -72,44 +82,69 @@ export function ConsentSignature({
     drawing.current = false;
   }
 
-  function clear() {
+  function clearPad() {
     const canvas = canvasRef.current;
     const ctx = ctxOf();
     if (!canvas || !ctx) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const scale = Math.min(window.devicePixelRatio || 1, 2);
     ctx.scale(scale, scale);
-    ctx.strokeStyle = "#1c3d52";
-    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = "#1c1c1c";
+    ctx.lineWidth = 2.6;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     setDirty(false);
   }
 
-  function save() {
+  async function openPad() {
+    setOpen(true);
+    if (page || !loadSheet) return;
+    try {
+      const loaded = await loadSheet();
+      if (loaded) setPage(loaded);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "برگه باز نشد.");
+    }
+  }
+
+  async function save() {
     const canvas = canvasRef.current;
     if (!canvas || !dirty) return;
-    const url = canvas.toDataURL("image/png");
-    if (url.length > 900_000) {
-      toast.error("امضا ذخیره نشد. یک بار دیگر ساده‌تر امضا کن.");
+    if (!page.startsWith("data:image/")) {
+      toast.error("اول خود برگهٔ رضایت‌نامه را بگذار. امضا به‌تنهایی ذخیره نمی‌شود.");
       return;
     }
-    onPick(url);
+    setStamping(true);
+    try {
+      const ink = canvas.toDataURL("image/png");
+      const stamped = await stampSignatureOnConsent(page, ink);
+      setPage(stamped);
+      clearPad();
+      onPick(stamped);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "امضا روی برگه ننشست.");
+    } finally {
+      setStamping(false);
+    }
   }
 
   if (!open) {
     return (
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-        امضای مشتری
+      <Button type="button" variant="outline" size="sm" onClick={() => void openPad()}>
+        امضا روی برگه
       </Button>
     );
   }
 
   return (
     <div>
-      <p className="text-xs leading-6 text-muted">مشتری با انگشت همین‌جا امضا می‌کند. تا «ذخیره امضا» را نزنی چیزی عوض نمی‌شود و برای ثبت نوبت لازم نیست.</p>
+      <p className="text-xs leading-6 text-muted">امضا فقط داخل کادر «امضا»ی پایین برگه می‌نشیند. متن برگه و عکس طرح سر جایش می‌ماند. برای ثبت نوبت لازم نیست.</p>
+      {page ? (
+        <img src={page} alt="برگه رضایت‌نامه" className="mt-2 max-h-64 w-full rounded-xl border border-border object-contain bg-white" />
+      ) : (
+        <p className="mt-2 text-sm text-destructive">اول عکس برگهٔ رضایت‌نامه را بگذار. بدون برگه، امضا ذخیره نمی‌شود.</p>
+      )}
       <canvas
         ref={canvasRef}
         className="mt-2 h-36 w-full touch-none rounded-xl border border-border bg-white"
@@ -119,11 +154,11 @@ export function ConsentSignature({
         onPointerCancel={end}
       />
       <div className="mt-2 flex flex-wrap gap-2">
-        <Button type="button" size="sm" disabled={!dirty || busy} onClick={save}>
-          {saveLabel}
+        <Button type="button" size="sm" disabled={!dirty || busy || stamping || !page} onClick={() => void save()}>
+          {stamping ? "در حال نشاندن روی برگه…" : saveLabel}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={clear}>
-          پاک کردن
+        <Button type="button" size="sm" variant="outline" onClick={clearPad}>
+          پاک کردن امضا
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>
           بستن

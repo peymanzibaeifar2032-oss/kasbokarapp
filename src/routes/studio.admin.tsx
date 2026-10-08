@@ -3017,12 +3017,21 @@ function MonthJobCard({
       </div>
       <Fold title="امضای رضایت‌نامه">
         <ConsentSignature
+          sheet={consentImage || ""}
+          loadSheet={
+            consentImage === undefined && job.hasConsentImage
+              ? async () => {
+                  const row = await saveAction<{ consentImage?: string }>("studioRequestImages", { id: job.id });
+                  return row.consentImage || "";
+                }
+              : undefined
+          }
           busy={busy}
           onPick={(url) => {
             setBusy(true);
             void saveAction("updateStudioJob", { id: job.id, consentImage: url })
               .then(() => {
-                toast.success("امضا ذخیره شد. برگهٔ قبلی، اگر بود، با همین عوض شد.");
+                toast.success("امضا داخل کادر برگه نشست. متن برگه سر جایش ماند.");
                 onChange();
               })
               .catch((err) => toast.error(friendlyError(err)))

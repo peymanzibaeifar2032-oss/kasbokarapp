@@ -468,10 +468,11 @@ export function StudioJobForm({
           />
           <div className="mt-2">
             <ConsentSignature
-              saveLabel="گذاشتن امضا روی این نوبت"
+              sheet={consentImage}
+              saveLabel="نشاندن امضا روی برگه"
               onPick={(url) => {
                 setConsentImage(url);
-                toast.success("امضا روی فرم نشست. با ثبت نوبت ذخیره می‌شود. اجباری نیست.");
+                toast.success("امضا داخل کادر برگه نشست. متن برگه سر جایش ماند.");
               }}
             />
           </div>

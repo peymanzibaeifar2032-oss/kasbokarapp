@@ -176,6 +176,52 @@ export async function drawConsentSheet(form: ConsentRecord) {
   return canvas.toDataURL("image/jpeg", 0.92);
 }
 
+/** Same box `drawConsentSheet` labels امضا: bottom-left of the A4 sheet. */
+export const CONSENT_SIGNATURE_BOX = { sheetW: 1654, sheetH: 2339, x: 72, y: 2077, w: 620, h: 190 };
+
+export async function stampSignatureOnConsent(sheetUrl: string, signatureUrl: string) {
+  if (!sheetUrl.startsWith("data:image/")) throw new Error("اول خود برگهٔ رضایت‌نامه را بگذار. امضا جای برگه را نمی‌گیرد.");
+  const sheet = await loadImage(sheetUrl);
+  const sign = await loadImage(signatureUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = sheet.width;
+  canvas.height = sheet.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("برگه ساخته نشد.");
+  ctx.drawImage(sheet, 0, 0);
+  const box = CONSENT_SIGNATURE_BOX;
+  const sx = sheet.width / box.sheetW;
+  const sy = sheet.height / box.sheetH;
+  const pad = 22;
+  const x = (box.x + pad) * sx;
+  const y = (box.y + pad) * sy;
+  const w = Math.max(8, (box.w - pad * 2) * sx);
+  const h = Math.max(8, (box.h - pad * 2) * sy);
+  const scale = Math.min(w / sign.width, h / sign.height);
+  const dw = sign.width * scale;
+  const dh = sign.height * scale;
+  ctx.drawImage(sign, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  let out = canvas;
+  let quality = 0.86;
+  let url = out.toDataURL("image/jpeg", quality);
+  while (url.length > 900_000 && quality > 0.55) {
+    quality -= 0.08;
+    url = out.toDataURL("image/jpeg", quality);
+  }
+  while (url.length > 900_000 && out.width > 900) {
+    const next = document.createElement("canvas");
+    next.width = Math.round(out.width * 0.82);
+    next.height = Math.round(out.height * 0.82);
+    const nextCtx = next.getContext("2d");
+    if (!nextCtx) break;
+    nextCtx.drawImage(out, 0, 0, next.width, next.height);
+    out = next;
+    url = out.toDataURL("image/jpeg", 0.8);
+  }
+  if (url.length > 1_000_000) throw new Error("برگه با امضا سنگین شد. عکس برگه را کم‌حجم‌تر بگذار.");
+  return url;
+}
+
 export function ConsentBoard() {
   const [name, setName] = useState("");
   const [nationalId, setNationalId] = useState("");
