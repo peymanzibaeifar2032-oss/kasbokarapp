@@ -1808,12 +1808,14 @@ function MonthJobsPanel({
   const visibleJobs = jobs.filter((job) => customerQueryMatch(jobQuery, job));
   const todayKey = tehranDayKey();
   const upcomingJobs = visibleJobs
-    .filter((job) => jobDayKey(job) >= todayKey)
-    .sort((a, b) => jobStamp(a) - jobStamp(b));
+    .filter((job) => jobDayKey(job, bookings) >= todayKey)
+    .sort((a, b) => jobStamp(a, bookings) - jobStamp(b, bookings));
   const pastJobs = visibleJobs
-    .filter((job) => jobDayKey(job) < todayKey)
-    .sort((a, b) => jobStamp(a) - jobStamp(b));
-  const dayGroups = groupByDay(upcomingJobs);
+    .filter((job) => jobDayKey(job, bookings) < todayKey)
+    .sort((a, b) => jobStamp(a, bookings) - jobStamp(b, bookings));
+  const chronological = span === "month" || (span === "week" && weekOffset >= 0);
+  const orderedJobs = [...visibleJobs].sort((a, b) => jobStamp(a, bookings) - jobStamp(b, bookings));
+  const dayGroups = groupByDay(chronological ? orderedJobs : upcomingJobs, bookings);
   const pastWeek = span === "week" && weekOffset < 0;
   const focusedPast = pastWeek || span === "yesterday";
   const pastWeekLabel =
@@ -1842,7 +1844,9 @@ function MonthJobsPanel({
           <p className="mt-1 text-sm leading-7 text-muted">
             نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
             جستجو فقط همان اسم یا شماره را نشان می‌دهد و نوبت‌های چندروزه را یکی نمی‌کند.
-            ترتیب از امروز تا آخر همین بازه است. برای کار دیروز، دیروز را بزن.
+            {span === "month"
+              ? " نوبت‌ها از اول همین ماه تا آخر ماه، به ترتیب تاریخ، پشت سر هم هستند."
+              : " ترتیب از امروز تا آخر همین بازه است. برای کار دیروز، دیروز را بزن."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button size="sm" variant={span === "yesterday" ? "default" : "outline"} onClick={() => setSpan("yesterday")}>
@@ -1877,11 +1881,11 @@ function MonthJobsPanel({
           <Button
             variant="outline"
             size="sm"
-            disabled={!upcomingJobs.length && !pastJobs.length}
+            disabled={!orderedJobs.length}
             onClick={() => {
               try {
                 const mode = downloadStudioJobsPdf(
-                  [...upcomingJobs, ...pastJobs],
+                  chronological ? orderedJobs : [...upcomingJobs, ...pastJobs],
                   span === "yesterday" ? "لیست دیروز" : span === "week" ? `لیست هفته ${weekTitle}` : `لیست مشتری ${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`,
                 );
                 toast.success(
@@ -1985,14 +1989,24 @@ function MonthJobsPanel({
             : "با این اسم یا شماره در این ماه نوبتی نیست. نوبت‌های دیگر همان مشتری حذف نشده‌اند."}
         </p>
       ) : null}
-      {viewingToday && !dayGroups.some((group) => group.day === todayKey) ? (
+      {chronological ? null : viewingToday && !dayGroups.some((group) => group.day === todayKey) ? (
         <DayGap day={todayKey} jobs={[]} waiting={waiting} />
       ) : null}
       {dayGroups.map((group, index) => {
+        const previous = dayGroups[index - 1];
         const next = dayGroups[index + 1];
         const holes = !jobQuery.trim() && next ? daysBetween(group.day, next.day) : [];
+        const todayMissing = chronological && viewingToday && !dayGroups.some((item) => item.day === todayKey);
+        const showTodayBefore = todayMissing && !previous && group.day > todayKey;
         return (
         <div key={group.day} className="grid gap-4">
+          {showTodayBefore ? <DayGap day={todayKey} jobs={[]} waiting={waiting} /> : null}
+          {chronological ? (
+            <p className="text-sm font-bold text-muted">
+              {dayHeading(group.day)}
+              {group.day === todayKey ? " · امروز" : ""}
+            </p>
+          ) : null}
           {group.jobs.map((job) => (
             <MonthJobCard
               key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
@@ -2014,8 +2028,11 @@ function MonthJobsPanel({
         </div>
         );
       })}
-      {!focusedPast && pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
-      {!focusedPast
+      {chronological && viewingToday && !dayGroups.some((group) => group.day >= todayKey) ? (
+        <DayGap day={todayKey} jobs={[]} waiting={waiting} />
+      ) : null}
+      {!chronological && !focusedPast && pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
+      {!chronological && !focusedPast
         ? pastJobs.map((job) => (
             <MonthJobCard
               key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
@@ -2132,10 +2149,10 @@ function EmptyDayOffer({ day, waiting, onBooked }: { day: string; waiting: Studi
   );
 }
 
-function groupByDay(jobs: TattooRequest[]) {
+function groupByDay(jobs: TattooRequest[], bookings: Booking[] = []) {
   const groups: { day: string; jobs: TattooRequest[] }[] = [];
   for (const job of jobs) {
-    const day = jobDayKey(job);
+    const day = jobDayKey(job, bookings);
     const last = groups[groups.length - 1];
     if (!last || last.day !== day) groups.push({ day, jobs: [job] });
     else last.jobs.push(job);
@@ -2234,14 +2251,17 @@ function SuggestionLine({ row, muted = false }: { row: { name: string; phone: st
   );
 }
 
-function jobStamp(job: TattooRequest) {
-  const when = job.proposedSlotStart || job.updatedAt;
+function jobStamp(job: TattooRequest, bookings: Booking[] = []) {
+  const linked = job.bookingId
+    ? bookings.find((row) => row.id === job.bookingId && row.kind === "booking" && row.status !== "cancelled")
+    : undefined;
+  const when = linked?.slotStart || job.proposedSlotStart || job.updatedAt;
   const time = Date.parse(when);
   return Number.isFinite(time) ? time : 0;
 }
 
-function jobDayKey(job: TattooRequest) {
-  const stamp = jobStamp(job);
+function jobDayKey(job: TattooRequest, bookings: Booking[] = []) {
+  const stamp = jobStamp(job, bookings);
   return stamp ? tehranDayKey(new Date(stamp)) : "";
 }
 
@@ -2665,7 +2685,8 @@ function MonthJobCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [details, setDetails] = useState(false);
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
-  const when = job.proposedSlotStart || job.updatedAt;
+  const linked = bookings.find((booking) => booking.id === job.bookingId && booking.kind === "booking" && booking.status !== "cancelled");
+  const when = linked?.slotStart || job.proposedSlotStart || job.updatedAt;
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
   const phone2 = job.customerPhone2 || "";
   const unreliable = isUnreliableCustomer((job.customerFile ?? file)?.arrival) || bookings.some((booking) => booking.id === job.bookingId && (booking.status === "no_show" || booking.unreliable));
