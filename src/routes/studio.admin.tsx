@@ -11,6 +11,7 @@ import { StudioArtistBoard, StudioChairShare } from "@/components/studio/artist-
 import { StudioFillInBoard } from "@/components/studio/fill-in-board";
 import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
 import { CustomerFileDetails, isUnreliableCustomer, UnreliableBadge, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
+import { ConsentSignature } from "@/components/studio/consent-signature";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { ConsentBoard } from "@/components/studio/consent-board";
 import { ReferralAdmin } from "@/components/studio/referral-admin";
@@ -51,6 +52,7 @@ import {
   aftercareGuideSms,
   balanceSms,
   depositCardSms,
+  bookingReminderSms,
   proposalSeenSms,
   paymentDetailsText,
   studioVisitText,
@@ -1723,6 +1725,105 @@ function enrollReferrer(name: string, phone: string) {
     .catch((err) => toast.error(friendlyError(err)));
 }
 
+function jobVisitStatus(job: TattooRequest, bookings: Booking[], whenIso: string) {
+  const booking = job.bookingId ? bookings.find((row) => row.id === job.bookingId) : undefined;
+  if (booking?.status === "cancelled" || job.status === "rejected") return { label: "لغو", tone: "muted" as const };
+  if (booking?.status === "no_show") return { label: "نیامد", tone: "danger" as const };
+  const day = whenIso ? tehranDayKey(new Date(whenIso)) : "";
+  if (day && day < tehranDayKey()) return { label: "انجام شد", tone: "accent" as const };
+  return { label: "قطعی", tone: "primary" as const };
+}
+
+function TomorrowReminders({ bookings }: { bookings: Booking[] }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<TattooRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function load() {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    setOpen(true);
+    setLoading(true);
+    setError("");
+    try {
+      const day = shiftTehranDayKey(tehranDayKey(), 1);
+      const next = shiftTehranDayKey(day, 1);
+      const [y, m, d] = day.split("-").map(Number);
+      const [ey, em, ed] = next.split("-").map(Number);
+      const jobs = await saveAction<TattooRequest[]>("studioMonthJobs", {
+        start: tehranLocalToIso(y, m, d, 0, 0),
+        end: tehranLocalToIso(ey, em, ed, 0, 0),
+        mine: true,
+      });
+      setRows(jobs);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const dayLabel = dayHeading(shiftTehranDayKey(tehranDayKey(), 1));
+  const listed = rows
+    .filter((job) => {
+      const booking = job.bookingId ? bookings.find((row) => row.id === job.bookingId) : undefined;
+      return booking?.status !== "cancelled" && booking?.status !== "no_show";
+    })
+    .sort((a, b) => jobStamp(a, bookings) - jobStamp(b, bookings));
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-4">
+      <Button type="button" onClick={() => void load()}>
+        {open ? "بستن یادآوری فردا" : "یادآوری فردا"}
+      </Button>
+      {open ? (
+        <div className="mt-3 grid gap-3">
+          <p className="text-sm leading-7 text-muted">نوبت‌های {dayLabel}. با زدن پیامک، متن یادآوری داخل پیامک گوشی باز می‌شود. خودبه‌خود ارسال نمی‌شود.</p>
+          {loading ? <p className="text-sm text-muted">در حال آوردن نوبت‌های فردا…</p> : null}
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {!loading && !listed.length ? <p className="text-sm text-muted">برای فردا نوبتی نیست.</p> : null}
+          {listed.map((job) => {
+            const when = job.bookingId
+              ? bookings.find((row) => row.id === job.bookingId)?.slotStart || job.proposedSlotStart
+              : job.proposedSlotStart;
+            const money = tattooBalance(job.priceMinToman, job.paidToman);
+            const phone = usablePhone(job.customerPhone) || usablePhone(job.customerPhone2);
+            const text = bookingReminderSms({
+              honorific: honorificForName(job.customerName),
+              name: job.customerName,
+              when,
+              remainingToman: money.remaining,
+            });
+            const href = phone ? toSmsLink(phone, text) : null;
+            const clock = when
+              ? new Date(when).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" })
+              : "";
+            return (
+              <article key={job.id} className="rounded-2xl border border-border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <strong>{job.customerName}</strong>
+                  <span className="text-sm text-muted">{clock}</span>
+                </div>
+                <p className="mt-1 text-sm text-muted">{job.placement || job.style}</p>
+                {href ? (
+                  <a className="mt-3 inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-bold text-primary-fg" href={href}>
+                    پیامک یادآوری
+                  </a>
+                ) : (
+                  <p className="mt-2 text-sm text-muted">شماره‌ای برای پیامک نیست.</p>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 function MonthJobsPanel({
   businesses,
   bookings,
@@ -1930,6 +2031,8 @@ function MonthJobsPanel({
       </div>
 
       <AftercareReminders jobs={careJobs} />
+
+      <TomorrowReminders bookings={bookings} />
 
       {focusedPast ? (
         <section className="grid gap-3">
@@ -2687,6 +2790,7 @@ function MonthJobCard({
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
   const linked = bookings.find((booking) => booking.id === job.bookingId && booking.kind === "booking" && booking.status !== "cancelled");
   const when = linked?.slotStart || job.proposedSlotStart || job.updatedAt;
+  const visit = jobVisitStatus(job, bookings, when);
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
   const phone2 = job.customerPhone2 || "";
   const unreliable = isUnreliableCustomer((job.customerFile ?? file)?.arrival) || bookings.some((booking) => booking.id === job.bookingId && (booking.status === "no_show" || booking.unreliable));
@@ -2844,6 +2948,7 @@ function MonthJobCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold">
+            <Badge tone={visit.tone}>{visit.label}</Badge>
             {unreliable ? <UnreliableBadge /> : null}
             <span>{job.customerName}</span>
           </h3>
@@ -2852,6 +2957,7 @@ function MonthJobCard({
             {job.style}
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
+          {!balance.settled ? <p className="mt-1 text-sm font-semibold">مانده {formatTattooToman(balance.remaining)}</p> : null}
           {job.hasConsentImage ? <p className="mt-1 text-xs font-semibold text-accent">رضایت‌نامه ذخیره شده</p> : null}
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
@@ -2860,28 +2966,14 @@ function MonthJobCard({
         <Button size="sm" disabled={busy} onClick={() => { setMoving((value) => !value); setConfirmDelete(false); }}>
           {moving ? "بستن انتقال" : "انتقال به روز دیگر"}
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          className={confirmDelete ? "border-destructive text-destructive" : ""}
-          onClick={() => void removeJob()}
-        >
-          {confirmDelete ? "مطمئنی؟ این روز حذف شود" : "حذف این نوبت"}
-        </Button>
-        <Button size="sm" variant="outline" onClick={() => setDetails((value) => !value)}>
-          {details ? "بستن جزئیات" : "جزئیات بیشتر"}
-        </Button>
-        {canEnroll && phone ? (
-          <Button size="sm" variant="outline" onClick={() => enrollReferrer(job.customerName, phone)}>
-            عضو باشگاه معرفین
-          </Button>
-        ) : null}
         {missedVisit ? null : (
           <Button size="sm" variant="outline" disabled={busy} onClick={() => void markMissed()}>
             مشتری نیامد
           </Button>
         )}
+        <Button size="sm" variant="outline" onClick={() => setDetails((value) => !value)}>
+          {details ? "بستن جزئیات" : "جزئیات بیشتر"}
+        </Button>
       </div>
       {moving ? (
         <div className="mt-3 grid gap-3 rounded-2xl border border-border p-3">
@@ -2907,6 +2999,38 @@ function MonthJobCard({
       ) : null}
       {details ? (
       <>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          className={confirmDelete ? "border-destructive text-destructive" : ""}
+          onClick={() => void removeJob()}
+        >
+          {confirmDelete ? "مطمئنی؟ این روز حذف شود" : "حذف این نوبت"}
+        </Button>
+        {canEnroll && phone ? (
+          <Button size="sm" variant="outline" onClick={() => enrollReferrer(job.customerName, phone)}>
+            عضو باشگاه معرفین
+          </Button>
+        ) : null}
+      </div>
+      <Fold title="امضای رضایت‌نامه">
+        <ConsentSignature
+          busy={busy}
+          onPick={(url) => {
+            setBusy(true);
+            void saveAction("updateStudioJob", { id: job.id, consentImage: url })
+              .then(() => {
+                toast.success("امضا ذخیره شد. برگهٔ قبلی، اگر بود، با همین عوض شد.");
+                onChange();
+              })
+              .catch((err) => toast.error(friendlyError(err)))
+              .finally(() => setBusy(false));
+          }}
+        />
+        <StoredConsent request={job} />
+      </Fold>
       <Fold title="مشخصات">
         <ReplySeen request={job} />
         {job.sessionMinutes ? <p className="text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
@@ -2932,7 +3056,6 @@ function MonthJobCard({
         {job.sizeCm ? <p className="mt-2 text-sm">اندازه: {job.sizeCm}</p> : null}
         {job.idea ? <p className="mt-1 text-sm leading-7">{job.idea}</p> : null}
         <StoredDesigns request={job} />
-        <StoredConsent request={job} />
         {(job.designQuotes ?? []).some((quote) => quote.priceToman || quote.sizeCm) ? (
           <div className="mt-2 grid gap-1">
             {(job.designQuotes ?? []).map((quote, index) => {

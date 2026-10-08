@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
 import { CustomerFileDetails, toleranceMinutes, isUnreliableCustomer, UnreliableBadge, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
+import { ConsentSignature } from "@/components/studio/consent-signature";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
@@ -465,6 +466,15 @@ export function StudioJobForm({
             onFiles={(urls) => setConsentImage(urls[0] || "")}
             onRemove={() => setConsentImage("")}
           />
+          <div className="mt-2">
+            <ConsentSignature
+              saveLabel="گذاشتن امضا روی این نوبت"
+              onPick={(url) => {
+                setConsentImage(url);
+                toast.success("امضا روی فرم نشست. با ثبت نوبت ذخیره می‌شود. اجباری نیست.");
+              }}
+            />
+          </div>
         </div>
       </div>
         {images.map((src, index) => (
