@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   fillTileTemplate,
   isSafeTileTemplate,
+  LOCAL_FALLBACK_TILE_URL,
   resolveMapTiles,
   STANDALONE_UPSTREAM_CANDIDATES,
 } from "./tiles.ts";
@@ -40,6 +41,13 @@ describe("map tiles", () => {
     assert.equal(cfg.proxy, false);
   });
 
+  it("defaults production to same-origin proxy when MAP_TILE_* is unset", () => {
+    const cfg = resolveMapTiles((k) => (k === "NODE_ENV" ? "production" : undefined));
+    assert.equal(cfg.proxy, true);
+    assert.equal(cfg.url, "/api/tiles/{z}/{x}/{y}?v=3");
+    assert.ok(cfg.fallbackUrl?.includes("arcgisonline.com"));
+  });
+
   it("standalone without MAP_TILE_* uses same-origin proxy, not OSM.org", () => {
     const cfg = resolveMapTiles((k) => (k === "STANDALONE" ? "true" : undefined));
     assert.equal(cfg.proxy, true);
@@ -73,5 +81,9 @@ describe("map tiles", () => {
       fillTileTemplate("https://t.example/{z}/{x}/{y}.png", 6, 40, 25),
       "https://t.example/6/40/25.png",
     );
+  });
+
+  it("has a local fallback data tile URL", () => {
+    assert.match(LOCAL_FALLBACK_TILE_URL, /^data:image\/svg\+xml/);
   });
 });

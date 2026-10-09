@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { createFileRoute } from "@tanstack/react-router";
 import { isStandalone } from "@/lib/env.server";
 import { HOME_SEARCH_VERSION } from "@/lib/search/home-search";
+import { ensureCategories } from "@/lib/server/categories";
 
 /** Production health. Markers in `app`/`db` survive JSON field stripping. */
 
@@ -12,6 +13,7 @@ const REQUIRED_MIGRATIONS = [
 ] as const;
 
 const REQUIRED_TABLES = [
+  "categories",
   "business_special_hours",
   "booking_holds",
   "ledger_accounts",
@@ -56,6 +58,9 @@ export const Route = createFileRoute("/api/health")({
           );
           const applied = new Set(mig.map((r) => r.name));
           const tables = new Set(tbl.map((r) => r.table_name));
+          const categoryCount = tables.has("categories")
+            ? (await ensureCategories(sql)).length
+            : 0;
           const m0014 = applied.has("0014_calendar.sql");
           const m0015 = applied.has("0015_finance.sql");
           const m0016 = applied.has("0016_resources.sql");
@@ -65,9 +70,10 @@ export const Route = createFileRoute("/api/health")({
             m0015 &&
             m0016 &&
             REQUIRED_TABLES.every((name) => tables.has(name));
+          const categoryOk = categoryCount > 0;
           const standalone = isStandalone();
           const shaOk = !standalone || shaSource === "image";
-          const ok = schemaOk && shaOk;
+          const ok = schemaOk && categoryOk && shaOk;
           const engine = postgresUrl() ? (standalone ? "postgres" : "neon") : "pglite";
           const vandar = vandarStatus();
           return Response.json(
@@ -85,6 +91,7 @@ export const Route = createFileRoute("/api/health")({
               m0014,
               m0015,
               m0016,
+              categories: categoryCount,
               business_special_hours: tables.has("business_special_hours"),
               booking_holds: tables.has("booking_holds"),
               ledger_accounts: tables.has("ledger_accounts"),

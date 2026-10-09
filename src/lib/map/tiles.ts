@@ -34,6 +34,10 @@ export const SAME_ORIGIN_PROXY: MapTileConfig = {
   proxy: true,
 };
 
+const FALLBACK_TILE_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256"><rect width="256" height="256" fill="#f2f7fb"/><path d="M0 0L256 256M256 0L0 256" stroke="#d9e7f1" stroke-width="1"/><path d="M128 0V256M0 128H256" stroke="#c2d9e8" stroke-width="1"/></svg>';
+export const LOCAL_FALLBACK_TILE_URL = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(FALLBACK_TILE_SVG)}`;
+
 /**
  * Default upstream for the VPS tile proxy when no MAP_TILE_* is set.
  * Browser talks only to this app. Swap via MAP_TILE_PROXY_UPSTREAM or MAP_TILE_URL
@@ -69,6 +73,10 @@ function isStandaloneEnv(get: (key: string) => string | undefined): boolean {
   return v === "true" || v === "1";
 }
 
+function isProductionEnv(get: (key: string) => string | undefined): boolean {
+  return get("NODE_ENV")?.trim() === "production";
+}
+
 /**
  * Resolve tile layers from env. No provider is hardcoded into the UI.
  *
@@ -96,7 +104,7 @@ export function resolveMapTiles(get: (key: string) => string | undefined): MapTi
     };
   }
 
-  if (isStandaloneEnv(get)) {
+  if (isStandaloneEnv(get) || isProductionEnv(get)) {
     return {
       ...SAME_ORIGIN_PROXY,
       fallbackUrl: fallback && isSafeTileTemplate(fallback) ? fallback : SAME_ORIGIN_PROXY.fallbackUrl,

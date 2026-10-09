@@ -55,6 +55,7 @@ import { summarizeCustomerFiles, type FileSample } from "@/lib/customer-file-sum
 import { STUDIO_EXPENSE_CATEGORIES, accountTotals, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
+import { ensureCategories } from "@/lib/server/categories";
 import {
   ACTIVE_OCCUPANCY_SQL,
   BOOKING_SELECT,
@@ -2162,13 +2163,7 @@ async function performAdminList(userId: string) {
 
 async function performCategories() {
   const sql = await getSql();
-  const rows = await sql.query<{
-    id: number;
-    name: string;
-    slug: string;
-    icon: string;
-    sort_order: number;
-  }>("select id, name, slug, icon, sort_order from categories order by sort_order, id");
+  const rows = await ensureCategories(sql);
   return rows.map(mapCategory);
 }
 
