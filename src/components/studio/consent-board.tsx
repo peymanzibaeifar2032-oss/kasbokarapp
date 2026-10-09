@@ -16,6 +16,8 @@ type ConsentRecord = {
   sizeCm: string;
   priceToman: number;
   paidToman: number;
+  inkCode: string;
+  needleCode: string;
   designImage: string;
   createdAt: string;
 };
@@ -115,24 +117,27 @@ export async function drawConsentSheet(form: ConsentRecord) {
     ["نام", form.customerName],
     ["کد ملی", form.nationalId],
     ["تلفن", form.phone],
+    ["شماره رنگ", form.inkCode || "ثبت نشده"],
+    ["شماره سوزن", form.needleCode || "ثبت نشده"],
     ["محل اجرا", form.placement],
     ["ابعاد", form.sizeCm],
     ["مبلغ اجرا", formatTattooToman(form.priceToman)],
     ["واریزی", formatTattooToman(form.paidToman)],
   ];
   const factLeft = photoX + photoW + 48;
+  const rowH = Math.floor((photoH - 24) / facts.length);
   facts.forEach(([label, value], index) => {
-    const y = photoY + 28 + index * 104;
-    ctx.font = "22px Vazirmatn Variable";
+    const y = photoY + 18 + index * rowH;
+    ctx.font = "20px Vazirmatn Variable";
     ctx.fillStyle = "#8a7040";
     ctx.fillText(label, right, y);
-    ctx.font = "700 32px Vazirmatn Variable";
+    ctx.font = "700 28px Vazirmatn Variable";
     ctx.fillStyle = "#1c1c1c";
-    ctx.fillText(value, right, y + 44);
+    ctx.fillText(value, right, y + 34);
     ctx.strokeStyle = "#eadfcb";
     ctx.beginPath();
-    ctx.moveTo(factLeft, y + 64);
-    ctx.lineTo(right, y + 64);
+    ctx.moveTo(factLeft, y + 48);
+    ctx.lineTo(right, y + 48);
     ctx.stroke();
   });
 
@@ -230,6 +235,8 @@ export function ConsentBoard() {
   const [sizeCm, setSizeCm] = useState("");
   const [price, setPrice] = useState("");
   const [paid, setPaid] = useState("");
+  const [inkCode, setInkCode] = useState("");
+  const [needleCode, setNeedleCode] = useState("");
   const [image, setImage] = useState("");
   const [busy, setBusy] = useState(false);
   const [lookup, setLookup] = useState("");
@@ -268,6 +275,8 @@ export function ConsentBoard() {
         sizeCm: sizeCm.trim(),
         priceToman: Number(price || 0),
         paidToman: Number(paid || 0),
+        inkCode: inkCode.trim(),
+        needleCode: needleCode.trim(),
         designImage: image,
       });
       const record: ConsentRecord = {
@@ -279,6 +288,8 @@ export function ConsentBoard() {
         sizeCm: sizeCm.trim(),
         priceToman: Number(price || 0),
         paidToman: Number(paid || 0),
+        inkCode: inkCode.trim(),
+        needleCode: needleCode.trim(),
         designImage: image,
         createdAt: new Date().toISOString(),
       };
@@ -291,6 +302,8 @@ export function ConsentBoard() {
       setSizeCm("");
       setPrice("");
       setPaid("");
+      setInkCode("");
+      setNeedleCode("");
       setImage("");
       await refresh();
     } catch (err) {
@@ -329,6 +342,8 @@ export function ConsentBoard() {
           <Input value={sizeCm} onChange={(e) => setSizeCm(e.target.value)} placeholder="ابعاد، مثلاً ۱۲ در ۲۰ سانتی‌متر" />
           <Input value={formatGroupedDigits(price)} onChange={(e) => setPrice(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" placeholder="مبلغ اجرا، تومان" />
           <Input value={formatGroupedDigits(paid)} onChange={(e) => setPaid(digitsOnly(e.target.value))} inputMode="numeric" dir="ltr" placeholder="واریزی مشتری، تومان" />
+          <Input value={inkCode} onChange={(e) => setInkCode(e.target.value.slice(0, 40))} dir="ltr" placeholder="شماره رنگ، کد روی شیشه" />
+          <Input value={needleCode} onChange={(e) => setNeedleCode(e.target.value.slice(0, 40))} dir="ltr" placeholder="شماره سوزن، کد روی پاکت" />
           <label className="grid cursor-pointer gap-2 rounded-2xl border-2 border-dashed border-primary bg-primary/5 p-4 text-center">
             <span className="text-base font-bold">تصویر طرح</span>
             <span className="text-sm leading-6 text-muted">اینجا بزن و عکس طرح را از گالری انتخاب کن.</span>
