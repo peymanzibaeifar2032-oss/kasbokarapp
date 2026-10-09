@@ -324,11 +324,9 @@ export async function performMarkStudioFillIn(userId: string, raw: unknown, requ
   const sql = await getSql();
   await sql.query(
     `update studio_fill_ins
-        set ${column} = ${column} + 1,
-            status = case when $3 = 'came' and ongoing = false then 'filled' else status end,
-            filled_at = case when $3 = 'came' and ongoing = false then now() else filled_at end
+        set ${column} = ${column} + 1
       where id = $1 and owner_id = $2`,
-    [data.id, userId, data.mark],
+    [data.id, userId],
   );
   return { ok: true as const };
 }
@@ -339,4 +337,84 @@ export async function performSetStudioFillInPlan(userId: string, raw: unknown, r
   const sql = await getSql();
   await sql.query(`update studio_fill_ins set ongoing = $3 where id = $1 and owner_id = $2`, [data.id, userId, data.ongoing]);
   return { ok: true as const };
+}
+
+export async function performCopyStudioJobToFillIn(userId: string, raw: unknown, requireAdmin: (userId: string) => Promise<unknown>) {
+  await requireAdmin(userId);
+  const data = z.object({ id: z.string().min(1) }).parse(raw);
+  const sql = await getSql();
+  const jobs = await sql.query<{
+    customer_name: string;
+    customer_phone: string;
+    customer_phone_2: string | null;
+    customer_instagram: string | null;
+    idea: string | null;
+    placement: string | null;
+    size_cm: string | null;
+    price_min_toman: number | null;
+    paid_toman: number | null;
+    session_minutes: number | null;
+    reference_images: unknown;
+    design_quotes: unknown;
+  }>(
+    `select t.customer_name, t.customer_phone, t.customer_phone_2, t.customer_instagram, t.idea, t.placement, t.size_cm,
+            t.price_min_toman, t.paid_toman, t.session_minutes, t.reference_images, t.design_quotes
+       from tattoo_requests t
+       left join businesses b on b.id = t.business_id
+      where t.id = $1 and (b.owner_id = $2 or t.customer_id = $2)`,
+    [data.id, userId],
+  );
+  const job = jobs[0];
+  if (!job) throw new Error("این نوبت پیدا نشد.");
+  const phone = normalizeIranPhone(job.customer_phone || "");
+  if (!isIranMobile(phone)) throw new Error("شماره این نوبت برای لیست انتظار معتبر نیست.");
+  const existing = await sql.query<{ id: string }>(
+    `select id from studio_fill_ins
+      where owner_id = $1 and status = 'waiting'
+        and right(regexp_replace(customer_phone, '\\D', '', 'g'), 10) = right(regexp_replace($2, '\\D', '', 'g'), 10)
+      limit 1`,
+    [userId, phone],
+  );
+  if (existing[0]) return { already: true as const };
+  const quotes = Array.isArray(job.design_quotes) ? job.design_quotes : [];
+  const images = Array.isArray(job.reference_images) ? job.reference_images : [];
+  const designs = images.slice(0, 3).map((image, index) => {
+    const quote = quotes[index] && typeof quotes[index] === "object" ? (quotes[index] as { priceToman?: unknown; sizeCm?: unknown }) : {};
+    const src = typeof image === "string" && /^data:image\/(jpeg|png|webp);base64,/i.test(image) && image.length <= 700_000 ? image : "";
+    return {
+      image: src,
+      priceToman: Number(quote.priceToman) || 0,
+      sizeCm: typeof quote.sizeCm === "string" ? quote.sizeCm : "",
+    };
+  }).filter((design) => design.image || design.priceToman || design.sizeCm);
+  if (!designs.length && (Number(job.price_min_toman) || job.size_cm)) {
+    designs.push({ image: "", priceToman: Number(job.price_min_toman) || 0, sizeCm: job.size_cm || "" });
+  }
+  const minutes = Math.min(480, Math.max(30, Number(job.session_minutes) || 180));
+  const phone2raw = job.customer_phone_2?.trim() ? normalizeIranPhone(job.customer_phone_2) : "";
+  const phone2 = phone2raw && isIranMobile(phone2raw) ? phone2raw : null;
+  const id = crypto.randomUUID();
+  await sql.query(
+    `insert into studio_fill_ins
+      (id, owner_id, customer_name, customer_phone, customer_phone_2, customer_instagram, idea, placement, size_cm, note, price_toman, paid_toman, design_image, designs, session_minutes, ongoing)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,false)`,
+    [
+      id,
+      userId,
+      job.customer_name,
+      phone,
+      phone2,
+      normalizeInstagramHandle(job.customer_instagram) || null,
+      (job.idea || "کپی از نوبت").slice(0, 500),
+      job.placement || "هماهنگ در استودیو",
+      job.size_cm,
+      "کپی از نوبت ثبت‌شده. خود نوبت سر جایش مانده.",
+      Number(job.price_min_toman) || 0,
+      Number(job.paid_toman) || 0,
+      designs[0]?.image || null,
+      JSON.stringify(designs),
+      minutes,
+    ],
+  );
+  return { already: false as const };
 }

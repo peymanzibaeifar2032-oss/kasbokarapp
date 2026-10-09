@@ -2196,7 +2196,7 @@ function EmptyDayOffer({ day, waiting, onBooked }: { day: string; waiting: Studi
     const minutes = row.sessionMinutes >= 30 ? row.sessionMinutes : row.historyMinutes;
     setBusy(true);
     try {
-      await saveAction("createStudioJob", {
+      const created = await saveAction<{ paidToman?: number }>("createStudioJob", {
         customerName: row.customerName,
         customerPhone: row.customerPhone,
         customerPhone2: row.customerPhone2 || undefined,
@@ -2206,13 +2206,18 @@ function EmptyDayOffer({ day, waiting, onBooked }: { day: string; waiting: Studi
         sizeCm: row.designs?.map((design) => design.sizeCm).filter(Boolean).join(" / ") || row.sizeCm || undefined,
         priceMinToman: row.designs?.length ? row.designs.reduce((sum, design) => sum + (design.priceToman || 0), 0) : row.priceToman || 0,
         paidToman: row.paidToman || 0,
+        fillInId: row.id,
         sessionMinutes: minutes,
         slotStart: tehranLocalToIso(y, m, d, hh || 10, mm || 0),
-        referenceImages: (row.designs?.map((design) => design.image).filter((image) => image.startsWith("data:image/")) || (row.designImage?.startsWith("data:image/") ? [row.designImage] : [])).slice(0, 3),
+        referenceImages: (row.designs?.map((design) => design.image).filter((image) => image.startsWith("data:image/") && image.length <= 900_000) || (row.designImage?.startsWith("data:image/") ? [row.designImage] : [])).slice(0, 3),
         customerInstagram: row.customerInstagram || undefined,
       });
       await saveAction("markStudioFillIn", { id: row.id, mark: "came" });
-      toast.success(row.ongoing ? `${row.customerName} برای ${title} ثبت شد و در لیست انتظار ماند.` : `${row.customerName} برای ${title} ثبت شد و از لیست انتظار خارج شد.`);
+      toast.success(
+        (created?.paidToman || 0) > 0
+          ? `${row.customerName} برای ${title} ثبت شد. واریزی هم آمد و در لیست انتظار ماند.`
+          : `${row.customerName} برای ${title} ثبت شد و در لیست انتظار ماند.`,
+      );
       onBooked();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -2796,6 +2801,18 @@ function MonthJobCard({
   const unreliable = isUnreliableCustomer((job.customerFile ?? file)?.arrival) || bookings.some((booking) => booking.id === job.bookingId && (booking.status === "no_show" || booking.unreliable));
   const missedVisit = bookings.some((booking) => booking.id === job.bookingId && booking.status === "no_show");
 
+  async function copyToWaitlist() {
+    setBusy(true);
+    try {
+      const saved = await saveAction<{ already?: boolean }>("copyStudioJobToFillIn", { id: job.id });
+      toast.success(saved?.already ? "این مشتری همین حالا در لیست انتظار هست. نوبت دست نخورده." : "یک نسخه در لیست انتظار نشست. نوبت سر جایش ماند.");
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function markMissed() {
     setBusy(true);
     try {
@@ -2958,6 +2975,7 @@ function MonthJobCard({
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
           {!balance.settled ? <p className="mt-1 text-sm font-semibold">مانده {formatTattooToman(balance.remaining)}</p> : null}
+          {balance.paid > 0 ? <p className="mt-1 text-sm">واریزی {formatTattooToman(balance.paid)}</p> : null}
           {job.hasConsentImage ? <p className="mt-1 text-xs font-semibold text-accent">رضایت‌نامه ذخیره شده</p> : null}
         </div>
         <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
@@ -2973,6 +2991,9 @@ function MonthJobCard({
         )}
         <Button size="sm" variant="outline" onClick={() => setDetails((value) => !value)}>
           {details ? "بستن جزئیات" : "جزئیات بیشتر"}
+        </Button>
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => void copyToWaitlist()}>
+          کپی در لیست انتظار
         </Button>
       </div>
       {moving ? (

@@ -125,7 +125,10 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
       const [hh, mm] = time.split(":").map(Number);
       if (!y || !m || !d || Number.isNaN(hh)) throw new Error("روز و ساعت را انتخاب کن.");
       if (!row.sessionMinutes || row.sessionMinutes < 30) throw new Error("اول مدت تقریبی اجرا را ذخیره کن.");
-      await saveAction("createStudioJob", {
+      const shots = (row.designs || [])
+        .filter((design) => design.image.startsWith("data:image/") && design.image.length <= 900_000)
+        .slice(0, 3);
+      const created = await saveAction<{ paidToman?: number }>("createStudioJob", {
         customerName: row.customerName,
         customerPhone: row.customerPhone,
         customerPhone2: row.customerPhone2 || undefined,
@@ -135,14 +138,23 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         sizeCm: row.designs?.map((design) => design.sizeCm).filter(Boolean).join(" / ") || row.sizeCm || undefined,
         priceMinToman: row.designs?.length ? row.designs.reduce((sum, design) => sum + (design.priceToman || 0), 0) : row.priceToman || 0,
         paidToman: row.paidToman || 0,
+        fillInId: row.id,
         sessionMinutes: row.sessionMinutes,
         slotStart: tehranLocalToIso(y, m, d, hh || 12, mm || 0),
-        referenceImages: (row.designs?.map((design) => design.image).filter(Boolean) || (row.designImage ? [row.designImage] : [])),
+        referenceImages: shots.map((design) => design.image),
+        designQuotes: shots.map((design) => ({ priceToman: design.priceToman || 0, sizeCm: design.sizeCm || "" })),
         customerInstagram: row.customerInstagram || undefined,
       });
       await saveAction("markStudioFillIn", { id: row.id, mark: "came" });
       setPlacing(null);
-      toast.success(row.ongoing ? "به نوبت امروز رفت و در لیست انتظار ماند." : "به نوبت امروز رفت و از لیست انتظار خارج شد.");
+      const carried = (created?.paidToman || 0) > 0;
+      toast.success(
+        carried
+          ? "به نوبت رفت. واریزی هم همان‌جا ثبت شد و در لیست انتظار ماند."
+          : row.paidToman > 0
+            ? "به نوبت رفت. این مبلغ قبلاً برای همین شماره ثبت شده بود و دوباره حساب نشد. در لیست انتظار ماند."
+            : "به نوبت رفت و در لیست انتظار ماند.",
+      );
       await load();
       onPlaced();
     } catch (err) {
@@ -231,7 +243,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
               {row.missedCount > 0 ? <UnreliableBadge /> : null}
               <span>{row.customerName}</span>
             </strong>
-            <p className="mt-1 text-xs font-semibold text-accent">{row.ongoing ? "ادامه دارد · بعد از تأیید در لیست می‌ماند" : "یک جلسه · بعد از تأیید از لیست می‌رود"}</p>
+            <p className="mt-1 text-xs font-semibold text-accent">{row.ongoing ? "ادامه دارد" : "یک جلسه"} · تا وقتی حذف از لیست را نزنی همین‌جا می‌ماند</p>
             <p className="mt-1 text-sm" dir="ltr">{row.customerPhone}</p>
             {row.customerPhone2 ? <p className="text-sm text-muted" dir="ltr">دوم: {row.customerPhone2}</p> : null}
             {row.customerInstagram ? <div className="mt-1"><InstagramChip handle={row.customerInstagram} /></div> : null}

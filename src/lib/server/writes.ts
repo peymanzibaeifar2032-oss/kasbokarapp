@@ -34,6 +34,7 @@ import {
   performAddStudioFillIn,
   performListStudioFillIns,
   performMarkStudioFillIn,
+  performCopyStudioJobToFillIn,
   performSetStudioFillIn,
   performSetStudioFillInMinutes,
   performSetStudioFillInPlan,
@@ -3746,6 +3747,7 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
       sizeCm: z.string().trim().max(60).optional(),
     })).max(3).optional(),
     continuation: z.boolean().optional(),
+    fillInId: z.string().max(80).optional(),
   }).parse(raw);
   const sql = await getSql();
   const actor = await requireStudioStaff(userId);
@@ -3796,8 +3798,16 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   if (bytes > 4_500_000) throw new Error("حجم عکس‌ها زیاد است. عکس کم‌حجم‌تر بفرستید.");
   const carry = data.continuation ? await customerCarry(sql, actor, phone, phone2) : null;
   const priceMin = data.continuation ? (carry?.settled ? 0 : data.priceMinToman || carry?.remaining || 0) : data.priceMinToman;
-  const paid = data.continuation ? (carry?.settled ? 0 : data.paidToman ?? 0) : data.paidToman ?? 0;
-  const settled = tattooBalance(priceMin, paid).settled;
+  let paid = data.continuation ? (carry?.settled ? 0 : data.paidToman ?? 0) : data.paidToman ?? 0;
+  if (!data.continuation && data.fillInId) {
+    const listed = await sql.query<{ paid_toman: number | null }>(
+      `select paid_toman from studio_fill_ins where id = $1 and owner_id = $2`,
+      [data.fillInId, userId],
+    );
+    const fromList = Number(listed[0]?.paid_toman) || 0;
+    if (fromList > paid) paid = fromList;
+  }
+  let settled = tattooBalance(priceMin, paid).settled;
   const bookingId = crypto.randomUUID();
   const requestId = crypto.randomUUID();
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
@@ -3805,7 +3815,11 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   if (clash) throw new Error(studioClashMessage(clash));
   if (paid > 0 && !data.continuation) {
     const repeat = await findRepeatDeposit(sql, phone, phone2, paid);
-    if (repeat) throw new Error(repeatDepositMessage(repeat.name, paid));
+    if (repeat && !data.fillInId) throw new Error(repeatDepositMessage(repeat.name, paid));
+    if (repeat && data.fillInId) {
+      paid = 0;
+      settled = tattooBalance(priceMin, paid).settled;
+    }
   }
   let trackingCode = makeTattooTrackingCode();
   const paymentId = crypto.randomUUID();
@@ -4325,6 +4339,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performListStudioFillIns(userId, requireStudioStaff);
     case "addStudioFillIn":
       return performAddStudioFillIn(userId, payload, requireStudioStaff);
+    case "copyStudioJobToFillIn":
+      return performCopyStudioJobToFillIn(userId, payload, requireStudioStaff);
     case "setStudioFillIn":
       return performSetStudioFillIn(userId, payload, requireStudioStaff);
     case "setStudioFillInMinutes":
