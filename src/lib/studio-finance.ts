@@ -5,6 +5,7 @@ export const STUDIO_EXPENSE_CATEGORIES = [
   { id: "home_rent", label: "کرایه خانه", group: "life" as const },
   { id: "insurance", label: "بیمه", group: "life" as const },
   { id: "home", label: "هزینه خانه", group: "life" as const },
+  { id: "pocket", label: "خرج روزانه", group: "life" as const },
 ] as const;
 
 export type StudioExpenseCategory = (typeof STUDIO_EXPENSE_CATEGORIES)[number]["id"];
@@ -31,6 +32,27 @@ export type StudioMonthPayment = {
   style: string;
   placement: string;
 };
+
+/** How many days a daily cost has already happened. `length` is the Jalali month length. Future months stay at zero. */
+export function countedDailyDays(
+  month: { jy: number; jm: number },
+  today: { jy: number; jm: number; jd: number },
+  length: number,
+) {
+  if (month.jy < today.jy || (month.jy === today.jy && month.jm < today.jm)) return length;
+  if (month.jy === today.jy && month.jm === today.jm) return Math.min(length, Math.max(0, today.jd));
+  return 0;
+}
+
+export function dailyExpenseNote(perDay: number, days: number) {
+  return `daily:${Math.max(0, Math.round(perDay))}x${Math.max(0, Math.round(days))}`;
+}
+
+export function readDailyExpense(note: string | null | undefined) {
+  const match = /^daily:(\d+)x(\d+)$/.exec(note || "");
+  if (!match) return null;
+  return { perDay: Number(match[1]) || 0, days: Number(match[2]) || 0 };
+}
 
 export function expenseCategoryMeta(id: string) {
   return STUDIO_EXPENSE_CATEGORIES.find((row) => row.id === id) ?? STUDIO_EXPENSE_CATEGORIES[2];

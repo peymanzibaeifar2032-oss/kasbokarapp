@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { accountTotals, monthCustomerLines, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob } from "./studio-finance.ts";
+import { accountTotals, countedDailyDays, dailyExpenseNote, monthCustomerLines, openReceivable, paymentPlan, readDailyExpense, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob } from "./studio-finance.ts";
 
 describe("studio month money", () => {
   it("keeps salon profit separate from rent and home costs", () => {
@@ -33,6 +33,15 @@ describe("studio month money", () => {
     assert.equal(out.paid, 0);
     assert.equal(out.salonProfit, 0);
     assert.equal(out.remainingAll, 5_000_000);
+  });
+
+  it("counts a daily cost only through today, and the whole month after it ends", () => {
+    assert.equal(countedDailyDays({ jy: 1405, jm: 7 }, { jy: 1405, jm: 7, jd: 18 }, 30), 18);
+    assert.equal(countedDailyDays({ jy: 1405, jm: 6 }, { jy: 1405, jm: 7, jd: 18 }, 31), 31);
+    assert.equal(countedDailyDays({ jy: 1405, jm: 8 }, { jy: 1405, jm: 7, jd: 18 }, 30), 0);
+    assert.equal(dailyExpenseNote(50000, 18), "daily:50000x18");
+    assert.deepEqual(readDailyExpense("daily:50000x18"), { perDay: 50000, days: 18 });
+    assert.equal(readDailyExpense(""), null);
   });
 
   it("keeps one price when the same tattoo continues into later months", () => {

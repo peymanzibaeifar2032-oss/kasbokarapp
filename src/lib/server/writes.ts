@@ -18,7 +18,7 @@ import {
   type BusinessResource,
   type OccupancyHit,
 } from "@/lib/calendar/resources";
-import { jalaliMonthLength, jalaliToGregorian } from "@/lib/calendar/jalali";
+import { jalaliMonthLength, jalaliToGregorian, gregorianToJalali } from "@/lib/calendar/jalali";
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
@@ -52,7 +52,7 @@ import {
 import { occupiedDayKeys } from "@/lib/server/studio-open-days";
 import { performListStudioConsents, performSaveStudioConsent, performStudioConsent } from "@/lib/server/studio-consent";
 import { summarizeCustomerFiles, type FileSample } from "@/lib/customer-file-summary";
-import { STUDIO_EXPENSE_CATEGORIES, accountTotals, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
+import { STUDIO_EXPENSE_CATEGORIES, accountTotals, countedDailyDays, dailyExpenseNote, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -3072,33 +3072,66 @@ function mapStudioExpense(row: {
   };
 }
 
+let expenseCadenceReady = false;
+
+async function ensureExpenseCadence(sql: Awaited<ReturnType<typeof getSql>>) {
+  if (expenseCadenceReady) return;
+  await sql.query(`alter table studio_expense_templates add column if not exists cadence text not null default 'month'`);
+  expenseCadenceReady = true;
+}
+
 async function applyStudioExpenseTemplates(
   sql: Awaited<ReturnType<typeof getSql>>,
   userId: string,
   jy: number,
   jm: number,
 ) {
+  await ensureExpenseCadence(sql);
   const templates = await sql.query<{
     category: string;
     title: string;
     amount_toman: number | string;
+    cadence: string | null;
   }>(
-    `select category, title, amount_toman from studio_expense_templates where user_id=$1 and active=true`,
+    `select category, title, amount_toman, coalesce(cadence, 'month') as cadence
+       from studio_expense_templates where user_id=$1 and active=true`,
     [userId],
   );
   if (!templates.length) return;
-  const existing = await sql.query<{ category: string; title: string }>(
-    `select category, title from studio_expenses where user_id=$1 and month_jy=$2 and month_jm=$3`,
+  const clock = tehranClock();
+  const today = gregorianToJalali(clock.y, clock.m, clock.day);
+  const existing = await sql.query<{ id: string; category: string; title: string; note: string | null }>(
+    `select id, category, title, note from studio_expenses where user_id=$1 and month_jy=$2 and month_jm=$3`,
     [userId, jy, jm],
   );
-  const have = new Set(existing.map((row) => `${row.category}\0${row.title}`));
+  const have = new Map(existing.map((row) => [`${row.category}\0${row.title}`, row]));
   for (const template of templates) {
     const key = `${template.category}\0${template.title}`;
+    const per = Number(template.amount_toman) || 0;
+    if (template.cadence === "day") {
+      const days = countedDailyDays({ jy, jm }, today, jalaliMonthLength(jy, jm));
+      if (days < 1 || per < 1) continue;
+      const note = dailyExpenseNote(per, days);
+      const found = have.get(key);
+      if (found) {
+        await sql.query(
+          `update studio_expenses set amount_toman=$2, note=$3, recurring=true where id=$1 and user_id=$4`,
+          [found.id, per * days, note, userId],
+        );
+      } else {
+        await sql.query(
+          `insert into studio_expenses (id, user_id, category, title, amount_toman, month_jy, month_jm, recurring, note)
+           values ($1,$2,$3,$4,$5,$6,$7,true,$8)`,
+          [crypto.randomUUID(), userId, template.category, template.title, per * days, jy, jm, note],
+        );
+      }
+      continue;
+    }
     if (have.has(key)) continue;
     await sql.query(
       `insert into studio_expenses (id, user_id, category, title, amount_toman, month_jy, month_jm, recurring)
        values ($1,$2,$3,$4,$5,$6,$7,true)`,
-      [crypto.randomUUID(), userId, template.category, template.title, Number(template.amount_toman) || 0, jy, jm],
+      [crypto.randomUUID(), userId, template.category, template.title, per, jy, jm],
     );
   }
 }
@@ -3255,24 +3288,34 @@ async function performAddStudioExpense(userId: string, raw: unknown) {
     jy: z.number().int(),
     jm: z.number().int().min(1).max(12),
     recurring: z.boolean().optional(),
+    cadence: z.enum(["once", "month", "day"]).optional(),
     note: z.string().trim().max(200).optional(),
   }).parse(raw);
+  const cadence = data.cadence ?? (data.recurring ? "month" : "once");
   const sql = await getSql();
+  await ensureExpenseCadence(sql);
+  const clock = tehranClock();
+  const today = gregorianToJalali(clock.y, clock.m, clock.day);
+  const days = cadence === "day" ? countedDailyDays({ jy: data.jy, jm: data.jm }, today, jalaliMonthLength(data.jy, data.jm)) : 0;
+  const storedAmount = cadence === "day" ? data.amountToman * Math.max(days, 1) : data.amountToman;
+  const note = cadence === "day" ? dailyExpenseNote(data.amountToman, Math.max(days, 0)) : data.note || null;
   const id = crypto.randomUUID();
-  await sql.query(
-    `insert into studio_expenses (id, user_id, category, title, amount_toman, month_jy, month_jm, recurring, note)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [id, userId, data.category, data.title, data.amountToman, data.jy, data.jm, Boolean(data.recurring), data.note || null],
-  );
-  if (data.recurring) {
+  if (cadence !== "day" || days > 0) {
     await sql.query(
-      `insert into studio_expense_templates (id, user_id, category, title, amount_toman, active)
-       values ($1,$2,$3,$4,$5,true)
-       on conflict (user_id, category, title) do update set amount_toman=excluded.amount_toman, active=true`,
-      [crypto.randomUUID(), userId, data.category, data.title, data.amountToman],
+      `insert into studio_expenses (id, user_id, category, title, amount_toman, month_jy, month_jm, recurring, note)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [id, userId, data.category, data.title, storedAmount, data.jy, data.jm, cadence !== "once", note],
     );
   }
-  return { id };
+  if (cadence !== "once") {
+    await sql.query(
+      `insert into studio_expense_templates (id, user_id, category, title, amount_toman, active, cadence)
+       values ($1,$2,$3,$4,$5,true,$6)
+       on conflict (user_id, category, title) do update set amount_toman=excluded.amount_toman, active=true, cadence=excluded.cadence`,
+      [crypto.randomUUID(), userId, data.category, data.title, data.amountToman, cadence],
+    );
+  }
+  return { id, days };
 }
 
 async function performDeleteStudioExpense(userId: string, raw: unknown) {

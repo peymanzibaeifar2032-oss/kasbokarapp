@@ -10,6 +10,7 @@ import {
   STUDIO_EXPENSE_CATEGORIES,
   expenseCategoryMeta,
   studioMonthSummary,
+  readDailyExpense,
   type MonthCustomerLine,
   type StudioExpense,
   type StudioMonthPayment,
@@ -35,8 +36,8 @@ export function StudioMonthFinance() {
   const [error, setError] = useState("");
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
-  const [category, setCategory] = useState<(typeof STUDIO_EXPENSE_CATEGORIES)[number]["id"]>("supplies");
-  const [recurring, setRecurring] = useState(false);
+  const [category, setCategory] = useState<(typeof STUDIO_EXPENSE_CATEGORIES)[number]["id"]>("pocket");
+  const [cadence, setCadence] = useState<"once" | "month" | "day">("day");
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -57,8 +58,8 @@ export function StudioMonthFinance() {
   }, [month.jy, month.jm]);
 
   async function addExpense() {
-    if (title.trim().length < 2) return toast.error("عنوان هزینه را بنویسید. مثلاً سوزن یا الکل.");
-    if (!amount || Number(amount) <= 0) return toast.error("مبلغ را بنویسید.");
+    if (title.trim().length < 2) return toast.error("عنوان را بنویس. مثلاً سیگار یا قهوه.");
+    if (!amount || Number(amount) <= 0) return toast.error("مبلغ را بنویس.");
     setBusy(true);
     try {
       await saveAction("addStudioExpense", {
@@ -67,12 +68,17 @@ export function StudioMonthFinance() {
         amountToman: Number(amount),
         jy: month.jy,
         jm: month.jm,
-        recurring,
+        cadence,
       });
-      toast.success(recurring ? "هزینه ثبت شد و ماه بعد هم می‌آید." : "هزینه ثبت شد.");
+      toast.success(
+        cadence === "day"
+          ? "ثبت شد. از این به بعد هر روز خودش به جمع ماه اضافه می‌شود."
+          : cadence === "month"
+            ? "ثبت شد و ماه‌های بعد هم می‌آید."
+            : "هزینه همین ماه ثبت شد.",
+      );
       setTitle("");
       setAmount("");
-      setRecurring(false);
       await load();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -95,26 +101,29 @@ export function StudioMonthFinance() {
 
   const summary = data?.summary;
   const monthLabel = `${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`;
+  const thisMonth = month.jy === todayJ.jy && month.jm === todayJ.jm;
+  const previous = shiftJalaliMonth(todayJ.jy, todayJ.jm, -1);
+  const onPrevious = month.jy === previous.jy && month.jm === previous.jm;
+  const paid = summary?.paid ?? 0;
+  const spent = summary?.expenseTotal ?? 0;
 
   return (
     <div className="mt-5 grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
-        <div>
-          <h2 className="text-lg font-bold">صندوق {monthLabel}</h2>
-          <p className="mt-1 max-w-2xl text-sm leading-7 text-muted">
-            دریافتی فقط پولی است که در همین ماه ثبت شده، حتی اگر جلسه مال ماه دیگری باشد. قیمت طرح یک بار است و جلسهٔ بعد درآمد تازه نمی‌سازد. طلب هنوز نقد نیست و داخل دریافتی نمی‌آید.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold">صندوق</h2>
+        <div className="flex rounded-2xl bg-slate-100 p-1 text-sm font-semibold">
+          <button type="button" className={`rounded-xl px-3 py-2 ${thisMonth ? "bg-white shadow-sm" : ""}`} onClick={() => setMonth({ jy: todayJ.jy, jm: todayJ.jm })}>
+            همین ماه
+          </button>
+          <button type="button" className={`rounded-xl px-3 py-2 ${onPrevious ? "bg-white shadow-sm" : ""}`} onClick={() => setMonth(previous)}>
             ماه قبل
-          </Button>
-          <p className="min-w-28 text-center text-sm font-semibold">{monthLabel}</p>
-          <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}>
+          </button>
+          <button type="button" className="rounded-xl px-3 py-2 text-muted" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}>
             ماه بعد
-          </Button>
+          </button>
         </div>
       </div>
+      <p className="text-center text-sm font-semibold text-muted">{monthLabel}</p>
 
       {data?.warnings?.length ? (
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm leading-7">
@@ -123,35 +132,31 @@ export function StudioMonthFinance() {
           ))}
         </div>
       ) : null}
-      {error ? (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>
-      ) : null}
+      {error ? <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div> : null}
       {loading ? <p className="text-sm text-muted">در حال جمع‌کردن حساب ماه…</p> : null}
 
       {summary ? (
-        <div className="grid gap-4">
-          <div>
-            <p className="mb-2 text-xs font-semibold text-muted">دریافتی و خرج</p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <MoneyCard label="دریافتی" value={summary.paid} hint="واریزی‌هایی که تاریخ ثبت‌شان در همین ماه است" />
-              <MoneyCard label="خرج سالن" value={summary.salonCost} hint="مواد + کرایه سالن" />
-              <MoneyCard label="خرج زندگی" value={summary.lifeCost} hint="کرایه خانه + بیمه + هزینه خانه" />
-              <MoneyCard label="سود سالن" value={summary.salonProfit} hint="دریافتی منهای خرج سالن" accent allowNegative />
-              <MoneyCard
-                label="مانده دست تو"
-                value={summary.leftover}
-                hint={`${formatPlainToman(summary.paid)} − ${formatPlainToman(summary.salonCost)} − ${formatPlainToman(summary.lifeCost)}`}
-                allowNegative
-              />
+        <div className="grid gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
+              <p className="text-sm text-white/80">دریافتی دوره</p>
+              <p className="mt-3 text-2xl font-bold tracking-tight">{formatPlainToman(paid)}</p>
+            </div>
+            <div className="rounded-3xl bg-[#eb5757] p-4 text-white">
+              <p className="text-sm text-white/80">هزینه دوره</p>
+              <p className="mt-3 text-2xl font-bold tracking-tight">{formatPlainToman(spent)}</p>
             </div>
           </div>
-          <div>
-            <p className="mb-2 text-xs font-semibold text-muted">طلب · هنوز نقد نیست و با دریافتی جمع نمی‌شود</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <MoneyCard label="طلب نوبت‌های این ماه" value={summary.remainingMonth} hint="مشتری‌هایی که در این ماه جلسه دارند. اگر چند جلسه باشد، قیمت دوباره جمع نمی‌شود." />
-              <MoneyCard label="طلب کل مشتریان" value={summary.remainingAll} hint="ماندهٔ همه، هر طرح یک بار. تا واریز نشود درآمد هیچ ماهی نیست." />
+          <div className="rounded-3xl border border-border bg-surface px-4 py-6">
+            <Ring paid={paid} spent={spent} leftover={summary.leftover} />
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs leading-6">
+              <p>سود سالن<br /><span className="text-sm font-bold">{formatPlainToman(summary.salonProfit)}</span></p>
+              <p>طلب این ماه<br /><span className="text-sm font-bold">{formatPlainToman(summary.remainingMonth)}</span></p>
+              <p>طلب کل<br /><span className="text-sm font-bold">{formatPlainToman(summary.remainingAll)}</span></p>
             </div>
+            <p className="mt-3 text-center text-xs leading-6 text-muted">طلب هنوز نقد نیست و داخل دریافتی نمی‌آید. خرج روزانه، مثل سیگار و قهوه، هر روز به هزینه اضافه می‌شود.</p>
           </div>
+          <SpendRing expenses={data?.expenses ?? []} />
         </div>
       ) : null}
 
@@ -177,28 +182,42 @@ export function StudioMonthFinance() {
         )}
       </section>
 
-      <section className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
-        <h3 className="font-bold">ثبت هزینه</h3>
+      <section className="rounded-3xl border border-border bg-surface p-4">
+        <h3 className="font-bold">یک خرج</h3>
         <p className="mt-1 text-sm leading-7 text-muted">
-          سوزن، الکل، دستمال، سلفون، کرایه سالن را اینجا بزن. کرایه خانه و بیمه را جدا انتخاب کن تا با سود سالن قاطی نشود.
+          سیگار و قهوه را روی «هر روز» بگذار و مبلغ همان یک روز را بنویس. جمع ماه را خودش حساب می‌کند.
         </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-3 grid grid-cols-3 gap-2 text-sm font-bold">
+          {([
+            ["day", "هر روز"],
+            ["month", "هر ماه"],
+            ["once", "فقط این ماه"],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={`h-11 rounded-2xl border ${cadence === id ? "border-[#2f80ed] bg-[#2f80ed] text-white" : "border-border"}`}
+              onClick={() => setCadence(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">نوع</span>
             <NativeSelect value={category} onChange={(e) => setCategory(e.target.value as typeof category)}>
               {STUDIO_EXPENSE_CATEGORIES.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.label}
-                </option>
+                <option key={row.id} value={row.id}>{row.label}</option>
               ))}
             </NativeSelect>
           </label>
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">عنوان</span>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="مثلاً سوزن / الکل / کرایه" />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="سیگار، قهوه، سوزن" />
           </label>
           <label className="grid gap-1.5 text-sm">
-            <span className="font-medium">مبلغ</span>
+            <span className="font-medium">{cadence === "day" ? "مبلغ یک روز" : "مبلغ"}</span>
             <Input
               value={formatGroupedDigits(amount)}
               onChange={(e) => setAmount(digitsOnly(e.target.value))}
@@ -208,18 +227,9 @@ export function StudioMonthFinance() {
               placeholder="تومان"
             />
           </label>
-          <label className="flex items-end gap-2 pb-2 text-sm">
-            <input
-              type="checkbox"
-              className="size-4 accent-current"
-              checked={recurring}
-              onChange={(e) => setRecurring(e.target.checked)}
-            />
-            هر ماه تکرار شود
-          </label>
         </div>
-        <Button className="mt-3" disabled={busy} onClick={() => void addExpense()}>
-          افزودن هزینه
+        <Button className="mt-3 h-12 w-full" disabled={busy} onClick={() => void addExpense()}>
+          ثبت
         </Button>
       </section>
 
@@ -229,21 +239,20 @@ export function StudioMonthFinance() {
           {!data?.payments.length ? (
             <p className="mt-3 text-sm leading-7 text-muted">این ماه واریزی ثبت نشده. پرداخت دستی لیست کار هم اینجا جمع می‌شود.</p>
           ) : (
-            <ul className="mt-3 space-y-2 text-sm">
+            <ul className="mt-3 divide-y divide-border text-sm">
               {data.payments.map((row) => (
-                <li key={row.id} className="rounded-2xl border border-border bg-bg px-3 py-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{row.customerName}</p>
-                      <p className="text-muted">
-                        {row.style}
-                        {row.placement ? ` · ${row.placement}` : ""}
-                      </p>
-                      <p className="text-xs text-muted">{formatFaDateTime(row.createdAt)}</p>
-                    </div>
-                    <p className="shrink-0 font-semibold">{formatTattooToman(row.amountToman)}</p>
+                <li key={row.id} className="flex items-center gap-3 py-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e8f6ee] text-sm font-bold text-[#1f8a4c]">+</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">{row.customerName}</p>
+                    <p className="text-xs text-muted">
+                      {row.style}
+                      {row.placement ? ` · ${row.placement}` : ""}
+                      {" · "}
+                      {formatFaDateTime(row.createdAt)}
+                    </p>
                   </div>
-                  {row.note ? <p className="mt-1 text-xs text-muted">{row.note}</p> : null}
+                  <p className="font-bold text-[#1f8a4c]">{formatPlainToman(row.amountToman)}</p>
                 </li>
               ))}
             </ul>
@@ -255,31 +264,28 @@ export function StudioMonthFinance() {
           {!data?.expenses.length ? (
             <p className="mt-3 text-sm leading-7 text-muted">هنوز هزینه‌ای برای این ماه نیست.</p>
           ) : (
-            <ul className="mt-3 space-y-2 text-sm">
-              {data.expenses.map((row) => (
-                <li key={row.id} className="rounded-2xl border border-border bg-bg px-3 py-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
+            <ul className="mt-3 divide-y divide-border text-sm">
+              {data.expenses.map((row) => {
+                const daily = readDailyExpense(row.note);
+                return (
+                  <li key={row.id} className="flex items-center gap-3 py-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#fde8e8] text-sm font-bold text-[#eb5757]">−</span>
+                    <div className="min-w-0 flex-1">
                       <p className="font-semibold">{row.title}</p>
-                      <p className="text-muted">
+                      <p className="text-xs text-muted">
                         {expenseCategoryMeta(row.category).label}
-                        {row.recurring ? " · تکرار ماهانه" : ""}
+                        {daily ? ` · هر روز ${formatPlainToman(daily.perDay)} × ${toFaDigits(daily.days)} روز` : row.recurring ? " · هر ماه" : ""}
                       </p>
                     </div>
-                    <p className="shrink-0 font-semibold">{formatTattooToman(row.amountToman)}</p>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" disabled={busy} onClick={() => void removeExpense(row.id, false)}>
-                      حذف از این ماه
-                    </Button>
-                    {row.recurring ? (
-                      <Button variant="outline" size="sm" disabled={busy} onClick={() => void removeExpense(row.id, true)}>
-                        دیگر تکرار نشود
-                      </Button>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
+                    <div className="text-left">
+                      <p className="font-bold text-[#eb5757]">{formatPlainToman(row.amountToman)}</p>
+                      <button type="button" className="text-xs text-muted" disabled={busy} onClick={() => void removeExpense(row.id, row.recurring)}>
+                        {row.recurring ? "قطع تکرار" : "حذف"}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
@@ -292,29 +298,60 @@ function formatPlainToman(value: number) {
   return new Intl.NumberFormat("fa-IR").format(Math.round(Number(value) || 0));
 }
 
-function MoneyCard({
-  label,
-  value,
-  hint,
-  accent,
-  allowNegative,
-}: {
-  label: string;
-  value: number;
-  hint: string;
-  accent?: boolean;
-  allowNegative?: boolean;
-}) {
-  const amount = Math.round(Number(value) || 0);
-  const negative = Boolean(allowNegative) && amount < 0;
-  const text = negative
-    ? `-${new Intl.NumberFormat("fa-IR").format(Math.abs(amount))} تومان`
-    : formatTattooToman(amount);
+function Ring({ paid, spent, leftover }: { paid: number; spent: number; leftover: number }) {
+  const total = paid + spent;
+  const paidDeg = total > 0 ? (paid / total) * 360 : 0;
+  const background = total > 0
+    ? `conic-gradient(#1f8a4c 0deg ${paidDeg}deg, #6d28d9 ${paidDeg}deg 360deg)`
+    : "#e7e2da";
   return (
-    <div className={`rounded-3xl border p-4 ${negative ? "border-destructive/40 bg-destructive/5" : accent ? "border-primary/40 bg-primary/5" : "border-border bg-surface"}`}>
-      <p className="text-sm text-muted">{label}</p>
-      <p className={`mt-2 text-xl font-bold ${negative ? "text-destructive" : ""}`}>{text}</p>
-      <p className="mt-1 text-xs leading-6 text-muted">{hint}</p>
+    <div className="relative mx-auto grid size-52 place-items-center">
+      <div className="absolute inset-0 rounded-full" style={{ background }} />
+      <div className="absolute inset-[18%] rounded-full bg-surface" />
+      <div className="relative text-center">
+        <p className="text-xs text-muted">مانده دست تو</p>
+        <p className={`mt-1 text-xl font-bold ${leftover < 0 ? "text-[#eb5757]" : ""}`}>{formatPlainToman(leftover)}</p>
+        <p className="mt-1 text-[11px] text-muted">سبز دریافتی · بنفش هزینه</p>
+      </div>
+    </div>
+  );
+}
+
+const SPEND_COLORS = ["#6d28d9", "#2f80ed", "#f2c94c", "#eb5757", "#1f8a4c", "#9b59b6", "#e67e22"];
+
+function SpendRing({ expenses }: { expenses: StudioExpense[] }) {
+  const groups = new Map<string, number>();
+  for (const row of expenses) {
+    const label = expenseCategoryMeta(row.category).label;
+    groups.set(label, (groups.get(label) || 0) + row.amountToman);
+  }
+  const parts = [...groups.entries()].filter(([, amount]) => amount > 0);
+  const total = parts.reduce((sum, [, amount]) => sum + amount, 0);
+  if (!total) return null;
+  let cursor = 0;
+  const stops = parts.map(([, amount], index) => {
+    const start = cursor;
+    cursor += (amount / total) * 360;
+    return `${SPEND_COLORS[index % SPEND_COLORS.length]} ${start}deg ${cursor}deg`;
+  });
+  return (
+    <div className="rounded-3xl border border-border bg-surface p-4">
+      <p className="text-center text-sm font-bold">ترکیب هزینه‌ها</p>
+      <div className="relative mx-auto mt-4 grid size-40 place-items-center">
+        <div className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(${stops.join(",")})` }} />
+        <div className="absolute inset-[22%] rounded-full bg-surface" />
+      </div>
+      <ul className="mt-4 grid gap-2 text-sm">
+        {parts.map(([label, amount], index) => (
+          <li key={label} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2">
+              <span className="size-2.5 rounded-full" style={{ background: SPEND_COLORS[index % SPEND_COLORS.length] }} />
+              {label}
+            </span>
+            <span className="font-semibold">{formatPlainToman(amount)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
