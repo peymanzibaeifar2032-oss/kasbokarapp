@@ -53,9 +53,11 @@ export function StudioTomorrowDesk({
       ) : null}
 
       {showToday ? (
-      <section className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="font-bold">امروز</h2>
-        <p className="mt-1 text-sm leading-6 text-muted">اسم، شماره، محل اجرا، واریزی و مانده. یادآوری، کارت و شبا، و مراقبت بعد را همین امروز از پیامک خودت می‌فرستی.</p>
+      <section className="rounded-3xl border border-border bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-bold">امروز</h2>
+          <span className="rounded-full bg-[#2f80ed] px-3 py-1 text-sm font-bold text-white">{new Intl.NumberFormat("fa-IR").format(todayJobs.length)}</span>
+        </div>
         {!todayJobs.length ? <p className="mt-3 text-sm text-muted">برای امروز نوبت قطعی نیست.</p> : null}
         <div className="mt-3 grid gap-3">
           {todayJobs.map((request) => {
@@ -78,14 +80,19 @@ export function StudioTomorrowDesk({
               );
             }
             return (
-              <article key={request.id} className="rounded-2xl border border-border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <strong>{request.customerName}</strong>
-                  <span className="text-sm text-muted">{when}</span>
+              <article key={request.id} className="rounded-2xl bg-slate-50 p-3">
+                <div className="flex items-center gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#2f80ed] text-xs font-bold text-white">{when || "—"}</span>
+                  <div className="min-w-0">
+                    <strong>{request.customerName}</strong>
+                    <p className="text-sm text-muted" dir="ltr">{request.customerPhone}</p>
+                    <p className="text-sm text-muted">{request.placement}{request.style ? ` · ${request.style}` : ""}</p>
+                  </div>
                 </div>
-                <p className="mt-1 text-sm" dir="ltr">{request.customerPhone}</p>
-                <p className="mt-1 text-sm text-muted">{request.placement}{request.style ? ` · ${request.style}` : ""}</p>
-                <p className="mt-1 text-sm">واریزی {formatTattooToman(money.paid)} · مانده {formatTattooToman(money.remaining)}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                  <p className="rounded-2xl bg-[#e8f6ee] px-3 py-2 font-bold text-[#1f8a4c]">واریزی {formatTattooToman(money.paid)}</p>
+                  <p className="rounded-2xl bg-[#fde8e8] px-3 py-2 font-bold text-[#eb5757]">مانده {formatTattooToman(money.remaining)}</p>
+                </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button type="button" className="h-11" onClick={() => remind()}>یادآوری</Button>
                   <Button type="button" variant="outline" className="h-11" onClick={() => send(depositCardSms(request.customerName))}>کارت و شبا</Button>

@@ -168,7 +168,17 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
 
   return (
     <div className="mt-5 grid gap-4">
-      <section className="rounded-2xl border border-border bg-surface p-4">
+      <section className="rounded-3xl border border-border bg-surface p-4">
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
+            <p className="text-sm text-white/80">در انتظار</p>
+            <p className="mt-2 text-2xl font-bold">{new Intl.NumberFormat("fa-IR").format(rows.filter((row) => row.status === "waiting").length)}</p>
+          </div>
+          <div className="rounded-3xl bg-[#1f8a4c] p-4 text-white">
+            <p className="text-sm text-white/80">جا گرفته</p>
+            <p className="mt-2 text-2xl font-bold">{new Intl.NumberFormat("fa-IR").format(rows.filter((row) => row.status !== "waiting").length)}</p>
+          </div>
+        </div>
         <h2 className="font-bold">لیست انتظار</h2>
         <p className="mt-2 text-sm leading-7 text-muted">
           کسانی که می‌خواهند زودتر بیایند. تا روز اجرا پولی نمی‌گیرند. اگر جا خالی شد، پیام بفرست و همان روز یا این هفته به تقویم اضافه‌شان کن.

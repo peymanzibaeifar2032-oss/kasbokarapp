@@ -173,12 +173,26 @@ export function ReferralAdmin() {
   return (
     <section className="mt-5 grid gap-4">
       <article className="rounded-2xl border border-border bg-surface p-4">
-        <h2 className="text-lg font-bold">باشگاه مشتریان</h2>
-        <p className="mt-1 text-sm leading-7 text-muted">امتیاز فقط بعد از نوبت قطعی ثبت می‌شود. عضویت خودکار نیست.</p>
+        <h2 className="text-lg font-bold">باشگاه</h2>
         {summary ? (
-          <p className="mt-3 text-sm leading-7">
-            {summary.members} عضو · {summary.active} فعال · {summary.pending} در بررسی · {summary.successful} موفق · {summary.prizesActive} جایزه فعال · {summary.prizesUsed} استفاده‌شده
-          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
+              <p className="text-sm text-white/80">عضو</p>
+              <p className="mt-2 text-2xl font-bold">{summary.members}</p>
+            </div>
+            <div className="rounded-3xl bg-[#1f8a4c] p-4 text-white">
+              <p className="text-sm text-white/80">معرفی موفق</p>
+              <p className="mt-2 text-2xl font-bold">{summary.successful}</p>
+            </div>
+            <div className="rounded-3xl bg-[#6d28d9] p-4 text-white">
+              <p className="text-sm text-white/80">فعال</p>
+              <p className="mt-2 text-2xl font-bold">{summary.active}</p>
+            </div>
+            <div className="rounded-3xl bg-[#eb5757] p-4 text-white">
+              <p className="text-sm text-white/80">نیاز به پیگیری</p>
+              <p className="mt-2 text-2xl font-bold">{summary.pending}</p>
+            </div>
+          </div>
         ) : null}
       </article>
       <article className="rounded-2xl border border-border bg-surface p-4">

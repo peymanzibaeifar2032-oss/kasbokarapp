@@ -329,11 +329,11 @@ export function ConsentBoard() {
 
   return (
     <section className="grid gap-4">
-      <article className="rounded-3xl border border-border bg-surface p-4">
-        <h2 className="text-lg font-bold">رضایت‌نامه مشتری</h2>
-        <p className="mt-2 text-sm leading-7 text-muted">
-          مشخصات و طرح را وارد کن. یک عکس آمادهٔ چاپ می‌گیری که امضا و اثر انگشت دارد و با کد پیگیری دوباره قابل چاپ است.
-        </p>
+      <article className="overflow-hidden rounded-3xl border border-border bg-surface">
+        <div className="h-2 bg-[#b7955b]" />
+        <div className="p-4">
+        <h2 className="text-lg font-bold">رضایت‌نامه</h2>
+        <p className="mt-1 text-sm text-muted">برگه با امضا و اثر انگشت ساخته می‌شود.</p>
         <div className="mt-4 grid gap-3">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="نام مشتری" />
           <Input value={nationalId} onChange={(e) => setNationalId(digitsOnly(e.target.value).slice(0, 10))} inputMode="numeric" dir="ltr" placeholder="کد ملی" />
@@ -365,6 +365,7 @@ export function ConsentBoard() {
           <Button disabled={busy} onClick={() => void save()}>
             {busy ? "در حال ساخت…" : "ساخت برگه و دانلود"}
           </Button>
+        </div>
         </div>
       </article>
       <article className="rounded-3xl border border-border bg-surface p-4">

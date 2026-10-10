@@ -348,42 +348,37 @@ function StudioAdminPage() {
 
   return (
     <Shell>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-accent">{ownPanel ? "پنل شخصی" : "استودیو پیمان زیبائی‌فر"}</p>
-          <h1 className="text-2xl font-bold">{owner ? "مدیریت تاتو و تقویم کاری" : `پنل ${panelName || "همکار"}`}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-7 text-muted">
-            {ownPanel
-              ? "این پنل جداست. نوبت‌ها، مشتری‌ها و تقویم پیمان اینجا دیده نمی‌شود."
-              : "قیمت و زمان را بفرستید. بعد از تأیید مشتری، همان زمان ۶ ساعت قفل می‌شود. رسید که آمد تا ۱۲ ساعت قفل می‌ماند؛ با تأیید شما در تقویم قطعی می‌شود."}
-          </p>
+          <p className="text-sm font-semibold text-[#6d28d9]">{ownPanel ? "پنل شخصی" : "استودیو"}</p>
+          <h1 className="text-2xl font-bold">{owner ? "میز کار" : panelName || "همکار"}</h1>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()}>
-            <RefreshCw className="size-4" /> تازه‌سازی
-          </Button>
+          <RefreshCw className="size-4" /> تازه‌سازی
+        </Button>
       </div>
 
-      <div className="mt-5 grid gap-2">
+      <div className="mt-4 grid gap-2">
         {(
           [
             [
               ["calendar", "امروز"],
               ["jobs", "نوبت‌ها"],
-              ["requests", `صندوق ورودی (${new Intl.NumberFormat("fa-IR").format(requests.length)})`],
+              ["requests", `ورودی ${new Intl.NumberFormat("fa-IR").format(requests.length)}`],
               ["contacts", "مشتریان"],
             ],
             [
               ["money", owner || ownPanel ? "صندوق" : "سهم من"],
-              ["fill", "لیست انتظار"],
+              ["fill", "انتظار"],
               ["consent", "رضایت‌نامه"],
               ["club", "باشگاه"],
               ["apprentices", "هنرجوها"],
-              ["messages", "پیام‌های آماده"],
+              ["messages", "پیام‌ها"],
               ["artists", "همکاران"],
             ],
           ] as const
         ).map((row, rowIndex) => (
-          <div key={rowIndex} className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto pb-1">
+          <div key={rowIndex} className="flex w-full gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1">
             {row
               .filter(([id]) => owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices")))
               .map(([id, label]) => (
@@ -392,9 +387,8 @@ function StudioAdminPage() {
                   type="button"
                   onClick={() => setTab(id)}
                   className={cn(
-                    "h-12 shrink-0 rounded-2xl border px-4 text-sm font-semibold",
-                    rowIndex === 0 ? "border-border" : "border-border/70",
-                    tab === id ? "bg-primary text-primary-fg" : "text-muted",
+                    "h-11 shrink-0 rounded-xl px-4 text-sm font-bold",
+                    tab === id ? "bg-white text-black shadow-sm" : "text-muted",
                   )}
                 >
                   {label}
@@ -450,13 +444,13 @@ function StudioAdminPage() {
       {!loading && !error && tab === "requests" ? (
         <div className="mt-5">
           <CustomerTempPassword />
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1">
             {(
               [
                 ["active", "در جریان"],
                 ["consultation", "مشاوره"],
-                ["receipt", "رسیدهای جدید"],
-                ["booked", "قطعی‌شده"],
+                ["receipt", "رسیدها"],
+                ["booked", "قطعی"],
                 ["all", "همه"],
               ] as const
             ).map(([value, label]) => (
@@ -465,10 +459,8 @@ function StudioAdminPage() {
                 type="button"
                 onClick={() => setFilter(value)}
                 className={cn(
-                  "h-10 shrink-0 rounded-full border px-4 text-sm",
-                  filter === value
-                    ? "border-primary bg-primary text-primary-fg"
-                    : "border-border bg-surface",
+                  "h-10 shrink-0 rounded-xl px-4 text-sm font-bold",
+                  filter === value ? "bg-white text-black shadow-sm" : "text-muted",
                 )}
               >
                 {label}
@@ -1259,13 +1251,9 @@ function YearContactsPanel() {
 
   return (
     <div className="mt-5 grid gap-4">
-      <CustomerFileSummaryPanel />
-      <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-bold">مشتریان</h2>
-        <p className="mt-1 text-sm leading-7 text-muted">
-          با اسم یا شماره پیدا کن. هفته، ماه یا سال را عوض کن تا فقط مشتری‌های همان بازه بمانند.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="flex rounded-2xl bg-slate-100 p-1 text-sm font-bold">
           {(
             [
               ["year", "سال"],
@@ -1273,12 +1261,24 @@ function YearContactsPanel() {
               ["week", "هفته"],
             ] as const
           ).map(([id, label]) => (
-            <Button key={id} size="sm" variant={span === id ? "default" : "outline"} onClick={() => setSpan(id)}>
+            <button key={id} type="button" className={`rounded-xl px-3 py-2 ${span === id ? "bg-white shadow-sm" : "text-muted"}`} onClick={() => setSpan(id)}>
               {label}
-            </Button>
+            </button>
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+      </div>
+      <p className="text-center text-sm font-semibold text-muted">{period}</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
+          <p className="text-sm text-white/80">مشتری</p>
+          <p className="mt-2 text-2xl font-bold">{toFaDigits(visible.length)}</p>
+        </div>
+        <div className="rounded-3xl bg-[#1f8a4c] p-4 text-white">
+          <p className="text-sm text-white/80">دریافتی</p>
+          <p className="mt-2 text-xl font-bold">{formatTattooToman(paid)}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
           {span === "week" ? (
             <>
               <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value - 1)}>
@@ -1316,8 +1316,8 @@ function YearContactsPanel() {
               ) : null}
             </>
           )}
-        </div>
       </div>
+      <CustomerFileSummaryPanel />
       <Input value={nameQuery} onChange={(event) => setNameQuery(event.target.value)} placeholder="جستجو با اسم، اینستاگرام یا محل تاتو" />
       <Input
         value={phoneQuery}
@@ -1328,11 +1328,6 @@ function YearContactsPanel() {
       />
       {error ? <p className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</p> : null}
       {loading ? <p className="text-sm text-muted">در حال جمع کردن مخاطبین…</p> : null}
-      {!loading && !error ? (
-        <p className="text-sm text-muted">
-          {toFaDigits(visible.length)} مشتری در {period} · دریافتی {formatTattooToman(paid)}
-        </p>
-      ) : null}
       {!loading && !rows.length ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">در این بازه مشتری ثبت‌شده‌ای نیست.</p>
       ) : null}
@@ -1905,7 +1900,6 @@ function MonthJobsPanel({
 
   const week = tehranWeekBounds(weekOffset);
   const weekTitle = weekRangeLabel(week.startKey);
-  const listTitle = "نوبت‌ها";
   const visibleJobs = jobs.filter((job) => customerQueryMatch(jobQuery, job));
   const todayKey = tehranDayKey();
   const upcomingJobs = visibleJobs
@@ -1937,48 +1931,51 @@ function MonthJobsPanel({
     onChange();
   }
 
+  const jobDue = visibleJobs.reduce((sum, job) => sum + Math.max(0, (job.priceMinToman || 0) - (job.paidToman || 0)), 0);
+
   return (
     <div className="mt-5 grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
-        <div>
-          <h2 className="text-lg font-bold">{listTitle}</h2>
-          <p className="mt-1 text-sm leading-7 text-muted">
-            نام، طرح، محل اجرا، زمان، مجموع واریزی، مانده و وضعیت تسویه. واریز دوم و سوم را همین‌جا اضافه کنید.
-            جستجو فقط همان اسم یا شماره را نشان می‌دهد و نوبت‌های چندروزه را یکی نمی‌کند.
-            {span === "month"
-              ? " نوبت‌ها از اول همین ماه تا آخر ماه، به ترتیب تاریخ، پشت سر هم هستند."
-              : " ترتیب از امروز تا آخر همین بازه است. برای کار دیروز، دیروز را بزن."}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant={span === "yesterday" ? "default" : "outline"} onClick={() => setSpan("yesterday")}>
-              دیروز
-            </Button>
-            {(
-              [
-                [0, "این هفته"],
-                [-1, "هفته قبل"],
-                [-2, "۲ هفته قبل"],
-                [-3, "۳ هفته قبل"],
-              ] as const
-            ).map(([offset, label]) => (
-              <Button
-                key={offset}
-                size="sm"
-                variant={span === "week" && weekOffset === offset ? "default" : "outline"}
-                onClick={() => {
-                  setWeekOffset(offset);
-                  setSpan("week");
-                }}
-              >
-                {label}
-              </Button>
-            ))}
-            <Button size="sm" variant={span === "month" ? "default" : "outline"} onClick={() => setSpan("month")}>
-              این ماه
-            </Button>
-          </div>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold">نوبت‌ها</h2>
+        <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1 text-sm font-bold">
+          <button type="button" className={`shrink-0 rounded-xl px-3 py-2 ${span === "yesterday" ? "bg-white shadow-sm" : "text-muted"}`} onClick={() => setSpan("yesterday")}>دیروز</button>
+          {(
+            [
+              [0, "این هفته"],
+              [-1, "هفته قبل"],
+            ] as const
+          ).map(([offset, label]) => (
+            <button
+              key={offset}
+              type="button"
+              className={`shrink-0 rounded-xl px-3 py-2 ${span === "week" && weekOffset === offset ? "bg-white shadow-sm" : "text-muted"}`}
+              onClick={() => {
+                setWeekOffset(offset);
+                setSpan("week");
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          <button type="button" className={`shrink-0 rounded-xl px-3 py-2 ${span === "month" ? "bg-white shadow-sm" : "text-muted"}`} onClick={() => setSpan("month")}>این ماه</button>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-muted">
+          {span === "yesterday" ? "دیروز" : span === "week" ? weekTitle : `${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`}
+        </p>
+        <div className="flex items-center gap-2">
+          {span === "week" ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => { setSpan("week"); setWeekOffset((value) => value - 1); }}>قبل</Button>
+              <Button variant="outline" size="sm" onClick={() => { setSpan("week"); setWeekOffset((value) => value + 1); }}>بعد</Button>
+            </>
+          ) : span === "month" ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}>ماه قبل</Button>
+              <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}>ماه بعد</Button>
+            </>
+          ) : null}
           <Button
             variant="outline"
             size="sm"
@@ -2000,33 +1997,18 @@ function MonthJobsPanel({
             }}
           >
             <FileDown className="size-4" />
-            دانلود PDF لیست
+            PDF
           </Button>
-          {span === "yesterday" ? (
-            <p className="min-w-28 text-center text-sm font-semibold">دیروز</p>
-          ) : span === "week" ? (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value - 1)}>
-                هفته قبل
-              </Button>
-              <p className="min-w-28 text-center text-sm font-semibold">{weekTitle}</p>
-              <Button variant="outline" size="sm" onClick={() => setWeekOffset((value) => value + 1)}>
-                هفته بعد
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, -1))}>
-                ماه قبل
-              </Button>
-              <p className="min-w-28 text-center text-sm font-semibold">
-                {JALALI_MONTHS[month.jm - 1]} {toFaDigits(month.jy)}
-              </p>
-              <Button variant="outline" size="sm" onClick={() => setMonth((m) => shiftJalaliMonth(m.jy, m.jm, 1))}>
-                ماه بعد
-              </Button>
-            </>
-          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
+          <p className="text-sm text-white/80">نوبت</p>
+          <p className="mt-2 text-2xl font-bold">{toFaDigits(visibleJobs.length)}</p>
+        </div>
+        <div className="rounded-3xl bg-[#eb5757] p-4 text-white">
+          <p className="text-sm text-white/80">ماندهٔ تسویه</p>
+          <p className="mt-2 text-xl font-bold">{formatTattooToman(jobDue)}</p>
         </div>
       </div>
 
@@ -2974,11 +2956,18 @@ function MonthJobCard({
             {job.style}
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
-          {!balance.settled ? <p className="mt-1 text-sm font-semibold">مانده {formatTattooToman(balance.remaining)}</p> : null}
-          {balance.paid > 0 ? <p className="mt-1 text-sm">واریزی {formatTattooToman(balance.paid)}</p> : null}
-          {job.hasConsentImage ? <p className="mt-1 text-xs font-semibold text-accent">رضایت‌نامه ذخیره شده</p> : null}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-2xl bg-[#e8f6ee] px-3 py-2">
+              <p className="text-xs text-[#1f8a4c]">واریزی</p>
+              <p className="font-bold text-[#1f8a4c]">{formatTattooToman(balance.paid)}</p>
+            </div>
+            <div className={`rounded-2xl px-3 py-2 ${balance.settled ? "bg-slate-100" : "bg-[#fde8e8]"}`}>
+              <p className={`text-xs ${balance.settled ? "text-muted" : "text-[#eb5757]"}`}>مانده</p>
+              <p className={`font-bold ${balance.settled ? "" : "text-[#eb5757]"}`}>{balance.settled ? "تسویه" : formatTattooToman(balance.remaining)}</p>
+            </div>
+          </div>
+          {job.hasConsentImage ? <p className="mt-2 text-xs font-semibold text-accent">رضایت‌نامه ذخیره شده</p> : null}
         </div>
-        <Badge tone={balance.settled ? "accent" : "muted"}>{balance.settled ? "تسویه شده" : "تسویه نشده"}</Badge>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" disabled={busy} onClick={() => { setMoving((value) => !value); setConfirmDelete(false); }}>

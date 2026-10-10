@@ -101,16 +101,14 @@ export function StudioApprenticeBoard() {
         </p>
       </div>
 
-      <section className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-3xl border border-border bg-surface p-4">
-          <p className="text-sm text-muted">مجموع واریزی همه کارآموزها</p>
-          <p className="mt-2 text-2xl font-bold">{formatTattooToman(board.payments.reduce((sum, row) => sum + row.amountToman, 0))}</p>
-          <p className="mt-1 text-xs leading-6 text-muted">همه ماه‌ها. داخل درآمد سالن نیست.</p>
+      <section className="grid grid-cols-2 gap-3">
+        <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
+          <p className="text-sm text-white/80">واریزی هنرجوها</p>
+          <p className="mt-2 text-xl font-bold">{formatTattooToman(board.payments.reduce((sum, row) => sum + row.amountToman, 0))}</p>
         </div>
-        <div className="rounded-3xl border border-destructive/30 bg-destructive/5 p-4">
-          <p className="text-sm text-muted">مانده واریزی مجموع کارآموزها</p>
-          <p className={`mt-2 text-2xl font-bold ${board.debtTotal > 0 ? "text-destructive" : ""}`}>{formatTattooToman(board.debtTotal)}</p>
-          <p className="mt-1 text-xs leading-6 text-muted">جمع بدهی‌هایی که برای هر نفر ثبت شده.</p>
+        <div className="rounded-3xl bg-[#eb5757] p-4 text-white">
+          <p className="text-sm text-white/80">مانده هنرجوها</p>
+          <p className="mt-2 text-xl font-bold">{formatTattooToman(board.debtTotal)}</p>
         </div>
       </section>
 

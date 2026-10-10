@@ -90,7 +90,10 @@ export function StudioArtistBoard() {
 
       <StudioCutCalculator />
 
-      <p className="text-sm font-semibold">سهم استودیو این ماه: {formatTattooToman(ledger?.studioCutToman ?? 0)}</p>
+      <div className="rounded-3xl bg-[#6d28d9] p-4 text-white">
+        <p className="text-sm text-white/80">سهم استودیو این ماه</p>
+        <p className="mt-2 text-2xl font-bold">{formatTattooToman(ledger?.studioCutToman ?? 0)}</p>
+      </div>
       {rows.map((row) => {
         const money = byId.get(row.id);
         return (
