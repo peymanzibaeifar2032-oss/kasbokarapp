@@ -87,22 +87,22 @@ export function IntakeDesk({
 
   return (
     <div className="mt-6">
-      <p className="text-xs text-[#b7955b]">پاسخ سریع درخواست</p>
-      <div ref={scroller} className="mt-3 grid max-h-[28rem] gap-2 overflow-y-auto rounded-3xl border border-white/10 bg-black/20 p-3">
+      <p className="text-xs text-[#2f80ed]">پاسخ سریع درخواست</p>
+      <div ref={scroller} className="mt-3 grid max-h-[28rem] gap-2 overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-3">
         {lines.map((line, index) => (
           <p
             key={`${line.from}-${index}`}
-            className={`max-w-[92%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-white/10" : "justify-self-end bg-[#b7955b] text-black"}`}
+            className={`max-w-[92%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-slate-100" : "justify-self-end bg-[#2f80ed] text-white"}`}
           >
             {line.text}
           </p>
         ))}
       </div>
-      {images.length ? <p className="mt-2 text-xs text-white/55">{images.length.toLocaleString("fa-IR")} عکس آماده ارسال است.</p> : null}
+      {images.length ? <p className="mt-2 text-xs text-slate-500">{images.length.toLocaleString("fa-IR")} عکس آماده ارسال است.</p> : null}
       {chips.length ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {chips.map((chip) => (
-            <button key={chip.id} type="button" className="h-10 rounded-full border border-[#b7955b]/50 px-3 text-sm" onClick={() => void apply(`pick:${chip.id}`, images, chip.label)}>
+            <button key={chip.id} type="button" className="h-10 rounded-full border border-[#2f80ed] px-3 text-sm" onClick={() => void apply(`pick:${chip.id}`, images, chip.label)}>
               {chip.label}
             </button>
           ))}
@@ -116,15 +116,15 @@ export function IntakeDesk({
             if (event.key === "Enter") void apply(text);
           }}
           placeholder="جواب یا سؤالت را بنویس"
-          className="h-12 min-w-0 flex-1 rounded-2xl border border-white/15 bg-transparent px-3 text-sm"
+          className="h-12 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
         />
         {allowImage ? (
-          <label className="grid h-12 w-12 cursor-pointer place-items-center rounded-2xl border border-white/15">
+          <label className="grid h-12 w-12 cursor-pointer place-items-center rounded-2xl border border-slate-200">
             <ImagePlus className="size-5" />
             <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void addImages(event.target.files)} />
           </label>
         ) : null}
-        <Button className="h-12 bg-[#b7955b] text-black" disabled={busy || waiting || !text.trim()} onClick={() => void apply(text)}>
+        <Button className="h-12 bg-[#2f80ed] text-white" disabled={busy || waiting || !text.trim()} onClick={() => void apply(text)}>
           بفرست
         </Button>
       </div>

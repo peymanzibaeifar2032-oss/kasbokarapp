@@ -94,24 +94,24 @@ export function GuestPayCard({
   }
 
   return (
-    <article className={`rounded-2xl border p-4 ${closed ? "border-white/10 bg-black/10 opacity-60" : "border-white/10 bg-black/20"}`}>
+    <article className={`rounded-2xl border p-4 ${closed ? "border-slate-200 bg-slate-50 opacity-60" : "border-slate-200 bg-slate-50"}`}>
       <div className="flex items-start justify-between gap-3">
         <strong>{item.customerName}</strong>
-        <span className="text-xs text-[#e5d2ae]">{TATTOO_CUSTOMER_STAGE_LABEL[stage]}</span>
+        <span className="text-xs text-[#1c3d52]">{TATTOO_CUSTOMER_STAGE_LABEL[stage]}</span>
       </div>
-      <p className="mt-2 text-sm text-white/60">
+      <p className="mt-2 text-sm text-slate-600">
         {item.style}
         {item.placement ? ` · ${item.placement}` : ""}
       </p>
-      {item.artistMessage ? <p className="mt-2 text-sm leading-7 text-white/75">{item.artistMessage}</p> : null}
-      {item.priceMinToman != null && item.artistMessage ? <p className="mt-2 text-sm text-white/65">قیمت: {formatToman(item.priceMinToman)}</p> : !item.artistMessage ? <p className="mt-2 text-sm leading-7 text-white/70">درخواست ثبت شده و در حال بررسی است. قیمت را تا چند ساعت دیگر همین‌جا می‌بینی.</p> : null}
-      {item.depositToman != null ? <p className="text-sm text-white/65">بیعانه: {formatToman(item.depositToman)}</p> : null}
+      {item.artistMessage ? <p className="mt-2 text-sm leading-7 text-slate-700">{item.artistMessage}</p> : null}
+      {item.priceMinToman != null && item.artistMessage ? <p className="mt-2 text-sm text-slate-600">قیمت: {formatToman(item.priceMinToman)}</p> : !item.artistMessage ? <p className="mt-2 text-sm leading-7 text-slate-600">درخواست ثبت شده و در حال بررسی است. قیمت را تا چند ساعت دیگر همین‌جا می‌بینی.</p> : null}
+      {item.depositToman != null ? <p className="text-sm text-slate-600">بیعانه: {formatToman(item.depositToman)}</p> : null}
       {item.proposedSlotStart && !closed ? (
-        <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-sm text-[#e5d2ae]">
+        <div className="mt-3 rounded-xl border border-[#2f80ed]/25 bg-[#2f80ed]/10 p-3 text-sm text-[#1c3d52]">
           <p className="font-semibold">{booked ? "زمان نوبت قطعی شد" : "زمان پیشنهادی پیمان"}</p>
           <p className="mt-1 text-base">{formatFaDateTime(item.proposedSlotStart)}</p>
           {booked ? (
-            <p className="mt-2 text-sm leading-7 text-white/80">رسید تأیید شد. این زمان در تقویم کاری ثبت شده است.</p>
+            <p className="mt-2 text-sm leading-7 text-slate-700">رسید تأیید شد. این زمان در تقویم کاری ثبت شده است.</p>
           ) : null}
           {showPayment && item.paymentIban ? (
             <p className="mt-2" dir="ltr">
@@ -119,30 +119,30 @@ export function GuestPayCard({
             </p>
           ) : null}
           {showPayment && item.paymentCardNumber ? <p dir="ltr">کارت: {item.paymentCardNumber}</p> : null}
-          {showPayment ? <StudioVisitNote tone="dark" /> : null}
+          {showPayment ? <StudioVisitNote tone="light" /> : null}
           {item.paymentStatus === "proposal_pending" ? (
-            <Button disabled={busy} className="mt-3 h-11 w-full bg-[#b7955b] text-black" onClick={() => void post("accept")}>
+            <Button disabled={busy} className="mt-3 h-11 w-full bg-[#2f80ed] text-white" onClick={() => void post("accept")}>
               تأیید این زمان و شروع مهلت پرداخت
             </Button>
           ) : null}
           {booked ? (
             <>
-              <Button className="mt-3 h-11 w-full bg-[#b7955b] text-black" onClick={addToCalendar}>
+              <Button className="mt-3 h-11 w-full bg-[#2f80ed] text-white" onClick={addToCalendar}>
                 <CalendarPlus className="size-5" />
                 افزودن این زمان به تقویم گوشی
               </Button>
-              <StudioVisitNote tone="dark" />
+              <StudioVisitNote tone="light" />
             </>
           ) : null}
         </div>
       ) : null}
       {canPay ? (
-        <div className="mt-3 rounded-xl border border-[#b7955b]/35 bg-[#b7955b]/5 p-3">
-          <p className="font-semibold text-[#e5d2ae]">ارسال عکس رسید واریز</p>
+        <div className="mt-3 rounded-xl border border-[#2f80ed]/30 bg-[#2f80ed]/5 p-3">
+          <p className="font-semibold text-[#1c3d52]">ارسال عکس رسید واریز</p>
           {item.paymentHoldUntil ? (
-            <p className="mt-1 text-xs text-amber-300">مهلت: {formatFaDateTime(item.paymentHoldUntil)}</p>
+            <p className="mt-1 text-xs text-amber-700">مهلت: {formatFaDateTime(item.paymentHoldUntil)}</p>
           ) : null}
-          <label className="mt-3 flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#b7955b]/50 text-sm font-bold text-[#e5d2ae]">
+          <label className="mt-3 flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#2f80ed] text-sm font-bold text-[#1c3d52]">
             <ImagePlus className="size-4" />
             {receipt ? "تغییر عکس رسید" : "انتخاب عکس رسید"}
             <input
@@ -159,12 +159,12 @@ export function GuestPayCard({
             />
           </label>
           {receipt ? <img src={receipt} alt="رسید" className="mx-auto mt-3 max-h-40 rounded-lg object-contain" /> : null}
-          <Button disabled={busy || !receipt} className="mt-3 h-11 w-full bg-[#b7955b] text-black" onClick={() => void post("receipt")}>
+          <Button disabled={busy || !receipt} className="mt-3 h-11 w-full bg-[#2f80ed] text-white" onClick={() => void post("receipt")}>
             {busy ? "در حال ارسال…" : "ارسال رسید برای بررسی"}
           </Button>
         </div>
       ) : null}
-      {stage === "receipt_review" ? <p className="mt-3 text-sm text-emerald-300">رسید ارسال شد و در دست بررسی است.</p> : null}
+      {stage === "receipt_review" ? <p className="mt-3 text-sm text-emerald-700">رسید ارسال شد و در دست بررسی است.</p> : null}
     </article>
   );
 }

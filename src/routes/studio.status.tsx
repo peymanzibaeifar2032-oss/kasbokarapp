@@ -145,16 +145,16 @@ function StudioStatusPage() {
 
   if (!user) {
     return (
-      <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-        <StudioTopBar compact />
+      <div className="min-h-dvh bg-[#f4efe6] text-[#1c1917]" dir="rtl">
+        <StudioTopBar compact light />
         <main className="mx-auto max-w-3xl px-4 py-10">
-          <section className="rounded-3xl border border-white/10 bg-white/[.035] p-6">
+          <section className="rounded-3xl border border-slate-200 bg-white p-6">
             <h1 className="text-2xl font-black">بررسی وضعیت نوبت</h1>
-            <p className="mt-3 text-sm leading-7 text-white/55">
+            <p className="mt-3 text-sm leading-7 text-slate-500">
               همان شماره‌ای را بنویس که در فرم درخواست وارد کردی. ورود با ایمیل لازم نیست. از همین صفحه
               زمان را تأیید کن و عکس رسید را بفرست.
             </p>
-            <p className="mt-3 text-sm leading-7 text-[#e5d2ae]">{TATTOO_REPLY_WAIT_NOTE}</p>
+            <p className="mt-3 text-sm leading-7 text-[#1c3d52]">{TATTOO_REPLY_WAIT_NOTE}</p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Input
                 value={lookupPhone}
@@ -165,7 +165,7 @@ function StudioStatusPage() {
                 className="h-12"
               />
               <Button
-                className="h-12 bg-[#b7955b] text-black"
+                className="h-12 bg-[#2f80ed] text-white"
                 disabled={lookupBusy}
                 onClick={() => void lookupStatus()}
               >
@@ -187,12 +187,12 @@ function StudioStatusPage() {
   const booked = requests.filter((r) => tattooStage(r) === "booked" && r.proposedSlotStart);
 
   return (
-    <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-      <StudioTopBar compact />
+    <div className="min-h-dvh bg-[#f4efe6] text-[#1c1917]" dir="rtl">
+      <StudioTopBar compact light />
       <main className="mx-auto grid max-w-3xl gap-5 px-4 py-8">
-        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-7">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
           <h2 className="text-xl font-black">وضعیت با شماره موبایل</h2>
-          <p className="mt-2 text-sm leading-7 text-white/55">
+          <p className="mt-2 text-sm leading-7 text-slate-500">
             همان شماره‌ای را بزن که موقع درخواست نوشتی. تأیید نهایی و زمان قطعی همین‌جا می‌آید.
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
@@ -204,7 +204,7 @@ function StudioStatusPage() {
               placeholder="۰۹…"
               className="h-12"
             />
-            <Button className="h-12 bg-[#b7955b] text-black" disabled={lookupBusy} onClick={() => void lookupStatus()}>
+            <Button className="h-12 bg-[#2f80ed] text-white" disabled={lookupBusy} onClick={() => void lookupStatus()}>
               {lookupBusy ? <Loader2 className="size-4 animate-spin" /> : null}
               دیدن وضعیت
             </Button>
@@ -218,7 +218,7 @@ function StudioStatusPage() {
         {showAdmin ? (
           <Link
             to="/studio/admin"
-            className="flex items-center justify-between rounded-3xl bg-[#b7955b] px-5 py-4 text-black"
+            className="flex items-center justify-between rounded-3xl bg-[#2f80ed] px-5 py-4 text-white"
           >
             <span>
               <strong className="block text-base">این صفحه مال مشتری است</strong>
@@ -227,35 +227,35 @@ function StudioStatusPage() {
             <ChevronLeft className="size-5 shrink-0" />
           </Link>
         ) : null}
-        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-7">
-          <p className="text-xs tracking-[.18em] text-[#b7955b]">STATUS</p>
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-7">
+          <p className="text-xs tracking-[.18em] text-[#2f80ed]">STATUS</p>
           <h1 className="mt-2 text-3xl font-black">بررسی وضعیت نوبت</h1>
-          <p className="mt-3 text-sm leading-7 text-white/55">
+          <p className="mt-3 text-sm leading-7 text-slate-500">
             اینجا تأیید پیمان، پیام‌ها، مهلت پرداخت و زمان قطعی را می‌بینی. بعد از قطعی شدن وقت، همان
             زمان را به تقویم گوشی اضافه کن. روز قبل از اجرا، اعلان گوشی یادآوری آمادگی را می‌آورد.{" "}
-            <Link to="/studio/care" className="text-[#e5d2ae]">
+            <Link to="/studio/care" className="text-[#1c3d52]">
               مراقبت قبل و بعد
             </Link>{" "}
             را جدا بخوان.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <p className="rounded-2xl border border-[#b7955b]/30 bg-[#b7955b]/10 px-4 py-3 text-sm leading-7 text-[#e5d2ae]">
+            <p className="rounded-2xl border border-[#2f80ed]/30 bg-[#2f80ed]/10 px-4 py-3 text-sm leading-7 text-[#1c3d52]">
               {phoneOn || inStudioApp()
                 ? "اعلان گوشی از داخل خود اپ روشن است. بعد از هر تأیید، بالای صفحه و نوار اعلان گوشی خبر می‌دهد."
                 : "اگر اعلان نیامد، اجازه اعلان را در پنجره گوشی تأیید کن. لازم نیست از تنظیمات جداگانه چیزی را دستی روشن کنی."}
             </p>
-            <Button variant="outline" className="h-11 border-white/15 bg-transparent text-[#e5d2ae]" onClick={refresh}>
+            <Button variant="outline" className="h-11 border-slate-200 bg-transparent text-[#1c3d52]" onClick={refresh}>
               تازه کردن وضعیت
             </Button>
           </div>
         </section>
 
         {booked.map((request) => (
-          <section key={`cal-${request.id}`} className="rounded-3xl border border-[#b7955b]/35 bg-[#b7955b]/12 p-5">
-            <p className="font-bold text-[#e5d2ae]">زمان نوبت قطعی شد</p>
-            <p className="mt-2 text-sm text-white/70">{formatFaDateTime(request.proposedSlotStart!)}</p>
+          <section key={`cal-${request.id}`} className="rounded-3xl border border-[#2f80ed]/30 bg-[#2f80ed]/10 p-5">
+            <p className="font-bold text-[#1c3d52]">زمان نوبت قطعی شد</p>
+            <p className="mt-2 text-sm text-slate-600">{formatFaDateTime(request.proposedSlotStart!)}</p>
             <Button
-              className="mt-4 h-12 w-full bg-[#b7955b] text-black"
+              className="mt-4 h-12 w-full bg-[#2f80ed] text-white"
               onClick={() =>
                 addBookingToPhoneCalendar({
                   title: "نوبت تاتو · پیمان زیبائی‌فر",
@@ -273,35 +273,35 @@ function StudioStatusPage() {
           </section>
         ))}
 
-        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5">
           <h2 className="font-bold">پیام‌ها و تأییدها</h2>
           {loading ? (
-            <p className="mt-4 flex items-center gap-2 text-sm text-white/45">
+            <p className="mt-4 flex items-center gap-2 text-sm text-slate-400">
               <Loader2 className="size-4 animate-spin" /> در حال خواندن وضعیت…
             </p>
           ) : null}
           {loadError ? (
-            <p className="mt-4 text-sm leading-7 text-red-300">
+            <p className="mt-4 text-sm leading-7 text-red-600">
               {loadError}
-              <button type="button" className="mr-2 font-bold text-[#e5d2ae]" onClick={refresh}>
+              <button type="button" className="mr-2 font-bold text-[#1c3d52]" onClick={refresh}>
                 تلاش دوباره
               </button>
             </p>
           ) : null}
           {!loading && !loadError && !notices.length ? (
-            <p className="mt-4 text-sm text-white/45">هنوز پیامی ثبت نشده. بعد از بررسی پیمان اینجا می‌آید.</p>
+            <p className="mt-4 text-sm text-slate-400">هنوز پیامی ثبت نشده. بعد از بررسی پیمان اینجا می‌آید.</p>
           ) : null}
           <div className="mt-4 grid gap-3">
             {notices.map((n) => (
-              <article key={n.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <article key={n.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <strong className="text-sm">{n.title}</strong>
                   {!n.readAt ? (
-                    <span className="rounded-full bg-[#b7955b]/20 px-2 py-0.5 text-[11px] text-[#e5d2ae]">جدید</span>
+                    <span className="rounded-full bg-[#2f80ed]/10 px-2 py-0.5 text-[11px] text-[#1c3d52]">جدید</span>
                   ) : null}
                 </div>
-                <p className="mt-2 text-sm leading-7 text-white/65">{n.body}</p>
-                <p className="mt-2 text-xs text-white/35">{formatFaDateTime(n.createdAt)}</p>
+                <p className="mt-2 text-sm leading-7 text-slate-600">{n.body}</p>
+                <p className="mt-2 text-xs text-slate-400">{formatFaDateTime(n.createdAt)}</p>
               </article>
             ))}
           </div>
@@ -310,9 +310,9 @@ function StudioStatusPage() {
         <section className="grid gap-4">
           <h2 className="font-bold">درخواست‌های شما</h2>
           {!loading && !requests.length ? (
-            <div className="rounded-3xl border border-white/10 bg-white/[.035] p-5 text-sm text-white/55">
+            <div className="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
               هنوز درخواستی ثبت نشده.
-              <Link to="/studio/request" className="mt-3 block font-bold text-[#e5d2ae]">
+              <Link to="/studio/request" className="mt-3 block font-bold text-[#1c3d52]">
                 رفتن به فرم درخواست
               </Link>
             </div>

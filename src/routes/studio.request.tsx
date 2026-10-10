@@ -111,46 +111,46 @@ function StudioRequestPage() {
   return (
     <StudioRequestChrome>
       <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[1fr_19rem]">
-        <section className="rounded-3xl border border-white/10 bg-white/[.035] p-5 sm:p-8">
+        <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-8">
           {sent ? (
             <div>
-              <p className="text-xs text-[#b7955b]">درخواست ثبت شد</p>
+              <p className="text-xs text-[#2f80ed]">درخواست ثبت شد</p>
               <h1 className="mt-2 text-3xl font-black">درخواستت رسید</h1>
-              <p className="mt-3 text-sm leading-7 text-white/70">درخواستت ثبت شد. طرح و عکس‌ها را بررسی می‌کنم. قیمت و زمان را تا چند ساعت دیگر در وضعیت همین شماره می‌بینی. تا قبل از آن هیچ مبلغی اعلام نمی‌شود.</p>
+              <p className="mt-3 text-sm leading-7 text-slate-600">درخواستت ثبت شد. طرح و عکس‌ها را بررسی می‌کنم. قیمت و زمان را تا چند ساعت دیگر در وضعیت همین شماره می‌بینی. تا قبل از آن هیچ مبلغی اعلام نمی‌شود.</p>
               {sent.code ? (
-                <p className="mt-6 text-center text-4xl font-black tracking-[0.2em] text-[#e5d2ae]" dir="ltr">
+                <p className="mt-6 text-center text-4xl font-black tracking-[0.2em] text-[#1c3d52]" dir="ltr">
                   {sent.code}
                 </p>
               ) : null}
-              <p className="mt-3 text-center text-sm text-white/55">کد پیگیری را نگه دار و با شماره {sent.phone} وضعیت را چک کن.</p>
+              <p className="mt-3 text-center text-sm text-slate-500">کد پیگیری را نگه دار و با شماره {sent.phone} وضعیت را چک کن.</p>
               <Link
                 to="/studio/status"
-                className="mt-6 flex h-12 items-center justify-center rounded-2xl bg-[#b7955b] text-sm font-bold text-black"
+                className="mt-6 flex h-12 items-center justify-center rounded-2xl bg-[#2f80ed] text-sm font-bold text-white"
               >
                 دیدن وضعیت با همین شماره
               </Link>
-              <button type="button" className="mt-3 h-12 w-full text-sm text-[#e5d2ae]" onClick={() => setSent(null)}>
+              <button type="button" className="mt-3 h-12 w-full text-sm text-[#1c3d52]" onClick={() => setSent(null)}>
                 درخواست دیگری بفرست
               </button>
             </div>
           ) : (
           <>
-          <p className="text-xs text-[#b7955b]">نوبت تاتو</p>
+          <p className="text-xs text-[#2f80ed]">نوبت تاتو</p>
           <h1 className="mt-2 text-3xl font-black">پاسخ سریع درخواست</h1>
-          <p className="mt-3 text-sm leading-7 text-white/55">
+          <p className="mt-3 text-sm leading-7 text-slate-500">
             اگر سؤالی درباره تاتو داری اول همان را بپرس. هر سؤالی. وقتی تمام شد، درخواست را با هم کامل می‌کنیم.
             قیمت را آرتیست بعد از دیدن طرح می‌گوید.
           </p>
           <div className="mt-5 grid grid-cols-2 gap-2">
             <Link
               to="/studio/status"
-              className="flex h-12 items-center justify-center rounded-2xl bg-[#b7955b] px-3 text-sm font-bold text-black"
+              className="flex h-12 items-center justify-center rounded-2xl bg-[#2f80ed] px-3 text-sm font-bold text-white"
             >
               وضعیت نوبت
             </Link>
             <Link
               to="/studio/designs"
-              className="flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm font-bold text-[#e5d2ae]"
+              className="flex h-12 items-center justify-center rounded-2xl border border-slate-200 px-3 text-sm font-bold text-[#1c3d52]"
             >
               انتخاب طرح
             </Link>
@@ -158,7 +158,7 @@ function StudioRequestPage() {
           {showAdmin ? (
             <a
               href="https://kasbokarapp.com/studio/admin"
-              className="mt-5 flex h-12 items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-bold text-black"
+              className="mt-5 flex h-12 items-center justify-between rounded-2xl bg-[#2f80ed] px-4 text-sm font-bold text-white"
             >
               رفتن به مدیریت تاتو و تقویم
               <ChevronLeft className="size-4" />
@@ -166,7 +166,7 @@ function StudioRequestPage() {
           ) : null}
 
           {preferredDay ? (
-            <p className="mt-4 rounded-2xl bg-emerald-500/15 px-4 py-3 text-sm leading-7 text-emerald-50">
+            <p className="mt-4 rounded-2xl bg-emerald-500/15 px-4 py-3 text-sm leading-7 text-emerald-900">
               روزی که انتخاب کردی: {preferredDay}. این درخواست است، هنوز نوبت قطعی نیست.
             </p>
           ) : null}
@@ -175,7 +175,7 @@ function StudioRequestPage() {
           ) : (
             <IntakeDesk busy={busy} preferredDay={preferredDay} onSubmit={(payload) => void submit(payload)} />
           )}
-          <button type="button" className="mt-4 text-sm text-[#e5d2ae]" onClick={() => setUseForm((value) => !value)}>
+          <button type="button" className="mt-4 text-sm text-[#1c3d52]" onClick={() => setUseForm((value) => !value)}>
             {useForm ? "برگشت به پاسخ سریع" : "اگر گفتگو قطع شد، فرم را خودم پر می‌کنم"}
           </button>
           </>
@@ -185,21 +185,21 @@ function StudioRequestPage() {
         <aside className="space-y-4">
           <Link
             to="/studio/designs"
-            className="flex h-12 items-center justify-between rounded-2xl border border-[#b7955b]/40 px-4 text-sm font-bold text-[#e5d2ae]"
+            className="flex h-12 items-center justify-between rounded-2xl border border-slate-200 px-4 text-sm font-bold text-[#1c3d52]"
           >
             انتخاب طرح
             <ChevronLeft className="size-4" />
           </Link>
           <Link
             to="/studio/status"
-            className="flex h-12 items-center justify-between rounded-2xl bg-[#b7955b] px-4 text-sm font-bold text-black"
+            className="flex h-12 items-center justify-between rounded-2xl bg-[#2f80ed] px-4 text-sm font-bold text-white"
           >
             بررسی وضعیت نوبت و پیام‌ها
             <ChevronLeft className="size-4" />
           </Link>
-          <div className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5">
             <h2 className="font-bold">روند بررسی</h2>
-            <ol className="mt-4 space-y-4 text-sm text-white/60">
+            <ol className="mt-4 space-y-4 text-sm text-slate-600">
               {[
                 "ارسال اطلاعات و عکس‌ها",
                 "بررسی توسط پیمان",
@@ -207,7 +207,7 @@ function StudioRequestPage() {
                 "تأیید شما، واریز و رزرو قطعی",
               ].map((x, i) => (
                 <li key={x} className="flex gap-3">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#b7955b] text-xs font-bold text-black">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#2f80ed] text-xs font-bold text-white">
                     {i + 1}
                   </span>
                   {x}
@@ -233,8 +233,8 @@ function dayLabel(day: string | undefined) {
 
 function StudioRequestChrome({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-      <StudioTopBar compact />
+    <div className="min-h-dvh bg-[#f4efe6] text-[#1c1917]" dir="rtl">
+      <StudioTopBar compact light />
       {children}
     </div>
   );
@@ -243,7 +243,7 @@ function StudioRequestChrome({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block text-sm">
-      <span className="mb-2 block font-medium text-white/75">{label}</span>
+      <span className="mb-2 block font-medium text-slate-700">{label}</span>
       <div className="[&_input]:h-12 [&_input]:rounded-xl [&_select]:h-12 [&_select]:rounded-xl [&_textarea]:rounded-xl">
         {children}
       </div>
@@ -265,11 +265,11 @@ function ImageField({
   onRemove: (index: number) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-dashed border-white/15 p-4">
+    <div className="rounded-2xl border border-dashed border-slate-200 p-4">
       <p className="font-semibold">{title}</p>
-      <p className="mt-1 text-xs text-white/40">{hint}</p>
-      <label className="mt-4 flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/15 text-sm">
-        <ImagePlus className="size-4 text-[#b7955b]" /> انتخاب عکس
+      <p className="mt-1 text-xs text-slate-400">{hint}</p>
+      <label className="mt-4 flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm">
+        <ImagePlus className="size-4 text-[#2f80ed]" /> انتخاب عکس
         <input
           className="sr-only"
           type="file"
@@ -281,19 +281,19 @@ function ImageField({
       {images.length ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
           {images.map((src, i) => (
-            <div key={`${src.slice(-20)}-${i}`} className="relative aspect-square overflow-hidden rounded-lg border border-white/10">
+            <div key={`${src.slice(-20)}-${i}`} className="relative aspect-square overflow-hidden rounded-lg border border-slate-200">
               <img src={src} alt="تصویر انتخابی" className="size-full object-cover" />
               <div className="absolute inset-x-0 bottom-0 flex">
                 <button
                   type="button"
-                  className="flex-1 bg-black/70 py-1 text-[10px]"
+                  className="flex-1 bg-black/70 py-1 text-[10px] text-white"
                   onClick={() => downloadImage(src, designFileName(title, i))}
                 >
                   دانلود
                 </button>
                 <button
                   type="button"
-                  className="flex-1 bg-black/80 py-1 text-[10px]"
+                  className="flex-1 bg-black/80 py-1 text-[10px] text-white"
                   onClick={() => onRemove(i)}
                 >
                   حذف
@@ -366,26 +366,26 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
                   ? "زمان تأیید شد. تا ۶ ساعت رسید واریز را بفرستید."
                   : null;
   return (
-    <article className="rounded-3xl border border-white/10 bg-white/[.035] p-5">
+    <article className="rounded-3xl border border-slate-200 bg-white p-5">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-xs text-white/40">{formatFaDate(request.createdAt)}</p>
+          <p className="text-xs text-slate-400">{formatFaDate(request.createdAt)}</p>
           <h3 className="mt-1 font-bold">{request.style}</h3>
         </div>
-        <span className="rounded-full bg-[#b7955b]/15 px-2 py-1 text-[11px] text-[#d9bd87]">
+        <span className="rounded-full bg-[#2f80ed]/10 px-2 py-1 text-[11px] text-[#1c3d52]">
           {TATTOO_CUSTOMER_STAGE_LABEL[stage]}
         </span>
       </div>
       <DesignThumbs
         images={[...request.referenceImages, ...request.bodyImages]}
         filePrefix={request.style}
-        tone="dark"
+        tone="light"
       />
       {request.artistMessage ? (
-        <p className="mt-4 text-sm leading-7 text-white/65">{request.artistMessage}</p>
+        <p className="mt-4 text-sm leading-7 text-slate-600">{request.artistMessage}</p>
       ) : null}
       {request.status === "approved" || request.status === "booked" ? (
-        <div className="mt-4 space-y-1 text-sm text-white/65">
+        <div className="mt-4 space-y-1 text-sm text-slate-600">
           {request.priceMinToman != null ? <p>قیمت: {formatToman(request.priceMinToman)}</p> : null}
           {request.sessionCount ? (
             <p>تعداد جلسه: {new Intl.NumberFormat("fa-IR").format(request.sessionCount)}</p>
@@ -397,7 +397,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
           ) : null}
           {request.depositToman != null ? <p>بیعانه: {formatToman(request.depositToman)}</p> : null}
           {request.proposedSlotStart ? (
-            <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]">
+            <div className="mt-3 rounded-xl border border-[#2f80ed]/25 bg-[#2f80ed]/10 p-3 text-[#1c3d52]">
               <p className="font-semibold">زمان پیشنهادی پیمان</p>
               <p>{formatFaDateTime(request.proposedSlotStart)}</p>
               {request.paymentStatus === "proposal_pending" &&
@@ -407,13 +407,13 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
                   {request.paymentCardNumber ? (
                     <p dir="ltr">کارت: {request.paymentCardNumber}</p>
                   ) : null}
-                  <StudioVisitNote tone="dark" />
+                  <StudioVisitNote tone="light" />
                 </div>
               ) : null}
               {request.paymentStatus === "proposal_pending" ? (
                 <Button
                   disabled={busy}
-                  className="mt-3 w-full bg-[#b7955b] text-black"
+                  className="mt-3 w-full bg-[#2f80ed] text-white"
                   onClick={() => void acceptProposal()}
                 >
                   تأیید این زمان و شروع مهلت پرداخت
@@ -422,13 +422,13 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
             </div>
           ) : null}
           {canPay && (request.paymentIban || request.paymentCardNumber) ? (
-            <div className="mt-3 rounded-xl border border-[#b7955b]/25 bg-[#b7955b]/10 p-3 text-[#e5d2ae]">
+            <div className="mt-3 rounded-xl border border-[#2f80ed]/25 bg-[#2f80ed]/10 p-3 text-[#1c3d52]">
               <p className="font-semibold">اطلاعات واریز بیعانه</p>
               {request.paymentIban ? <p dir="ltr">شبا: {request.paymentIban}</p> : null}
               {request.paymentCardNumber ? (
                 <p dir="ltr">کارت: {request.paymentCardNumber}</p>
               ) : null}
-              <StudioVisitNote tone="dark" />
+              <StudioVisitNote tone="light" />
               <p className="text-xs">
                 {stage === "receipt_fix"
                   ? "تا پایان مهلت اصلاح، همین زمان قفل می‌ماند."
@@ -437,15 +437,15 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
             </div>
           ) : null}
           {request.paymentHoldUntil && canPay ? (
-            <p className="text-amber-300">
+            <p className="text-amber-700">
               مهلت واریز: {formatFaDateTime(request.paymentHoldUntil)}
             </p>
           ) : null}
-          {paymentText ? <p className="text-emerald-300">{paymentText}</p> : null}
-          {stage === "booked" ? <StudioVisitNote tone="dark" /> : null}
+          {paymentText ? <p className="text-emerald-700">{paymentText}</p> : null}
+          {stage === "booked" ? <StudioVisitNote tone="light" /> : null}
           {stage === "booked" && request.proposedSlotStart ? (
             <Button
-              className="mt-3 w-full bg-[#b7955b] text-black"
+              className="mt-3 w-full bg-[#2f80ed] text-white"
               onClick={() =>
                 addBookingToPhoneCalendar({
                   title: "نوبت تاتو · پیمان زیبائی‌فر",
@@ -471,14 +471,14 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
             </Button>
           ) : null}
           {canPay ? (
-            <div className="mt-4 rounded-2xl border border-[#b7955b]/35 bg-[#b7955b]/5 p-4">
-              <p className="font-semibold text-[#e5d2ae]">
+            <div className="mt-4 rounded-2xl border border-[#2f80ed]/30 bg-[#2f80ed]/5 p-4">
+              <p className="font-semibold text-[#1c3d52]">
                 {stage === "receipt_fix" ? "ارسال رسید اصلاح‌شده" : "ارسال عکس رسید واریز"}
               </p>
-              <p className="mt-1 text-xs leading-6 text-white/50">
+              <p className="mt-1 text-xs leading-6 text-slate-500">
                 عکس رسید را از گالری گوشی انتخاب کنید؛ سپس دکمه ارسال را بزنید.
               </p>
-              <label className="mt-3 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#b7955b]/50 bg-[#b7955b]/15 px-3 font-bold text-[#e5d2ae]">
+              <label className="mt-3 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#2f80ed] bg-[#2f80ed]/10 px-3 font-bold text-[#1c3d52]">
                 <ImagePlus className="size-5" />
                 {receipt ? "تغییر عکس رسید" : "انتخاب عکس رسید از گالری"}
                 <input
@@ -489,7 +489,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
                 />
               </label>
               {receiptName ? (
-                <p className="mt-2 text-center text-xs text-emerald-300">
+                <p className="mt-2 text-center text-xs text-emerald-700">
                   انتخاب شد: {receiptName}
                 </p>
               ) : null}
@@ -497,7 +497,7 @@ export function RequestCard({ request, onChange }: { request: TattooRequest; onC
                 <img
                   src={receipt}
                   alt="پیش‌نمایش رسید"
-                  className="mx-auto mt-3 max-h-52 rounded-xl border border-white/10 object-contain"
+                  className="mx-auto mt-3 max-h-52 rounded-xl border border-slate-200 object-contain"
                 />
               ) : null}
               <Button

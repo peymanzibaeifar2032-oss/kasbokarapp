@@ -137,7 +137,7 @@ export function TattooRequestWizard({
 
   return (
     <div className="mt-8">
-      <p className="text-sm text-[#e5d2ae]">مرحله {step + 1} از ۶ · {titles[step]}</p>
+      <p className="text-sm text-[#1c3d52]">مرحله {step + 1} از ۶ · {titles[step]}</p>
       {step === 0 ? (
         <div className="mt-4 grid gap-3">
           <Input className="h-12" value={name} onChange={(e) => setName(e.target.value)} placeholder="نام و نام خانوادگی" />
@@ -146,9 +146,9 @@ export function TattooRequestWizard({
           <Input className="h-12" value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="آیدی اینستاگرام، اختیاری" dir="ltr" />
           <div className="grid gap-2">
             {TYPES.map(([id, label, hint]) => (
-              <button key={id} type="button" onClick={() => setRequestType(id)} className={`rounded-2xl border p-3 text-right ${requestType === id ? "border-[#b7955b] bg-[#b7955b]/15" : "border-white/10"}`}>
+              <button key={id} type="button" onClick={() => setRequestType(id)} className={`rounded-2xl border p-3 text-right ${requestType === id ? "border-[#2f80ed] bg-[#2f80ed]/10" : "border-slate-200"}`}>
                 <span className="font-bold">{label}</span>
-                {hint ? <span className="mt-1 block text-sm text-white/55">{hint}</span> : null}
+                {hint ? <span className="mt-1 block text-sm text-slate-500">{hint}</span> : null}
               </button>
             ))}
           </div>
@@ -158,20 +158,20 @@ export function TattooRequestWizard({
         <div className="mt-4 grid gap-3">
           <div className="flex flex-wrap gap-2">
             {TATTOO_BODY_PARTS.map((item) => (
-              <button key={item} type="button" onClick={() => setPart(item)} className={`h-11 rounded-full border px-3 text-sm ${part === item ? "border-[#b7955b] bg-[#b7955b] text-black" : "border-white/15"}`}>{item}</button>
+              <button key={item} type="button" onClick={() => setPart(item)} className={`h-11 rounded-full border px-3 text-sm ${part === item ? "border-[#2f80ed] bg-[#2f80ed] text-white" : "border-slate-200"}`}>{item}</button>
             ))}
           </div>
           <div className="flex gap-2">
             {TATTOO_SIDES.map(([id, label]) => (
-              <button key={id} type="button" onClick={() => setSide(id)} className={`h-11 flex-1 rounded-2xl border text-sm ${side === id ? "border-[#b7955b] bg-[#b7955b] text-black" : "border-white/15"}`}>{label}</button>
+              <button key={id} type="button" onClick={() => setSide(id)} className={`h-11 flex-1 rounded-2xl border text-sm ${side === id ? "border-[#2f80ed] bg-[#2f80ed] text-white" : "border-slate-200"}`}>{label}</button>
             ))}
           </div>
           <div className="flex gap-2">
             {([["cm", "طول و عرض"], ["approx", "اندازه تقریبی"], ["unknown", "نمی‌دانم"]] as const).map(([id, label]) => (
-              <button key={id} type="button" onClick={() => setSizeMode(id)} className={`h-11 flex-1 rounded-2xl border text-sm ${sizeMode === id ? "border-[#b7955b] bg-[#b7955b] text-black" : "border-white/15"}`}>{label}</button>
+              <button key={id} type="button" onClick={() => setSizeMode(id)} className={`h-11 flex-1 rounded-2xl border text-sm ${sizeMode === id ? "border-[#2f80ed] bg-[#2f80ed] text-white" : "border-slate-200"}`}>{label}</button>
             ))}
           </div>
-          {sizeMode === "approx" ? <p className="text-sm text-white/55">اگر اندازه دقیق را نمی‌دانی، نزدیک‌ترین اندازه را انتخاب کن.</p> : null}
+          {sizeMode === "approx" ? <p className="text-sm text-slate-500">اگر اندازه دقیق را نمی‌دانی، نزدیک‌ترین اندازه را انتخاب کن.</p> : null}
           {sizeMode === "cm" ? (
             <div className="grid grid-cols-2 gap-2">
               <Input className="h-12" value={width} onChange={(e) => setWidth(e.target.value)} placeholder="طول، سانتی‌متر" inputMode="decimal" dir="ltr" />
@@ -181,7 +181,7 @@ export function TattooRequestWizard({
           {sizeMode === "approx" ? (
             <div className="flex flex-wrap gap-2">
               {TATTOO_SIZE_LABELS.map(([id, label]) => (
-                <button key={id} type="button" onClick={() => setSizeLabel(id)} className={`h-11 rounded-full border px-3 text-sm ${sizeLabel === id ? "border-[#b7955b] bg-[#b7955b] text-black" : "border-white/15"}`}>{label}</button>
+                <button key={id} type="button" onClick={() => setSizeLabel(id)} className={`h-11 rounded-full border px-3 text-sm ${sizeLabel === id ? "border-[#2f80ed] bg-[#2f80ed] text-white" : "border-slate-200"}`}>{label}</button>
               ))}
             </div>
           ) : null}
@@ -189,18 +189,18 @@ export function TattooRequestWizard({
       ) : null}
       {step === 2 ? (
         <div className="mt-4 grid gap-3">
-          <p className="text-sm text-white/55">می‌توانی چند سبک را انتخاب کنی. اگر مطمئن نیستی، «سبک را نمی‌دانم» را بزن و تصویر مرجع بفرست.</p>
+          <p className="text-sm text-slate-500">می‌توانی چند سبک را انتخاب کنی. اگر مطمئن نیستی، «سبک را نمی‌دانم» را بزن و تصویر مرجع بفرست.</p>
           <div className="flex flex-wrap gap-2">
             {TATTOO_STYLE_OPTIONS.map(([id, label]) => {
               const on = styles.includes(id);
               return (
-                <button key={id} type="button" onClick={() => setStyles((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} className={`h-11 rounded-full border px-3 text-sm ${on ? "border-[#b7955b] bg-[#b7955b] text-black" : "border-white/15"}`}>{label}</button>
+                <button key={id} type="button" onClick={() => setStyles((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])} className={`h-11 rounded-full border px-3 text-sm ${on ? "border-[#2f80ed] bg-[#2f80ed] text-white" : "border-slate-200"}`}>{label}</button>
               );
             })}
           </div>
           <div className="grid gap-2">
             {TATTOO_COLORS.map(([id, label]) => (
-              <button key={id} type="button" onClick={() => setColorMode(id)} className={`h-12 rounded-2xl border text-sm ${colorMode === id ? "border-[#b7955b] bg-[#b7955b]/15" : "border-white/10"}`}>{label}</button>
+              <button key={id} type="button" onClick={() => setColorMode(id)} className={`h-12 rounded-2xl border text-sm ${colorMode === id ? "border-[#2f80ed] bg-[#2f80ed]/10" : "border-slate-200"}`}>{label}</button>
             ))}
           </div>
         </div>
@@ -211,7 +211,7 @@ export function TattooRequestWizard({
             <div key={kind}>
               <div className="flex items-center justify-between gap-2">
                 <p className="font-bold">{label}{kind === "current" && needsCurrent ? " (الزامی)" : ""}</p>
-                <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-white/15 px-3 text-sm">
+                <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 text-sm">
                   <ImagePlus className="size-4" /> افزودن
                   <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => void addFiles(kind, e.target.files)} />
                 </label>
@@ -220,7 +220,7 @@ export function TattooRequestWizard({
                 {images.map((image, index) => image.kind === kind ? (
                   <div key={`${kind}-${index}`} className="relative">
                     <img src={image.data} alt="" className="h-24 w-24 rounded-xl object-cover" />
-                    <button type="button" className="absolute left-1 top-1 rounded-full bg-black/70 px-2 text-xs" onClick={() => setImages((current) => current.filter((_, item) => item !== index))}>حذف</button>
+                    <button type="button" className="absolute left-1 top-1 rounded-full bg-black/70 px-2 text-xs text-white" onClick={() => setImages((current) => current.filter((_, item) => item !== index))}>حذف</button>
                   </div>
                 ) : null)}
               </div>
@@ -239,7 +239,7 @@ export function TattooRequestWizard({
         </div>
       ) : null}
       {step === 5 ? (
-        <div className="mt-4 rounded-2xl border border-white/10 p-4 text-sm leading-8">
+        <div className="mt-4 rounded-2xl border border-slate-200 p-4 text-sm leading-8">
           <p>نوع درخواست: {TATTOO_REQUEST_LABEL[requestType]}</p>
           <p>محل: {placement}</p>
           <p>اندازه: {sizeCm}</p>
@@ -252,8 +252,8 @@ export function TattooRequestWizard({
       ) : null}
       <div className="mt-5 flex gap-2">
         {step > 0 ? <Button type="button" variant="outline" className="h-12 flex-1" onClick={() => setStep((value) => value - 1)}>قبلی</Button> : null}
-        {step < 5 ? <Button type="button" className="h-12 flex-1 bg-[#b7955b] text-black" onClick={next}>بعدی</Button> : (
-          <Button type="button" className="h-12 flex-1 bg-[#b7955b] text-black" disabled={busy} onClick={() => onSubmit({
+        {step < 5 ? <Button type="button" className="h-12 flex-1 bg-[#2f80ed] text-white" onClick={next}>بعدی</Button> : (
+          <Button type="button" className="h-12 flex-1 bg-[#2f80ed] text-white" disabled={busy} onClick={() => onSubmit({
             customerName: name.trim(),
             customerPhone: phone.trim(),
             customerPhone2: phone2.trim() || undefined,
