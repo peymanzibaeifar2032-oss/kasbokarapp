@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { CalendarPlus, ChevronLeft, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -16,6 +16,9 @@ import type { NotificationItem, TattooRequest } from "@/lib/types";
 import { RequestCard } from "@/routes/studio.request";
 
 export const Route = createFileRoute("/studio/status")({
+  beforeLoad: () => {
+    throw redirect({ to: "/studio/request" });
+  },
   component: StudioStatusPage,
   head: () => ({
     meta: [{ title: "بررسی وضعیت نوبت تاتو | پیمان زیبائی‌فر" }],

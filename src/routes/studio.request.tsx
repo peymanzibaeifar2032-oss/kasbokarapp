@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatSitting } from "@/components/studio/duration-fields";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
-import { TattooRequestWizard, type WizardPayload } from "@/components/studio/request-wizard";
-import { IntakeDesk } from "@/components/studio/intake-desk";
+import type { WizardPayload } from "@/components/studio/request-wizard";
+import { StudioDesk } from "@/components/studio/studio-desk";
 import { StudioVisitNote } from "@/components/studio/visit-note";
 import { StudioTopBar } from "@/components/studio/top-bar";
-import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -18,7 +17,7 @@ import { jalaliDayLabel } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { TATTOO_CUSTOMER_STAGE_LABEL, STUDIO_ADDRESS, tattooStage } from "@/lib/tattoo-flow";
 import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
-import type { Profile, TattooRequest } from "@/lib/types";
+import type { TattooRequest } from "@/lib/types";
 
 export const Route = createFileRoute("/studio/request")({
   validateSearch: (search: Record<string, unknown>): { day?: string } => {
@@ -29,20 +28,15 @@ export const Route = createFileRoute("/studio/request")({
 
 function StudioRequestPage() {
   const { user } = useCurrentUserState();
-  const { showAdmin } = useStudioAdminEntry();
   const { day } = Route.useSearch();
   const preferredDay = dayLabel(day);
   const userId = user?.id;
-  const [requests, setRequests] = useState<TattooRequest[]>([]);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ code: string; phone: string } | null>(null);
-  const [useForm, setUseForm] = useState(false);
 
   function refresh() {
+    if (!userId) return;
     void saveAction<TattooRequest[]>("myTattooRequests").then((rows) => {
-      setRequests(rows);
       for (const request of rows) {
         if (tattooStage(request) === "booked" && request.proposedSlotStart) {
           scheduleTattooPrepNotices(request.proposedSlotStart, request.customerName || "مشتری");
@@ -52,11 +46,6 @@ function StudioRequestPage() {
   }
 
   useEffect(() => {
-    if (!userId) return;
-    void saveAction<Profile>("profile").then((p) => {
-      setName(p.displayName || user.displayName || "");
-      setPhone(p.phone || "");
-    });
     refresh();
   }, [userId]);
 
@@ -109,118 +98,10 @@ function StudioRequestPage() {
   }
 
   return (
-    <StudioRequestChrome>
-      <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 lg:grid-cols-[1fr_19rem]">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-8">
-          {sent ? (
-            <div>
-              <p className="text-xs text-[#2f80ed]">درخواست ثبت شد</p>
-              <h1 className="mt-2 text-3xl font-black">درخواستت رسید</h1>
-              <p className="mt-3 text-sm leading-7 text-slate-600">درخواستت ثبت شد. طرح و عکس‌ها را بررسی می‌کنم. قیمت و زمان را تا چند ساعت دیگر در وضعیت همین شماره می‌بینی. تا قبل از آن هیچ مبلغی اعلام نمی‌شود.</p>
-              {sent.code ? (
-                <p className="mt-6 text-center text-4xl font-black tracking-[0.2em] text-[#1c3d52]" dir="ltr">
-                  {sent.code}
-                </p>
-              ) : null}
-              <p className="mt-3 text-center text-sm text-slate-500">کد پیگیری را نگه دار و با شماره {sent.phone} وضعیت را چک کن.</p>
-              <Link
-                to="/studio/status"
-                className="mt-6 flex h-12 items-center justify-center rounded-2xl bg-[#2f80ed] text-sm font-bold text-white"
-              >
-                دیدن وضعیت با همین شماره
-              </Link>
-              <button type="button" className="mt-3 h-12 w-full text-sm text-[#1c3d52]" onClick={() => setSent(null)}>
-                درخواست دیگری بفرست
-              </button>
-            </div>
-          ) : (
-          <>
-          <p className="text-xs text-[#2f80ed]">نوبت تاتو</p>
-          <h1 className="mt-2 text-3xl font-black">پاسخ سریع درخواست</h1>
-          <p className="mt-3 text-sm leading-7 text-slate-500">
-            اگر سؤالی درباره تاتو داری اول همان را بپرس. هر سؤالی. وقتی تمام شد، درخواست را با هم کامل می‌کنیم.
-            قیمت را آرتیست بعد از دیدن طرح می‌گوید.
-          </p>
-          <div className="mt-5 grid grid-cols-2 gap-2">
-            <Link
-              to="/studio/status"
-              className="flex h-12 items-center justify-center rounded-2xl bg-[#2f80ed] px-3 text-sm font-bold text-white"
-            >
-              وضعیت نوبت
-            </Link>
-            <Link
-              to="/studio/designs"
-              className="flex h-12 items-center justify-center rounded-2xl border border-slate-200 px-3 text-sm font-bold text-[#1c3d52]"
-            >
-              انتخاب طرح
-            </Link>
-          </div>
-          {showAdmin ? (
-            <a
-              href="https://kasbokarapp.com/studio/admin"
-              className="mt-5 flex h-12 items-center justify-between rounded-2xl bg-[#2f80ed] px-4 text-sm font-bold text-white"
-            >
-              رفتن به مدیریت تاتو و تقویم
-              <ChevronLeft className="size-4" />
-            </a>
-          ) : null}
-
-          {preferredDay ? (
-            <p className="mt-4 rounded-2xl bg-emerald-500/15 px-4 py-3 text-sm leading-7 text-emerald-900">
-              روزی که انتخاب کردی: {preferredDay}. این درخواست است، هنوز نوبت قطعی نیست.
-            </p>
-          ) : null}
-          {useForm ? (
-            <TattooRequestWizard busy={busy} initialName={name} initialPhone={phone} initialPreferred={preferredDay} onSubmit={(payload) => void submit(payload)} />
-          ) : (
-            <IntakeDesk busy={busy} preferredDay={preferredDay} onSubmit={(payload) => void submit(payload)} />
-          )}
-          <button type="button" className="mt-4 text-sm text-[#1c3d52]" onClick={() => setUseForm((value) => !value)}>
-            {useForm ? "برگشت به پاسخ سریع" : "اگر گفتگو قطع شد، فرم را خودم پر می‌کنم"}
-          </button>
-          </>
-          )}
-        </section>
-
-        <aside className="space-y-4">
-          <Link
-            to="/studio/designs"
-            className="flex h-12 items-center justify-between rounded-2xl border border-slate-200 px-4 text-sm font-bold text-[#1c3d52]"
-          >
-            انتخاب طرح
-            <ChevronLeft className="size-4" />
-          </Link>
-          <Link
-            to="/studio/status"
-            className="flex h-12 items-center justify-between rounded-2xl bg-[#2f80ed] px-4 text-sm font-bold text-white"
-          >
-            بررسی وضعیت نوبت و پیام‌ها
-            <ChevronLeft className="size-4" />
-          </Link>
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
-            <h2 className="font-bold">روند بررسی</h2>
-            <ol className="mt-4 space-y-4 text-sm text-slate-600">
-              {[
-                "ارسال اطلاعات و عکس‌ها",
-                "بررسی توسط پیمان",
-                "اعلام قیمت، زمان پیشنهادی و بیعانه",
-                "تأیید شما، واریز و رزرو قطعی",
-              ].map((x, i) => (
-                <li key={x} className="flex gap-3">
-                  <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#2f80ed] text-xs font-bold text-white">
-                    {i + 1}
-                  </span>
-                  {x}
-                </li>
-              ))}
-            </ol>
-          </div>
-          {requests.map((request) => (
-            <RequestCard key={request.id} request={request} onChange={refresh} />
-          ))}
-        </aside>
-      </main>
-    </StudioRequestChrome>
+    <div className="flex min-h-dvh flex-col bg-[#f4efe6] text-[#1c1917]" dir="rtl">
+      <StudioTopBar compact light />
+      <StudioDesk busy={busy} preferredDay={preferredDay} sent={sent} onSubmit={(payload) => void submit(payload)} />
+    </div>
   );
 }
 
@@ -229,15 +110,6 @@ function dayLabel(day: string | undefined) {
   const [y, m, d] = day.split("-").map(Number);
   if (!y || !m || !d) return "";
   return jalaliDayLabel(y, m, d);
-}
-
-function StudioRequestChrome({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-dvh bg-[#f4efe6] text-[#1c1917]" dir="rtl">
-      <StudioTopBar compact light />
-      {children}
-    </div>
-  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
