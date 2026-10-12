@@ -1058,8 +1058,8 @@ function TattooAdminCard({
         }}
         onBuildConsent={async () => {
           const row = await saveAction<{ referenceImages?: string[]; bodyImages?: string[] }>("studioRequestImages", { id: request.id });
-          const design = row.referenceImages?.[0] || row.bodyImages?.[0] || blankConsentMark();
-          const sheet = await shrinkConsentSheet(await drawConsentSheet({
+          const photo = row.referenceImages?.[0] || row.bodyImages?.[0] || "";
+          const base = {
             code: request.trackingCode || "—",
             customerName: request.customerName,
             nationalId: "ثبت نشده",
@@ -1070,11 +1070,17 @@ function TattooAdminCard({
             paidToman: request.paidToman || Number(deposit || 0),
             inkCode: "",
             needleCode: "",
-            designImage: design,
             createdAt: new Date().toISOString(),
-          }));
+          };
+          let sheet = "";
+          try {
+            sheet = await shrinkConsentSheet(await drawConsentSheet({ ...base, designImage: photo || blankConsentMark() }));
+          } catch {
+            sheet = await shrinkConsentSheet(await drawConsentSheet({ ...base, designImage: blankConsentMark() }));
+          }
+          if (!sheet.startsWith("data:image/") || sheet.length > 1_100_000) throw new Error("فرم سنگین شد و برای مشتری فرستاده نشد. یک بار دیگر بزن.");
           await saveAction("studioChatSheet", { phone: request.customerPhone, requestId: request.id, image: sheet });
-          toast.success("فرم برای مشتری فرستاده شد. امضا اجباری نیست.");
+          toast.success("فرم داخل چت مشتری رفت. امضا اجباری نیست.");
         }}
         onSaveConsent={async (image) => {
           const saved = await saveAction<{ code: string }>("saveStudioConsent", {

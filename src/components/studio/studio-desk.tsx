@@ -160,10 +160,21 @@ export function StudioDesk({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ phone }),
         });
-        const data = (await res.json().catch(() => null)) as { lines?: { id: string; from: string; body: string }[] } | null;
+        const data = (await res.json().catch(() => null)) as { lines?: { id: string; from: string; body: string }[]; files?: { id: string; kind: string }[] } | null;
         if (stop || !res.ok) return;
-        const fresh = (data?.lines ?? []).filter((line) => line.from === "desk" && !seenIds.has(line.id));
-        for (const line of data?.lines ?? []) seenIds.add(line.id);
+        const rows = data?.lines ?? [];
+        for (const line of rows) {
+          seenIds.add(line.id);
+          const marked = line.body.match(/\[\[(?:consent|signed):([0-9a-f-]{8,})\]\]/i);
+          if (marked) seenIds.add(`file:${marked[1]}`);
+        }
+        const extra = (data?.files ?? []).filter((file) => file.kind === "offer" && !seenIds.has(`file:${file.id}`));
+        for (const file of extra) seenIds.add(`file:${file.id}`);
+        const fresh = [
+          ...rows.filter((line) => line.from === "desk" && !seenIds.has(`shown:${line.id}`)),
+          ...extra.map((file) => ({ id: `file:${file.id}`, from: "desk", body: `[[consent:${file.id}]]` })),
+        ];
+        for (const line of fresh) seenIds.add(`shown:${line.id}`);
         if (!fresh.length) return;
         setLines((current) => [...current, ...fresh.map((line) => ({ id: line.id, from: "desk" as const, text: line.body }))]);
       } catch {
@@ -422,7 +433,7 @@ export function StudioDesk({
             <MonthBubble key={line.id} month={month} busy={busyDays} onMonth={setMonth} onPick={(label, key) => beginRequest(label, key)} />
           ) : (
             (() => {
-              const mark = line.text.match(/^\[\[consent:([0-9a-f-]{8,})\]\]$/i);
+              const mark = line.text.trim().match(/\[\[consent:([0-9a-f-]{8,})\]\]/i);
               if (mark && line.from === "desk") {
                 return <GuestConsent key={line.id} phone={phone} fileId={mark[1]} />;
               }
@@ -474,16 +485,27 @@ function GuestConsent({ phone, fileId }: { phone: string; fileId: string }) {
   const [image, setImage] = useState("");
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState(false);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!phone) return;
+    let stop = false;
     void fetch("/api/tattoo-public?op=chat-file", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone, id: fileId }),
     })
-      .then((res) => res.json())
-      .then((body: { image?: string }) => setImage(body.image || ""))
-      .catch(() => setImage(""));
+      .then(async (res) => {
+        const body = (await res.json().catch(() => null)) as { image?: string } | null;
+        if (stop) return;
+        if (!res.ok || !body?.image) setFailed(true);
+        else setImage(body.image);
+      })
+      .catch(() => {
+        if (!stop) setFailed(true);
+      });
+    return () => {
+      stop = true;
+    };
   }, [phone, fileId]);
   async function send(stamped: string) {
     const res = await fetch("/api/tattoo-public?op=chat-sign", {
@@ -492,22 +514,30 @@ function GuestConsent({ phone, fileId }: { phone: string; fileId: string }) {
       body: JSON.stringify({ phone, image: stamped }),
     });
     if (!res.ok) {
-      toast.error("ارسال امضا انجام نشد.");
+      toast.error("ارسال امضا انجام نشد. یک بار دیگر تأیید امضا را بزن.");
       return;
     }
     setSent(true);
     setOpen(false);
   }
-  if (!image) return <p className="justify-self-start rounded-2xl bg-white px-3 py-2 text-sm text-slate-400">فرم رضایت‌نامه…</p>;
   return (
     <div className="justify-self-start max-w-[92%] rounded-2xl bg-white p-2">
-      <img src={image} alt="فرم رضایت‌نامه" className="max-h-72 w-full rounded-xl object-contain" />
-      <p className="mt-1 text-xs leading-6 text-slate-500">پذیرش این فرم اجباری نیست.</p>
-      {sent ? <p className="mt-1 text-sm font-bold text-[#1f8a4c]">امضا فرستاده شد.</p> : null}
-      {!sent && !open ? (
-        <Button className="mt-2 h-10 bg-[#2f80ed] text-white" onClick={() => setOpen(true)}>پذیرش و امضا</Button>
+      <p className="px-1 text-sm leading-7">این برگه رضایت‌نامه اجرای تاتو است. اگر قبول داری دکمه را بزن، با انگشت داخل کادر سفید امضا کن و تأیید امضا را بزن. اجباری نیست.</p>
+      {image ? <img src={image} alt="فرم رضایت‌نامه" className="mt-2 max-h-80 w-full rounded-xl border border-slate-200 object-contain" /> : <p className="mt-2 text-sm text-slate-400">{failed ? "تصویر فرم باز نشد. صفحه را یک بار تازه کن." : "فرم رضایت‌نامه در حال باز شدن است…"}</p>}
+      {sent ? <p className="mt-2 text-sm font-bold text-[#1f8a4c]">امضا ثبت شد و برای پیمان فرستاده شد.</p> : null}
+      {!sent && image && !open ? (
+        <Button className="mt-2 h-11 w-full bg-[#2f80ed] text-white" onClick={() => setOpen(true)}>امضای فرم رضایت‌نامه</Button>
       ) : null}
-      {open ? <ConsentSignature sheet={image} startOpen onPick={(stamped) => void send(stamped)} saveLabel="ارسال امضا" /> : null}
+      {open && image ? (
+        <ConsentSignature
+          sheet={image}
+          startOpen
+          hideSheet
+          saveLabel="تأیید امضا"
+          hint="با انگشت داخل کادر سفید امضا کن. امضا روی جای امضای پایین همین فرم می‌نشیند، نه به‌جای خود فرم."
+          onPick={(stamped) => void send(stamped)}
+        />
+      ) : null}
     </div>
   );
 }

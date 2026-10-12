@@ -7,7 +7,7 @@ import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
 import { attachReferral } from "@/lib/server/studio-referrals";
-import { postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
+import { listTattooChatFiles, postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
 import { finalizeNewTattooRequest } from "@/lib/server/tattoo-estimate";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -257,8 +257,10 @@ async function readChat(request: Request) {
   const body = (await request.json().catch(() => null)) as { phone?: unknown } | null;
   const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
   if (!isIranMobile(phone)) return json({ error: "شماره موبایل را بنویس." }, 400);
-  const lines = await readTattooChat(await getSql(), phone);
-  return json({ lines });
+  const sql = await getSql();
+  const lines = await readTattooChat(sql, phone);
+  const files = await listTattooChatFiles(sql, phone);
+  return json({ lines, files });
 }
 
 async function sendChat(request: Request) {

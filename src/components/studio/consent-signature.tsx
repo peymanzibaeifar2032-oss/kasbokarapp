@@ -11,6 +11,8 @@ export function ConsentSignature({
   busy = false,
   saveLabel = "نشاندن امضا روی برگه",
   startOpen = false,
+  hideSheet = false,
+  hint = "امضا فقط داخل کادر «امضا»ی پایین برگه می‌نشیند. متن برگه و عکس طرح سر جایش می‌ماند. برای ثبت نوبت لازم نیست.",
 }: {
   sheet: string;
   loadSheet?: () => Promise<string>;
@@ -18,6 +20,8 @@ export function ConsentSignature({
   busy?: boolean;
   saveLabel?: string;
   startOpen?: boolean;
+  hideSheet?: boolean;
+  hint?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
@@ -141,8 +145,8 @@ export function ConsentSignature({
 
   return (
     <div>
-      <p className="text-xs leading-6 text-muted">امضا فقط داخل کادر «امضا»ی پایین برگه می‌نشیند. متن برگه و عکس طرح سر جایش می‌ماند. برای ثبت نوبت لازم نیست.</p>
-      {page ? (
+      <p className="text-xs leading-6 text-muted">{hint}</p>
+      {page && !hideSheet ? (
         <img src={page} alt="برگه رضایت‌نامه" className="mt-2 max-h-64 w-full rounded-xl border border-border object-contain bg-white" />
       ) : (
         <p className="mt-2 text-sm text-destructive">اول عکس برگهٔ رضایت‌نامه را بگذار. بدون برگه، امضا ذخیره نمی‌شود.</p>

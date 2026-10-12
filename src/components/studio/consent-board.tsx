@@ -229,24 +229,38 @@ export async function stampSignatureOnConsent(sheetUrl: string, signatureUrl: st
 }
 
 export async function shrinkConsentSheet(url: string) {
-  if (!url.startsWith("data:image/") || url.length <= 1_000_000) return url;
+  if (!url.startsWith("data:image/")) return url;
   const image = await loadImage(url);
+  let width = image.width;
+  let height = image.height;
+  const cap = 1100;
+  if (width > cap) {
+    height = Math.round(height * (cap / width));
+    width = cap;
+  }
   let canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
   if (!ctx) return url;
-  ctx.drawImage(image, 0, 0);
-  let out = canvas.toDataURL("image/jpeg", 0.8);
-  while (out.length > 1_000_000 && canvas.width > 900) {
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(image, 0, 0, width, height);
+  let quality = 0.72;
+  let out = canvas.toDataURL("image/jpeg", quality);
+  while (out.length > 700_000 && quality > 0.45) {
+    quality -= 0.08;
+    out = canvas.toDataURL("image/jpeg", quality);
+  }
+  while (out.length > 700_000 && canvas.width > 700) {
     const next = document.createElement("canvas");
-    next.width = Math.round(canvas.width * 0.82);
-    next.height = Math.round(canvas.height * 0.82);
+    next.width = Math.round(canvas.width * 0.8);
+    next.height = Math.round(canvas.height * 0.8);
     const nextCtx = next.getContext("2d");
     if (!nextCtx) break;
     nextCtx.drawImage(canvas, 0, 0, next.width, next.height);
     canvas = next;
-    out = canvas.toDataURL("image/jpeg", 0.76);
+    out = canvas.toDataURL("image/jpeg", 0.66);
   }
   return out;
 }

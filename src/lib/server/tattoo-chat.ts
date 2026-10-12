@@ -59,6 +59,17 @@ export async function readTattooChat(sql: Sql, phone: string): Promise<TattooCha
   }));
 }
 
+export async function listTattooChatFiles(sql: Sql, phone: string) {
+  const normalized = normalizeIranPhone(phone);
+  if (!isIranMobile(normalized)) return [];
+  await ensureTattooChat(sql);
+  const rows = await sql.query<{ id: string; kind: string }>(
+    `select id, kind from tattoo_chat_files where phone=$1 order by created_at asc limit 20`,
+    [normalized],
+  );
+  return rows.map((row) => ({ id: row.id, kind: row.kind === "signed" ? "signed" as const : "offer" as const }));
+}
+
 export async function postTattooChatFile(sql: Sql, phone: string, requestId: string | null, kind: "offer" | "signed", image: string) {
   const normalized = normalizeIranPhone(phone);
   if (!isIranMobile(normalized) || !image.startsWith("data:image/")) throw new Error("برگه ذخیره نشد.");
