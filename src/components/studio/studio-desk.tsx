@@ -7,10 +7,10 @@ import { compressImage } from "@/lib/design-images";
 import { addBookingToPhoneCalendar, formatFaDateTime, formatToman, isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { JALALI_MONTHS, WEEKDAY_SHORT_FA, gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { jalaliDayLabel, tehranClock, tehranDayKey } from "@/lib/hours";
-import { answerIntake, startIntake, type IntakeDraft, type IntakePayload } from "@/lib/intake-desk";
+import { answerIntake, startBooking, type IntakeDraft, type IntakePayload } from "@/lib/intake-desk";
 import { friendlyError } from "@/lib/save";
 import { isTehranThursday } from "@/lib/studio-apprentices";
-import { scheduleTattooPrepNotices } from "@/lib/studio-notices";
+import { ensureStudioPhoneNotices, scheduleTattooPrepNotices, showStudioOsNotice } from "@/lib/studio-notices";
 import { STUDIO_ADDRESS, TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 import type { GuestStatus } from "@/components/studio/guest-pay-card";
 
@@ -21,8 +21,6 @@ type Line = TextLine | CalLine;
 const MENU = [
   { id: "ask", label: "سؤال" },
   { id: "status", label: "وضعیت نوبت" },
-  { id: "days", label: "تقویم" },
-  { id: "request", label: "درخواست وقت" },
 ];
 
 export function StudioDesk({
@@ -38,6 +36,7 @@ export function StudioDesk({
 }) {
   const opened = useRef(false);
   const sentSeen = useRef("");
+  const seen = useRef<Record<string, string>>({});
   const scroller = useRef<HTMLDivElement>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [text, setText] = useState("");
@@ -63,17 +62,91 @@ export function StudioDesk({
   useEffect(() => {
     if (opened.current) return;
     opened.current = true;
-    const hello = preferredDay
-      ? `سلام. روزی که زدی: ${preferredDay}. از همین گفتگو سؤال بپرس، تقویم را ببین، درخواست بده، وضعیت را بخوان یا رسید را بفرست.`
-      : "سلام. از همین گفتگو سؤال بپرس، تقویم را ببین، درخواست بده، وضعیت نوبتت را بخوان یا رسید را بفرست.";
-    setLines([{ id: "hello", from: "desk", text: hello }]);
+    setLines([
+      { id: "hello", from: "desk", text: "اول روز اجرا را بزن. فقط روز سبز کاملاً خالی است و صفحه روی اولین روز خالی باز شده." },
+      { id: "cal", from: "desk", kind: "calendar" },
+    ]);
+    void ensureStudioPhoneNotices();
     try {
       const saved = localStorage.getItem("studio-status-phone") || "";
-      if (saved) setPhone(saved);
+      if (saved) {
+        setPhone(saved);
+        void ensureStudioPhoneNotices();
+      }
     } catch {
       /* private mode */
     }
-  }, [preferredDay]);
+    void (async () => {
+      try {
+        const res = await fetch("/api/tattoo-public?op=open-days");
+        const body = (await res.json()) as { ok?: boolean; days?: string[] };
+        if (!body?.ok) return;
+        const days = body.days || [];
+        setBusyDays(days);
+        const taken = new Set(days);
+        const now = tehranClock();
+        const today = gregorianToJalali(now.y, now.m, now.day);
+        const todayKey = tehranDayKey();
+        let cursor = { jy: today.jy, jm: today.jm };
+        for (let i = 0; i < 8; i += 1) {
+          const open = jalaliMonthGrid(cursor.jy, cursor.jm).some(
+            (cell) => cell.inMonth && cell.dayKey >= todayKey && !isTehranThursday(cell.dayKey) && !taken.has(cell.dayKey),
+          );
+          if (open) {
+            setMonth(cursor);
+            return;
+          }
+          cursor = shiftJalaliMonth(cursor.jy, cursor.jm, 1);
+        }
+      } catch {
+        /* calendar still shows the current month */
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!phone) return;
+    let stop = false;
+    async function tick() {
+      try {
+        const res = await fetch("/api/tattoo-public?op=status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone }),
+        });
+        const data = (await res.json().catch(() => null)) as { items?: GuestStatus[] } | null;
+        if (stop || !res.ok) return;
+        const found = data?.items ?? [];
+        const fresh = found.filter((item) => {
+          const prev = seen.current[item.id];
+          const next = statusSig(item);
+          seen.current[item.id] = next;
+          return Boolean(prev) && prev !== next;
+        });
+        setItems(found);
+        if (!fresh.length) return;
+        setLines((current) => [...current, ...fresh.map((item) => ({ id: crypto.randomUUID(), from: "desk" as const, text: statusText(item) }))]);
+        const actions = found.flatMap((item) => statusActions(item));
+        setChips(actions.length ? [...actions, ...MENU] : MENU);
+        for (const item of fresh) {
+          const stage = tattooStage({
+            status: item.status,
+            paymentStatus: item.paymentStatus || "not_required",
+            paymentReviewDeadline: item.paymentReviewDeadline,
+          });
+          showStudioOsNotice("جواب نوبت تاتو", item.artistMessage || TATTOO_CUSTOMER_STAGE_LABEL[stage] || "وضعیت نوبت عوض شد", item.id);
+        }
+      } catch {
+        /* next tick retries */
+      }
+    }
+    void tick();
+    const timer = window.setInterval(() => void tick(), 20000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [phone]);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
@@ -85,7 +158,10 @@ export function StudioDesk({
     setDraft(null);
     setChips(MENU);
     setAllowImage(false);
-    say("desk", `درخواستت ثبت شد. کد پیگیری ${sent.code} است. وضعیت را با همین شماره، از همین گفتگو می‌خوانی.`);
+    const normalized = normalizeIranPhone(sent.phone);
+    if (isIranMobile(normalized)) setPhone(normalized);
+    void ensureStudioPhoneNotices();
+    say("desk", `درخواستت ثبت شد و به صندوق ورودی آمد. کد پیگیری ${sent.code} است. جواب پیمان همین‌جا می‌آید، بدون تازه‌کردن صفحه.`);
   }, [sent]);
 
   async function ask(question: string) {
@@ -104,8 +180,12 @@ export function StudioDesk({
     setChips(MENU);
   }
 
-  async function beginRequest(day = preferredDay) {
-    const first = startIntake(day);
+  function beginRequest(day = preferredDay) {
+    if (!day) {
+      say("desk", "اول یک روز سبز را از تقویم بزن.");
+      return;
+    }
+    const first = startBooking(day);
     setDraft(first.draft);
     setLines((current) => [...current, ...first.say.map((text) => ({ id: crypto.randomUUID(), from: "desk" as const, text }))]);
     setChips(first.chips);
@@ -149,6 +229,7 @@ export function StudioDesk({
       if (!res.ok) throw new Error(data?.error || "وضعیت پیدا نشد.");
       const found = data?.items ?? [];
       setItems(found);
+      for (const item of found) seen.current[item.id] = statusSig(item);
       const normalized = normalizeIranPhone(raw);
       if (isIranMobile(normalized)) {
         setPhone(normalized);
@@ -196,19 +277,6 @@ export function StudioDesk({
     }
   }
 
-  async function showCalendar() {
-    setLines((current) => [...current, { id: crypto.randomUUID(), from: "desk", kind: "calendar" }]);
-    if (busyDays.length) return;
-    try {
-      const res = await fetch("/api/tattoo-public?op=open-days");
-      const body = (await res.json()) as { ok?: boolean; days?: string[] };
-      if (body?.ok) setBusyDays(body.days || []);
-      else say("desk", "تقویم الان باز نشد. کمی بعد دوباره بزن.");
-    } catch {
-      say("desk", "تقویم الان باز نشد. کمی بعد دوباره بزن.");
-    }
-  }
-
   async function onChip(id: string, label: string) {
     if (id === "ask") {
       setDraft(null);
@@ -228,15 +296,10 @@ export function StudioDesk({
       setReceiptFor("await-phone");
       return;
     }
-    if (id === "days") {
+    if (id === "days" || id === "request") {
       setDraft(null);
       setChips(MENU);
-      await showCalendar();
-      return;
-    }
-    if (id === "request") {
-      say("customer", "درخواست وقت");
-      await beginRequest();
+      say("desk", "روز سبز را از تقویم بالا بزن.");
       return;
     }
     if (id.startsWith("status:")) {
@@ -408,6 +471,10 @@ function MonthBubble({
       <p className="mt-2 text-xs text-slate-500">سبز یعنی خالی. زدنش درخواست است، نه نوبت قطعی.</p>
     </div>
   );
+}
+
+function statusSig(item: GuestStatus) {
+  return [item.status, item.paymentStatus, item.artistMessage, item.proposedSlotStart, item.priceMinToman, item.depositToman].join("|");
 }
 
 function statusText(item: GuestStatus) {

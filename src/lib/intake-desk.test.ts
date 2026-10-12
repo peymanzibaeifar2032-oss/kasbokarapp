@@ -25,19 +25,26 @@ test("a neck question stays a question and remembers the place", () => {
   assert.equal(turn.draft.part, "گردن");
 });
 
-test("approximate size is enough and a new tattoo still needs the design photo", () => {
+test("body place asks where, not for the name again", () => {
   let turn = answerIntake(startIntake().draft, "درخواست");
-  for (const step of ["امیر حسینی", "09120000000", "pick:new", "pick:ساعد", "pick:left", "pick:medium"]) {
-    turn = answerIntake(turn.draft, step);
-  }
+  for (const step of ["امیر حسینی", "09120000000", "pick:new"]) turn = answerIntake(turn.draft, step);
+  assert.equal(turn.draft.step, "part");
+  assert.match(turn.say.join(" "), /محل اجرا/);
+  assert.doesNotMatch(turn.say.join(" "), /اسمت/);
+});
+
+test("exact centimeters are required and the request sends itself", () => {
+  let turn = answerIntake(startIntake().draft, "درخواست");
+  for (const step of ["امیر حسینی", "09120000000", "pick:new", "pick:ساعد", "pick:left"]) turn = answerIntake(turn.draft, step);
+  assert.equal(turn.draft.step, "size");
+  const vague = answerIntake(turn.draft, "pick:medium");
+  assert.match(vague.say[0], /سانتی‌متر/);
+  turn = answerIntake(turn.draft, "۱۰ در ۱۵");
   assert.equal(turn.draft.step, "design");
-  const blocked = answerIntake(turn.draft, "ندارم");
-  assert.match(blocked.say[0], /عکس/);
   const ready = answerIntake(turn.draft, "فرستادم", { design: true });
-  assert.equal(ready.draft.step, "confirm");
-  const sent = answerIntake(ready.draft, "pick:yes", { design: true });
-  assert.match(sent.payload?.sizeCm || "", /تقریبی/);
-  assert.equal(sent.payload?.placement, "ساعد، چپ");
+  assert.match(ready.payload?.sizeCm || "", /10×15/);
+  assert.equal(ready.payload?.sizeMode, "cm");
+  assert.equal(ready.payload?.placement, "ساعد، چپ");
 });
 
 test("cover-up cannot skip the tattoo already on the body", () => {
@@ -50,4 +57,6 @@ test("cover-up cannot skip the tattoo already on the body", () => {
   const skipped = answerIntake(turn.draft, "ندارم", { design: true });
   assert.match(skipped.say[0], /بدن/);
   assert.equal(skipped.payload, null);
+  const sent = answerIntake(turn.draft, "فرستادم", { design: true, current: true });
+  assert.equal(sent.payload?.placement, "بازو، راست");
 });

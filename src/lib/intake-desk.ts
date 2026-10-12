@@ -59,6 +59,11 @@ const TYPES = [
   ["custom", "طراحی اختصاصی"],
 ] as const;
 
+export function startBooking(preferredDay: string): IntakeTurn {
+  const draft = { ...blank(), step: "name" as const, preferredDay };
+  return speak(draft, [`روز اجرا: ${preferredDay}.`, "اسم و نام خانوادگی‌ات را بنویس."]);
+}
+
 export function startIntake(preferredDay = ""): IntakeTurn {
   const draft = { ...blank(), preferredDay };
   const say = preferredDay
@@ -132,10 +137,8 @@ function check(draft: IntakeDraft, text: string): { draft: IntakeDraft; error: s
   }
   if (draft.step === "size") {
     const exact = parseSize(text);
-    if (exact) return { draft: { ...draft, width: exact.width, height: exact.height, sizeLabel: "" }, error: "" };
-    const approx = TATTOO_SIZE_LABELS.find((item) => item[0] === id || text.includes(item[1]));
-    if (approx) return { draft: { ...draft, width: "", height: "", sizeLabel: approx[0] }, error: "" };
-    return { draft, error: "اندازه را دقیق بگو، مثل ۱۰ در ۱۵، یا یکی از اندازه‌های تقریبی را انتخاب کن." };
+    if (!exact) return { draft, error: "اندازه را به سانتی‌متر بنویس. طول در عرض، مثل ۱۰ در ۱۵." };
+    return { draft: { ...draft, width: exact.width, height: exact.height, sizeLabel: "" }, error: "" };
   }
   if (draft.step === "design") {
     const optional = draft.requestType === "consultation";
@@ -196,8 +199,12 @@ function mentionedPart(text: string) {
 }
 
 function ask(draft: IntakeDraft, step: IntakeStep): IntakeTurn {
+  if (step === "confirm") {
+    const ready = { ...draft, step: "confirm" as const, fixing: false };
+    return { draft: ready, say: ["اطلاعات کامل شد. درخواست را می‌فرستم."], chips: [], image: false, payload: toPayload(ready) };
+  }
   const next = { ...draft, step };
-  return step === "confirm" ? showConfirm(next) : speak(next, [question(next)]);
+  return speak(next, [question(next)]);
 }
 
 function showConfirm(draft: IntakeDraft): IntakeTurn {
@@ -214,9 +221,9 @@ function question(draft: IntakeDraft) {
   const again = draft.fixing ? "این مورد را اصلاح کن. " : "";
   if (draft.step === "phone") return `${again}شماره موبایل را بنویس.`;
   if (draft.step === "type") return `${again}کارت جدید است، کاور است، یا مشاوره؟`;
-  if (draft.step === "part" && draft.part) return `${again}گفتی ${draft.part}. همان جا باشد؟`;
+  if (draft.step === "part") return draft.part ? `${again}گفتی ${draft.part}. همان جا باشد؟` : `${again}محل اجرا کجای بدن است؟`;
   if (draft.step === "side") return `${again}${draft.part} راست است یا چپ؟`;
-  if (draft.step === "size") return `${again}اندازه را بگو. دقیق، مثل ۱۰ در ۱۵، یا تقریبی.`;
+  if (draft.step === "size") return `${again}اندازه را به سانتی‌متر بنویس. طول در عرض، مثل ۱۰ در ۱۵.`;
   if (draft.step === "design") {
     return draft.requestType === "consultation"
       ? `${again}اگر عکس طرح داری بفرست. اگر نداری بنویس ندارم.`
@@ -231,7 +238,6 @@ function chipsFor(draft: IntakeDraft): IntakeChip[] {
   if (draft.step === "type") return TYPES.map(([id, label]) => ({ id, label }));
   if (draft.step === "part") return TATTOO_BODY_PARTS.filter((item) => item !== "سایر").map((item) => ({ id: item, label: item }));
   if (draft.step === "side") return TATTOO_SIDES.map(([id, label]) => ({ id, label }));
-  if (draft.step === "size") return TATTOO_SIZE_LABELS.map(([id, label]) => ({ id, label: `${label}، تقریبی` }));
   if (draft.step === "design" && draft.requestType === "consultation") return [{ id: "skip", label: "عکس ندارم" }];
   if (draft.step === "confirm") {
     const fixes = ORDER.filter((step) => step !== "confirm" && (step !== "body" || needsBody(draft)));

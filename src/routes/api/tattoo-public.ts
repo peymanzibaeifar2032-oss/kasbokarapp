@@ -222,7 +222,7 @@ async function createGuest(request: Request) {
 }
 
 async function lookup(request: Request) {
-  if (!allowRate(`tattoo-status:${clientKey(request)}`, 30, 60 * 60 * 1000)) {
+  if (!allowRate(`tattoo-status:${clientKey(request)}`, 240, 60 * 60 * 1000)) {
     return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
   }
   const body = (await request.json().catch(() => null)) as { phone?: unknown; code?: unknown } | null;
