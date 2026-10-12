@@ -884,7 +884,7 @@ async function performStudioChatSheet(raw: unknown) {
   }).parse(raw);
   const sql = await getSql();
   const id = await postTattooChatFile(sql, data.phone, data.requestId, "offer", data.image);
-  await postTattooChat(sql, data.phone, "desk", "فرم رضایت‌نامه را فرستادم. پذیرش و امضا اختیاری است.", data.requestId);
+  await postTattooChat(sql, data.phone, "desk", "فرم رضایت‌نامه را فرستادم. امضای این فرم الزامی است.", data.requestId);
   await postTattooChat(sql, data.phone, "desk", `[[consent:${id}]]`, data.requestId);
   return { id, lines: await readTattooChat(sql, data.phone) };
 }

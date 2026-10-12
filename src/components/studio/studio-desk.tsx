@@ -39,6 +39,7 @@ export function StudioDesk({
   const sentSeen = useRef("");
   const seen = useRef<Record<string, string>>({});
   const scroller = useRef<HTMLDivElement>(null);
+  const thread = useRef<HTMLDivElement>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<IntakeDraft | null>(null);
@@ -206,7 +207,16 @@ export function StudioDesk({
   }, [phone]);
 
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+    const box = thread.current;
+    const pane = scroller.current;
+    if (!box || !pane) return;
+    const stick = () => {
+      pane.scrollTop = pane.scrollHeight;
+    };
+    stick();
+    const watcher = new ResizeObserver(stick);
+    watcher.observe(box);
+    return () => watcher.disconnect();
   }, [lines, chips, waiting]);
 
   useEffect(() => {
@@ -444,6 +454,7 @@ export function StudioDesk({
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col px-3 pb-3">
       <div ref={scroller} className="mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pb-2">
+        <div ref={thread} className="grid content-start gap-2">
         {lines.map((line) =>
           "kind" in line ? (
             <MonthBubble key={line.id} month={month} busy={busyDays} onMonth={setMonth} onPick={(label, key) => beginRequest(label, key)} />
@@ -465,6 +476,7 @@ export function StudioDesk({
           ),
         )}
         {waiting ? <p className="justify-self-start rounded-2xl bg-white px-3 py-2 text-sm text-slate-400">…</p> : null}
+        </div>
       </div>
       {chips.length ? (
         <div className="flex gap-2 overflow-x-auto py-2">
@@ -475,7 +487,7 @@ export function StudioDesk({
           ))}
         </div>
       ) : null}
-      <div className="flex gap-2">
+      <div className="flex shrink-0 gap-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
         <input
           value={text}
           onChange={(event) => setText(event.target.value)}
@@ -484,6 +496,11 @@ export function StudioDesk({
           }}
           placeholder="بنویس"
           className="h-12 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm"
+          onFocus={() => {
+            window.setTimeout(() => {
+              if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+            }, 80);
+          }}
         />
         <label className="grid h-12 w-12 cursor-pointer place-items-center rounded-2xl bg-white">
           <ImagePlus className="size-5" />
@@ -538,7 +555,7 @@ function GuestConsent({ phone, fileId }: { phone: string; fileId: string }) {
   }
   return (
     <div className="justify-self-start max-w-[92%] rounded-2xl bg-white p-2">
-      <p className="px-1 text-sm leading-7">این برگه رضایت‌نامه اجرای تاتو است. اگر قبول داری دکمه را بزن، با انگشت داخل کادر سفید امضا کن و تأیید امضا را بزن. اجباری نیست.</p>
+      <p className="px-1 text-sm leading-7">امضای این فرم الزامی است. دکمه را بزن، با انگشت داخل کادر سفید امضا کن و تأیید امضا را بزن.</p>
       {image ? <img src={image} alt="فرم رضایت‌نامه" className="mt-2 max-h-80 w-full rounded-xl border border-slate-200 object-contain" /> : <p className="mt-2 text-sm text-slate-400">{failed ? "تصویر فرم باز نشد. صفحه را یک بار تازه کن." : "فرم رضایت‌نامه در حال باز شدن است…"}</p>}
       {sent ? <p className="mt-2 text-sm font-bold text-[#1f8a4c]">امضا ثبت شد و برای پیمان فرستاده شد.</p> : null}
       {!sent && image && !open ? (
@@ -550,7 +567,7 @@ function GuestConsent({ phone, fileId }: { phone: string; fileId: string }) {
           startOpen
           hideSheet
           saveLabel="تأیید امضا"
-          hint="با انگشت داخل کادر سفید امضا کن. امضا روی جای امضای پایین همین فرم می‌نشیند، نه به‌جای خود فرم."
+          hint="امضای این فرم الزامی است. با انگشت داخل کادر سفید امضا کن. امضا روی جای امضای پایین فرم می‌نشیند."
           onPick={(stamped) => void send(stamped)}
         />
       ) : null}

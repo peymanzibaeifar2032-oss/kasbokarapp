@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, ImagePlus, Loader2, ShieldCheck } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatSitting } from "@/components/studio/duration-fields";
 import { DesignThumbs } from "@/components/studio/design-thumbs";
@@ -28,11 +28,30 @@ export const Route = createFileRoute("/studio/request")({
 
 function StudioRequestPage() {
   const { user } = useCurrentUserState();
+  const frame = useRef<HTMLDivElement>(null);
   const { day } = Route.useSearch();
   const preferredDay = dayLabel(day);
   const userId = user?.id;
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState<{ code: string; phone: string } | null>(null);
+
+  useEffect(() => {
+    const frameEl = frame.current;
+    const viewport = window.visualViewport;
+    if (!frameEl || !viewport) return;
+    function fit() {
+      if (!frameEl || !viewport) return;
+      frameEl.style.top = `${viewport.offsetTop}px`;
+      frameEl.style.height = `${viewport.height}px`;
+    }
+    fit();
+    viewport.addEventListener("resize", fit);
+    viewport.addEventListener("scroll", fit);
+    return () => {
+      viewport.removeEventListener("resize", fit);
+      viewport.removeEventListener("scroll", fit);
+    };
+  }, []);
 
   function refresh() {
     if (!userId) return;
@@ -98,7 +117,7 @@ function StudioRequestPage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-[#f4efe6] text-[#1c1917]" dir="rtl">
+    <div ref={frame} className="fixed inset-x-0 top-0 z-40 flex h-dvh flex-col overflow-hidden bg-[#f6f8fb] text-[#1c1917]" dir="rtl">
       <StudioTopBar compact light />
       <StudioDesk busy={busy} preferredDay={preferredDay} sent={sent} onSubmit={(payload) => void submit(payload)} />
     </div>

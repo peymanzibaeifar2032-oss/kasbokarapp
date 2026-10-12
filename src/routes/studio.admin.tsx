@@ -836,7 +836,7 @@ function ConsentBubble({
             void onSave(image).finally(() => setBusy(false));
           }}>{busy ? "در حال ذخیره…" : "ذخیره در رضایت‌نامه‌ها"}</Button>
         </div>
-      ) : <p className="mt-1 text-xs text-slate-500">برای مشتری فرستاده شد. امضا اجباری نیست.</p>}
+      ) : <p className="mt-1 text-xs text-slate-500">برای مشتری فرستاده شد. امضایش الزامی است.</p>}
     </div>
   );
 }
@@ -1083,7 +1083,7 @@ function TattooAdminCard({
           }
           if (!sheet.startsWith("data:image/") || sheet.length > 1_100_000) throw new Error("فرم سنگین شد و برای مشتری فرستاده نشد. یک بار دیگر بزن.");
           await saveAction("studioChatSheet", { phone: request.customerPhone, requestId: request.id, image: sheet });
-          toast.success("فرم داخل چت مشتری رفت. امضا اجباری نیست.");
+          toast.success("فرم داخل چت مشتری رفت. امضایش الزامی است.");
         }}
         onSaveConsent={async (image) => {
           const saved = await saveAction<{ code: string }>("saveStudioConsent", {
