@@ -595,23 +595,31 @@ function ReplySeen({ request }: { request: TattooRequest }) {
 function RequestChat({
   phone,
   requestId,
-  payText,
   addressText,
-  onPay,
   onBuildConsent,
   onSaveConsent,
+  canOffer,
+  summary,
+  dayKey,
+  dayLabel,
+  busyKeys,
+  onOffer,
 }: {
   phone: string;
   requestId: string;
-  payText: string;
   addressText: string;
-  onPay: (text: string) => Promise<boolean>;
   onBuildConsent: () => Promise<void>;
   onSaveConsent: (image: string) => Promise<void>;
+  canOffer: boolean;
+  summary: string;
+  dayKey: string;
+  dayLabel: string;
+  busyKeys: string[];
+  onOffer: (offer: { price: string; deposit: string; minutes: string; sessions: string; day: string; time: string; card: string; iban: string; text: string }) => Promise<boolean>;
 }) {
   const [lines, setLines] = useState<{ id: string; from: "customer" | "desk"; body: string }[]>([]);
   const [text, setText] = useState("");
-  const [mode, setMode] = useState<"talk" | "pay">("talk");
+  const [note, setNote] = useState(false);
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   async function load() {
@@ -631,12 +639,9 @@ function RequestChat({
     if (!body || busy) return;
     setBusy(true);
     try {
-      if (mode === "pay") {
-        const ok = await onPay(body);
-        if (!ok) return;
-      } else await saveAction("studioChatSend", { phone, requestId, text: body });
+      await saveAction("studioChatSend", { phone, requestId, text: body });
       setText("");
-      setMode("talk");
+      setNote(false);
       await load();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -668,14 +673,129 @@ function RequestChat({
         }) : <p className="text-sm text-slate-400">سؤال مشتری، رسید و رضایت‌نامه همین‌جا می‌آید.</p>}
       </div>
       <div className="mt-2 flex gap-2 overflow-x-auto">
-        <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setText(payText); setMode("pay"); }}>مشخصات پرداخت</button>
-        <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setText(addressText); setMode("talk"); }}>آدرس</button>
+        <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setText(addressText); setNote(true); }}>آدرس</button>
+        <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => setNote(true)}>پیام</button>
         <button type="button" className="h-10 shrink-0 rounded-full bg-[#b7955b] px-3 text-sm font-bold text-white" disabled={busy} onClick={() => void onBuildConsent().then(() => load()).catch((err) => toast.error(friendlyError(err)))}>ساخت فرم رضایت‌نامه</button>
       </div>
+      {canOffer && !note ? (
+        <OfferSteps summary={summary} dayKey={dayKey} dayLabel={dayLabel} busyKeys={busyKeys} busy={busy} onSend={onOffer} />
+      ) : (
       <div className="mt-2 flex gap-2">
-        <textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="همین متن را ببین و ارسال را بزن" />
+        <textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="جواب را بنویس" />
         <Button className="h-12 bg-[#2f80ed] text-white" disabled={busy || !text.trim()} onClick={() => void send()}>ارسال</Button>
       </div>
+      )}
+    </div>
+  );
+}
+
+const OFFER_HOURS = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
+
+function OfferSteps({
+  summary,
+  dayKey,
+  dayLabel,
+  busyKeys,
+  busy,
+  onSend,
+}: {
+  summary: string;
+  dayKey: string;
+  dayLabel: string;
+  busyKeys: string[];
+  busy: boolean;
+  onSend: (offer: { price: string; deposit: string; minutes: string; sessions: string; day: string; time: string; card: string; iban: string; text: string }) => Promise<boolean>;
+}) {
+  const [step, setStep] = useState<"price" | "deposit" | "sessions" | "hours" | "day" | "time" | "bank" | "send">("price");
+  const [price, setPrice] = useState("");
+  const [deposit, setDeposit] = useState("");
+  const [sessions, setSessions] = useState("1");
+  const [hours, setHours] = useState("3");
+  const [day, setDay] = useState(dayKey);
+  const [time, setTime] = useState("12:00");
+  const [bank, setBank] = useState<(typeof TATTOO_SETTLEMENT_PRESETS)[number] | null>(null);
+  const [otherDay, setOtherDay] = useState(false);
+  const question = {
+    price: "قیمت نهایی را بنویس",
+    deposit: "مبلغ بیعانه را بنویس",
+    sessions: "تعداد جلسات",
+    hours: "مدت هر جلسه، به ساعت",
+    day: "روز انتخابی مشتری را تأیید کن",
+    time: "ساعت شروع اجرا",
+    bank: "کارت و شبا را انتخاب کن",
+    send: "اگر درست است، یک‌جا بفرست",
+  }[step];
+  const [y, m, d] = day.split("-").map(Number);
+  const chosenDay = y && m && d ? jalaliDayLabel(y, m, d) : dayLabel;
+  const recap = [
+    `قیمت ${formatTattooToman(Number(price || 0))}`,
+    `بیعانه ${formatTattooToman(Number(deposit || 0))}`,
+    `تعداد جلسات: ${sessions}`,
+    `مدت هر جلسه: ${hours} ساعت`,
+    `روز اجرا: ${chosenDay || "ثبت نشده"}`,
+    `ساعت شروع: ${time}`,
+    bank ? bank.title : "",
+    bank ? `کارت ${formatCardNumber(bank.card)}` : "",
+    bank ? `شبا ${bank.iban}` : "",
+  ].filter(Boolean).join("\n");
+  return (
+    <div className="mt-2 grid gap-2">
+      <p className="justify-self-end rounded-2xl bg-[#2f80ed] px-3 py-2 text-sm leading-7 text-white">{summary}</p>
+      <p className="justify-self-start rounded-2xl bg-white px-3 py-2 text-sm font-bold">{question}</p>
+      {step === "price" || step === "deposit" ? (
+        <div className="flex gap-2">
+          <Input
+            inputMode="numeric"
+            value={formatGroupedDigits(step === "price" ? price : deposit)}
+            onChange={(event) => (step === "price" ? setPrice : setDeposit)(digitsOnly(event.target.value))}
+            placeholder="تومان"
+          />
+          <Button className="bg-[#2f80ed] text-white" disabled={!(step === "price" ? price : deposit)} onClick={() => setStep(step === "price" ? "deposit" : "sessions")}>بعدی</Button>
+        </div>
+      ) : null}
+      {step === "sessions" ? (
+        <div className="flex gap-2 overflow-x-auto">{["1", "2", "3", "4"].map((n) => (
+          <button key={n} type="button" className="h-11 min-w-14 shrink-0 rounded-full bg-white text-sm font-bold" onClick={() => { setSessions(n); setStep("hours"); }}>{n} جلسه</button>
+        ))}</div>
+      ) : null}
+      {step === "hours" ? (
+        <div className="flex gap-2 overflow-x-auto">{["1", "2", "3", "4", "5", "6"].map((n) => (
+          <button key={n} type="button" className="h-11 min-w-16 shrink-0 rounded-full bg-white text-sm font-bold" onClick={() => { setHours(n); setStep("day"); }}>{n} ساعت</button>
+        ))}</div>
+      ) : null}
+      {step === "day" ? (
+        <div className="grid gap-2">
+          {day ? <button type="button" className="h-11 rounded-full bg-[#1f8a4c] px-4 text-sm font-bold text-white" onClick={() => setStep("time")}>تأیید {chosenDay}</button> : null}
+          <button type="button" className="h-11 rounded-full bg-white text-sm font-bold" onClick={() => setOtherDay((v) => !v)}>روز دیگر</button>
+          {otherDay || !day ? <JalaliDatePicker value={day} onChange={(value) => { setDay(value); setStep("time"); }} label="انتخاب روز" busyKeys={busyKeys} /> : null}
+        </div>
+      ) : null}
+      {step === "time" ? (
+        <div className="grid gap-2">
+          <div className="flex gap-2 overflow-x-auto">{OFFER_HOURS.map((hour) => (
+            <button key={hour} type="button" className="h-11 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setTime(hour); setStep("bank"); }}>{hour}</button>
+          ))}</div>
+          <Input type="time" value={time} onChange={(event) => { setTime(event.target.value); if (event.target.value) setStep("bank"); }} />
+        </div>
+      ) : null}
+      {step === "bank" ? (
+        <div className="grid gap-2">{TATTOO_SETTLEMENT_PRESETS.map((preset) => (
+          <button key={preset.id} type="button" className="rounded-2xl bg-white p-3 text-right" onClick={() => { setBank(preset); setStep("send"); }}>
+            <span className="block text-sm font-bold">{preset.title}</span>
+            <span className="mt-1 block text-xs" dir="ltr">{formatCardNumber(preset.card)}</span>
+            <span className="block text-xs" dir="ltr">{preset.iban}</span>
+          </button>
+        ))}</div>
+      ) : null}
+      {step === "send" ? (
+        <div className="grid gap-2">
+          <p className="whitespace-pre-wrap rounded-2xl bg-white px-3 py-2 text-sm leading-7">{recap}</p>
+          <Button className="h-12 bg-[#2f80ed] text-white" disabled={busy || !bank || !day} onClick={() => void onSend({
+            price, deposit, sessions, minutes: String(Number(hours) * 60), day, time,
+            card: bank?.card || "", iban: bank?.iban || "", text: recap,
+          })}>ارسال نهایی</Button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -734,6 +854,13 @@ function blankConsentMark() {
   ctx.textAlign = "center";
   ctx.fillText("طرح در گفتگو فرستاده شده", 400, 420);
   return canvas.toDataURL("image/jpeg", 0.8);
+}
+
+function slotFrom(dayKey: string, clock: string) {
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const [hh, mm] = clock.split(":").map(Number);
+  if (!y || !m || !d || Number.isNaN(hh) || Number.isNaN(mm)) return null;
+  return tehranLocalToIso(y, m, d, hh, mm);
 }
 
 function requestBadge(request: TattooRequest) {
@@ -827,13 +954,26 @@ function TattooAdminCard({
     return tehranLocalToIso(y, m, d, hh, mm);
   }
 
-  async function decide(status: "approved" | "needs_info" | "rejected", override?: string) {
-    const artistMessage = (override ?? message).trim();
+  async function decide(
+    status: "approved" | "needs_info" | "rejected",
+    override?: string,
+    offer?: { price: string; deposit: string; minutes: string; sessions: string; day: string; time: string; card: string; iban: string; text: string },
+  ) {
+    const artistMessage = (offer?.text ?? override ?? message).trim();
+    const usePrice = offer?.price ?? price;
+    const useDeposit = offer?.deposit ?? deposit;
+    const useMinutes = offer?.minutes ?? minutes;
+    const useSessions = offer?.sessions ?? sessions;
+    const useDay = offer?.day ?? day;
+    const useTime = offer?.time ?? time;
+    const useCard = offer?.card ?? cardNumber;
+    const useIban = offer?.iban ?? iban;
+    const slot = useDay && useTime ? slotFrom(useDay, useTime) : null;
     if (artistMessage.length < 2) {
       toast.error("پیام کوتاهی برای مشتری بنویسید.");
       return false;
     }
-    if (status === "approved" && (!price || !minutes || !deposit || !proposalIso())) {
+    if (status === "approved" && (!usePrice || !useMinutes || !useDeposit || !slot)) {
       toast.error("قیمت، بیعانه، مدت جلسه و تاریخ و ساعت را کامل کنید.");
       return false;
     }
@@ -843,14 +983,14 @@ function TattooAdminCard({
         id: request.id,
         status,
         businessId: businessId || null,
-        priceMinToman: price ? Number(price) : null,
+        priceMinToman: usePrice ? Number(usePrice) : null,
         priceMaxToman: null,
-        sessionMinutes: minutes ? Number(minutes) : null,
-        sessionCount: sessions ? Number(sessions) : 1,
-        depositToman: deposit ? Number(deposit) : null,
-        paymentCardNumber: cardNumber || null,
-        paymentIban: iban || null,
-        proposedSlotStart: status === "approved" ? proposalIso() : null,
+        sessionMinutes: useMinutes ? Number(useMinutes) : null,
+        sessionCount: useSessions ? Number(useSessions) : 1,
+        depositToman: useDeposit ? Number(useDeposit) : null,
+        paymentCardNumber: useCard || null,
+        paymentIban: useIban || null,
+        proposedSlotStart: status === "approved" ? slot : null,
         artistMessage,
       });
       toast.success(status === "approved" ? "پیشنهاد برای مشتری ارسال شد." : "نتیجه ثبت شد.");
@@ -898,18 +1038,23 @@ function TattooAdminCard({
       <RequestChat
         phone={request.customerPhone}
         requestId={request.id}
-        payText={[
-          "مشخصات پرداخت",
-          price ? `قیمت ${formatTattooToman(Number(price))}` : "",
-          deposit ? `بیعانه ${formatTattooToman(Number(deposit))}` : "",
-          proposalIso() ? formatFaDateTime(proposalIso()!) : wantedDay ? `روز انتخابی مشتری ${wantedDay}` : "",
-          cardNumber ? `کارت ${formatCardNumber(cardNumber)}` : "",
-          iban ? `شبا ${iban}` : "",
-        ].filter(Boolean).join("\n")}
         addressText={studioVisitText()}
-        onPay={async (text) => {
-          setMessage(text);
-          return decide("approved", text);
+        canOffer={showProposalForm}
+        summary={[request.customerName, request.placement, request.sizeCm, request.customerPhone, (request.preferredDates || "").replace(/^\d{4}-\d{2}-\d{2}\s*/, "")].filter(Boolean).join(" · ")}
+        dayKey={wantedDay || day}
+        dayLabel={(request.preferredDates || "").replace(/^\d{4}-\d{2}-\d{2}\s*/, "")}
+        busyKeys={busyKeys}
+        onOffer={async (offer) => {
+          setPrice(offer.price);
+          setDeposit(offer.deposit);
+          setSessions(offer.sessions);
+          setMinutes(offer.minutes);
+          setDay(offer.day);
+          setTime(offer.time);
+          setCardNumber(offer.card);
+          setIban(offer.iban);
+          setMessage(offer.text);
+          return decide("approved", offer.text, offer);
         }}
         onBuildConsent={async () => {
           const row = await saveAction<{ referenceImages?: string[]; bodyImages?: string[] }>("studioRequestImages", { id: request.id });
@@ -1018,7 +1163,7 @@ function TattooAdminCard({
         <ReceiptReview request={request} onChange={onChange} />
       ) : null}
 
-      {showProposalForm ? (
+      {false ? (
         <>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <NumberField label="قیمت نهایی" hint="تومان" value={price} onChange={setPrice} money />
