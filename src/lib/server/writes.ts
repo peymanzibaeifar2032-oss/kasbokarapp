@@ -20,7 +20,7 @@ import {
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian, gregorianToJalali } from "@/lib/calendar/jalali";
 import { postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
-import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withStudioVisitDetails } from "@/lib/tattoo-flow";
+import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withPayNextStep, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
   performAddApprenticePayment,
@@ -847,7 +847,7 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
     );
   }
   const artistMessage =
-    data.status === "approved" ? withStudioVisitDetails(data.artistMessage) : data.artistMessage;
+    data.status === "approved" ? withPayNextStep(withStudioVisitDetails(data.artistMessage)) : data.artistMessage;
   const updated = await sql.query<{ customer_id: string }>(
     `update tattoo_requests set status=$2, business_id=$3, price_min_toman=$4, price_max_toman=$5,
        session_minutes=$6, session_count=$7, deposit_toman=$8, artist_message=$9,

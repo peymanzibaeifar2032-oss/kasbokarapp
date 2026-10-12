@@ -42,6 +42,8 @@ export function StudioDesk({
   const [lines, setLines] = useState<Line[]>([]);
   const [text, setText] = useState("");
   const [draft, setDraft] = useState<IntakeDraft | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
   const [images, setImages] = useState<WizardImage[]>([]);
   const [chips, setChips] = useState(MENU);
   const [allowImage, setAllowImage] = useState<false | "reference" | "current">(false);
@@ -125,9 +127,10 @@ export function StudioDesk({
           return Boolean(prev) && prev !== next;
         });
         setItems(found);
+        const actions = found.flatMap((item) => statusActions(item));
+        if (!draftRef.current && actions.length) setChips([...actions, ...MENU]);
         if (!fresh.length) return;
         setLines((current) => [...current, ...fresh.map((item) => ({ id: crypto.randomUUID(), from: "desk" as const, text: statusText(item) }))]);
-        const actions = found.flatMap((item) => statusActions(item));
         setChips(actions.length ? [...actions, ...MENU] : MENU);
         for (const item of fresh) {
           const stage = tattooStage({
@@ -176,7 +179,20 @@ export function StudioDesk({
         ];
         for (const line of fresh) seenIds.add(`shown:${line.id}`);
         if (!fresh.length) return;
-        setLines((current) => [...current, ...fresh.map((line) => ({ id: line.id, from: "desk" as const, text: line.body }))]);
+        setLines((current) => [
+          ...current,
+          ...fresh.flatMap((line) => {
+            const rows = [{ id: line.id, from: "desk" as const, text: line.body }];
+            if (/شبا|کارت/.test(line.body) && !line.body.includes("عکس رسید را همین‌جا بفرست") && !line.body.startsWith("[[")) {
+              rows.push({
+                id: `${line.id}-pay`,
+                from: "desk",
+                text: "قدم بعدی:\n۱. دکمهٔ «تأیید زمان» را بزن.\n۲. بیعانه را به همین کارت واریز کن.\n۳. دکمهٔ «ارسال رسید» را بزن و عکس رسید را همین‌جا بفرست.",
+              });
+            }
+            return rows;
+          }),
+        ]);
       } catch {
         /* next tick retries */
       }
@@ -315,7 +331,7 @@ export function StudioDesk({
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
       if (!res.ok) throw new Error(data?.error || "انجام نشد.");
-      say("desk", op === "accept" ? "زمان تأیید شد. حالا عکس رسید را بفرست." : "رسید رسید. بررسی می‌شود.");
+      say("desk", op === "accept" ? "زمان تأیید شد. حالا بیعانه را به همان کارت واریز کن و دکمهٔ ارسال رسید را بزن. عکس رسید را همین‌جا بفرست." : "رسید رسید. بررسی می‌شود.");
       await lookup(phone);
     } catch (err) {
       say("desk", friendlyError(err));
@@ -358,7 +374,7 @@ export function StudioDesk({
       }
       if (action === "receipt") {
         setReceiptFor(item.id);
-        say("desk", "عکس رسید را از دکمهٔ عکس بفرست.");
+        say("desk", "بیعانه را اگر واریز کردی، عکس رسید را از دکمهٔ عکس بفرست.");
       }
       if (action === "cal" && item.proposedSlotStart) {
         const end = item.proposedSlotEnd ? new Date(item.proposedSlotEnd).getTime() : NaN;
