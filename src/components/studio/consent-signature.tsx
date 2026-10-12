@@ -10,16 +10,18 @@ export function ConsentSignature({
   onPick,
   busy = false,
   saveLabel = "نشاندن امضا روی برگه",
+  startOpen = false,
 }: {
   sheet: string;
   loadSheet?: () => Promise<string>;
   onPick: (stampedSheet: string) => void;
   busy?: boolean;
   saveLabel?: string;
+  startOpen?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [dirty, setDirty] = useState(false);
   const [page, setPage] = useState(sheet);
   const [stamping, setStamping] = useState(false);

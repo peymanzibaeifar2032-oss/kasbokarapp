@@ -9,7 +9,7 @@ const imageDataSchema = z.string().max(1_200_000).refine(
 
 const consentInput = z.object({
   customerName: z.string().trim().min(2).max(80),
-  nationalId: z.string().trim().min(10).max(10),
+  nationalId: z.string().trim().min(0).max(20),
   phone: z.string().trim().min(10).max(20),
   placement: z.string().trim().min(2).max(120),
   sizeCm: z.string().trim().min(1).max(40),
@@ -18,6 +18,8 @@ const consentInput = z.object({
   inkCode: z.string().trim().max(40).optional(),
   needleCode: z.string().trim().max(40).optional(),
   designImage: imageDataSchema,
+  sheetImage: imageDataSchema.optional(),
+  code: z.string().trim().max(12).optional(),
 });
 
 async function ensureConsentTable(sql: Awaited<ReturnType<typeof getSql>>) {
@@ -41,19 +43,20 @@ async function ensureConsentTable(sql: Awaited<ReturnType<typeof getSql>>) {
   await sql.query(`alter table studio_consents add column if not exists paid_toman bigint not null default 0`);
   await sql.query(`alter table studio_consents add column if not exists ink_code text not null default ''`);
   await sql.query(`alter table studio_consents add column if not exists needle_code text not null default ''`);
+  await sql.query(`alter table studio_consents add column if not exists sheet_image text not null default ''`);
 }
 
 export async function performSaveStudioConsent(sql: Awaited<ReturnType<typeof getSql>>, userId: string, raw: unknown) {
   const data = consentInput.parse(raw);
   await ensureConsentTable(sql);
-  let code = makeTattooTrackingCode();
+  let code = data.code && /^\d{4,8}$/.test(data.code) ? data.code : makeTattooTrackingCode();
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       const id = crypto.randomUUID();
       await sql.query(
-        `insert into studio_consents (id, user_id, code, customer_name, national_id, phone, placement, size_cm, design_image, price_toman, paid_toman, ink_code, needle_code)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [id, userId, code, data.customerName, data.nationalId, data.phone, data.placement, data.sizeCm, data.designImage, data.priceToman, data.paidToman, data.inkCode || "", data.needleCode || ""],
+        `insert into studio_consents (id, user_id, code, customer_name, national_id, phone, placement, size_cm, design_image, price_toman, paid_toman, ink_code, needle_code, sheet_image)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [id, userId, code, data.customerName, data.nationalId || "ثبت نشده", data.phone, data.placement, data.sizeCm, data.designImage, data.priceToman, data.paidToman, data.inkCode || "", data.needleCode || "", data.sheetImage || ""],
       );
       return { id, code };
     } catch (error) {
@@ -98,11 +101,13 @@ export async function performStudioConsent(sql: Awaited<ReturnType<typeof getSql
     paid_toman: string | number;
     ink_code: string | null;
     needle_code: string | null;
+    sheet_image: string | null;
     created_at: string;
   }>(
     `select code, customer_name, national_id, phone, placement, size_cm, design_image,
             coalesce(price_toman, 0) as price_toman, coalesce(paid_toman, 0) as paid_toman,
-            coalesce(ink_code, '') as ink_code, coalesce(needle_code, '') as needle_code, created_at
+            coalesce(ink_code, '') as ink_code, coalesce(needle_code, '') as needle_code,
+            coalesce(sheet_image, '') as sheet_image, created_at
        from studio_consents
       where user_id = $1 and code = $2
       limit 1`,
@@ -122,6 +127,7 @@ export async function performStudioConsent(sql: Awaited<ReturnType<typeof getSql
     inkCode: row.ink_code || "",
     needleCode: row.needle_code || "",
     designImage: row.design_image,
+    sheetImage: row.sheet_image || "",
     createdAt: row.created_at,
   };
 }

@@ -21,6 +21,14 @@ export async function ensureTattooChat(sql: Sql) {
     created_at timestamptz not null default now()
   )`);
   await sql.query(`create index if not exists tattoo_chat_phone_idx on tattoo_chat (phone, created_at)`);
+  await sql.query(`create table if not exists tattoo_chat_files (
+    id text primary key,
+    phone text not null,
+    request_id text,
+    kind text not null,
+    image text not null,
+    created_at timestamptz not null default now()
+  )`);
   ready = true;
 }
 
@@ -49,4 +57,28 @@ export async function readTattooChat(sql: Sql, phone: string): Promise<TattooCha
     body: row.body,
     createdAt: row.created_at,
   }));
+}
+
+export async function postTattooChatFile(sql: Sql, phone: string, requestId: string | null, kind: "offer" | "signed", image: string) {
+  const normalized = normalizeIranPhone(phone);
+  if (!isIranMobile(normalized) || !image.startsWith("data:image/")) throw new Error("برگه ذخیره نشد.");
+  if (image.length > 1_200_000) throw new Error("برگه سنگین است.");
+  await ensureTattooChat(sql);
+  const id = crypto.randomUUID();
+  await sql.query(
+    `insert into tattoo_chat_files (id, phone, request_id, kind, image) values ($1,$2,$3,$4,$5)`,
+    [id, normalized, requestId, kind, image],
+  );
+  return id;
+}
+
+export async function readTattooChatFile(sql: Sql, phone: string, id: string) {
+  const normalized = normalizeIranPhone(phone);
+  if (!isIranMobile(normalized)) return null;
+  await ensureTattooChat(sql);
+  const rows = await sql.query<{ image: string; kind: string }>(
+    `select image, kind from tattoo_chat_files where id=$1 and phone=$2 limit 1`,
+    [id, normalized],
+  );
+  return rows[0] ?? null;
 }

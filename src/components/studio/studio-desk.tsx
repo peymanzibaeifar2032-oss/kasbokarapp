@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
+import { ConsentSignature } from "@/components/studio/consent-signature";
 import type { WizardImage } from "@/components/studio/request-wizard";
 import { Button } from "@/components/ui/button";
 import { compressImage } from "@/lib/design-images";
@@ -420,12 +421,20 @@ export function StudioDesk({
           "kind" in line ? (
             <MonthBubble key={line.id} month={month} busy={busyDays} onMonth={setMonth} onPick={(label, key) => beginRequest(label, key)} />
           ) : (
+            (() => {
+              const mark = line.text.match(/^\[\[consent:([0-9a-f-]{8,})\]\]$/i);
+              if (mark && line.from === "desk") {
+                return <GuestConsent key={line.id} phone={phone} fileId={mark[1]} />;
+              }
+              return (
             <p
               key={line.id}
               className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-white" : "justify-self-end bg-[#2f80ed] text-white"}`}
             >
-              {line.text}
+              {line.text.startsWith("[[signed:") ? "فرم امضاشده را فرستادم." : line.text}
             </p>
+              );
+            })()
           ),
         )}
         {waiting ? <p className="justify-self-start rounded-2xl bg-white px-3 py-2 text-sm text-slate-400">…</p> : null}
@@ -457,6 +466,48 @@ export function StudioDesk({
           بفرست
         </Button>
       </div>
+    </div>
+  );
+}
+
+function GuestConsent({ phone, fileId }: { phone: string; fileId: string }) {
+  const [image, setImage] = useState("");
+  const [open, setOpen] = useState(false);
+  const [sent, setSent] = useState(false);
+  useEffect(() => {
+    if (!phone) return;
+    void fetch("/api/tattoo-public?op=chat-file", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, id: fileId }),
+    })
+      .then((res) => res.json())
+      .then((body: { image?: string }) => setImage(body.image || ""))
+      .catch(() => setImage(""));
+  }, [phone, fileId]);
+  async function send(stamped: string) {
+    const res = await fetch("/api/tattoo-public?op=chat-sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, image: stamped }),
+    });
+    if (!res.ok) {
+      toast.error("ارسال امضا انجام نشد.");
+      return;
+    }
+    setSent(true);
+    setOpen(false);
+  }
+  if (!image) return <p className="justify-self-start rounded-2xl bg-white px-3 py-2 text-sm text-slate-400">فرم رضایت‌نامه…</p>;
+  return (
+    <div className="justify-self-start max-w-[92%] rounded-2xl bg-white p-2">
+      <img src={image} alt="فرم رضایت‌نامه" className="max-h-72 w-full rounded-xl object-contain" />
+      <p className="mt-1 text-xs leading-6 text-slate-500">پذیرش این فرم اجباری نیست.</p>
+      {sent ? <p className="mt-1 text-sm font-bold text-[#1f8a4c]">امضا فرستاده شد.</p> : null}
+      {!sent && !open ? (
+        <Button className="mt-2 h-10 bg-[#2f80ed] text-white" onClick={() => setOpen(true)}>پذیرش و امضا</Button>
+      ) : null}
+      {open ? <ConsentSignature sheet={image} startOpen onPick={(stamped) => void send(stamped)} saveLabel="ارسال امضا" /> : null}
     </div>
   );
 }

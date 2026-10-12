@@ -19,7 +19,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian, gregorianToJalali } from "@/lib/calendar/jalali";
-import { postTattooChat, readTattooChat } from "@/lib/server/tattoo-chat";
+import { postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
@@ -874,6 +874,26 @@ async function performStudioChat(raw: unknown) {
   const data = z.object({ phone: z.string().trim().max(40) }).parse(raw);
   const sql = await getSql();
   return { lines: await readTattooChat(sql, data.phone) };
+}
+
+async function performStudioChatSheet(raw: unknown) {
+  const data = z.object({
+    phone: z.string().trim().max(40),
+    requestId: z.string().min(1),
+    image: z.string().max(1_200_000),
+  }).parse(raw);
+  const sql = await getSql();
+  const id = await postTattooChatFile(sql, data.phone, data.requestId, "offer", data.image);
+  await postTattooChat(sql, data.phone, "desk", "فرم رضایت‌نامه را فرستادم. پذیرش و امضا اختیاری است.", data.requestId);
+  await postTattooChat(sql, data.phone, "desk", `[[consent:${id}]]`, data.requestId);
+  return { id, lines: await readTattooChat(sql, data.phone) };
+}
+
+async function performStudioChatFile(raw: unknown) {
+  const data = z.object({ phone: z.string().trim().max(40), id: z.string().min(8) }).parse(raw);
+  const row = await readTattooChatFile(await getSql(), data.phone, data.id);
+  if (!row) throw new Error("برگه پیدا نشد.");
+  return row;
 }
 
 async function performStudioChatSend(raw: unknown) {
@@ -4264,6 +4284,12 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     case "studioChatSend":
       await requireAdmin(userId);
       return performStudioChatSend(payload);
+    case "studioChatSheet":
+      await requireAdmin(userId);
+      return performStudioChatSheet(payload);
+    case "studioChatFile":
+      await requireAdmin(userId);
+      return performStudioChatFile(payload);
     case "deleteTattooRequest":
       return performDeleteTattooRequest(userId, payload);
     case "acceptTattooProposal":

@@ -7,7 +7,7 @@ import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
 import { attachReferral } from "@/lib/server/studio-referrals";
-import { postTattooChat, readTattooChat } from "@/lib/server/tattoo-chat";
+import { postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
 import { finalizeNewTattooRequest } from "@/lib/server/tattoo-estimate";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -222,6 +222,34 @@ async function createGuest(request: Request) {
   return json({ id, trackingCode, referralNote: referral.note });
 }
 
+async function readChatFile(request: Request) {
+  if (!allowRate(`tattoo-chat-file:${clientKey(request)}`, 200, 60 * 60 * 1000)) {
+    return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
+  }
+  const body = (await request.json().catch(() => null)) as { phone?: unknown; id?: unknown } | null;
+  const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
+  const id = typeof body?.id === "string" ? body.id : "";
+  if (!isIranMobile(phone) || id.length < 8) return json({ error: "برگه پیدا نشد." }, 400);
+  const row = await readTattooChatFile(await getSql(), phone, id);
+  if (!row) return json({ error: "برگه پیدا نشد." }, 404);
+  return json({ image: row.image, kind: row.kind });
+}
+
+async function signChatFile(request: Request) {
+  if (!allowRate(`tattoo-chat-sign:${clientKey(request)}`, 20, 60 * 60 * 1000)) {
+    return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
+  }
+  const body = (await request.json().catch(() => null)) as { phone?: unknown; image?: unknown } | null;
+  const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
+  const image = typeof body?.image === "string" ? body.image : "";
+  if (!isIranMobile(phone)) return json({ error: "شماره موبایل را بنویس." }, 400);
+  if (!image.startsWith("data:image/") || image.length > 1_200_000) return json({ error: "برگه امضاشده معتبر نیست." }, 400);
+  const sql = await getSql();
+  const id = await postTattooChatFile(sql, phone, null, "signed", image);
+  await postTattooChat(sql, phone, "customer", `[[signed:${id}]]`);
+  return json({ id });
+}
+
 async function readChat(request: Request) {
   if (!allowRate(`tattoo-chat-read:${clientKey(request)}`, 1500, 60 * 60 * 1000)) {
     return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
@@ -292,6 +320,8 @@ async function handle(request: Request) {
     if (op === "receipt") return await submitGuestReceiptByPhone(request);
     if (op === "chat-read") return await readChat(request);
     if (op === "chat-send") return await sendChat(request);
+    if (op === "chat-file") return await readChatFile(request);
+    if (op === "chat-sign") return await signChatFile(request);
     return await createGuest(request);
   } catch (err) {
     if (err instanceof ZodError) return json({ error: err.issues[0]?.message || "اطلاعات را کامل کنید." }, 400);

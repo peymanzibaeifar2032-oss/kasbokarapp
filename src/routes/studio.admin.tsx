@@ -13,7 +13,7 @@ import { StudioTomorrowDesk } from "@/components/studio/tomorrow-desk";
 import { CustomerFileDetails, isUnreliableCustomer, UnreliableBadge, type CustomerFileBrief } from "@/components/studio/customer-file-brief";
 import { ConsentSignature } from "@/components/studio/consent-signature";
 import { DurationFields, formatSitting } from "@/components/studio/duration-fields";
-import { ConsentBoard } from "@/components/studio/consent-board";
+import { ConsentBoard, drawConsentSheet, shrinkConsentSheet } from "@/components/studio/consent-board";
 import { ReferralAdmin } from "@/components/studio/referral-admin";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
@@ -30,7 +30,7 @@ import { friendlyError, saveAction } from "@/lib/save";
 import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
 import { isTehranThursday, thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { StudioFillIn } from "@/lib/server/studio-fill-ins";
-import { compressImage } from "@/lib/design-images";
+import { compressImage, downloadImage } from "@/lib/design-images";
 import type { CustomerFileSummary } from "@/lib/customer-file-summary";
 import { downloadStudioJobsPdf } from "@/lib/studio-list-pdf";
 import { TATTOO_REQUEST_LABEL } from "@/lib/tattoo-estimate";
@@ -598,12 +598,16 @@ function RequestChat({
   payText,
   addressText,
   onPay,
+  onBuildConsent,
+  onSaveConsent,
 }: {
   phone: string;
   requestId: string;
   payText: string;
   addressText: string;
   onPay: (text: string) => Promise<boolean>;
+  onBuildConsent: () => Promise<void>;
+  onSaveConsent: (image: string) => Promise<void>;
 }) {
   const [lines, setLines] = useState<{ id: string; from: "customer" | "desk"; body: string }[]>([]);
   const [text, setText] = useState("");
@@ -642,16 +646,31 @@ function RequestChat({
   }
   return (
     <div className="mt-4 rounded-3xl bg-slate-50 p-3">
-      <div ref={box} className="grid max-h-72 content-start gap-2 overflow-y-auto">
-        {lines.length ? lines.map((line) => (
-          <p key={line.id} className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-white" : "justify-self-end bg-[#2f80ed] text-white"}`}>
-            {line.body}
-          </p>
-        )) : <p className="text-sm text-slate-400">سؤال مشتری و رسیدش همین‌جا می‌آید.</p>}
+      <div ref={box} className="grid max-h-96 content-start gap-2 overflow-y-auto">
+        {lines.length ? lines.map((line) => {
+          const mark = consentMark(line.body);
+          if (mark) {
+            return (
+              <ConsentBubble
+                key={line.id}
+                phone={phone}
+                fileId={mark.id}
+                signed={mark.kind === "signed"}
+                onSave={onSaveConsent}
+              />
+            );
+          }
+          return (
+            <p key={line.id} className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-white" : "justify-self-end bg-[#2f80ed] text-white"}`}>
+              {line.body}
+            </p>
+          );
+        }) : <p className="text-sm text-slate-400">سؤال مشتری، رسید و رضایت‌نامه همین‌جا می‌آید.</p>}
       </div>
       <div className="mt-2 flex gap-2 overflow-x-auto">
         <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setText(payText); setMode("pay"); }}>مشخصات پرداخت</button>
         <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setText(addressText); setMode("talk"); }}>آدرس</button>
+        <button type="button" className="h-10 shrink-0 rounded-full bg-[#b7955b] px-3 text-sm font-bold text-white" disabled={busy} onClick={() => void onBuildConsent().then(() => load()).catch((err) => toast.error(friendlyError(err)))}>ساخت فرم رضایت‌نامه</button>
       </div>
       <div className="mt-2 flex gap-2">
         <textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="همین متن را ببین و ارسال را بزن" />
@@ -659,6 +678,62 @@ function RequestChat({
       </div>
     </div>
   );
+}
+
+function consentMark(body: string) {
+  const match = body.match(/^\[\[(consent|signed):([0-9a-f-]{8,})\]\]$/i);
+  if (!match) return null;
+  return { kind: match[1].toLowerCase() === "signed" ? "signed" as const : "offer" as const, id: match[2] };
+}
+
+function ConsentBubble({
+  phone,
+  fileId,
+  signed,
+  onSave,
+}: {
+  phone: string;
+  fileId: string;
+  signed: boolean;
+  onSave: (image: string) => Promise<void>;
+}) {
+  const [image, setImage] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void saveAction<{ image: string }>("studioChatFile", { phone, id: fileId })
+      .then((row) => setImage(row.image || ""))
+      .catch(() => setImage(""));
+  }, [phone, fileId]);
+  if (!image) return <p className="text-sm text-slate-400">برگه رضایت‌نامه…</p>;
+  return (
+    <div className="justify-self-start max-w-[92%] rounded-2xl bg-white p-2">
+      <img src={image} alt="رضایت‌نامه" className="max-h-72 w-full rounded-xl object-contain" />
+      {signed ? (
+        <div className="mt-2 flex gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => downloadImage(image, `consent-${fileId.slice(0, 8)}.jpg`)}>دانلود</Button>
+          <Button type="button" size="sm" disabled={busy} onClick={() => {
+            setBusy(true);
+            void onSave(image).finally(() => setBusy(false));
+          }}>{busy ? "در حال ذخیره…" : "ذخیره در رضایت‌نامه‌ها"}</Button>
+        </div>
+      ) : <p className="mt-1 text-xs text-slate-500">برای مشتری فرستاده شد. امضا اجباری نیست.</p>}
+    </div>
+  );
+}
+
+function blankConsentMark() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 800;
+  canvas.height = 800;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+  ctx.fillStyle = "#f6f1e7";
+  ctx.fillRect(0, 0, 800, 800);
+  ctx.fillStyle = "#6b5424";
+  ctx.font = "32px Vazirmatn Variable";
+  ctx.textAlign = "center";
+  ctx.fillText("طرح در گفتگو فرستاده شده", 400, 420);
+  return canvas.toDataURL("image/jpeg", 0.8);
 }
 
 function requestBadge(request: TattooRequest) {
@@ -835,6 +910,41 @@ function TattooAdminCard({
         onPay={async (text) => {
           setMessage(text);
           return decide("approved", text);
+        }}
+        onBuildConsent={async () => {
+          const row = await saveAction<{ referenceImages?: string[]; bodyImages?: string[] }>("studioRequestImages", { id: request.id });
+          const design = row.referenceImages?.[0] || row.bodyImages?.[0] || blankConsentMark();
+          const sheet = await shrinkConsentSheet(await drawConsentSheet({
+            code: request.trackingCode || "—",
+            customerName: request.customerName,
+            nationalId: "ثبت نشده",
+            phone: request.customerPhone,
+            placement: request.placement || "ثبت نشده",
+            sizeCm: request.sizeCm || "ثبت نشده",
+            priceToman: Number(price || request.priceMinToman || 0),
+            paidToman: request.paidToman || Number(deposit || 0),
+            inkCode: "",
+            needleCode: "",
+            designImage: design,
+            createdAt: new Date().toISOString(),
+          }));
+          await saveAction("studioChatSheet", { phone: request.customerPhone, requestId: request.id, image: sheet });
+          toast.success("فرم برای مشتری فرستاده شد. امضا اجباری نیست.");
+        }}
+        onSaveConsent={async (image) => {
+          const saved = await saveAction<{ code: string }>("saveStudioConsent", {
+            customerName: request.customerName,
+            nationalId: "ثبت نشده",
+            phone: request.customerPhone,
+            placement: request.placement || "ثبت نشده",
+            sizeCm: request.sizeCm || "ثبت نشده",
+            priceToman: Number(price || request.priceMinToman || 0),
+            paidToman: request.paidToman || 0,
+            designImage: image,
+            sheetImage: image,
+            ...(request.trackingCode && /^\d{4,8}$/.test(request.trackingCode) ? { code: request.trackingCode } : {}),
+          });
+          toast.success(`در رضایت‌نامه‌ها ذخیره شد. کد ${saved.code}`);
         }}
       />
       <p className="mt-3 text-sm leading-7">{request.idea}</p>

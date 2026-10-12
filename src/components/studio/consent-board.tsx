@@ -19,6 +19,7 @@ type ConsentRecord = {
   inkCode: string;
   needleCode: string;
   designImage: string;
+  sheetImage?: string;
   createdAt: string;
 };
 
@@ -227,6 +228,29 @@ export async function stampSignatureOnConsent(sheetUrl: string, signatureUrl: st
   return url;
 }
 
+export async function shrinkConsentSheet(url: string) {
+  if (!url.startsWith("data:image/") || url.length <= 1_000_000) return url;
+  const image = await loadImage(url);
+  let canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return url;
+  ctx.drawImage(image, 0, 0);
+  let out = canvas.toDataURL("image/jpeg", 0.8);
+  while (out.length > 1_000_000 && canvas.width > 900) {
+    const next = document.createElement("canvas");
+    next.width = Math.round(canvas.width * 0.82);
+    next.height = Math.round(canvas.height * 0.82);
+    const nextCtx = next.getContext("2d");
+    if (!nextCtx) break;
+    nextCtx.drawImage(canvas, 0, 0, next.width, next.height);
+    canvas = next;
+    out = canvas.toDataURL("image/jpeg", 0.76);
+  }
+  return out;
+}
+
 export function ConsentBoard() {
   const [name, setName] = useState("");
   const [nationalId, setNationalId] = useState("");
@@ -252,6 +276,10 @@ export function ConsentBoard() {
   }, []);
 
   async function printStored(record: ConsentRecord) {
+    if (record.sheetImage?.startsWith("data:image/")) {
+      downloadImage(record.sheetImage, `rezayat-${record.code}.jpg`);
+      return;
+    }
     const sheet = await drawConsentSheet(record);
     downloadImage(sheet, `rezayat-${record.code}.jpg`);
   }
