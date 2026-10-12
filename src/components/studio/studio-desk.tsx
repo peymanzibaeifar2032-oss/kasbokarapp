@@ -141,7 +141,36 @@ export function StudioDesk({
       }
     }
     void tick();
-    const timer = window.setInterval(() => void tick(), 20000);
+    const timer = window.setInterval(() => void tick(), 8000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [phone]);
+
+  useEffect(() => {
+    if (!phone) return;
+    let stop = false;
+    const seenIds = new Set<string>();
+    async function tick() {
+      try {
+        const res = await fetch("/api/tattoo-public?op=chat-read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone }),
+        });
+        const data = (await res.json().catch(() => null)) as { lines?: { id: string; from: string; body: string }[] } | null;
+        if (stop || !res.ok) return;
+        const fresh = (data?.lines ?? []).filter((line) => line.from === "desk" && !seenIds.has(line.id));
+        for (const line of data?.lines ?? []) seenIds.add(line.id);
+        if (!fresh.length) return;
+        setLines((current) => [...current, ...fresh.map((line) => ({ id: line.id, from: "desk" as const, text: line.body }))]);
+      } catch {
+        /* next tick retries */
+      }
+    }
+    void tick();
+    const timer = window.setInterval(() => void tick(), 3000);
     return () => {
       stop = true;
       window.clearInterval(timer);
@@ -159,7 +188,10 @@ export function StudioDesk({
     setChips(MENU);
     setAllowImage(false);
     const normalized = normalizeIranPhone(sent.phone);
-    if (isIranMobile(normalized)) setPhone(normalized);
+    if (isIranMobile(normalized)) {
+      setPhone(normalized);
+      void postCustomerLine(normalized, `درخواست ثبت شد. کد ${sent.code}`);
+    }
     void ensureStudioPhoneNotices();
     say("desk", `درخواستت ثبت شد و به صندوق ورودی آمد. کد پیگیری ${sent.code} است. جواب پیمان همین‌جا می‌آید، بدون تازه‌کردن صفحه.`);
   }, [sent]);
@@ -167,6 +199,7 @@ export function StudioDesk({
   async function ask(question: string) {
     setWaiting(true);
     say("customer", question);
+    if (phone) void postCustomerLine(phone, question);
     say("desk", "دارم جواب می‌دهم…");
     const history = lines.slice(-8).flatMap((line) => ("text" in line ? [{ role: line.from === "customer" ? "user" as const : "assistant" as const, content: line.text }] : []));
     const answer = await askStudio(question, history);
@@ -180,12 +213,12 @@ export function StudioDesk({
     setChips(MENU);
   }
 
-  function beginRequest(day = preferredDay) {
+  function beginRequest(day = preferredDay, dayKey = "") {
     if (!day) {
       say("desk", "اول یک روز سبز را از تقویم بزن.");
       return;
     }
-    const first = startBooking(day);
+    const first = startBooking(day, dayKey);
     setDraft(first.draft);
     setLines((current) => [...current, ...first.say.map((text) => ({ id: crypto.randomUUID(), from: "desk" as const, text }))]);
     setChips(first.chips);
@@ -199,6 +232,7 @@ export function StudioDesk({
       current: nextImages.some((image) => image.kind === "current"),
     });
     setDraft(turn.draft);
+    if (isIranMobile(normalizeIranPhone(turn.draft.phone))) setPhone(normalizeIranPhone(turn.draft.phone));
     setAllowImage(turn.image);
     setText("");
     const customer = shown || customerText(raw);
@@ -384,7 +418,7 @@ export function StudioDesk({
       <div ref={scroller} className="mt-3 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pb-2">
         {lines.map((line) =>
           "kind" in line ? (
-            <MonthBubble key={line.id} month={month} busy={busyDays} onMonth={setMonth} onPick={(label) => void beginRequest(label)} />
+            <MonthBubble key={line.id} month={month} busy={busyDays} onMonth={setMonth} onPick={(label, key) => beginRequest(label, key)} />
           ) : (
             <p
               key={line.id}
@@ -436,7 +470,7 @@ function MonthBubble({
   month: { jy: number; jm: number };
   busy: string[];
   onMonth: (next: { jy: number; jm: number }) => void;
-  onPick: (label: string) => void;
+  onPick: (label: string, dayKey: string) => void;
 }) {
   const todayKey = tehranDayKey();
   const taken = useMemo(() => new Set(busy), [busy]);
@@ -460,7 +494,7 @@ function MonthBubble({
               key={cell.dayKey + (cell.inMonth ? "" : "-pad")}
               type="button"
               disabled={!open}
-              onClick={() => onPick(jalaliDayLabel(cell.gy, cell.gm, cell.gd))}
+              onClick={() => onPick(jalaliDayLabel(cell.gy, cell.gm, cell.gd), cell.dayKey)}
               className={`h-8 rounded-lg text-xs ${!cell.inMonth ? "invisible" : open ? "bg-[#1f8a4c] font-bold text-white" : closed && cell.dayKey >= todayKey ? "bg-slate-100 text-slate-400" : "text-slate-300"}`}
             >
               {cell.inMonth ? toFaDigits(cell.jd) : ""}
@@ -518,6 +552,18 @@ function looksLikeIdentity(raw: string) {
 function customerText(raw: string) {
   if (raw.startsWith("pick:")) return raw.slice(5);
   return raw;
+}
+
+async function postCustomerLine(phone: string, text: string) {
+  try {
+    await fetch("/api/tattoo-public?op=chat-send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, text }),
+    });
+  } catch {
+    /* the line stays on screen; the next question can retry */
+  }
 }
 
 async function askStudio(question: string, history: { role: "user" | "assistant"; content: string }[]) {

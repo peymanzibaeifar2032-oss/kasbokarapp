@@ -19,6 +19,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian, gregorianToJalali } from "@/lib/calendar/jalali";
+import { postTattooChat, readTattooChat } from "@/lib/server/tattoo-chat";
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
@@ -863,8 +864,27 @@ async function performDecideTattooRequest(userId: string, raw: unknown) {
   if (!updated[0]) throw new Error("درخواست پیدا نشد.");
   const titles = { approved: "پیشنهاد قیمت و زمان تاتو", needs_info: "اطلاعات بیشتری لازم است", rejected: "نتیجه بررسی درخواست", booked: "رزرو تاتو قطعی شد" };
   await notify(sql, updated[0].customer_id, titles[data.status], artistMessage, `tattoo_request_${data.status}`);
+  const who = await sql.query<{ customer_phone: string }>(`select customer_phone from tattoo_requests where id=$1`, [data.id]);
+  if (who[0]?.customer_phone) await postTattooChat(sql, who[0].customer_phone, "desk", artistMessage, data.id);
   await syncReferralRequest(sql, data.id);
   return { ok: true as const };
+}
+
+async function performStudioChat(raw: unknown) {
+  const data = z.object({ phone: z.string().trim().max(40) }).parse(raw);
+  const sql = await getSql();
+  return { lines: await readTattooChat(sql, data.phone) };
+}
+
+async function performStudioChatSend(raw: unknown) {
+  const data = z.object({
+    phone: z.string().trim().max(40),
+    requestId: z.string().min(1),
+    text: z.string().trim().min(1).max(2000),
+  }).parse(raw);
+  const sql = await getSql();
+  await postTattooChat(sql, data.phone, "desk", data.text, data.requestId);
+  return { lines: await readTattooChat(sql, data.phone) };
 }
 
 async function performDeleteTattooRequest(userId: string, raw: unknown) {
@@ -4238,6 +4258,12 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioRequestImages(userId, payload);
     case "decideTattooRequest":
       return performDecideTattooRequest(userId, payload);
+    case "studioChat":
+      await requireAdmin(userId);
+      return performStudioChat(payload);
+    case "studioChatSend":
+      await requireAdmin(userId);
+      return performStudioChatSend(payload);
     case "deleteTattooRequest":
       return performDeleteTattooRequest(userId, payload);
     case "acceptTattooProposal":

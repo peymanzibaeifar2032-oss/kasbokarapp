@@ -7,6 +7,7 @@ import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
 import { attachReferral } from "@/lib/server/studio-referrals";
+import { postTattooChat, readTattooChat } from "@/lib/server/tattoo-chat";
 import { finalizeNewTattooRequest } from "@/lib/server/tattoo-estimate";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -221,8 +222,33 @@ async function createGuest(request: Request) {
   return json({ id, trackingCode, referralNote: referral.note });
 }
 
+async function readChat(request: Request) {
+  if (!allowRate(`tattoo-chat-read:${clientKey(request)}`, 1500, 60 * 60 * 1000)) {
+    return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
+  }
+  const body = (await request.json().catch(() => null)) as { phone?: unknown } | null;
+  const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
+  if (!isIranMobile(phone)) return json({ error: "شماره موبایل را بنویس." }, 400);
+  const lines = await readTattooChat(await getSql(), phone);
+  return json({ lines });
+}
+
+async function sendChat(request: Request) {
+  if (!allowRate(`tattoo-chat-send:${clientKey(request)}`, 80, 60 * 60 * 1000)) {
+    return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
+  }
+  const body = (await request.json().catch(() => null)) as { phone?: unknown; text?: unknown } | null;
+  const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  if (!isIranMobile(phone)) return json({ error: "شماره موبایل را بنویس." }, 400);
+  if (text.length < 1 || text.length > 2000) return json({ error: "متن پیام را بنویس." }, 400);
+  await postTattooChat(await getSql(), phone, "customer", text);
+  const lines = await readTattooChat(await getSql(), phone);
+  return json({ lines });
+}
+
 async function lookup(request: Request) {
-  if (!allowRate(`tattoo-status:${clientKey(request)}`, 240, 60 * 60 * 1000)) {
+  if (!allowRate(`tattoo-status:${clientKey(request)}`, 600, 60 * 60 * 1000)) {
     return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره امتحان کن." }, 429);
   }
   const body = (await request.json().catch(() => null)) as { phone?: unknown; code?: unknown } | null;
@@ -264,6 +290,8 @@ async function handle(request: Request) {
     if (op === "status") return await lookup(request);
     if (op === "accept") return await acceptGuestByPhone(request);
     if (op === "receipt") return await submitGuestReceiptByPhone(request);
+    if (op === "chat-read") return await readChat(request);
+    if (op === "chat-send") return await sendChat(request);
     return await createGuest(request);
   } catch (err) {
     if (err instanceof ZodError) return json({ error: err.issues[0]?.message || "اطلاعات را کامل کنید." }, 400);

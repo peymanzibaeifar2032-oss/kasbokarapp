@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getSql } from "@/lib/db";
+import { postTattooChat } from "@/lib/server/tattoo-chat";
 import { syncReferralRequest } from "@/lib/server/studio-referrals";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { isOccupancyConflict } from "@/lib/server/admin-bootstrap";
@@ -110,6 +111,7 @@ export async function acceptGuestByPhone(request: Request) {
     );
   }
   await syncReferralRequest(sql, row.id);
+  await postTattooChat(sql, phone, "customer", "زمان پیشنهادی را تأیید کردم.", row.id);
   return json({ ok: true, bookingId });
 }
 
@@ -159,5 +161,6 @@ export async function submitGuestReceiptByPhone(request: Request) {
     );
   }
   await syncReferralRequest(sql, row.id);
+  await postTattooChat(sql, phone, "customer", "رسید واریز را فرستادم.", row.id);
   return json({ ok: true });
 }

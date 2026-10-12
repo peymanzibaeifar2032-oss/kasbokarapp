@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Copy, CreditCard, FileDown, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
 import { JalaliDatePicker } from "@/components/calendar/jalali-date-picker";
@@ -592,6 +592,75 @@ function ReplySeen({ request }: { request: TattooRequest }) {
   return <p className="mt-2 text-sm font-semibold text-amber-700">هنوز مشاهده نشده</p>;
 }
 
+function RequestChat({
+  phone,
+  requestId,
+  payText,
+  addressText,
+  onPay,
+}: {
+  phone: string;
+  requestId: string;
+  payText: string;
+  addressText: string;
+  onPay: (text: string) => Promise<boolean>;
+}) {
+  const [lines, setLines] = useState<{ id: string; from: "customer" | "desk"; body: string }[]>([]);
+  const [text, setText] = useState("");
+  const [mode, setMode] = useState<"talk" | "pay">("talk");
+  const [busy, setBusy] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  async function load() {
+    const res = await saveAction<{ lines: { id: string; from: "customer" | "desk"; body: string }[] }>("studioChat", { phone });
+    setLines(res.lines ?? []);
+  }
+  useEffect(() => {
+    void load().catch(() => undefined);
+    const timer = window.setInterval(() => void load().catch(() => undefined), 3000);
+    return () => window.clearInterval(timer);
+  }, [phone]);
+  useEffect(() => {
+    box.current?.scrollTo({ top: box.current.scrollHeight });
+  }, [lines]);
+  async function send() {
+    const body = text.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    try {
+      if (mode === "pay") {
+        const ok = await onPay(body);
+        if (!ok) return;
+      } else await saveAction("studioChatSend", { phone, requestId, text: body });
+      setText("");
+      setMode("talk");
+      await load();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="mt-4 rounded-3xl bg-slate-50 p-3">
+      <div ref={box} className="grid max-h-72 content-start gap-2 overflow-y-auto">
+        {lines.length ? lines.map((line) => (
+          <p key={line.id} className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-white" : "justify-self-end bg-[#2f80ed] text-white"}`}>
+            {line.body}
+          </p>
+        )) : <p className="text-sm text-slate-400">سؤال مشتری و رسیدش همین‌جا می‌آید.</p>}
+      </div>
+      <div className="mt-2 flex gap-2 overflow-x-auto">
+        <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setText(payText); setMode("pay"); }}>مشخصات پرداخت</button>
+        <button type="button" className="h-10 shrink-0 rounded-full bg-white px-3 text-sm font-bold" onClick={() => { setText(addressText); setMode("talk"); }}>آدرس</button>
+      </div>
+      <div className="mt-2 flex gap-2">
+        <textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="همین متن را ببین و ارسال را بزن" />
+        <Button className="h-12 bg-[#2f80ed] text-white" disabled={busy || !text.trim()} onClick={() => void send()}>ارسال</Button>
+      </div>
+    </div>
+  );
+}
+
 function requestBadge(request: TattooRequest) {
   return TATTOO_ADMIN_STAGE_LABEL[tattooStage(request)];
 }
@@ -620,7 +689,8 @@ function TattooAdminCard({
   const [cardNumber, setCardNumber] = useState(request.paymentCardNumber || defaultBank.card);
   const [iban, setIban] = useState(request.paymentIban || defaultBank.iban);
   const [message, setMessage] = useState(request.artistMessage || studioVisitText());
-  const [day, setDay] = useState(tehranDateInput(request.proposedSlotStart));
+  const wantedDay = (request.preferredDates || "").match(/\d{4}-\d{2}-\d{2}/)?.[0] || "";
+  const [day, setDay] = useState(tehranDateInput(request.proposedSlotStart) || wantedDay);
   const [time, setTime] = useState(tehranTimeInput(request.proposedSlotStart));
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -682,10 +752,16 @@ function TattooAdminCard({
     return tehranLocalToIso(y, m, d, hh, mm);
   }
 
-  async function decide(status: "approved" | "needs_info" | "rejected") {
-    if (message.trim().length < 2) return toast.error("پیام کوتاهی برای مشتری بنویسید.");
-    if (status === "approved" && (!price || !minutes || !deposit || !proposalIso()))
-      return toast.error("قیمت، بیعانه، مدت جلسه و تاریخ و ساعت را کامل کنید.");
+  async function decide(status: "approved" | "needs_info" | "rejected", override?: string) {
+    const artistMessage = (override ?? message).trim();
+    if (artistMessage.length < 2) {
+      toast.error("پیام کوتاهی برای مشتری بنویسید.");
+      return false;
+    }
+    if (status === "approved" && (!price || !minutes || !deposit || !proposalIso())) {
+      toast.error("قیمت، بیعانه، مدت جلسه و تاریخ و ساعت را کامل کنید.");
+      return false;
+    }
     setBusy(true);
     try {
       await saveAction("decideTattooRequest", {
@@ -700,12 +776,14 @@ function TattooAdminCard({
         paymentCardNumber: cardNumber || null,
         paymentIban: iban || null,
         proposedSlotStart: status === "approved" ? proposalIso() : null,
-        artistMessage: message,
+        artistMessage,
       });
       toast.success(status === "approved" ? "پیشنهاد برای مشتری ارسال شد." : "نتیجه ثبت شد.");
       onChange();
+      return true;
     } catch (err) {
       toast.error(friendlyError(err));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -742,6 +820,23 @@ function TattooAdminCard({
         <Badge>{requestBadge(request)}</Badge>
       </div>
       <ReplySeen request={request} />
+      <RequestChat
+        phone={request.customerPhone}
+        requestId={request.id}
+        payText={[
+          "مشخصات پرداخت",
+          price ? `قیمت ${formatTattooToman(Number(price))}` : "",
+          deposit ? `بیعانه ${formatTattooToman(Number(deposit))}` : "",
+          proposalIso() ? formatFaDateTime(proposalIso()!) : wantedDay ? `روز انتخابی مشتری ${wantedDay}` : "",
+          cardNumber ? `کارت ${formatCardNumber(cardNumber)}` : "",
+          iban ? `شبا ${iban}` : "",
+        ].filter(Boolean).join("\n")}
+        addressText={studioVisitText()}
+        onPay={async (text) => {
+          setMessage(text);
+          return decide("approved", text);
+        }}
+      />
       <p className="mt-3 text-sm leading-7">{request.idea}</p>
       <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted">
         <span>اندازه: {request.sizeCm}</span>
@@ -836,6 +931,7 @@ function TattooAdminCard({
                 label="انتخاب روز از تقویم شمسی"
                 busyKeys={busyKeys}
               />
+              {wantedDay ? <p className="text-xs text-[#1f8a4c]">روز انتخابی مشتری روی تقویم آمده. اگر همین است، تأیید کن و ارسال را بزن.</p> : null}
             </Field>
             <Field label="ساعت شروع">
               <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />

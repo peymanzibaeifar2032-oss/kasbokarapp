@@ -18,6 +18,7 @@ export type IntakeDraft = {
   imageDesign: boolean;
   imageCurrent: boolean;
   preferredDay: string;
+  dayKey: string;
 };
 
 export type IntakeChip = { id: string; label: string };
@@ -59,8 +60,8 @@ const TYPES = [
   ["custom", "طراحی اختصاصی"],
 ] as const;
 
-export function startBooking(preferredDay: string): IntakeTurn {
-  const draft = { ...blank(), step: "name" as const, preferredDay };
+export function startBooking(preferredDay: string, dayKey = ""): IntakeTurn {
+  const draft = { ...blank(), step: "name" as const, preferredDay, dayKey };
   return speak(draft, [`روز اجرا: ${preferredDay}.`, "اسم و نام خانوادگی‌ات را بنویس."]);
 }
 
@@ -277,7 +278,7 @@ function toPayload(draft: IntakeDraft): IntakePayload {
     sizeMode: draft.sizeLabel ? "approx" : "cm",
     colorMode: "",
     bodySide: draft.side,
-    preferredDates: draft.preferredDay || undefined,
+    preferredDates: draft.dayKey ? `${draft.dayKey} ${draft.preferredDay}` : draft.preferredDay || undefined,
   };
 }
 
@@ -304,6 +305,7 @@ function blank(): IntakeDraft {
     imageDesign: false,
     imageCurrent: false,
     preferredDay: "",
+    dayKey: "",
   };
 }
 
