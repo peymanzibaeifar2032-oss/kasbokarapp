@@ -118,7 +118,7 @@ export function ConsentSignature({
     const canvas = canvasRef.current;
     if (!canvas || !dirty) return;
     if (!page.startsWith("data:image/")) {
-      toast.error("اول خود برگهٔ رضایت‌نامه را بگذار. امضا به‌تنهایی ذخیره نمی‌شود.");
+      toast.error("برگه باز نشد. یک بار دیگر دکمه امضا را بزن.");
       return;
     }
     setStamping(true);
@@ -148,9 +148,7 @@ export function ConsentSignature({
       <p className="text-xs leading-6 text-muted">{hint}</p>
       {page && !hideSheet ? (
         <img src={page} alt="برگه رضایت‌نامه" className="mt-2 max-h-64 w-full rounded-xl border border-border object-contain bg-white" />
-      ) : (
-        <p className="mt-2 text-sm text-destructive">اول عکس برگهٔ رضایت‌نامه را بگذار. بدون برگه، امضا ذخیره نمی‌شود.</p>
-      )}
+      ) : null}
       <canvas
         ref={canvasRef}
         className="mt-2 h-36 w-full touch-none rounded-xl border border-border bg-white"

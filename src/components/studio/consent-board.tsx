@@ -21,6 +21,7 @@ type ConsentRecord = {
   designImage: string;
   sheetImage?: string;
   createdAt: string;
+  sessionOn?: string;
 };
 
 type ConsentListItem = {
@@ -90,13 +91,14 @@ export async function drawConsentSheet(form: ConsentRecord) {
   ctx.fillStyle = "#1c1c1c";
   ctx.font = "700 26px Vazirmatn Variable";
   ctx.fillText(`کد پیگیری  ${form.code}`, right, 196);
-  ctx.font = "26px Vazirmatn Variable";
-  ctx.fillText(formatFaDate(form.createdAt), margin + 280, 196);
+  ctx.font = "700 26px Vazirmatn Variable";
+  ctx.fillText(`تاریخ ثبت رضایت‌نامه: ${formatFaDate(form.createdAt)}`, right, 242);
+  ctx.fillText(`تاریخ اجرا: ${form.sessionOn || "هنوز تعیین نشده"}`, right, 286);
 
   const photoX = margin;
-  const photoY = 240;
+  const photoY = 320;
   const photoW = 680;
-  const photoH = 760;
+  const photoH = 680;
   ctx.fillStyle = "#f6f1e7";
   ctx.fillRect(photoX, photoY, photoW, photoH);
   ctx.strokeStyle = "#d9c7a2";
@@ -115,6 +117,8 @@ export async function drawConsentSheet(form: ConsentRecord) {
   ctx.textAlign = "right";
 
   const facts: Array<[string, string]> = [
+    ["تاریخ ثبت رضایت‌نامه", formatFaDate(form.createdAt)],
+    ["تاریخ اجرا", form.sessionOn || "هنوز تعیین نشده"],
     ["نام", form.customerName],
     ["کد ملی", form.nationalId],
     ["تلفن", form.phone],
@@ -126,19 +130,19 @@ export async function drawConsentSheet(form: ConsentRecord) {
     ["واریزی", formatTattooToman(form.paidToman)],
   ];
   const factLeft = photoX + photoW + 48;
-  const rowH = Math.floor((photoH - 24) / facts.length);
+  const rowH = Math.floor((photoH - 12) / facts.length);
   facts.forEach(([label, value], index) => {
-    const y = photoY + 18 + index * rowH;
-    ctx.font = "20px Vazirmatn Variable";
+    const y = photoY + 10 + index * rowH;
+    ctx.font = "18px Vazirmatn Variable";
     ctx.fillStyle = "#8a7040";
     ctx.fillText(label, right, y);
-    ctx.font = "700 28px Vazirmatn Variable";
+    ctx.font = "700 24px Vazirmatn Variable";
     ctx.fillStyle = "#1c1c1c";
-    ctx.fillText(value, right, y + 34);
+    ctx.fillText(value, right, y + 26);
     ctx.strokeStyle = "#eadfcb";
     ctx.beginPath();
-    ctx.moveTo(factLeft, y + 48);
-    ctx.lineTo(right, y + 48);
+    ctx.moveTo(factLeft, y + 36);
+    ctx.lineTo(right, y + 36);
     ctx.stroke();
   });
 

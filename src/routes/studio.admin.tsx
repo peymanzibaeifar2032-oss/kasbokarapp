@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDateTime, toSmsLink, toTelLink } from "@/lib/format";
+import { formatFaDate, formatFaDateTime, toSmsLink, toTelLink } from "@/lib/format";
 import { firstOpenCustomerDay, jalaliDayLabel, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
@@ -1071,6 +1071,9 @@ function TattooAdminCard({
             inkCode: "",
             needleCode: "",
             createdAt: new Date().toISOString(),
+            sessionOn: request.proposedSlotStart
+              ? formatFaDate(request.proposedSlotStart)
+              : (request.preferredDates || "").replace(/^\d{4}-\d{2}-\d{2}\s*/, "") || "هنوز تعیین نشده",
           };
           let sheet = "";
           try {
