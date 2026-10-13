@@ -38,13 +38,11 @@ async function handle(request: Request) {
       ],
       { maxTokens: 400 },
     );
-    if (!result.ok) {
-      return json({ answer: `الان جواب این سؤال را ندارم. با ${STUDIO_CONTACT_PHONE} تماس بگیر.` });
-    }
+    if (!result.ok) return json({ handoff: true });
     return json({ answer: cleanAssistantAnswer(result.text) });
   } catch (error) {
     if (error instanceof ZodError) return json({ error: "سؤال را کوتاه‌تر بنویس." }, 400);
-    return json({ answer: `الان جواب این سؤال را ندارم. با ${STUDIO_CONTACT_PHONE} تماس بگیر.` });
+    return json({ handoff: true });
   }
 }
 

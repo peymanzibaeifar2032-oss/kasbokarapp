@@ -15,7 +15,7 @@ import { ensureStudioPhoneNotices, scheduleTattooPrepNotices, showStudioOsNotice
 import { STUDIO_ADDRESS, TATTOO_CUSTOMER_STAGE_LABEL, tattooStage } from "@/lib/tattoo-flow";
 import type { GuestStatus } from "@/components/studio/guest-pay-card";
 
-type TextLine = { id: string; from: "desk" | "customer"; text: string };
+type TextLine = { id: string; from: "desk" | "customer"; text: string; tone?: "sent" };
 type CalLine = { id: string; from: "desk"; kind: "calendar" };
 type Line = TextLine | CalLine;
 
@@ -246,7 +246,10 @@ export function StudioDesk({
       const next = [...current];
       const last = next[next.length - 1];
       if (last && "text" in last && last.text === "دارم جواب می‌دهم…") next.pop();
-      return [...next, { id: crypto.randomUUID(), from: "desk", text: answer }];
+      if (answer === "handoff") {
+        return [...next, { id: crypto.randomUUID(), from: "desk" as const, tone: "sent" as const, text: "پیام برای پیمان زیبائی‌فر ارسال شد. در اولین فرصت جواب می‌دهد." }];
+      }
+      return [...next, { id: crypto.randomUUID(), from: "desk" as const, text: answer }];
     });
     setChips(MENU);
   }
@@ -467,7 +470,7 @@ export function StudioDesk({
               return (
             <p
               key={line.id}
-              className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-white" : "justify-self-end bg-[#2f80ed] text-white"}`}
+              className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.tone === "sent" ? "justify-self-start bg-[#1f8a4c] font-bold text-white" : line.from === "desk" ? "justify-self-start bg-white" : "justify-self-end bg-[#2f80ed] text-white"}`}
             >
               {line.text.startsWith("[[signed:") ? "فرم امضاشده را فرستادم." : line.text}
             </p>
@@ -687,9 +690,10 @@ async function askStudio(question: string, history: { role: "user" | "assistant"
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, history }),
     });
-    const data = (await res.json().catch(() => null)) as { answer?: string; error?: string } | null;
-    return data?.answer || data?.error || "الان جواب این سؤال را ندارم. با ۰۹۲۱۶۸۱۲۸۵۲ تماس بگیر.";
+    const data = (await res.json().catch(() => null)) as { answer?: string; error?: string; handoff?: boolean } | null;
+    if (data?.handoff || /جواب این سؤال را ندارم/.test(data?.answer || "")) return "handoff";
+    return data?.answer || data?.error || "handoff";
   } catch {
-    return "الان جواب این سؤال را ندارم. با ۰۹۲۱۶۸۱۲۸۵۲ تماس بگیر.";
+    return "handoff";
   }
 }
