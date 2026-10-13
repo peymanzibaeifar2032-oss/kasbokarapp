@@ -50,6 +50,7 @@ import {
   isTattooReviewOverdue,
   aftercareSms,
   aftercareGuideSms,
+  prepBeforeTattooSms,
   balanceSms,
   depositCardSms,
   bookingReminderSms,
@@ -103,9 +104,9 @@ function ReadyMessages() {
       ltr: true,
     },
     {
-      title: "۵. آماده‌سازی شب قبل از اجرا",
+      title: "آماده‌سازی قبل تاتو",
       text: [
-        "آماده‌سازی برای روز تاتو",
+        "آماده‌سازی قبل تاتو",
         "",
         "از حالا تا روز اجرا این‌ها را نخورید: قهوه، قرص آسپرین، نوشابه گازدار و مشروب. مشروب پوست را کم‌آب می‌کند و رنگ را بد می‌گیرد.",
         "",
@@ -115,7 +116,7 @@ function ReadyMessages() {
         "",
         "شب قبل، سرم قندی‌نمکی به همراه آمپول دگزامتازون بزنید تا التهاب کمتر شود.",
         "",
-        "صبح روز اجرا غذای کافی همراه بیاورید تا وسط کار ضعف نکنید.",
+        "صبح روز اجرا تغذیه کافی همراه بیاورید تا وسط کار ضعف نکنید.",
       ].join("\n"),
     },
     {
@@ -2738,7 +2739,7 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
   const paid = (request.paidToman ?? 0) > 0 ? request.paidToman : request.depositToman;
   const honorific = honorificForName(request.customerName);
 
-  function open(raw: string, kind: "confirm" | "food" | "card" | "care" | "balance") {
+  function open(raw: string, kind: "confirm" | "food" | "card" | "care" | "balance" | "prep") {
     if (!request.proposedSlotStart && kind === "confirm") {
       toast.error("اول تاریخ و ساعت اجرا را ثبت کن، بعد پیامک را بفرست.");
       return;
@@ -2750,7 +2751,9 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
           ? depositCardSms(request.customerName)
           : kind === "care"
             ? aftercareGuideSms(request.customerName)
-            : kind === "balance"
+            : kind === "prep"
+              ? prepBeforeTattooSms(request.customerName)
+              : kind === "balance"
               ? balanceSms(request.customerName, request.priceMinToman, request.paidToman)
               : bookingConfirmSms({
                   honorific,
@@ -2785,6 +2788,9 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
             <Button type="button" size="sm" variant="outline" onClick={() => open(phone, "care")}>
               مراقبت بعد تاتو
             </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => open(phone, "prep")}>
+              آماده‌سازی قبل تاتو
+            </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => open(phone, "balance")}>
               مبلغ و مانده
             </Button>
@@ -2803,6 +2809,9 @@ function BookingSmsActions({ request }: { request: TattooRequest }) {
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => open(phone2, "care")}>
               شماره دوم، مراقبت
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => open(phone2, "prep")}>
+              شماره دوم، قبل تاتو
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={() => open(phone2, "balance")}>
               شماره دوم، مانده

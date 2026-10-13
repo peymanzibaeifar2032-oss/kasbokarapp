@@ -233,6 +233,19 @@ export function balanceSms(name: string, totalToman: number | null | undefined, 
   ].join("\n");
 }
 
+export function prepBeforeTattooSms(name: string) {
+  const who = `${honorificForName(name)} ${customerFirstName(name)}`;
+  return [
+    `سلام ${who}`,
+    "آماده‌سازی قبل تاتو",
+    "از حالا تا روز اجرا این‌ها را نخورید: قهوه، قرص آسپرین، نوشابه گازدار و مشروب. مشروب پوست را کم‌آب می‌کند و رنگ را بد می‌گیرد.",
+    "اگر می‌توانید یک کرم آبرسان بگیرید و پوست محل تاتو را با آن نرم نگه دارید.",
+    "شب قبل از تاتو، از ساعت ۱۰ شب بخوابید و ۸ ساعت خواب کامل داشته باشید تا خواب عمیق باشد.",
+    "شب قبل، سرم قندی‌نمکی به همراه آمپول دگزامتازون بزنید تا التهاب کمتر شود.",
+    "صبح روز اجرا تغذیه کافی همراه بیاورید تا وسط کار ضعف نکنید.",
+  ].join("\n");
+}
+
 export function aftercareGuideSms(name: string) {
   const who = `${honorificForName(name)} ${customerFirstName(name)}`;
   return [

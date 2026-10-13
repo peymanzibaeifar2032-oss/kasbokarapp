@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { toSmsLink } from "@/lib/format";
 import { tehranDayKey } from "@/lib/hours";
-import { bookingReminderSms, aftercareGuideSms, depositCardSms, formatTattooToman, honorificForName, tattooBalance } from "@/lib/tattoo-flow";
+import { bookingReminderSms, aftercareGuideSms, depositCardSms, formatTattooToman, honorificForName, prepBeforeTattooSms, tattooBalance } from "@/lib/tattoo-flow";
 import type { TattooRequest } from "@/lib/types";
 
 function onDay(request: TattooRequest, dayKey: string) {
@@ -96,6 +96,7 @@ export function StudioTomorrowDesk({
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button type="button" className="h-11" onClick={() => remind()}>یادآوری</Button>
                   <Button type="button" variant="outline" className="h-11" onClick={() => send(depositCardSms(request.customerName))}>کارت و شبا</Button>
+                  <Button type="button" variant="outline" className="col-span-2 h-11" onClick={() => send(prepBeforeTattooSms(request.customerName))}>آماده‌سازی قبل تاتو</Button>
                   <Button type="button" variant="outline" className="col-span-2 h-11" onClick={() => send(aftercareGuideSms(request.customerName))}>مراقبت بعد تاتو</Button>
                 </div>
               </article>
