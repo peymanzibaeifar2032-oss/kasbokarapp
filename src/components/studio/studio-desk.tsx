@@ -5,7 +5,7 @@ import { ConsentSignature } from "@/components/studio/consent-signature";
 import type { WizardImage } from "@/components/studio/request-wizard";
 import { Button } from "@/components/ui/button";
 import { compressImage } from "@/lib/design-images";
-import { addBookingToPhoneCalendar, formatFaDateTime, formatToman, isIranMobile, normalizeIranPhone } from "@/lib/format";
+import { addBookingToPhoneCalendar, formatFaDateTime, formatToman, isIranMobile, normalizeIranPhone, toEnDigits } from "@/lib/format";
 import { JALALI_MONTHS, WEEKDAY_SHORT_FA, gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { jalaliDayLabel, tehranClock, tehranDayKey } from "@/lib/hours";
 import { answerIntake, startBooking, type IntakeDraft, type IntakePayload } from "@/lib/intake-desk";
@@ -35,6 +35,7 @@ export function StudioDesk({
   sent: { code: string; phone: string } | null;
   onSubmit: (payload: IntakePayload & { images: WizardImage[] }) => void;
 }) {
+  const clubCode = useRef("");
   const opened = useRef(false);
   const sentSeen = useRef("");
   const seen = useRef<Record<string, string>>({});
@@ -67,6 +68,7 @@ export function StudioDesk({
     if (opened.current) return;
     opened.current = true;
     setLines([
+      { id: "club", from: "desk", text: "اگر کد عضویت دارید، قبل از هر پیام آن را داخل این چت بفرستید." },
       { id: "hello", from: "desk", text: "اول روز اجرا را بزن. فقط روز سبز کاملاً خالی است و صفحه روی اولین روز خالی باز شده." },
       { id: "cal", from: "desk", kind: "calendar" },
     ]);
@@ -289,7 +291,7 @@ export function StudioDesk({
       ...turn.say.map((text) => ({ id: crypto.randomUUID(), from: "desk" as const, text })),
     ]);
     setChips(turn.payload ? MENU : turn.chips);
-    if (turn.payload) onSubmit({ ...turn.payload, images: nextImages });
+    if (turn.payload) onSubmit({ ...turn.payload, images: nextImages, referralCode: clubCode.current || undefined });
   }
 
   async function lookup(raw: string) {
@@ -409,9 +411,40 @@ export function StudioDesk({
     if (draft) void applyIntake(`pick:${id}`, images, label);
   }
 
+  async function claimClub(raw: string) {
+    const code = toEnDigits(raw).replace(/\s/g, "").toUpperCase();
+    setWaiting(true);
+    try {
+      const res = await fetch("/api/tattoo-public?op=club-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, phone }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; name?: string; attached?: boolean; error?: string } | null;
+      if (!res.ok || !data?.ok || !data.name) {
+        say("desk", data?.error || "این کد عضویت پیدا نشد.");
+        return;
+      }
+      clubCode.current = code;
+      say("desk", data.attached
+        ? `کد عضویت برای ${data.name} ثبت شد. این درخواست زیرمجموعهٔ او حساب می‌شود.`
+        : `کد عضویت برای ${data.name} است. با ثبت درخواست، زیرمجموعهٔ او حساب می‌شوی.`);
+    } catch {
+      say("desk", "کد عضویت ثبت نشد. یک بار دیگر بفرست.");
+    } finally {
+      setWaiting(false);
+    }
+  }
+
   async function onSend() {
     const raw = text.trim();
     if (!raw || waiting || busy) return;
+    if (looksLikeClubCode(raw)) {
+      setText("");
+      say("customer", raw);
+      await claimClub(raw);
+      return;
+    }
     setText("");
     if (draft) {
       void applyIntake(raw);
@@ -490,6 +523,7 @@ export function StudioDesk({
           ))}
         </div>
       ) : null}
+      <p className="pt-1 text-center text-[11px] leading-5 text-slate-500">اگر کد عضویت دارید، قبل از پیام آن را همین‌جا بفرستید.</p>
       <div className="flex shrink-0 gap-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
         <input
           value={text}
@@ -658,6 +692,11 @@ function statusActions(item: GuestStatus) {
   if (item.paymentStatus === "awaiting_payment" || item.paymentStatus === "rejected") actions.push({ id: `status:receipt:${item.id}`, label: "ارسال رسید" });
   if (stage === "booked" && item.proposedSlotStart) actions.push({ id: `status:cal:${item.id}`, label: "افزودن به تقویم گوشی" });
   return actions;
+}
+
+function looksLikeClubCode(raw: string) {
+  const code = toEnDigits(raw).replace(/\s/g, "").toUpperCase();
+  return /^[A-Z0-9]{2,12}-\d{3,6}$/.test(code);
 }
 
 function looksLikeIdentity(raw: string) {

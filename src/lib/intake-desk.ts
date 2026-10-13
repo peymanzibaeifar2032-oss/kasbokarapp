@@ -47,6 +47,7 @@ export type IntakePayload = {
   colorMode: string;
   bodySide: string;
   preferredDates?: string;
+  referralCode?: string;
 };
 
 const ORDER: IntakeStep[] = ["name", "phone", "type", "part", "side", "size", "design", "body", "confirm"];

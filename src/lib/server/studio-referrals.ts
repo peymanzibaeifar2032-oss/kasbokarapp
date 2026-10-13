@@ -285,6 +285,19 @@ async function attachReferralInner(
   return { attached: true as const, note: "" };
 }
 
+export async function lookupReferralCode(sql: Sql, code: string) {
+  const raw = code.trim().toUpperCase();
+  if (!raw) return null;
+  await ensureTables(sql);
+  const rows = await sql.query<{ name: string; active: boolean; tier: string }>(
+    `select name, active, tier from studio_referrers where upper(code)=$1 limit 1`,
+    [raw],
+  );
+  const row = rows[0];
+  if (!row || !row.active || row.tier === "inactive" || row.tier === "limited") return null;
+  return { name: row.name };
+}
+
 async function rewardState(sql: Sql, referrerId: string, count: number, phone: string, name: string, code: string) {
   const config = await settings(sql);
   for (const milestone of [5, 10] as const) {

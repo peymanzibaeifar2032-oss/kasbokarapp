@@ -2,11 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z, ZodError } from "zod";
 import { occupiedDayKeys } from "@/lib/server/studio-open-days";
 import { getSql } from "@/lib/db";
-import { isIranMobile, normalizeInstagramHandle, normalizeIranPhone } from "@/lib/format";
+import { isIranMobile, normalizeInstagramHandle, normalizeIranPhone, toEnDigits } from "@/lib/format";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
-import { attachReferral } from "@/lib/server/studio-referrals";
+import { attachReferral, lookupReferralCode } from "@/lib/server/studio-referrals";
 import { listTattooChatFiles, postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
 import { finalizeNewTattooRequest } from "@/lib/server/tattoo-estimate";
 
@@ -312,6 +312,33 @@ async function openDays() {
   }
 }
 
+async function claimClubCode(request: Request) {
+  if (!allowRate(`tattoo-club:${clientKey(request)}`, 40, 60 * 60 * 1000)) {
+    return json({ error: "چند بار پشت‌سرهم زدی. کمی بعد دوباره بفرست." }, 429);
+  }
+  const body = (await request.json().catch(() => null)) as { phone?: unknown; code?: unknown } | null;
+  const code = toEnDigits(typeof body?.code === "string" ? body.code : "").replace(/\s/g, "").toUpperCase();
+  if (!/^[A-Z0-9]{2,12}-\d{3,6}$/.test(code)) return json({ error: "کد عضویت را همین‌طور که هست بفرست." }, 400);
+  const sql = await getSql();
+  const referrer = await lookupReferralCode(sql, code);
+  if (!referrer) return json({ error: "این کد عضویت پیدا نشد." }, 404);
+  const phone = normalizeIranPhone(typeof body?.phone === "string" ? body.phone : "");
+  if (!isIranMobile(phone)) return json({ ok: true, name: referrer.name, attached: false });
+  const rows = await sql.query<{ id: string; customer_name: string }>(
+    `select id, customer_name from tattoo_requests where customer_phone=$1 or customer_phone_2=$1 order by created_at desc limit 1`,
+    [phone],
+  );
+  if (!rows[0]) return json({ ok: true, name: referrer.name, attached: false });
+  const result = await attachReferral(sql, {
+    requestId: rows[0].id,
+    customerName: rows[0].customer_name,
+    customerPhone: phone,
+    code,
+  });
+  if (!result.attached) return json({ error: result.note || "این کد برای این شماره ثبت نشد.", name: referrer.name }, 400);
+  return json({ ok: true, name: referrer.name, attached: true });
+}
+
 async function handle(request: Request) {
   try {
     if (!sameOrigin(request)) return json({ error: "این درخواست مجاز نیست." }, 403);
@@ -324,6 +351,7 @@ async function handle(request: Request) {
     if (op === "chat-send") return await sendChat(request);
     if (op === "chat-file") return await readChatFile(request);
     if (op === "chat-sign") return await signChatFile(request);
+    if (op === "club-code") return await claimClubCode(request);
     return await createGuest(request);
   } catch (err) {
     if (err instanceof ZodError) return json({ error: err.issues[0]?.message || "اطلاعات را کامل کنید." }, 400);
