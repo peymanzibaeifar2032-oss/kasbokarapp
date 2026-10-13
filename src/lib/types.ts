@@ -211,6 +211,9 @@ export type TattooRequest = {
   priceMaxToman: number | null;
   sessionMinutes: number | null;
   sessionCount: number | null;
+  sessionIndex?: number | null;
+  sessionParentId?: string | null;
+  sessionStatus?: "planned" | "done" | "cancelled" | null;
   depositToman: number | null;
   artistMessage: string | null;
   messageSeenAt: string | null;

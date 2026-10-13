@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDate, formatFaDateTime, toSmsLink, toTelLink } from "@/lib/format";
+import { formatFaDate, formatFaDateTime, toEnDigits, toSmsLink, toTelLink } from "@/lib/format";
 import { firstOpenCustomerDay, jalaliDayLabel, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
 import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
@@ -580,9 +580,56 @@ function StoredDesigns({ request }: { request: TattooRequest }) {
   );
 }
 
+function sessionTitle(job: TattooRequest) {
+  const match = (job.artistMessage || "").match(/^جلسه (\d+) از (\d+)$/);
+  if (match) return `جلسه ${toFaDigits(Number(match[1]))} از ${toFaDigits(Number(match[2]))}`;
+  if (job.artistMessage === "جلسه دوم") return "جلسه دوم";
+  const total = job.sessionCount || 0;
+  const index = job.sessionIndex || 0;
+  if (total > 1 && index > 0) return `جلسه ${toFaDigits(index)} از ${toFaDigits(total)}`;
+  if (total > 1) return `جلسه ${toFaDigits(1)} از ${toFaDigits(total)}`;
+  return "";
+}
+
+function sessionState(status?: TattooRequest["sessionStatus"]) {
+  if (status === "done") return "انجام شد";
+  if (status === "cancelled") return "کنسل";
+  return "مانده";
+}
+
+function SessionLine({ job, busy, onChange }: { job: TattooRequest; busy: boolean; onChange: () => void }) {
+  const title = sessionTitle(job);
+  const followUp = job.artistMessage === "جلسه دوم" || /^جلسه \d+ از \d+$/.test(job.artistMessage || "") || (job.sessionIndex || 0) > 1;
+  if (!title && !followUp) return null;
+  async function setStatus(status: "planned" | "done" | "cancelled") {
+    try {
+      await saveAction("setStudioSessionStatus", { id: job.id, status });
+      toast.success(status === "done" ? "این جلسه انجام شد." : status === "cancelled" ? "این جلسه کنسل شد و ساعتش خالی شد." : "این جلسه مانده است.");
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    }
+  }
+  return (
+    <div className="mt-2">
+      <p className="text-sm font-semibold text-accent">
+        {title || "جلسهٔ بعد"} · {sessionState(job.sessionStatus)}
+        {followUp && job.priceMinToman ? ` · مانده این جلسه ${formatTattooToman(Math.max(0, (job.priceMinToman || 0) - (job.paidToman || 0)))}` : ""}
+      </p>
+      {followUp ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void setStatus("done")}>انجام شد</Button>
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void setStatus("planned")}>مانده</Button>
+          <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void setStatus("cancelled")}>کنسل</Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ReplySeen({ request }: { request: TattooRequest }) {
   const text = (request.artistMessage || "").trim();
-  if (!text || text === "ثبت دستی از تقویم کاری" || text === "جلسه دوم") return null;
+  if (!text || text === "ثبت دستی از تقویم کاری" || text === "جلسه دوم" || /^جلسه \d+ از \d+$/.test(text)) return null;
   if (request.messageSeenAt) {
     return (
       <p className="mt-2 text-sm font-semibold text-emerald-700">
@@ -2844,6 +2891,7 @@ function BookedSlotActions({
   const [followDay, setFollowDay] = useState(oneMonthLaterKey(request.proposedSlotStart));
   const [followTime, setFollowTime] = useState(tehranTimeInput(request.proposedSlotStart));
   const [minutes, setMinutes] = useState(request.sessionMinutes?.toString() ?? "180");
+  const [sessionAmount, setSessionAmount] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function saveTime() {
@@ -2879,8 +2927,9 @@ function BookedSlotActions({
         sessionMinutes: minutes ? Number(minutes) : undefined,
         continuation,
         carryToman: continuation ? carry?.remaining ?? 0 : undefined,
+        amountToman: !continuation && toEnDigits(sessionAmount).replace(/\D/g, "") ? Number(toEnDigits(sessionAmount).replace(/\D/g, "")) : undefined,
       });
-      toast.success(continuation ? "ادامه کار ثبت شد." : "جلسه دوم با همان مشخصات ثبت شد.");
+      toast.success(continuation ? "ادامه کار ثبت شد." : "جلسهٔ بعد برای همین مشتری ثبت شد.");
       setFollow(false);
       setCarryOn(false);
       onChange();
@@ -2957,9 +3006,9 @@ function BookedSlotActions({
                 : carry
                   ? `مانده ${formatTattooToman(carry.remaining)} روی نوبت جدید می‌ماند تا بعداً بگیریش.`
                   : "در حال حساب مانده…"
-              : "نام، شماره، اینستاگرام، طرح، محل، ابعاد، عکس، قیمت و واریزی همین کار می‌آید. فقط تاریخ جلسه دوم را عوض کن."}
+              : "جلسهٔ بعد برای همین مشتری است. اسم و شماره عوض نمی‌شود و نفر تازه‌ای ساخته نمی‌شود."}
           </p>
-          <Field label="تاریخ جلسه دوم">
+          <Field label={carryOn ? "تاریخ ادامه" : "تاریخ جلسهٔ بعد"}>
             <JalaliDatePicker value={followDay} onChange={setFollowDay} label="انتخاب روز" busyKeys={busyKeys} />
           </Field>
           <Field label="ساعت شروع">
@@ -2970,9 +3019,19 @@ function BookedSlotActions({
             <DurationFields minutes={Number(minutes) || 0} onChange={(value) => setMinutes(String(value))} />
             <p className="text-xs text-muted">{formatSitting(Number(minutes))}</p>
           </div>
+          {carryOn ? null : (
+            <Field label="مانده این جلسه">
+              <Input
+                inputMode="numeric"
+                value={sessionAmount}
+                placeholder="خالی یعنی همان ماندهٔ کل"
+                onChange={(e) => setSessionAmount(e.target.value)}
+              />
+            </Field>
+          )}
           <div className="flex flex-wrap gap-2 sm:col-span-3">
             <Button disabled={busy} size="sm" onClick={() => void saveFollow(carryOn)}>
-              {carryOn ? "ثبت ادامه کار" : "ثبت جلسه دوم"}
+              {carryOn ? "ثبت ادامه کار" : "ثبت جلسهٔ بعد"}
             </Button>
             <Button disabled={busy} size="sm" variant="outline" onClick={() => { setFollow(false); setCarryOn(false); }}>
               انصراف
@@ -2985,7 +3044,7 @@ function BookedSlotActions({
             ویرایش زمان
           </Button>
           <Button disabled={busy} size="sm" variant="outline" onClick={() => { setFollow(true); setCarryOn(false); }}>
-            ثبت جلسه دوم
+            جلسهٔ بعد
           </Button>
           <Button disabled={busy} size="sm" variant="outline" onClick={() => void openCarry()}>
             ادامه کار
@@ -3423,7 +3482,7 @@ function MonthJobCard({
         <ReplySeen request={job} />
         {job.sessionMinutes ? <p className="text-sm">مدت ثبت‌شده: {formatSitting(job.sessionMinutes)}</p> : null}
         <RealDurationFix job={job} onChange={onChange} />
-        {job.artistMessage === "جلسه دوم" ? <p className="mt-1 text-xs font-semibold text-accent">جلسه دوم · مشخصات از جلسه قبل</p> : null}
+        <SessionLine job={job} busy={busy} onChange={onChange} />
         {job.isContinuation ? (
           <p className="mt-1 text-xs font-semibold text-accent">
             ادامه کار · {balance.remaining > 0 ? `مانده ${formatTattooToman(balance.remaining)}` : "قبلاً تسویه شده"}

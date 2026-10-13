@@ -453,6 +453,9 @@ type TattooRequestRow = {
   price_max_toman: number | null;
   session_minutes: number | null;
   session_count: number | null;
+  session_index?: number | null;
+  session_parent_id?: string | null;
+  session_status?: string | null;
   deposit_toman: number | null;
   artist_message: string | null;
   message_seen_at: string | null;
@@ -532,6 +535,9 @@ function mapTattooRequest(row: TattooRequestRow, payments: TattooPayment[] = [])
     priceMaxToman: row.price_max_toman == null ? null : Number(row.price_max_toman),
     sessionMinutes: row.session_minutes == null ? null : Number(row.session_minutes),
     sessionCount: row.session_count == null ? null : Number(row.session_count),
+    sessionIndex: row.session_index == null ? null : Number(row.session_index),
+    sessionParentId: row.session_parent_id || null,
+    sessionStatus: row.session_status === "done" || row.session_status === "cancelled" ? row.session_status : row.session_status ? "planned" : null,
     depositToman: row.deposit_toman == null ? null : Number(row.deposit_toman),
     artistMessage: row.artist_message,
     messageSeenAt: row.message_seen_at,
@@ -594,7 +600,7 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   coalesce(customer_instagram,'') as customer_instagram,
   request_type, style, idea, placement, size_cm, preferred_dates, budget_toman,
   reference_images, coalesce(design_quotes,'[]'::jsonb) as design_quotes, body_images, status, price_min_toman, price_max_toman,
-  session_minutes, session_count, deposit_toman, artist_message, message_seen_at, artist_id,
+  session_minutes, session_count, session_index, session_parent_id, coalesce(session_status,'planned') as session_status, deposit_toman, artist_message, message_seen_at, artist_id,
   estimate_min_toman, estimate_max_toman, estimate_minutes, estimate_sessions, complexity_score, estimate_confidence,
   color_mode, coalesce(is_price_anchor,false) as is_price_anchor, payment_status, payment_hold_until,
   payment_submitted_at, payment_review_deadline, receipt_image, payment_iban, payment_card_number,
@@ -603,6 +609,19 @@ const tattooRequestSelect = `select id, customer_id, business_id, booking_id, cu
   coalesce(carry_closed,false) as carry_closed,
   created_at, updated_at
   from tattoo_requests`;
+
+function isSessionFollowUp(message: string | null | undefined) {
+  const text = (message || "").trim();
+  return text === "جلسه دوم" || /^جلسه \d+ از \d+$/.test(text);
+}
+
+const sessionFollowUpSql = `(coalesce(artist_message,'') = 'جلسه دوم' or coalesce(artist_message,'') ~ '^جلسه [0-9]+ از [0-9]+$')`;
+
+async function ensureSessionColumns(sql: Awaited<ReturnType<typeof getSql>>) {
+  await sql.query(`alter table tattoo_requests add column if not exists session_parent_id text`);
+  await sql.query(`alter table tattoo_requests add column if not exists session_index int`);
+  await sql.query(`alter table tattoo_requests add column if not exists session_status text not null default 'planned'`);
+}
 
 const tattooRequestListSelect = tattooRequestSelect
   .replace(
@@ -720,6 +739,7 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
 
 async function performMyTattooRequests(userId: string) {
   const sql = await getSql();
+  await ensureSessionColumns(sql);
   await expireOpenTattooHolds(sql, userId);
   await sql.query(
     `update tattoo_requests set message_seen_at = now()
@@ -734,6 +754,7 @@ async function performMyTattooRequests(userId: string) {
 async function performStudioTattooRequests(userId: string) {
   const actor = await requireStudioStaff(userId);
   const sql = await getSql();
+  await ensureSessionColumns(sql);
   await expireOpenTattooHolds(sql);
   await remindOverdueTattooReviews(sql);
   const scope = actor.role === "artist" ? "where artist_id = $1" : "where artist_id is null";
@@ -2429,7 +2450,7 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
   }>(
     `select t.customer_name, t.customer_phone, coalesce(t.customer_phone_2,'') as customer_phone_2,
             coalesce(t.customer_instagram,'') as customer_instagram, coalesce(t.placement,'') as placement,
-            case when coalesce(t.artist_message,'') = 'جلسه دوم' or coalesce(t.is_continuation,false) then 0 else coalesce(t.paid_toman,0) end as paid_toman,
+            case when coalesce(t.artist_message,'') = 'جلسه دوم' or coalesce(t.artist_message,'') ~ '^جلسه [0-9]+ از [0-9]+$' or coalesce(t.is_continuation,false) then 0 else coalesce(t.paid_toman,0) end as paid_toman,
             b.slot_start
        from tattoo_requests t
        join bookings b on b.id = t.booking_id
@@ -3005,6 +3026,7 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
     })
     .parse(raw);
   const sql = await getSql();
+  await ensureSessionColumns(sql);
   await rememberUnreliableCustomers(sql, userId);
   await reconcilePaidFromPayments(sql);
   let range: { start: string; end: string };
@@ -3230,7 +3252,7 @@ async function loadOpenReceivable(sql: Awaited<ReturnType<typeof getSql>>, actor
       price: Number(row.price_min_toman) || 0,
       paid: Number(row.paid_toman) || 0,
       continuation: Boolean(row.is_continuation),
-      followUp: row.artist_message === "جلسه دوم",
+      followUp: isSessionFollowUp(row.artist_message),
       closed: Boolean(row.carry_closed),
       inMonth: Number.isFinite(slotMs) && slotMs >= startMs && slotMs < endMs,
     };
@@ -3679,7 +3701,7 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
   if (!current[0]) throw new Error("کار پیدا نشد.");
   assertOwnArtistJob(actor, current[0].artist_id);
   let target = current[0];
-  if (current[0].artist_message === "جلسه دوم") {
+  if (isSessionFollowUp(current[0].artist_message)) {
     const tail = phoneTail(current[0].customer_phone) || phoneTail(current[0].customer_phone_2);
     if (tail) {
       const primary = await sql.query<typeof current[0]>(
@@ -3689,7 +3711,7 @@ async function performAddStudioPayment(userId: string, raw: unknown) {
            from tattoo_requests
           where status = 'booked'
             and id <> $1
-            and coalesce(artist_message,'') <> 'جلسه دوم'
+            and not (coalesce(artist_message,'') = 'جلسه دوم' or coalesce(artist_message,'') ~ '^جلسه [0-9]+ از [0-9]+$')
             and coalesce(is_continuation, false) = false
             and coalesce(carry_closed, false) = false
             and (
@@ -3789,7 +3811,7 @@ async function customerCarry(
     price: Number(row.price_min_toman) || 0,
     paid: Number(row.paid_toman) || 0,
     continuation: Boolean(row.is_continuation),
-    followUp: row.artist_message === "جلسه دوم",
+    followUp: isSessionFollowUp(row.artist_message),
     closed: Boolean(row.carry_closed),
     inMonth: true,
   }));
@@ -4012,8 +4034,10 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
     sessionMinutes: z.number().int().min(10).max(4320).optional(),
     continuation: z.boolean().optional(),
     carryToman: z.number().int().min(0).max(2_000_000_000).optional(),
+    amountToman: z.number().int().min(0).max(2_000_000_000).optional(),
   }).parse(raw);
   const sql = await getSql();
+  await ensureSessionColumns(sql);
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
   const src = rows[0];
   if (!src) throw new Error("این کار پیدا نشد.");
@@ -4099,6 +4123,18 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   }
   const requestId = crypto.randomUUID();
   let trackingCode = makeTattooTrackingCode();
+  const rootId = src.session_parent_id || src.id;
+  const rootRows = rootId === src.id ? [src] : await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [rootId]);
+  const root = rootRows[0] || src;
+  const counted = await sql.query<{ n: number }>(
+    `select count(*)::int as n from tattoo_requests where id=$1 or session_parent_id=$1`,
+    [rootId],
+  );
+  const nextIndex = (Number(counted[0]?.n) || 1) + 1;
+  const sessionTotal = Math.max(Number(root.session_count) || 1, nextIndex);
+  const leftover = Math.max(0, (Number(root.price_min_toman) || 0) - (Number(root.paid_toman) || 0));
+  const sessionAmount = data.amountToman ?? leftover;
+  const sessionLabel = `جلسه ${nextIndex} از ${sessionTotal}`;
   try {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       trackingCode = makeTattooTrackingCode();
@@ -4181,9 +4217,53 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
         [requestId, src.customer_phone || ""],
       );
     }
+  } else {
+    const settledNow = sessionAmount <= 0;
+    await sql.query(
+      `update tattoo_requests
+          set session_parent_id=$2, session_index=$3, session_count=$4, session_status='planned',
+              artist_message=$5, price_min_toman=$6, price_max_toman=$6, paid_toman=0, settled=$7,
+              deposit_toman=0, is_continuation=false, updated_at=now()
+        where id=$1`,
+      [requestId, rootId, nextIndex, sessionTotal, sessionLabel, sessionAmount, settledNow],
+    );
+    await sql.query(
+      `update tattoo_requests
+          set session_count=$2,
+              session_index=case when id=$1 then coalesce(session_index, 1) else session_index end,
+              session_status=case when session_status is null or session_status='' then 'planned' else session_status end,
+              updated_at=now()
+        where id=$1 or session_parent_id=$1`,
+      [rootId, sessionTotal],
+    );
   }
   const created = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [requestId]);
   const mapped = await mapTattooRequestRows(sql, created);
+  return mapped[0];
+}
+
+async function performSetStudioSessionStatus(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({
+    id: z.string(),
+    status: z.enum(["planned", "done", "cancelled"]),
+  }).parse(raw);
+  const sql = await getSql();
+  await ensureSessionColumns(sql);
+  const rows = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
+  if (!rows[0]) throw new Error("این جلسه پیدا نشد.");
+  assertOwnArtistJob(actor, rows[0].artist_id);
+  const followUp = isSessionFollowUp(rows[0].artist_message) || (Number(rows[0].session_index) || 0) > 1;
+  if (!followUp) throw new Error("وضعیت را روی جلسهٔ بعد عوض کن، نه روی جلسهٔ اول.");
+  await sql.query(`update tattoo_requests set session_status=$2, updated_at=now() where id=$1`, [data.id, data.status]);
+  if (rows[0].booking_id) {
+    await sql.query(
+      `update bookings set status=$2 where id=$1`,
+      [rows[0].booking_id, data.status === "cancelled" ? "cancelled" : "confirmed"],
+    );
+  }
+  const fresh = await sql.query<TattooRequestRow>(`${tattooRequestSelect} where id=$1`, [data.id]);
+  const mapped = await mapTattooRequestRows(sql, fresh);
   return mapped[0];
 }
 
@@ -4414,6 +4494,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     }
     case "followUpStudioJob":
       return performFollowUpStudioJob(userId, payload);
+    case "setStudioSessionStatus":
+      return performSetStudioSessionStatus(userId, payload);
     case "studioApprenticeBoard":
       return performStudioApprenticeBoard(userId, payload, { requireAdmin, ensureStudioShop });
     case "setApprenticeProgress":
