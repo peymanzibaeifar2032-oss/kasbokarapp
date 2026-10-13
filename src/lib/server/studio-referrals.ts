@@ -248,7 +248,7 @@ async function attachReferralInner(
   }
   const referrerPhone = phoneKey(referrer.phone);
   if ((phone && referrerPhone === phone) || (phone2 && referrerPhone === phone2) || (input.customerUserId && referrer.user_id === input.customerUserId)) {
-    return { attached: false as const, note: "کد معرف خودتان قابل استفاده نیست. درخواست بدون امتیاز ثبت شد." };
+    return { attached: false as const, note: "این کد درست است، ولی مال همین شماره است. مشتری باید کد تو را بفرستد، نه خودت." };
   }
   const keys = [phone, phone2].filter(Boolean);
   const taken = await sql.query<{ id: string }>(

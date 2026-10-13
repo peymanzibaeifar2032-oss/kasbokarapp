@@ -43,6 +43,7 @@ export function StudioDesk({
   const thread = useRef<HTMLDivElement>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [text, setText] = useState("");
+  const [clubInput, setClubInput] = useState("");
   const [draft, setDraft] = useState<IntakeDraft | null>(null);
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -68,7 +69,7 @@ export function StudioDesk({
     if (opened.current) return;
     opened.current = true;
     setLines([
-      { id: "club", from: "desk", text: "اگر کد عضویت دارید، قبل از هر پیام آن را داخل این چت بفرستید." },
+      { id: "club", from: "desk", text: "اگر کد عضویت دارید، آن را در کادر پایین بچسبانید." },
       { id: "hello", from: "desk", text: "اول روز اجرا را بزن. فقط روز سبز کاملاً خالی است و صفحه روی اولین روز خالی باز شده." },
       { id: "cal", from: "desk", kind: "calendar" },
     ]);
@@ -523,7 +524,32 @@ export function StudioDesk({
           ))}
         </div>
       ) : null}
-      <p className="pt-1 text-center text-[11px] leading-5 text-slate-500">اگر کد عضویت دارید، قبل از پیام آن را همین‌جا بفرستید.</p>
+      <div className="mb-2 rounded-2xl bg-white p-3">
+        <p className="text-base font-bold">کد عضویت</p>
+        <p className="mt-1 text-sm leading-6">اگر کد داری، اینجا بچسبان و ثبت را بزن.</p>
+        <div className="mt-2 flex gap-2">
+          <input
+            value={clubInput}
+            onChange={(event) => setClubInput(event.target.value.toUpperCase())}
+            placeholder="PYMAN-1234"
+            dir="ltr"
+            className="h-12 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-base font-bold tracking-wide"
+          />
+          <Button
+            className="h-12 shrink-0 bg-[#2f80ed] px-4 text-white"
+            disabled={waiting || !clubInput.trim()}
+            onClick={() => {
+              const raw = clubInput.trim();
+              if (!raw) return;
+              setClubInput("");
+              say("customer", raw);
+              void claimClub(raw);
+            }}
+          >
+            ثبت
+          </Button>
+        </div>
+      </div>
       <div className="flex shrink-0 gap-2 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
         <input
           value={text}
