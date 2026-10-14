@@ -28,7 +28,7 @@ function ApprenticeLearnPage() {
   const [lines, setLines] = useState<Line[]>([
     {
       role: "assistant",
-      content: "سؤال سوزن، پوست یا کلاس را همین‌جا بپرس. جواب از درس‌های کلاس است، نه از حدس.",
+      content: "سؤال را همین‌جا بپرس. جواب خود همان سؤال است، نه یک متن آماده.",
     },
   ]);
   const [text, setText] = useState("");

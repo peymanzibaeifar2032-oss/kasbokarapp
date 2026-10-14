@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z, ZodError } from "zod";
-import { apprenticeTutorPrompt, lessonFallback, retrieveLessons } from "@/lib/apprentice-lessons";
+import { apprenticeTutorPrompt, retrieveLessons } from "@/lib/apprentice-lessons";
 import { getLlmProvider } from "@/lib/guide/provider";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
 
@@ -19,11 +19,11 @@ function json(data: unknown, status = 200) {
   });
 }
 
-function clean(text: string, fallback: string) {
+function clean(text: string) {
   const value = text.replace(/\s+/g, " ").trim();
-  if (!value || !/[\u0600-\u06FF]/.test(value)) return fallback;
+  if (!value || !/[\u0600-\u06FF]/.test(value)) return "";
   if (/[0-9۰-۹]+[\s\d۰-۹٬,.]{0,12}(میلیون|تومان)/.test(value)) {
-    return "قیمت و بیعانه مربوط به این کلاس نیست. این صفحه فقط آموزش کارآموز است.";
+    return "قیمت و بیعانه مربوط به این کلاس نیست.";
   }
   return value.slice(0, 1200);
 }
@@ -36,21 +36,21 @@ async function handle(request: Request) {
   }
   try {
     const body = bodySchema.parse(await request.json());
-    const lessons = retrieveLessons(body.question);
-    const fallback = lessonFallback(lessons);
+    const lessons = retrieveLessons(body.question, 6);
     const result = await getLlmProvider().complete(
       [
         { role: "system", content: apprenticeTutorPrompt(lessons) },
         ...(body.history || []).map((item) => ({ role: item.role, content: item.content })),
         { role: "user", content: body.question },
       ],
-      { maxTokens: 500 },
+      { maxTokens: 600 },
     );
-    if (!result.ok) return json({ answer: fallback });
-    return json({ answer: clean(result.text, fallback) });
+    const answer = result.ok ? clean(result.text) : "";
+    if (!answer) return json({ answer: "جواب زنده نرسید. یک بار دیگر بپرس." });
+    return json({ answer });
   } catch (error) {
     if (error instanceof ZodError) return json({ error: "سؤال را کوتاه‌تر بنویس." }, 400);
-    return json({ answer: "این را در درس کلاس نداریم و باید از پیمان در کلاس بپرسی." });
+    return json({ answer: "جواب زنده نرسید. یک بار دیگر بپرس." });
   }
 }
 
