@@ -23,6 +23,7 @@ import { postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile 
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withPayNextStep, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
+  performAddApprentice,
   performAddApprenticePayment,
   performAssignApprenticeSlot,
   performDeleteApprenticePayment,
@@ -4498,6 +4499,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performSetStudioSessionStatus(userId, payload);
     case "studioApprenticeBoard":
       return performStudioApprenticeBoard(userId, payload, { requireAdmin, ensureStudioShop });
+    case "addApprentice":
+      return performAddApprentice(userId, payload, requireAdmin);
     case "setApprenticeProgress":
       return performSetApprenticeProgress(userId, payload, requireAdmin);
     case "addApprenticePayment":

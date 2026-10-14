@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { JALALI_MONTHS, gregorianToJalali } from "@/lib/calendar/jalali";
 import { getSql } from "@/lib/db";
+import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { studioActor } from "@/lib/server/studio-artists";
 import { tehranClock } from "@/lib/hours";
 import {
@@ -256,6 +257,29 @@ export async function performStudioApprenticeBoard(
   }
   await ensureDaySlots(sql, userId, dayKey);
   return boardPayload(sql, userId, businessId, dayKey, data.jy, data.jm, actor.role === "owner");
+}
+
+export async function performAddApprentice(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {
+  await requireApprenticeAccess(userId, requireAdmin);
+  const data = z.object({
+    name: z.string().trim().min(2, "اسم هنرجو را بنویس.").max(80),
+    phone: z.string().trim().min(10, "شماره موبایل را بنویس.").max(20),
+  }).parse(raw);
+  const phone = normalizeIranPhone(data.phone);
+  if (!isIranMobile(phone)) throw new Error("شماره موبایل را درست بنویس.");
+  const sql = await getSql();
+  const order = await sql.query<{ n: number }>(
+    `select coalesce(max(sort_order), 0)::int as n from studio_apprentices where user_id=$1`,
+    [userId],
+  );
+  const id = crypto.randomUUID();
+  await sql.query(
+    `insert into studio_apprentices
+       (id, user_id, slug, name, phone, kind, default_slot_key, sort_order, session_goal, sessions_done)
+     values ($1,$2,$3,$4,$5,'regular',null,$6,10,0)`,
+    [id, userId, `n-${id.slice(0, 8)}`, data.name, phone, (Number(order[0]?.n) || 0) + 1],
+  );
+  return { ok: true as const, id };
 }
 
 export async function performSetApprenticeProgress(userId: string, raw: unknown, requireAdmin: (id: string) => Promise<void>) {

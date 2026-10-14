@@ -101,6 +101,14 @@ export function StudioApprenticeBoard() {
         </p>
       </div>
 
+      <AddApprentice
+        disabled={busy}
+        onAdded={async () => {
+          toast.success("هنرجو اضافه شد.");
+          await load(dayKey, month);
+        }}
+      />
+
       <section className="grid grid-cols-2 gap-3">
         <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
           <p className="text-sm text-white/80">واریزی هنرجوها</p>
@@ -453,5 +461,41 @@ function ApprenticeRosterCard({
         </Button>
       </div>
     </article>
+  );
+}
+
+function AddApprentice({ disabled, onAdded }: { disabled: boolean; onAdded: () => Promise<void> }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (name.trim().length < 2) return toast.error("اسم هنرجو را بنویس.");
+    if (phone.trim().length < 10) return toast.error("شماره موبایل را بنویس.");
+    setSaving(true);
+    try {
+      await saveAction("addApprentice", { name: name.trim(), phone: phone.trim() });
+      setName("");
+      setPhone("");
+      await onAdded();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="rounded-3xl border border-border bg-surface p-4">
+      <h3 className="font-bold">هنرجوی جدید</h3>
+      <p className="mt-1 text-sm leading-6 text-muted">اسم و شماره را بنویس. در لیست و در انتخاب پنجشنبه می‌آید. ۱۰ جلسه از صفر شروع می‌شود.</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <Input value={name} placeholder="اسم و فامیلی" onChange={(e) => setName(e.target.value)} />
+        <Input value={phone} inputMode="tel" dir="ltr" placeholder="0912..." onChange={(e) => setPhone(e.target.value)} />
+        <Button disabled={disabled || saving} onClick={() => void save()}>
+          {saving ? "در حال ثبت…" : "اضافه کن"}
+        </Button>
+      </div>
+    </section>
   );
 }
