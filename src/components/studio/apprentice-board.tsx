@@ -5,8 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { friendlyError, saveAction } from "@/lib/save";
+import { toSmsLink } from "@/lib/format";
+import { tehranClock } from "@/lib/hours";
 import {
+  apprenticeJoinedSms,
+  apprenticePracticeSms,
   apprenticeRemaining,
+  apprenticeThursdaySms,
   nextSessionNumber,
   type ApprenticePayment,
   type StudioApprentice,
@@ -313,6 +318,37 @@ function paymentMonths(payments: ApprenticePayment[]) {
   return [...groups.values()].sort((a, b) => b.jy - a.jy || b.jm - a.jm);
 }
 
+function todayApprenticeLabel() {
+  const clock = tehranClock();
+  const j = gregorianToJalali(clock.y, clock.m, clock.day);
+  return `${toFaDigits(j.jd)} ${JALALI_MONTHS[j.jm - 1]} ${toFaDigits(j.jy)}`;
+}
+
+function ApprenticeSms({ phone, name }: { phone: string; name: string }) {
+  function send(text: string) {
+    const href = toSmsLink(phone, text);
+    if (!href) return toast.error("شماره برای پیامک معتبر نیست.");
+    window.location.assign(href);
+  }
+  const day = todayApprenticeLabel();
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeJoinedSms("آقا", name, day))}>
+        ثبت هنرجو · آقا
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeJoinedSms("خانم", name, day))}>
+        ثبت هنرجو · خانم
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeThursdaySms())}>
+        آمادگی چهارشنبه
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticePracticeSms())}>
+        تمرین روبیکا
+      </Button>
+    </div>
+  );
+}
+
 function paymentMonthLabel(paidOn: string) {
   const [y, m, d] = paidOn.split("-").map(Number);
   const j = gregorianToJalali(y, m, d);
@@ -387,6 +423,7 @@ function ApprenticeRosterCard({
           <a className="mt-1 inline-block text-sm text-accent" href={`tel:${person.phone}`} dir="ltr">
             {person.phone}
           </a>
+          <ApprenticeSms phone={person.phone} name={person.name} />
           <p className="mt-1 text-xs text-muted">
             {person.kind === "substitute" ? "جایگزین هفته · " : ""}
             {done ? "دوره ۱۰ جلسه تمام شد" : `جلسه ${toFaDigits(nextSessionNumber(person.sessionsDone))} از ۱۰`}

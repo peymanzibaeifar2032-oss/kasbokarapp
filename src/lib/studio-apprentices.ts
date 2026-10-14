@@ -8,6 +8,18 @@ export function sessionCountDelta(fromStatus: string, toStatus: string) {
   return counted(toStatus) - counted(fromStatus);
 }
 
+export function apprenticeJoinedSms(honorific: "آقا" | "خانم", name: string, dayLabel: string) {
+  return [`${honorific} ${name.trim()}`, `شما در تاریخ ${dayLabel} به لیست هنرجوهای پیمان زیبائی‌فر پیوستید.`].join("\n");
+}
+
+export function apprenticeThursdaySms() {
+  return "لطفا هر چهارشنبه غروب راس ساعت ۸ اعلام آمادگی برای حضور در کلاس را در جواب این پیامک بفرستید. در صورتی که تمرینات آماده نیست یا ناقص است برای هفته بعد هماهنگ کنید.";
+}
+
+export function apprenticePracticeSms() {
+  return "سلام. تمریناتتون اگر آماده است از طریق روبیکا بفرستید. در غیر این صورت در جواب این پیامک بنویسید که فردا در کلاس شرکت نمی‌کنید و تمرینات آماده نیست.";
+}
+
 export const APPRENTICE_SESSION_GOAL = 10;
 export const TEHRAN_THURSDAY = 4;
 
