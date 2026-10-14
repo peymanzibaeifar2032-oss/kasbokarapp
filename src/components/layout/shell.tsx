@@ -83,7 +83,7 @@ export function Shell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-6">{children}</main>
+      <main className="mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-4 pb-28 pt-6">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
         <div className="grid grid-cols-5">
           <Link to="/studio" className={tabClass}>

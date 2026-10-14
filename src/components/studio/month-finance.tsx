@@ -108,8 +108,8 @@ export function StudioMonthFinance() {
   const spent = summary?.expenseTotal ?? 0;
 
   return (
-    <div className="mt-5 grid gap-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="mt-5 grid min-w-0 max-w-full gap-4 overflow-x-hidden">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-bold">صندوق</h2>
         <div className="flex rounded-2xl bg-slate-100 p-1 text-sm font-semibold">
           <button type="button" className={`rounded-xl px-3 py-2 ${thisMonth ? "bg-white shadow-sm" : ""}`} onClick={() => setMonth({ jy: todayJ.jy, jm: todayJ.jm })}>
@@ -315,7 +315,7 @@ function YearBars({ year }: { year: number }) {
   const bestIncome = rows?.reduce((best, row) => (row.income > best.income ? row : best), rows[0]);
   const worstSpend = rows?.reduce((best, row) => (row.expense > best.expense ? row : best), rows[0]);
   return (
-    <section className="rounded-3xl border border-border bg-surface p-4">
+    <section className="min-w-0 max-w-full overflow-hidden rounded-3xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-bold">نمودار درآمد ماهانه</h3>
         <button type="button" className="text-sm font-semibold text-[#2f80ed]" onClick={() => setOpen((value) => !value)}>
@@ -328,20 +328,20 @@ function YearBars({ year }: { year: number }) {
           {!rows ? <p className="mt-3 text-sm text-muted">در حال چیدن نمودار…</p> : null}
           {rows ? (
             <>
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-4 grid grid-cols-4 gap-x-1 gap-y-4 sm:grid-cols-6">
                 {rows.map((row) => (
-                  <div key={row.jm} className="flex w-14 shrink-0 flex-col items-center">
-                    <div className="flex h-40 items-end gap-1">
-                      <div className="flex w-5 flex-col items-center justify-end">
-                        <span className="mb-1 text-[10px] font-bold text-[#1f8a4c]">{shortToman(row.income)}</span>
-                        <div className="w-5 rounded-t-md bg-[#1f8a4c]" style={{ height: `${Math.max(row.income ? 6 : 0, (row.income / max) * 112)}px` }} />
+                  <div key={row.jm} className="min-w-0">
+                    <div className="flex h-28 items-end justify-center gap-1">
+                      <div className="flex w-3 flex-col items-center justify-end">
+                        <span className="mb-1 text-[9px] font-bold leading-none text-[#1f8a4c]">{shortToman(row.income)}</span>
+                        <div className="w-3 rounded-t-sm bg-[#1f8a4c]" style={{ height: `${Math.max(row.income ? 4 : 0, (row.income / max) * 88)}px` }} />
                       </div>
-                      <div className="flex w-5 flex-col items-center justify-end">
-                        <span className="mb-1 text-[10px] font-bold text-[#eb5757]">{shortToman(row.expense)}</span>
-                        <div className="w-5 rounded-t-md bg-[#eb5757]" style={{ height: `${Math.max(row.expense ? 6 : 0, (row.expense / max) * 112)}px` }} />
+                      <div className="flex w-3 flex-col items-center justify-end">
+                        <span className="mb-1 text-[9px] font-bold leading-none text-[#eb5757]">{shortToman(row.expense)}</span>
+                        <div className="w-3 rounded-t-sm bg-[#eb5757]" style={{ height: `${Math.max(row.expense ? 4 : 0, (row.expense / max) * 88)}px` }} />
                       </div>
                     </div>
-                    <p className="mt-2 text-center text-[11px] font-semibold leading-4">{JALALI_MONTHS[row.jm - 1]}</p>
+                    <p className="mt-1 text-center text-[10px] font-semibold leading-4">{JALALI_MONTHS[row.jm - 1]}</p>
                   </div>
                 ))}
               </div>
