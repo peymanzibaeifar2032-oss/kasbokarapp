@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z, ZodError } from "zod";
-import { apprenticeTutorPrompt, retrieveLessons } from "@/lib/apprentice-lessons";
+import { apprenticeTutorPrompt, retrieveLessons, teachApprentice } from "@/lib/apprentice-lessons";
 import { getLlmProvider } from "@/lib/guide/provider";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
 
@@ -37,20 +37,20 @@ async function handle(request: Request) {
   try {
     const body = bodySchema.parse(await request.json());
     const lessons = retrieveLessons(body.question, 6);
+    const taught = teachApprentice(body.question);
     const result = await getLlmProvider().complete(
       [
         { role: "system", content: apprenticeTutorPrompt(lessons) },
         ...(body.history || []).map((item) => ({ role: item.role, content: item.content })),
         { role: "user", content: body.question },
       ],
-      { maxTokens: 600 },
+      { maxTokens: 600, timeoutMs: 12000 },
     );
     const answer = result.ok ? clean(result.text) : "";
-    if (!answer) return json({ answer: "جواب زنده نرسید. یک بار دیگر بپرس." });
-    return json({ answer });
+    return json({ answer: answer || taught });
   } catch (error) {
     if (error instanceof ZodError) return json({ error: "سؤال را کوتاه‌تر بنویس." }, 400);
-    return json({ answer: "جواب زنده نرسید. یک بار دیگر بپرس." });
+    return json({ answer: teachApprentice("") });
   }
 }
 

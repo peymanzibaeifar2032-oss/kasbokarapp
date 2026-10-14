@@ -75,7 +75,7 @@ function ApprenticeLearnPage() {
           </Link>
         </div>
         <p className="mt-2 text-sm leading-7 text-white/55">
-          گیج سوزن، چیدمان، پوست و عمق. سؤال آزاد بپرس. اگر درس کافی نباشد می‌گوید از پیمان در کلاس بپرس.
+          سؤال سوزن، پوست، عمق یا آمادگی روز اجرا را آزاد بپرس.
         </p>
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
           {CHIPS.map((chip) => (
