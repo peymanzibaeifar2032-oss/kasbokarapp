@@ -104,6 +104,9 @@ export function StudioApprenticeBoard() {
           ناهار ۱۲ تا ۱۳ قفل است. فقط «حاضر شد» جزو ۱۰ جلسه است. «کنسل شد» هیچ جلسه‌ای اضافه نمی‌کند.
           پول هنرجو جدا از واریزی سالن است. جمع همه ماه‌ها و مانده هر نفر همین‌جا دیده می‌شود.
         </p>
+        <a href="/studio/learn" className="mt-3 inline-flex rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-fg">
+          آموزش سوزن و پوست
+        </a>
       </div>
 
       <AddApprentice

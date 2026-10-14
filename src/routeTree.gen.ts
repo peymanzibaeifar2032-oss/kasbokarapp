@@ -21,6 +21,7 @@ import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ApiApprenticeAskRouteImport } from './routes/api/apprentice-ask'
 import { Route as ApiCustomerPasswordRouteImport } from './routes/api/customer-password'
 import { Route as ApiGeoStatsRouteImport } from './routes/api/geo-stats'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
@@ -44,6 +45,7 @@ import { Route as StudioCareRouteImport } from './routes/studio.care'
 import { Route as StudioClubRouteImport } from './routes/studio.club'
 import { Route as StudioDesignsRouteImport } from './routes/studio.designs'
 import { Route as StudioGuideRouteImport } from './routes/studio.guide'
+import { Route as StudioLearnRouteImport } from './routes/studio.learn'
 import { Route as StudioOpenRouteImport } from './routes/studio.open'
 import { Route as StudioPocketRouteImport } from './routes/studio.pocket'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
@@ -111,6 +113,11 @@ const StudioRoute = StudioRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiApprenticeAskRoute = ApiApprenticeAskRouteImport.update({
+  id: '/api/apprentice-ask',
+  path: '/api/apprentice-ask',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCustomerPasswordRoute = ApiCustomerPasswordRouteImport.update({
@@ -228,6 +235,11 @@ const StudioGuideRoute = StudioGuideRouteImport.update({
   path: '/guide',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioLearnRoute = StudioLearnRouteImport.update({
+  id: '/learn',
+  path: '/learn',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioOpenRoute = StudioOpenRouteImport.update({
   id: '/open',
   path: '/open',
@@ -282,6 +294,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
   '/terms': typeof TermsRoute
+  '/api/apprentice-ask': typeof ApiApprenticeAskRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
@@ -305,6 +318,7 @@ export interface FileRoutesByFullPath {
   '/studio/club': typeof StudioClubRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/learn': typeof StudioLearnRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
@@ -327,6 +341,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
   '/terms': typeof TermsRoute
+  '/api/apprentice-ask': typeof ApiApprenticeAskRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
@@ -350,6 +365,7 @@ export interface FileRoutesByTo {
   '/studio/club': typeof StudioClubRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/learn': typeof StudioLearnRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
@@ -373,6 +389,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
   '/terms': typeof TermsRoute
+  '/api/apprentice-ask': typeof ApiApprenticeAskRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
@@ -396,6 +413,7 @@ export interface FileRoutesById {
   '/studio/club': typeof StudioClubRoute
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
+  '/studio/learn': typeof StudioLearnRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
@@ -420,6 +438,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/studio'
     | '/terms'
+    | '/api/apprentice-ask'
     | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
@@ -443,6 +462,7 @@ export interface FileRouteTypes {
     | '/studio/club'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/learn'
     | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
@@ -465,6 +485,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/studio'
     | '/terms'
+    | '/api/apprentice-ask'
     | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
@@ -488,6 +509,7 @@ export interface FileRouteTypes {
     | '/studio/club'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/learn'
     | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
@@ -510,6 +532,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/studio'
     | '/terms'
+    | '/api/apprentice-ask'
     | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
@@ -533,6 +556,7 @@ export interface FileRouteTypes {
     | '/studio/club'
     | '/studio/designs'
     | '/studio/guide'
+    | '/studio/learn'
     | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
@@ -556,6 +580,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   StudioRoute: typeof StudioRouteWithChildren
   TermsRoute: typeof TermsRoute
+  ApiApprenticeAskRoute: typeof ApiApprenticeAskRoute
   ApiCustomerPasswordRoute: typeof ApiCustomerPasswordRoute
   ApiGeoStatsRoute: typeof ApiGeoStatsRoute
   ApiGuideRoute: typeof ApiGuideRoute
@@ -662,6 +687,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/apprentice-ask': {
+      id: '/api/apprentice-ask'
+      path: '/api/apprentice-ask'
+      fullPath: '/api/apprentice-ask'
+      preLoaderRoute: typeof ApiApprenticeAskRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/customer-password': {
@@ -825,6 +857,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioGuideRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/learn': {
+      id: '/studio/learn'
+      path: '/learn'
+      fullPath: '/studio/learn'
+      preLoaderRoute: typeof StudioLearnRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/open': {
       id: '/studio/open'
       path: '/open'
@@ -903,6 +942,7 @@ interface StudioRouteChildren {
   StudioClubRoute: typeof StudioClubRoute
   StudioDesignsRoute: typeof StudioDesignsRoute
   StudioGuideRoute: typeof StudioGuideRoute
+  StudioLearnRoute: typeof StudioLearnRoute
   StudioOpenRoute: typeof StudioOpenRoute
   StudioPocketRoute: typeof StudioPocketRoute
   StudioRequestRoute: typeof StudioRequestRoute
@@ -916,6 +956,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioClubRoute: StudioClubRoute,
   StudioDesignsRoute: StudioDesignsRoute,
   StudioGuideRoute: StudioGuideRoute,
+  StudioLearnRoute: StudioLearnRoute,
   StudioOpenRoute: StudioOpenRoute,
   StudioPocketRoute: StudioPocketRoute,
   StudioRequestRoute: StudioRequestRoute,
@@ -938,6 +979,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   StudioRoute: StudioRouteWithChildren,
   TermsRoute: TermsRoute,
+  ApiApprenticeAskRoute: ApiApprenticeAskRoute,
   ApiCustomerPasswordRoute: ApiCustomerPasswordRoute,
   ApiGeoStatsRoute: ApiGeoStatsRoute,
   ApiGuideRoute: ApiGuideRoute,
