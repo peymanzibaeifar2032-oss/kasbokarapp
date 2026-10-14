@@ -3342,6 +3342,56 @@ async function performStudioMonthFinance(userId: string, raw: unknown) {
   };
 }
 
+async function performStudioYearChart(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ jy: z.number().int().min(1300).max(1600) }).parse(raw);
+  const sql = await getSql();
+  const clock = tehranClock();
+  const today = gregorianToJalali(clock.y, clock.m, clock.day);
+  const lastMonth = data.jy < today.jy ? 12 : data.jy === today.jy ? today.jm : 0;
+  for (let jm = 1; jm <= lastMonth; jm += 1) {
+    await applyStudioExpenseTemplates(sql, userId, data.jy, jm);
+  }
+  const range = jalaliYearRange(data.jy);
+  const paymentScope = actor.role === "artist"
+    ? "and r.artist_id = $3"
+    : "and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')";
+  const paymentParams = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
+  const [payments, expenses] = await Promise.all([
+    sql.query<{ amount_toman: number | string; created_at: string }>(
+      `select p.amount_toman, p.created_at
+         from tattoo_payments p
+         join tattoo_requests r on r.id = p.request_id
+        where p.created_at >= $1 and p.created_at < $2
+          ${paymentScope}`,
+      paymentParams,
+    ),
+    sql.query<{ month_jm: number; total: number | string }>(
+      `select month_jm, coalesce(sum(amount_toman), 0) as total
+         from studio_expenses
+        where user_id=$1 and month_jy=$2
+        group by month_jm`,
+      [userId, data.jy],
+    ),
+  ]);
+  const income = new Array<number>(12).fill(0);
+  for (const row of payments) {
+    const clockRow = tehranClock(new Date(row.created_at));
+    const jalali = gregorianToJalali(clockRow.y, clockRow.m, clockRow.day);
+    if (jalali.jy !== data.jy || jalali.jm < 1 || jalali.jm > 12) continue;
+    income[jalali.jm - 1] += Number(row.amount_toman) || 0;
+  }
+  const spent = new Array<number>(12).fill(0);
+  for (const row of expenses) {
+    const index = Number(row.month_jm) - 1;
+    if (index >= 0 && index < 12) spent[index] = Number(row.total) || 0;
+  }
+  return {
+    jy: data.jy,
+    months: income.map((paid, index) => ({ jm: index + 1, income: paid, expense: spent[index] })),
+  };
+}
+
 async function performAddStudioExpense(userId: string, raw: unknown) {
   await requireStudioStaff(userId);
   const data = z.object({
@@ -4459,6 +4509,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioContinuationBalance(userId, payload);
     case "studioMonthFinance":
       return performStudioMonthFinance(userId, payload);
+    case "studioYearChart":
+      return performStudioYearChart(userId, payload);
     case "addStudioExpense":
       return performAddStudioExpense(userId, payload);
     case "deleteStudioExpense":

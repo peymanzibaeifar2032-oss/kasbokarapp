@@ -124,6 +124,7 @@ export function StudioMonthFinance() {
         </div>
       </div>
       <p className="text-center text-sm font-semibold text-muted">{monthLabel}</p>
+      <YearBars year={month.jy} />
 
       {data?.warnings?.length ? (
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm leading-7">
@@ -292,6 +293,82 @@ export function StudioMonthFinance() {
       </div>
     </div>
   );
+}
+
+function YearBars({ year }: { year: number }) {
+  const [rows, setRows] = useState<{ jm: number; income: number; expense: number }[] | null>(null);
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    let stop = false;
+    void saveAction<{ months: { jm: number; income: number; expense: number }[] }>("studioYearChart", { jy: year })
+      .then((data) => {
+        if (!stop) setRows(data.months);
+      })
+      .catch(() => {
+        if (!stop) setRows([]);
+      });
+    return () => {
+      stop = true;
+    };
+  }, [year]);
+  const max = Math.max(1, ...(rows ?? []).flatMap((row) => [row.income, row.expense]));
+  const bestIncome = rows?.reduce((best, row) => (row.income > best.income ? row : best), rows[0]);
+  const worstSpend = rows?.reduce((best, row) => (row.expense > best.expense ? row : best), rows[0]);
+  return (
+    <section className="rounded-3xl border border-border bg-surface p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-bold">نمودار درآمد ماهانه</h3>
+        <button type="button" className="text-sm font-semibold text-[#2f80ed]" onClick={() => setOpen((value) => !value)}>
+          {open ? "بستن" : "نمایش"}
+        </button>
+      </div>
+      {open ? (
+        <>
+          <p className="mt-1 text-sm leading-6 text-muted">سبز درآمد است و قرمز کل هزینه. عدد بالای ستون به میلیون تومان است. سال {toFaDigits(year)}.</p>
+          {!rows ? <p className="mt-3 text-sm text-muted">در حال چیدن نمودار…</p> : null}
+          {rows ? (
+            <>
+              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                {rows.map((row) => (
+                  <div key={row.jm} className="flex w-14 shrink-0 flex-col items-center">
+                    <div className="flex h-40 items-end gap-1">
+                      <div className="flex w-5 flex-col items-center justify-end">
+                        <span className="mb-1 text-[10px] font-bold text-[#1f8a4c]">{shortToman(row.income)}</span>
+                        <div className="w-5 rounded-t-md bg-[#1f8a4c]" style={{ height: `${Math.max(row.income ? 6 : 0, (row.income / max) * 112)}px` }} />
+                      </div>
+                      <div className="flex w-5 flex-col items-center justify-end">
+                        <span className="mb-1 text-[10px] font-bold text-[#eb5757]">{shortToman(row.expense)}</span>
+                        <div className="w-5 rounded-t-md bg-[#eb5757]" style={{ height: `${Math.max(row.expense ? 6 : 0, (row.expense / max) * 112)}px` }} />
+                      </div>
+                    </div>
+                    <p className="mt-2 text-center text-[11px] font-semibold leading-4">{JALALI_MONTHS[row.jm - 1]}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex justify-center gap-4 text-xs font-semibold">
+                <span className="text-[#1f8a4c]">سبز · درآمد</span>
+                <span className="text-[#eb5757]">قرمز · کل هزینه</span>
+              </div>
+              {bestIncome && worstSpend ? (
+                <p className="mt-2 text-center text-xs leading-6 text-muted">
+                  بیشترین درآمد {JALALI_MONTHS[bestIncome.jm - 1]} است
+                  {worstSpend.expense > 0 ? ` و بیشترین هزینه ${JALALI_MONTHS[worstSpend.jm - 1]}.` : "."}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function shortToman(value: number) {
+  const n = Number(value) || 0;
+  if (n < 50_000) return "";
+  const millions = n / 1_000_000;
+  const text = millions >= 10 ? String(Math.round(millions)) : millions.toFixed(1).replace(/\.0$/, "");
+  return toFaDigits(text);
 }
 
 function formatPlainToman(value: number) {
