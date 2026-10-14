@@ -3,7 +3,7 @@ import { CircleMarker, MapContainer, Marker, TileLayer, useMap, useMapEvents } f
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Business } from "@/lib/types";
-import { SAME_ORIGIN_PROXY, type MapTileConfig } from "@/lib/map/tiles";
+import { OFFLINE_TILE_TEMPLATE, SAME_ORIGIN_PROXY, type MapTileConfig } from "@/lib/map/tiles";
 
 type Props = {
   businesses: Business[];
@@ -66,6 +66,8 @@ function Tiles() {
   const [cfg, setCfg] = useState<MapTileConfig | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const switched = useRef(false);
+  const offline = useRef(false);
+  const fallbackErrors = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -77,11 +79,16 @@ function Tiles() {
         setCfg(next);
         setUrl(next.url);
         switched.current = false;
+        offline.current = false;
+        fallbackErrors.current = 0;
       })
       .catch(() => {
         if (!alive) return;
         setCfg(SAME_ORIGIN_PROXY);
         setUrl(SAME_ORIGIN_PROXY.url);
+        switched.current = false;
+        offline.current = false;
+        fallbackErrors.current = 0;
       });
     return () => {
       alive = false;
@@ -92,6 +99,7 @@ function Tiles() {
 
   return (
     <TileLayer
+      key={url}
       attribution={cfg.attribution}
       url={url}
       subdomains={cfg.subdomains || "abc"}
@@ -99,9 +107,19 @@ function Tiles() {
       maxZoom={cfg.maxZoom}
       eventHandlers={{
         tileerror: () => {
-          if (switched.current || !cfg.fallbackUrl) return;
-          switched.current = true;
-          setUrl(cfg.fallbackUrl);
+          if (url === OFFLINE_TILE_TEMPLATE) return;
+          if (!switched.current && cfg.fallbackUrl) {
+            switched.current = true;
+            fallbackErrors.current = 0;
+            setUrl(cfg.fallbackUrl);
+            return;
+          }
+          fallbackErrors.current += 1;
+          if (fallbackErrors.current < 4) return;
+          if (offline.current) return;
+          offline.current = true;
+          switched.current = false;
+          setUrl(OFFLINE_TILE_TEMPLATE);
         },
       }}
     />
