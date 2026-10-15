@@ -36,18 +36,22 @@ async function handle(request: Request) {
   }
   try {
     const body = bodySchema.parse(await request.json());
-    const lessons = retrieveLessons(body.question, 6);
     const taught = teachApprentice(body.question);
+    const lessons = retrieveLessons(body.question, 4).filter((lesson) => lesson.id !== "gauge" || /گیج|قطر|سوزن/.test(body.question));
     const result = await getLlmProvider().complete(
       [
-        { role: "system", content: apprenticeTutorPrompt(lessons) },
+        {
+          role: "system",
+          content: `${apprenticeTutorPrompt(lessons)}\nاگر سؤال درباره ملانین، رنگ پوست یا سبک تاتو است، درباره گیج سوزن هیچ چیز نگو.`,
+        },
         ...(body.history || []).map((item) => ({ role: item.role, content: item.content })),
         { role: "user", content: body.question },
       ],
       { maxTokens: 600, timeoutMs: 12000 },
     );
-    const answer = result.ok ? clean(result.text) : "";
-    return json({ answer: answer || taught });
+    const live = result.ok ? clean(result.text) : "";
+    const pastedGauge = /جدول کلاس|گیج سیم برق/.test(live) && !/گیج|قطر/.test(body.question);
+    return json({ answer: !live || pastedGauge ? taught : live });
   } catch (error) {
     if (error instanceof ZodError) return json({ error: "سؤال را کوتاه‌تر بنویس." }, 400);
     return json({ answer: teachApprentice("") });
