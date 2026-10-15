@@ -78,7 +78,54 @@ export const Route = createFileRoute("/studio/admin")({
 });
 type RequestFilter = "active" | "receipt" | "booked" | "consultation" | "all";
 
+const CUSTOM_MESSAGES_KEY = "studio-custom-messages";
+
+type CustomMessage = { id: string; title: string; text: string };
+
+function readCustomMessages(): CustomMessage[] {
+  if (typeof localStorage === "undefined") return [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CUSTOM_MESSAGES_KEY) || "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is CustomMessage =>
+        !!item &&
+        typeof item === "object" &&
+        typeof (item as CustomMessage).id === "string" &&
+        typeof (item as CustomMessage).title === "string" &&
+        typeof (item as CustomMessage).text === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
 function ReadyMessages() {
+  const [custom, setCustom] = useState<CustomMessage[]>([]);
+  const [title, setTitle] = useState("");
+  const [text, setText] = useState("");
+  useEffect(() => {
+    setCustom(readCustomMessages());
+  }, []);
+  function saveCustom(next: CustomMessage[]) {
+    setCustom(next);
+    localStorage.setItem(CUSTOM_MESSAGES_KEY, JSON.stringify(next));
+  }
+  function addCustom() {
+    const body = text.trim();
+    if (body.length < 2) {
+      toast.error("متن را بنویس.");
+      return;
+    }
+    const next = [
+      { id: `${Date.now()}`, title: title.trim() || "متن دستی", text: body },
+      ...custom,
+    ].slice(0, 40);
+    saveCustom(next);
+    setTitle("");
+    setText("");
+    toast.success("متن ذخیره شد.");
+  }
   const boxes = [
     {
       title: "۱. مشخصات واریز",
@@ -136,7 +183,18 @@ function ReadyMessages() {
   ];
   return (
     <div className="mt-5 grid w-full min-w-0 max-w-full gap-3 overflow-x-hidden">
-      <p className="text-sm leading-7 text-muted">هر متن را با دکمهٔ کپی بردار و در پیام مشتری بفرست.</p>
+      <p className="text-sm leading-7 text-muted">هر متن را با دکمهٔ کپی بردار و در پیام مشتری بفرست. متن خودت را هم همین‌جا اضافه کن.</p>
+      <section className="w-full min-w-0 rounded-2xl border border-border bg-surface p-4">
+        <h3 className="text-sm font-bold">متن جدید</h3>
+        <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="عنوان، مثلاً یادآوری فردا" className="mt-3" maxLength={80} />
+        <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="متن پیام را بنویس" className="mt-2" maxLength={2000} />
+        <Button type="button" onClick={addCustom} className="mt-3">
+          ذخیره متن
+        </Button>
+      </section>
+      {custom.map((box) => (
+        <CopyBox key={box.id} title={box.title} text={box.text} onDelete={() => saveCustom(custom.filter((item) => item.id !== box.id))} />
+      ))}
       {boxes.map((box) => (
         <CopyBox key={box.title} title={box.title} text={box.text} ltr={box.ltr} />
       ))}
@@ -144,7 +202,7 @@ function ReadyMessages() {
   );
 }
 
-function CopyBox({ title, text, ltr }: { title: string; text: string; ltr?: boolean }) {
+function CopyBox({ title, text, ltr, onDelete }: { title: string; text: string; ltr?: boolean; onDelete?: () => void }) {
   const [done, setDone] = useState(false);
   async function copy() {
     try {
@@ -160,10 +218,17 @@ function CopyBox({ title, text, ltr }: { title: string; text: string; ltr?: bool
     <section className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h3 className="min-w-0 text-sm font-bold">{title}</h3>
-        <button type="button" onClick={() => void copy()} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-primary/30 px-3 text-xs font-bold">
-          <Copy className="size-3.5" />
-          {done ? "کپی شد" : "کپی"}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {onDelete ? (
+            <button type="button" onClick={onDelete} className="inline-flex h-9 items-center rounded-xl border border-border px-3 text-xs font-bold text-muted">
+              حذف
+            </button>
+          ) : null}
+          <button type="button" onClick={() => void copy()} className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-primary/30 px-3 text-xs font-bold">
+            <Copy className="size-3.5" />
+            {done ? "کپی شد" : "کپی"}
+          </button>
+        </div>
       </div>
       <div className="mt-3 w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-bg p-3 text-sm leading-7">
         {text.split("\n").map((line, index) => (
