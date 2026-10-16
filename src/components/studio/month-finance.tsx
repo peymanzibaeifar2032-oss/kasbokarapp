@@ -87,6 +87,20 @@ export function StudioMonthFinance() {
     }
   }
 
+  async function removePayment(id: string) {
+    if (!window.confirm("این واریز از صندوق حذف شود؟")) return;
+    setBusy(true);
+    try {
+      await saveAction("deleteStudioPayment", { id });
+      toast.success("واریز حذف شد.");
+      await load();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function removeExpense(id: string, stopRecurring = false) {
     setBusy(true);
     try {
@@ -253,7 +267,12 @@ export function StudioMonthFinance() {
                       {formatFaDateTime(row.createdAt)}
                     </p>
                   </div>
-                  <p className="font-bold text-[#1f8a4c]">{formatPlainToman(row.amountToman)}</p>
+                  <div className="text-left">
+                    <p className="font-bold text-[#1f8a4c]">{formatPlainToman(row.amountToman)}</p>
+                    <button type="button" className="text-xs text-muted" disabled={busy} onClick={() => void removePayment(row.id)}>
+                      حذف
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

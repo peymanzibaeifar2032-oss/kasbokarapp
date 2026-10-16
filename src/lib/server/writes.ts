@@ -3452,6 +3452,45 @@ async function performDeleteStudioExpense(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
+async function performDeleteStudioPayment(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({ id: z.string().min(1) }).parse(raw);
+  const sql = await getSql();
+  const rows = await sql.query<{
+    id: string;
+    request_id: string;
+    artist_id: string | null;
+    price_min_toman: number | null;
+    booking_id: string | null;
+  }>(
+    `select p.id, p.request_id, r.artist_id, r.price_min_toman, r.booking_id
+       from tattoo_payments p
+       join tattoo_requests r on r.id = p.request_id
+      where p.id=$1`,
+    [data.id],
+  );
+  if (!rows[0]) throw new Error("واریز پیدا نشد.");
+  assertOwnArtistJob(actor, rows[0].artist_id);
+  await sql.query(`delete from tattoo_payments where id=$1`, [data.id]);
+  const summed = await sql.query<{ total: number | string }>(
+    `select coalesce(sum(amount_toman), 0) as total from tattoo_payments where request_id=$1`,
+    [rows[0].request_id],
+  );
+  const paid = Number(summed[0]?.total) || 0;
+  const settled = tattooBalance(rows[0].price_min_toman, paid).settled;
+  await sql.query(
+    `update tattoo_requests set paid_toman=$2, settled=$3, updated_at=now() where id=$1`,
+    [rows[0].request_id, paid, settled],
+  );
+  if (rows[0].booking_id) {
+    await sql.query(`update bookings set finance_status=$2 where id=$1`, [
+      rows[0].booking_id,
+      settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "awaiting_payment",
+    ]);
+  }
+  return { ok: true as const };
+}
+
 async function performUpdateStudioJob(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z.object({
@@ -4515,6 +4554,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performAddStudioExpense(userId, payload);
     case "deleteStudioExpense":
       return performDeleteStudioExpense(userId, payload);
+    case "deleteStudioPayment":
+      return performDeleteStudioPayment(userId, payload);
     case "updateStudioJob":
       return performUpdateStudioJob(userId, payload);
     case "swapStudioJobs":
