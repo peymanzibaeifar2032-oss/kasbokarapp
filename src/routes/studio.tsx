@@ -69,12 +69,20 @@ function StudioLanding() {
               </p>
               <div className="mt-9 grid gap-3 sm:max-w-xl">
                 {showAdmin ? (
-                  <a
-                    href="https://kasbokarapp.com/studio/admin"
-                    className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#b7955b] px-6 text-base font-black text-black"
-                  >
-                    ورود به پنل ادمین من
-                  </a>
+                  <>
+                    <a
+                      href="https://kasbokarapp.com/studio/admin"
+                      className="inline-flex h-14 items-center justify-center rounded-2xl bg-[#b7955b] px-6 text-base font-black text-black"
+                    >
+                      ورود به پنل ادمین من
+                    </a>
+                    <a
+                      href="/studio/pocket"
+                      className="inline-flex h-14 items-center justify-center rounded-2xl border border-white/20 px-6 text-base font-black text-white"
+                    >
+                      تقویم آفلاین نوبت‌ها
+                    </a>
+                  </>
                 ) : null}
                 <Link
                   to="/studio/request"

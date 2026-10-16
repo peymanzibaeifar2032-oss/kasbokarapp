@@ -3491,6 +3491,51 @@ async function performDeleteStudioPayment(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
+async function performStudioPocketExport(userId: string) {
+  const actor = await requireStudioStaff(userId);
+  const sql = await getSql();
+  const scope = actor.role === "artist"
+    ? "and r.artist_id = $1"
+    : "and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')";
+  const params = actor.role === "artist" ? [actor.artistId] : [];
+  const rows = await sql.query<{
+    id: string;
+    customer_name: string;
+    customer_phone: string | null;
+    style: string | null;
+    placement: string | null;
+    slot_start: string;
+  }>(
+    `select r.id, r.customer_name, r.customer_phone, r.style, r.placement,
+            coalesce(b.slot_start, r.proposed_slot_start) as slot_start
+       from tattoo_requests r
+       left join bookings b on b.id = r.booking_id and b.status <> 'cancelled'
+      where r.status = 'booked'
+        and coalesce(b.slot_start, r.proposed_slot_start) is not null
+        ${scope}
+      order by coalesce(b.slot_start, r.proposed_slot_start)
+      limit 2000`,
+    params,
+  );
+  return {
+    bookings: rows.flatMap((row) => {
+      const when = new Date(row.slot_start);
+      if (Number.isNaN(when.getTime())) return [];
+      const clock = tehranClock(when);
+      const jalali = gregorianToJalali(clock.y, clock.m, clock.day);
+      return [{
+        serverId: row.id,
+        day: `${jalali.jy}-${String(jalali.jm).padStart(2, "0")}-${String(jalali.jd).padStart(2, "0")}`,
+        time: `${String(clock.hh).padStart(2, "0")}:${String(clock.mm).padStart(2, "0")}`,
+        name: row.customer_name,
+        phone: row.customer_phone || "",
+        style: row.style || "",
+        placement: row.placement || "",
+      }];
+    }),
+  };
+}
+
 async function performUpdateStudioJob(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z.object({
@@ -4556,6 +4601,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performDeleteStudioExpense(userId, payload);
     case "deleteStudioPayment":
       return performDeleteStudioPayment(userId, payload);
+    case "studioPocketExport":
+      return performStudioPocketExport(userId);
     case "updateStudioJob":
       return performUpdateStudioJob(userId, payload);
     case "swapStudioJobs":
