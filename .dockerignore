@@ -1,4 +1,9 @@
 node_modules
+android-shamsi
+android-tattoo-booking
+*.jks
+keystore.properties
+taghvim-nobat.apk
 dist
 .output
 .git

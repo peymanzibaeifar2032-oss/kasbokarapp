@@ -38,6 +38,10 @@ function dayKey(jy: number, jm: number, jd: number) {
   return `${jy}-${String(jm).padStart(2, "0")}-${String(jd).padStart(2, "0")}`;
 }
 
+function jalaliKey(cell: { jy: number; jm: number; jd: number }) {
+  return dayKey(cell.jy, cell.jm, cell.jd);
+}
+
 function PocketCalendarPage() {
   const clock = tehranClock();
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
@@ -74,7 +78,7 @@ function PocketCalendarPage() {
   }, [rows]);
   const selectedParts = selected.split("-").map(Number);
   const selectedJd = selectedParts[2] || 1;
-  const selectedCell = cells.find((cell) => cell.dayKey === selected);
+  const selectedCell = cells.find((cell) => jalaliKey(cell) === selected);
   const weekday = WEEK[selectedCell?.satIndex ?? 0];
   const dayRows = rows.filter((row) => row.day === selected);
 
@@ -89,7 +93,7 @@ function PocketCalendarPage() {
       setSelected(key);
       setMovingId(null);
       const [jy, jm] = key.split("-").map(Number);
-      if (jy && jm) setMonth({ jy, jm });
+      if (jy && jm && jy < 1700) setMonth({ jy, jm });
       toast.success("نوبت به این روز منتقل شد.");
       return;
     }
@@ -132,9 +136,10 @@ function PocketCalendarPage() {
     setBanner("");
     try {
       const data = await saveAction<{ bookings: PocketIncoming[] }>("studioPocketExport");
-      const next = applyDownload(rows, data.bookings || []);
+      const incoming = data.bookings || [];
+      const next = applyDownload(rows, incoming);
       await persist(next);
-      setBanner("بارگذاری کامل شد");
+      setBanner(incoming.length ? `بارگذاری کامل شد. ${toFaDigits(incoming.length)} نوبت روی روزها نشست.` : "از سرور نوبتی نیامد.");
       toast.success("بارگذاری کامل شد");
     } catch (error) {
       toast.error(friendlyError(error));
@@ -178,19 +183,20 @@ function PocketCalendarPage() {
         </div>
         <div className="grid grid-cols-7 px-2 pb-4">
           {cells.map((cell) => {
-            const count = counts.get(cell.dayKey) || 0;
-            const active = cell.dayKey === selected;
+            const key = jalaliKey(cell);
+            const count = counts.get(key) || 0;
+            const active = key === selected;
             const friday = cell.satIndex === 6;
             return (
               <button
                 key={cell.dayKey}
                 type="button"
                 className={`relative grid h-12 place-items-center text-lg font-bold ${cell.inMonth ? "" : "invisible"} ${active ? "rounded-full bg-white text-pocket" : ""} ${friday && !active ? "text-pocket-friday" : ""}`}
-                onClick={() => cell.inMonth && openDay(cell.dayKey)}
+                onClick={() => cell.inMonth && openDay(key)}
               >
                 {cell.inMonth ? toFaDigits(cell.jd) : ""}
                 {count > 0 && cell.inMonth ? <span className={`absolute bottom-1 size-1.5 rounded-full ${active ? "bg-pocket-mark" : "bg-white"}`} /> : null}
-                {count === 0 && cell.dayKey === todayKey && !active ? <span className="absolute bottom-1 size-1.5 rounded-full bg-pocket-mark" /> : null}
+                {count === 0 && key === todayKey && !active ? <span className="absolute bottom-1 size-1.5 rounded-full bg-pocket-mark" /> : null}
               </button>
             );
           })}
