@@ -7,6 +7,9 @@ export type PocketBooking = {
   placement: string;
   time: string;
   note: string;
+  priceToman?: number;
+  sizeCm?: string;
+  photo?: string;
   serverId: string | null;
   pinned: boolean;
 };
@@ -93,6 +96,9 @@ export function applyDownload(local: PocketBooking[], incoming: PocketIncoming[]
       style: item.style,
       placement: item.placement,
       note: existing?.note || "",
+      priceToman: existing?.priceToman || 0,
+      sizeCm: existing?.sizeCm || "",
+      photo: existing?.photo || "",
       pinned: false,
     });
   }

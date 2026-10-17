@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { JALALI_MONTHS, gregorianToJalali, jalaliMonthGrid, jalaliMonthLength, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { tehranClock } from "@/lib/hours";
 import { applyDownload, listPocketBookings, newPocketId, savePocketBookings, type PocketBooking, type PocketIncoming } from "@/lib/pocket-book";
 import { friendlyError, saveAction } from "@/lib/save";
 
@@ -28,10 +27,24 @@ type Draft = {
   placement: string;
   time: string;
   note: string;
+  price: string;
+  size: string;
+  photo: string;
 };
 
 function emptyDraft(): Draft {
-  return { id: "", name: "", phone: "", style: "", placement: "", time: "", note: "" };
+  return { id: "", name: "", phone: "", style: "", placement: "", time: "", note: "", price: "", size: "", photo: "" };
+}
+
+function tehranYmd(date = new Date()) {
+  const shifted = new Date(date.getTime() + 3.5 * 60 * 60 * 1000);
+  return { y: shifted.getUTCFullYear(), m: shifted.getUTCMonth() + 1, d: shifted.getUTCDate() };
+}
+
+function tomanText(value: number | undefined) {
+  const amount = Math.round(Number(value) || 0);
+  if (!amount) return "";
+  return `${toFaDigits(new Intl.NumberFormat("en-US").format(amount))} تومان`;
 }
 
 function dayKey(jy: number, jm: number, jd: number) {
@@ -43,8 +56,8 @@ function jalaliKey(cell: { jy: number; jm: number; jd: number }) {
 }
 
 function PocketCalendarPage() {
-  const clock = tehranClock();
-  const todayJ = gregorianToJalali(clock.y, clock.m, clock.day);
+  const clock = tehranYmd();
+  const todayJ = gregorianToJalali(clock.y, clock.m, clock.d);
   const todayKey = dayKey(todayJ.jy, todayJ.jm, todayJ.jd);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
   const [selected, setSelected] = useState(todayKey);
@@ -117,6 +130,9 @@ function PocketCalendarPage() {
       placement: draft.placement.trim(),
       time: draft.time,
       note: draft.note.trim(),
+      priceToman: Number(draft.price.replace(/\D/g, "")) || 0,
+      sizeCm: draft.size.trim(),
+      photo: draft.photo,
       serverId: rows.find((row) => row.id === draft.id)?.serverId ?? null,
       pinned: true,
     };
@@ -222,12 +238,13 @@ function PocketCalendarPage() {
             {dayRows.map((row) => (
               <li key={row.id} className="rounded-2xl border border-border bg-surface p-3">
                 <p className="font-black">{row.name}</p>
+                {row.photo ? <img src={row.photo} alt="" className="mt-2 h-24 w-24 rounded-xl object-cover" /> : null}
                 <p className="mt-1 text-sm leading-6 text-muted">
-                  {[row.time, row.style, row.placement, row.phone].filter(Boolean).join(" · ")}
+                  {[row.time, row.style, row.sizeCm ? `${row.sizeCm} سانتی` : "", row.placement, tomanText(row.priceToman), row.phone].filter(Boolean).join(" · ")}
                 </p>
                 {row.note ? <p className="mt-1 text-sm leading-6">{row.note}</p> : null}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" className="h-10 rounded-xl border border-border px-3 text-sm font-bold" onClick={() => setDraft({ id: row.id, name: row.name, phone: row.phone, style: row.style, placement: row.placement, time: row.time, note: row.note })}>
+                  <button type="button" className="h-10 rounded-xl border border-border px-3 text-sm font-bold" onClick={() => setDraft({ id: row.id, name: row.name, phone: row.phone, style: row.style, placement: row.placement, time: row.time, note: row.note, price: row.priceToman ? String(row.priceToman) : "", size: row.sizeCm || "", photo: row.photo || "" })}>
                     ویرایش
                   </button>
                   <button type="button" className="h-10 rounded-xl border border-border px-3 text-sm font-bold" onClick={() => setMovingId(row.id)}>
@@ -248,6 +265,30 @@ function PocketCalendarPage() {
               <input className="h-12 rounded-xl border border-border bg-surface px-3" placeholder="طرح" value={draft.style} onChange={(event) => setDraft({ ...draft, style: event.target.value })} />
               <input className="h-12 rounded-xl border border-border bg-surface px-3" placeholder="محل روی بدن" value={draft.placement} onChange={(event) => setDraft({ ...draft, placement: event.target.value })} />
               <input className="h-12 rounded-xl border border-border bg-surface px-3" type="time" value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })} />
+              <input className="h-12 rounded-xl border border-border bg-surface px-3" placeholder="اندازه طرح به سانتی‌متر" value={draft.size} onChange={(event) => setDraft({ ...draft, size: event.target.value })} />
+              <input className="h-12 rounded-xl border border-border bg-surface px-3" placeholder="قیمت به تومان" inputMode="numeric" value={draft.price} onChange={(event) => setDraft({ ...draft, price: event.target.value.replace(/\D/g, "") })} />
+              <label className="grid gap-2 text-sm font-bold">
+                عکس طرح
+                <input className="h-12" type="file" accept="image/*" onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                      const scale = Math.min(1, 720 / Math.max(img.width, img.height));
+                      const canvas = document.createElement("canvas");
+                      canvas.width = Math.max(1, Math.round(img.width * scale));
+                      canvas.height = Math.max(1, Math.round(img.height * scale));
+                      canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
+                      setDraft((current) => current ? { ...current, photo: canvas.toDataURL("image/jpeg", 0.72) } : current);
+                    };
+                    img.src = String(reader.result || "");
+                  };
+                  reader.readAsDataURL(file);
+                }} />
+                {draft.photo ? <img src={draft.photo} alt="" className="h-24 w-24 rounded-xl object-cover" /> : null}
+              </label>
               <textarea className="min-h-20 rounded-xl border border-border bg-surface px-3 py-2" placeholder="یادداشت" value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} />
               <div className="flex gap-2">
                 <button type="submit" className="h-12 flex-1 rounded-xl bg-primary font-bold text-primary-fg">ذخیره</button>
