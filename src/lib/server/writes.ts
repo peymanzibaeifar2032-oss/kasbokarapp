@@ -3536,6 +3536,167 @@ async function performStudioPocketExport(userId: string) {
   };
 }
 
+async function performStudioPocketImport(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  const data = z.object({
+    rows: z.array(z.object({
+      id: z.string().max(80),
+      serverId: z.string().max(80).nullable().optional(),
+      day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      time: z.string().max(8).optional(),
+      name: z.string().trim().min(2).max(80),
+      phone: z.string().max(40).optional(),
+      style: z.string().max(80).optional(),
+      placement: z.string().max(120).optional(),
+      size: z.string().max(60).optional(),
+      price: z.string().max(24).optional(),
+      deposit: z.string().max(24).optional(),
+      sessions: z.string().max(8).optional(),
+      note: z.string().max(500).optional(),
+      color: z.string().max(40).optional(),
+      needle: z.string().max(40).optional(),
+    })).max(400),
+  }).parse(raw);
+  const sql = await getSql();
+  const current = await performStudioPocketExport(userId);
+  const occupied = new Set(current.bookings.map((row) => row.day));
+  const known = new Set(current.bookings.map((row) => row.serverId));
+  const businessId = actor.role === "artist"
+    ? await ensureStudioShop(sql, actor.ownerUserId)
+    : await ensureStudioShop(sql, userId);
+  const used = new Map<string, Set<number>>();
+  const linked: { id: string; serverId: string }[] = [];
+  const errors: string[] = [];
+  let created = 0;
+  let skippedDay = 0;
+  let skippedKnown = 0;
+  for (const row of data.rows) {
+    if (row.serverId && known.has(row.serverId)) {
+      skippedKnown += 1;
+      continue;
+    }
+    if (occupied.has(row.day)) {
+      skippedDay += 1;
+      continue;
+    }
+    try {
+      const serverId = await insertPocketBooking(sql, actor, userId, businessId, row, used);
+      created += 1;
+      linked.push({ id: row.id, serverId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "ثبت نشد";
+      if (errors.length < 6) errors.push(`${row.name}: ${message}`);
+    }
+  }
+  return { created, skippedDay, skippedKnown, linked, errors };
+}
+
+async function insertPocketBooking(
+  sql: Awaited<ReturnType<typeof getSql>>,
+  actor: Awaited<ReturnType<typeof requireStudioStaff>>,
+  userId: string,
+  businessId: string,
+  row: {
+    day: string;
+    time?: string;
+    name: string;
+    phone?: string;
+    style?: string;
+    placement?: string;
+    size?: string;
+    price?: string;
+    deposit?: string;
+    sessions?: string;
+    note?: string;
+    color?: string;
+    needle?: string;
+  },
+  used: Map<string, Set<number>>,
+) {
+  const [jy, jm, jd] = row.day.split("-").map(Number);
+  const gregorian = jalaliToGregorian(jy, jm, jd);
+  const match = /^(\d{1,2}):(\d{2})/.exec(row.time || "");
+  let minutes = match ? Math.min(23, Number(match[1])) * 60 + Math.min(59, Number(match[2])) : 11 * 60;
+  const taken = used.get(row.day) || new Set<number>();
+  while (taken.has(minutes) && minutes < 23 * 60) minutes += 180;
+  taken.add(minutes);
+  used.set(row.day, taken);
+  const start = tehranLocalToIso(gregorian.gy, gregorian.gm, gregorian.gd, Math.floor(minutes / 60), minutes % 60);
+  const end = new Date(Date.parse(start) + 180 * 60000).toISOString();
+  const price = Math.min(2_000_000_000, Math.max(0, Number(String(row.price || "").replace(/\D/g, "")) || 0));
+  const paid = Math.min(price || 2_000_000_000, Math.max(0, Number(String(row.deposit || "").replace(/\D/g, "")) || 0));
+  const sessions = Math.min(20, Math.max(1, Number(String(row.sessions || "").replace(/\D/g, "")) || 1));
+  let phone: string | null = null;
+  if (row.phone?.trim()) {
+    const normalized = normalizeIranPhone(row.phone);
+    if (isIranMobile(normalized)) phone = normalized;
+  }
+  if (!phone) throw new Error("شماره موبایل معتبر نیست و منتقل نشد");
+  const style = (row.style || "").trim().length >= 2 ? row.style!.trim() : "طرح";
+  const placement = (row.placement || "").trim().length >= 2 ? row.placement!.trim() : "بدن";
+  const idea = [row.note, row.color ? `رنگ ${row.color}` : "", row.needle ? `سوزن ${row.needle}` : ""].filter(Boolean).join("\n") || null;
+  const settled = price > 0 && paid >= price;
+  const bookingId = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
+  const paymentId = crypto.randomUUID();
+  let tracking = makeTattooTrackingCode();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await sql.query(
+        `with book as (
+           insert into bookings (id, business_id, customer_id, customer_name, customer_phone, slot_start, slot_end, kind, source, event_type, note, status, service_title, party_size, resource_id, staff_id, finance_status, artist_id)
+           values ($1,$2,null,$3,$4,$5,$6,'booking','manual','manual',$7,'confirmed',$8,1,null,null,$9,$10)
+           returning id
+         ),
+         req as (
+           insert into tattoo_requests
+             (id, tracking_code, customer_id, business_id, booking_id, customer_name, customer_phone, request_type, style, idea, placement,
+              size_cm, status, price_min_toman, session_minutes, session_count, deposit_toman, artist_message,
+              payment_status, proposed_slot_start, proposed_slot_end, paid_toman, settled, reference_images, artist_id, is_continuation)
+           select $11,$12,$13,$2,book.id,$3,$4,'new',$8,$14,$15,$16,'booked',$17,180,$18,$19,$20,'approved',$5,$6,$19,$21,'[]'::jsonb,$10,false
+           from book
+           returning id
+         )
+         insert into tattoo_payments (id, request_id, amount_toman, note)
+         select $22, req.id, $19, 'واریز منتقل‌شده از تقویم گوشی' from req where $19 > 0`,
+        [
+          bookingId,
+          businessId,
+          row.name.trim(),
+          phone,
+          start,
+          end,
+          idea,
+          style,
+          settled ? "fully_paid" : paid > 0 ? "deposit_paid" : "no_payment_required",
+          actor.artistId,
+          requestId,
+          tracking,
+          userId,
+          idea,
+          placement,
+          (row.size || "").trim() || "نامشخص",
+          price,
+          sessions,
+          paid,
+          "انتقال از تقویم گوشی",
+          settled,
+          paymentId,
+        ],
+      );
+      return requestId;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (attempt < 3 && /unique|duplicate/i.test(message)) {
+        tracking = makeTattooTrackingCode();
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("ثبت نشد");
+}
+
 async function performUpdateStudioJob(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z.object({
@@ -4603,6 +4764,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performDeleteStudioPayment(userId, payload);
     case "studioPocketExport":
       return performStudioPocketExport(userId);
+    case "studioPocketImport":
+      return performStudioPocketImport(userId, payload);
     case "updateStudioJob":
       return performUpdateStudioJob(userId, payload);
     case "swapStudioJobs":
