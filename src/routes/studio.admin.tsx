@@ -2383,7 +2383,13 @@ function MonthJobsPanel({
     .sort((a, b) => jobStamp(a, bookings) - jobStamp(b, bookings));
   const chronological = span === "month" || (span === "week" && weekOffset >= 0);
   const orderedJobs = [...visibleJobs].sort((a, b) => jobStamp(a, bookings) - jobStamp(b, bookings));
-  const dayGroups = groupByDay(chronological ? orderedJobs : upcomingJobs, bookings);
+  const startAtToday = span === "month" && month.jy === todayJ.jy && month.jm === todayJ.jm && !jobQuery.trim();
+  const listedJobs = startAtToday
+    ? orderedJobs.filter((job) => jobDayKey(job, bookings) >= todayKey)
+    : chronological
+      ? orderedJobs
+      : upcomingJobs;
+  const dayGroups = groupByDay(listedJobs, bookings);
   const pastWeek = span === "week" && weekOffset < 0;
   const focusedPast = pastWeek || span === "yesterday";
   const pastWeekLabel =
@@ -2533,6 +2539,21 @@ function MonthJobsPanel({
         </div>
       ) : null}
       {loading ? <p className="text-sm text-muted">{span === "yesterday" ? "در حال دریافت دیروز…" : span === "week" ? "در حال دریافت لیست هفته…" : "در حال دریافت لیست ماه…"}</p> : null}
+      {span === "month" && viewingToday && !jobQuery.trim() ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-bold text-muted">{dayHeading(todayKey)} · امروز</p>
+          <button type="button" className="rounded-xl border border-border bg-surface px-3 py-2 text-sm font-bold" onClick={() => setSpan("yesterday")}>دیروز</button>
+        </div>
+      ) : null}
+      {startAtToday && !loading && !listedJobs.length ? (
+        <p className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">از امروز به بعد در این ماه نوبتی نیست. دیروز را از دکمهٔ بالا ببین.</p>
+      ) : null}
+      {span === "yesterday" ? (
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-bold text-muted">دیروز</p>
+          <button type="button" className="rounded-xl border border-border bg-surface px-3 py-2 text-sm font-bold" onClick={() => setSpan("month")}>امروز</button>
+        </div>
+      ) : null}
       {!loading && !jobs.length && !focusedPast ? (
         <p className="rounded-2xl border border-border bg-surface p-5 text-sm leading-7 text-muted">
           {span === "week"
@@ -2559,11 +2580,8 @@ function MonthJobsPanel({
         return (
         <div key={group.day} className="grid gap-4">
           {showTodayBefore ? <DayGap day={todayKey} jobs={[]} waiting={waiting} /> : null}
-          {chronological ? (
-            <p className="text-sm font-bold text-muted">
-              {dayHeading(group.day)}
-              {group.day === todayKey ? " · امروز" : ""}
-            </p>
+          {chronological && !(span === "month" && viewingToday && !jobQuery.trim() && group.day === todayKey) ? (
+            <p className="text-sm font-bold text-muted">{dayHeading(group.day)}</p>
           ) : null}
           {group.jobs.map((job) => (
             <MonthJobCard
