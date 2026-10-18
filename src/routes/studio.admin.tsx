@@ -17,6 +17,7 @@ import { ConsentBoard, drawConsentSheet, shrinkConsentSheet } from "@/components
 import { ReferralAdmin } from "@/components/studio/referral-admin";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
+import { GoalsBoard } from "@/components/studio/goals-board";
 import { SignedOutPanel } from "@/components/layout/auth-required";
 import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
@@ -65,9 +66,9 @@ import {
 import type { Booking, Business, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type PanelTab = "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists" | "consent" | "club";
+type PanelTab = "goals" | "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists" | "consent" | "club";
 
-const panelTabs: PanelTab[] = ["requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists", "consent", "club"];
+const panelTabs: PanelTab[] = ["goals", "requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists", "consent", "club"];
 
 export const Route = createFileRoute("/studio/admin")({
   validateSearch: (search: Record<string, unknown>): { tab?: PanelTab } => {
@@ -279,7 +280,7 @@ function StudioAdminPage() {
 
   function setTab(next: PanelTab) {
     setTabState(next);
-    if (next !== "calendar" && next !== "jobs" && next !== "requests" && next !== "money") setMoreOpen(true);
+    if (next !== "calendar" && next !== "jobs" && next !== "requests" && next !== "money" && next !== "goals") setMoreOpen(true);
     void navigate({ search: { tab: next }, replace: true });
   }
 
@@ -434,6 +435,7 @@ function StudioAdminPage() {
         <div className="flex w-full gap-1 overflow-x-auto rounded-2xl bg-[#1C3D52]/8 p-1">
           {(
             [
+              ...(owner ? [["goals", "مدیریت اهداف من"] as const] : []),
               ["calendar", "امروز"],
               ["jobs", "نوبت‌ها"],
               ["requests", `ورودی ${new Intl.NumberFormat("fa-IR").format(requests.length)}`],
@@ -491,6 +493,7 @@ function StudioAdminPage() {
         ) : null}
       </div>
 
+      {tab === "goals" && owner ? <GoalsBoard /> : null}
       {tab === "messages" ? <ReadyMessages /> : null}
       {tab === "consent" ? <ConsentBoard /> : null}
       {tab === "club" && owner ? <ReferralAdmin /> : null}

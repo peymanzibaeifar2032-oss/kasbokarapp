@@ -4866,6 +4866,35 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performSaveTattooPriceAnchor(userId, payload, requireAdmin);
     case "toggleTattooPriceAnchor":
       return performToggleTattooPriceAnchor(userId, payload, requireAdmin);
+    case "personalGoalBoard":
+    case "savePersonalGoal":
+    case "personalGoalStatus":
+    case "personalGoalArchive":
+    case "personalGoalDelete":
+    case "savePersonalTask":
+    case "togglePersonalTask":
+    case "savePersonalAction":
+    case "movePersonalAction":
+    case "savePersonalDayNote":
+    case "savePersonalDelay":
+    case "changePersonalDeadline":
+    case "savePersonalWeek": {
+      await requireAdmin(userId);
+      const goals = await import("@/lib/server/personal-goals");
+      if (type === "personalGoalBoard") return goals.performPersonalGoalBoard(userId);
+      if (type === "savePersonalGoal") return goals.performSavePersonalGoal(userId, payload);
+      if (type === "personalGoalStatus") return goals.performPersonalGoalStatus(userId, payload);
+      if (type === "personalGoalArchive") return goals.performPersonalGoalArchive(userId, payload);
+      if (type === "personalGoalDelete") return goals.performPersonalGoalDelete(userId, payload);
+      if (type === "savePersonalTask") return goals.performSavePersonalTask(userId, payload);
+      if (type === "togglePersonalTask") return goals.performTogglePersonalTask(userId, payload);
+      if (type === "savePersonalAction") return goals.performSavePersonalAction(userId, payload);
+      if (type === "movePersonalAction") return goals.performMovePersonalAction(userId, payload);
+      if (type === "savePersonalDayNote") return goals.performSavePersonalDayNote(userId, payload);
+      if (type === "savePersonalDelay") return goals.performSavePersonalDelay(userId, payload);
+      if (type === "changePersonalDeadline") return goals.performChangePersonalDeadline(userId, payload);
+      return goals.performSavePersonalWeek(userId, payload);
+    }
     case "favorites":
       return performFavorites(userId);
     case "favoriteToggle":
