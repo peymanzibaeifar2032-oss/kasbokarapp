@@ -52,6 +52,7 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
   const [designs, setDesigns] = useState<DraftDesign[]>([emptyDesign()]);
   const [busy, setBusy] = useState(false);
   const [placing, setPlacing] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [day, setDay] = useState("");
   const [time, setTime] = useState("12:00");
@@ -248,8 +249,24 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
         const tel2 = toTelLink(row.customerPhone2);
         const missedSms = toSmsLink(row.customerPhone, fillInMissedCallSms(row.customerName));
         return (
-          <article key={row.id} className="rounded-2xl border border-border p-4">
-            <strong className="inline-flex flex-wrap items-center gap-2">
+          <article key={row.id} className="rounded-2xl border border-border bg-surface px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-bold">{row.customerName}</p>
+                <p className="mt-1 text-xs text-muted">
+                  {row.sizeCm || "بدون اندازه"}
+                  {" · "}
+                  {row.paidToman ? formatTattooToman(row.paidToman) : "بدون بیعانه"}
+                </p>
+              </div>
+              <Button size="sm" className="shrink-0" onClick={() => openPlace(row.id)}>برو به نوبت</Button>
+            </div>
+            <button type="button" className="mt-2 text-xs font-bold text-[#1C3D52]" onClick={() => setOpenId(openId === row.id ? null : row.id)}>
+              {openId === row.id ? "بستن" : "جزئیات"}
+            </button>
+            {openId === row.id || placing === row.id ? (
+            <>
+            <strong className="mt-3 inline-flex flex-wrap items-center gap-2">
               {row.missedCount > 0 ? <UnreliableBadge /> : null}
               <span>{row.customerName}</span>
             </strong>
@@ -394,6 +411,8 @@ export function StudioFillInBoard({ bookings, onPlaced }: { bookings: Booking[];
                 ) : null}
               </div>
             )}
+            </>
+            ) : null}
           </article>
         );
       })}

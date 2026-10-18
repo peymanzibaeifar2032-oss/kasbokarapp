@@ -104,6 +104,7 @@ function ReadyMessages() {
   const [custom, setCustom] = useState<CustomMessage[]>([]);
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
+  const [composer, setComposer] = useState(false);
   useEffect(() => {
     setCustom(readCustomMessages());
   }, []);
@@ -183,8 +184,10 @@ function ReadyMessages() {
   ];
   return (
     <div className="mt-5 grid w-full min-w-0 max-w-full gap-3 overflow-x-hidden">
-      <p className="text-sm leading-7 text-muted">هر متن را با دکمهٔ کپی بردار و در پیام مشتری بفرست. متن خودت را هم همین‌جا اضافه کن.</p>
-      <section className="w-full min-w-0 rounded-2xl border border-border bg-surface p-4">
+      <p className="text-sm leading-7 text-muted">هر متن یک برگه است. کپی را بزن و در پیام مشتری بفرست.</p>
+      <Button type="button" variant="outline" onClick={() => setComposer((value) => !value)}>{composer ? "بستن" : "متن تازه"}</Button>
+      {composer ? (
+      <section className="w-full min-w-0 rounded-2xl border border-[#1C3D52]/15 bg-[#F4EFE6] p-4">
         <h3 className="text-sm font-bold">متن جدید</h3>
         <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="عنوان، مثلاً یادآوری فردا" className="mt-3" maxLength={80} />
         <Textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="متن پیام را بنویس" className="mt-2" maxLength={2000} />
@@ -192,6 +195,7 @@ function ReadyMessages() {
           ذخیره متن
         </Button>
       </section>
+      ) : null}
       {custom.map((box) => (
         <CopyBox key={box.id} title={box.title} text={box.text} onDelete={() => saveCustom(custom.filter((item) => item.id !== box.id))} />
       ))}
@@ -215,7 +219,7 @@ function CopyBox({ title, text, ltr, onDelete }: { title: string; text: string; 
     }
   }
   return (
-    <section className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-border bg-surface p-4">
+    <section className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-[#1C3D52]/10 bg-[#F4EFE6] p-4 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <h3 className="min-w-0 text-sm font-bold">{title}</h3>
         <div className="flex shrink-0 items-center gap-2">
@@ -267,6 +271,7 @@ function StudioAdminPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [tab, setTabState] = useState<PanelTab>(search.tab ?? "calendar");
+  const [moreOpen, setMoreOpen] = useState(false);
   const [filter, setFilter] = useState<RequestFilter>("active");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -274,6 +279,7 @@ function StudioAdminPage() {
 
   function setTab(next: PanelTab) {
     setTabState(next);
+    if (next !== "calendar" && next !== "jobs" && next !== "requests" && next !== "money") setMoreOpen(true);
     void navigate({ search: { tab: next }, replace: true });
   }
 
@@ -416,7 +422,7 @@ function StudioAdminPage() {
     <Shell>
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-[#6d28d9]">{ownPanel ? "پنل شخصی" : "استودیو"}</p>
+          <p className="text-sm font-semibold text-[#1C3D52]">{ownPanel ? "پنل شخصی" : "استودیو"}</p>
           <h1 className="text-2xl font-bold">{owner ? "میز کار" : panelName || "همکار"}</h1>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()}>
@@ -425,27 +431,48 @@ function StudioAdminPage() {
       </div>
 
       <div className="mt-4 grid gap-2">
-        {(
-          [
+        <div className="flex w-full gap-1 overflow-x-auto rounded-2xl bg-[#1C3D52]/8 p-1">
+          {(
             [
               ["calendar", "امروز"],
               ["jobs", "نوبت‌ها"],
               ["requests", `ورودی ${new Intl.NumberFormat("fa-IR").format(requests.length)}`],
-              ["contacts", "مشتریان"],
-            ],
-            [
               ["money", owner || ownPanel ? "صندوق" : "سهم من"],
-              ["fill", "انتظار"],
-              ["consent", "رضایت‌نامه"],
-              ["club", "باشگاه"],
-              ["apprentices", "هنرجوها"],
-              ["messages", "پیام‌ها"],
-              ["artists", "همکاران"],
-            ],
-          ] as const
-        ).map((row, rowIndex) => (
-          <div key={rowIndex} className="flex w-full gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1">
-            {row
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => { setMoreOpen(false); setTab(id); }}
+              className={cn(
+                "h-11 shrink-0 rounded-xl px-4 text-sm font-bold",
+                tab === id ? "bg-[#1C3D52] text-white shadow-sm" : "text-[#1C3D52]",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMoreOpen((value) => !value)}
+            className={cn("h-11 shrink-0 rounded-xl px-4 text-sm font-bold", moreOpen ? "bg-white text-[#1C3D52] shadow-sm" : "text-[#1C3D52]")}
+          >
+            بیشتر
+          </button>
+        </div>
+        {moreOpen ? (
+          <div className="flex w-full flex-wrap gap-1 rounded-2xl bg-slate-100 p-1">
+            {(
+              [
+                ["contacts", "مشتریان"],
+                ["fill", "انتظار"],
+                ["consent", "رضایت‌نامه"],
+                ["club", "باشگاه"],
+                ["apprentices", "هنرجوها"],
+                ["messages", "پیام‌ها"],
+                ["artists", "همکاران"],
+              ] as const
+            )
               .filter(([id]) => owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices")))
               .map(([id, label]) => (
                 <button
@@ -454,14 +481,14 @@ function StudioAdminPage() {
                   onClick={() => setTab(id)}
                   className={cn(
                     "h-11 shrink-0 rounded-xl px-4 text-sm font-bold",
-                    tab === id ? "bg-white text-black shadow-sm" : "text-muted",
+                    tab === id ? "bg-white text-[#1C3D52] shadow-sm" : "text-muted",
                   )}
                 >
                   {label}
                 </button>
               ))}
           </div>
-        ))}
+        ) : null}
       </div>
 
       {tab === "messages" ? <ReadyMessages /> : null}
@@ -779,7 +806,7 @@ function RequestChat({
             );
           }
           return (
-            <p key={line.id} className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-white" : "justify-self-end bg-[#2f80ed] text-white"}`}>
+            <p key={line.id} className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm leading-7 ${line.from === "desk" ? "justify-self-start bg-[#1C3D52] text-white" : "justify-self-end border border-[#2F6F68]/30 bg-[#F4EFE6] text-[#1C3D52]"}`}>
               {line.body}
             </p>
           );
@@ -853,8 +880,8 @@ function OfferSteps({
   ].filter(Boolean).join("\n");
   return (
     <div className="mt-2 grid gap-2">
-      <p className="justify-self-end rounded-2xl bg-[#2f80ed] px-3 py-2 text-sm leading-7 text-white">{summary}</p>
-      <p className="justify-self-start rounded-2xl bg-white px-3 py-2 text-sm font-bold">{question}</p>
+      <p className="justify-self-end rounded-2xl border border-[#2F6F68]/30 bg-[#F4EFE6] px-3 py-2 text-sm leading-7 text-[#1C3D52]">{summary}</p>
+      <p className="justify-self-start rounded-2xl bg-[#1C3D52] px-3 py-2 text-sm font-bold text-white">{question}</p>
       {step === "price" || step === "deposit" ? (
         <div className="flex gap-2">
           <Input
@@ -3285,6 +3312,7 @@ function MonthJobCard({
   const [moveTime, setMoveTime] = useState(tehranTimeInput(job.proposedSlotStart));
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [details, setDetails] = useState(false);
+  const [actions, setActions] = useState(false);
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
   const linked = bookings.find((booking) => booking.id === job.bookingId && booking.kind === "booking" && booking.status !== "cancelled");
   const when = linked?.slotStart || job.proposedSlotStart || job.updatedAt;
@@ -3453,8 +3481,11 @@ function MonthJobCard({
     }
   }
 
+  const isToday = tehranDayKey(new Date(when)) === tehranDayKey();
+
   return (
-    <article className="rounded-3xl border border-border bg-surface p-4">
+    <article className={`relative overflow-hidden rounded-3xl border bg-surface p-4 ${isToday ? "border-[#1C3D52]" : "border-border"}`}>
+      {isToday ? <span className="absolute inset-y-0 right-0 w-1.5 bg-[#1C3D52]" /> : null}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="flex flex-wrap items-center gap-2 text-lg font-bold">
@@ -3462,24 +3493,23 @@ function MonthJobCard({
             {unreliable ? <UnreliableBadge /> : null}
             <span>{job.customerName}</span>
           </h3>
-          <p className="mt-1 text-sm">{formatFaDateTime(when)}</p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 text-base font-semibold">{formatFaDateTime(when)}</p>
+          <p className="mt-1 text-xs text-muted">
             {job.style}
             {job.placement ? ` · ${job.placement}` : ""}
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-2xl bg-[#e8f6ee] px-3 py-2">
-              <p className="text-xs text-[#1f8a4c]">واریزی</p>
-              <p className="font-bold text-[#1f8a4c]">{formatTattooToman(balance.paid)}</p>
-            </div>
-            <div className={`rounded-2xl px-3 py-2 ${balance.settled ? "bg-slate-100" : "bg-[#fde8e8]"}`}>
-              <p className={`text-xs ${balance.settled ? "text-muted" : "text-[#eb5757]"}`}>مانده</p>
-              <p className={`font-bold ${balance.settled ? "" : "text-[#eb5757]"}`}>{balance.settled ? "تسویه" : formatTattooToman(balance.remaining)}</p>
-            </div>
-          </div>
+          <p className="mt-2 text-sm">
+            <span className="font-bold text-[#1f8a4c]">واریزی {formatTattooToman(balance.paid)}</span>
+            <span className="mx-2 text-muted">·</span>
+            <span className={balance.settled ? "text-muted" : "font-bold text-[#eb5757]"}>{balance.settled ? "تسویه" : `مانده ${formatTattooToman(balance.remaining)}`}</span>
+          </p>
           {job.hasConsentImage ? <p className="mt-2 text-xs font-semibold text-accent">رضایت‌نامه ذخیره شده</p> : null}
         </div>
       </div>
+      <Button size="sm" variant="outline" className="mt-3" onClick={() => setActions((value) => !value)}>
+        {actions ? "بستن کارها" : "کارها"}
+      </Button>
+      {actions ? (
       <div className="mt-3 flex flex-wrap gap-2">
         <Button size="sm" disabled={busy} onClick={() => { setMoving((value) => !value); setConfirmDelete(false); }}>
           {moving ? "بستن انتقال" : "انتقال به روز دیگر"}
@@ -3496,6 +3526,7 @@ function MonthJobCard({
           کپی در لیست انتظار
         </Button>
       </div>
+      ) : null}
       {moving ? (
         <div className="mt-3 grid gap-3 rounded-2xl border border-border p-3">
           <p className="text-xs leading-6 text-muted">

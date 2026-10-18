@@ -375,8 +375,8 @@ export function ConsentBoard() {
 
   return (
     <section className="grid gap-4">
-      <article className="overflow-hidden rounded-3xl border border-border bg-surface">
-        <div className="h-2 bg-[#b7955b]" />
+      <article className="overflow-hidden rounded-3xl border border-[#1C3D52]/15 bg-[#F4EFE6] shadow-sm">
+        <div className="h-2 bg-[#1C3D52]" />
         <div className="p-4">
         <h2 className="text-lg font-bold">رضایت‌نامه</h2>
         <p className="mt-1 text-sm text-muted">برگه با امضا و اثر انگشت ساخته می‌شود.</p>
@@ -427,7 +427,7 @@ export function ConsentBoard() {
             <button
               key={row.code}
               type="button"
-              className="flex items-center justify-between rounded-2xl border border-border px-3 py-3 text-right text-sm"
+              className="flex items-center justify-between rounded-2xl border border-[#1C3D52]/10 bg-[#F4EFE6] px-3 py-3 text-right text-sm"
               onClick={() => {
                 setLookup(row.code);
                 void saveAction<ConsentRecord>("studioConsent", { code: row.code })

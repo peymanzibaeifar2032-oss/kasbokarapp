@@ -134,7 +134,7 @@ export function StudioApprenticeBoard() {
           {board.roster.map((person) => {
             const paid = board.payments.filter((row) => row.apprenticeId === person.id).reduce((sum, row) => sum + row.amountToman, 0);
             return (
-              <li key={person.id} className="grid gap-1 rounded-2xl border border-border bg-bg px-3 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
+              <li key={person.id} className="grid gap-1 rounded-2xl border border-[#1C3D52]/10 bg-[#F4EFE6] px-3 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
                 <span className="font-semibold">{person.name}</span>
                 <span>واریزی {formatTattooToman(paid)}</span>
                 <span className={person.debtToman > 0 ? "font-semibold text-destructive" : "text-muted"}>مانده {formatTattooToman(person.debtToman)}</span>
@@ -328,6 +328,7 @@ function todayApprenticeLabel() {
 }
 
 function ApprenticeSms({ phone, name }: { phone: string; name: string }) {
+  const [open, setOpen] = useState(false);
   function send(text: string) {
     const href = toSmsLink(phone, text);
     if (!href) return toast.error("شماره برای پیامک معتبر نیست.");
@@ -335,19 +336,26 @@ function ApprenticeSms({ phone, name }: { phone: string; name: string }) {
   }
   const day = todayApprenticeLabel();
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeJoinedSms("آقا", name, day))}>
-        ثبت هنرجو · آقا
-      </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeJoinedSms("خانم", name, day))}>
-        ثبت هنرجو · خانم
-      </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeThursdaySms())}>
-        آمادگی چهارشنبه
-      </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticePracticeSms())}>
-        تمرین روبیکا
-      </Button>
+    <div className="mt-2">
+      <button type="button" className="text-xs font-bold text-[#1C3D52]" onClick={() => setOpen((value) => !value)}>
+        {open ? "بستن پیامک" : "پیامک"}
+      </button>
+      {open ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeJoinedSms("آقا", name, day))}>
+            ثبت هنرجو · آقا
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeJoinedSms("خانم", name, day))}>
+            ثبت هنرجو · خانم
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticeThursdaySms())}>
+            آمادگی چهارشنبه
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => send(apprenticePracticeSms())}>
+            تمرین روبیکا
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

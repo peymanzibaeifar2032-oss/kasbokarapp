@@ -39,6 +39,7 @@ export function StudioMonthFinance() {
   const [category, setCategory] = useState<(typeof STUDIO_EXPENSE_CATEGORIES)[number]["id"]>("pocket");
   const [cadence, setCadence] = useState<"once" | "month" | "day">("day");
   const [busy, setBusy] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -153,12 +154,12 @@ export function StudioMonthFinance() {
       {summary ? (
         <div className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-3xl bg-[#2f80ed] p-4 text-white">
-              <p className="text-sm text-white/80">دریافتی دوره</p>
+            <div className="rounded-3xl bg-[#1f8a4c] p-4 text-white">
+              <p className="text-sm text-white/80">درآمد این ماه</p>
               <p className="mt-3 text-2xl font-bold tracking-tight">{formatPlainToman(paid)}</p>
             </div>
             <div className="rounded-3xl bg-[#eb5757] p-4 text-white">
-              <p className="text-sm text-white/80">هزینه دوره</p>
+              <p className="text-sm text-white/80">هزینه این ماه</p>
               <p className="mt-3 text-2xl font-bold tracking-tight">{formatPlainToman(spent)}</p>
             </div>
           </div>
@@ -250,8 +251,11 @@ export function StudioMonthFinance() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="rounded-3xl border border-border bg-surface p-4 sm:p-5">
-          <h3 className="font-bold">واریزی‌های این ماه</h3>
-          {!data?.payments.length ? (
+          <button type="button" className="flex w-full items-center justify-between gap-3 text-right" onClick={() => setPaymentsOpen((value) => !value)}>
+            <h3 className="font-bold">واریزی‌های این ماه</h3>
+            <span className="text-sm font-bold text-[#1C3D52]">{paymentsOpen ? "بستن" : "نمایش"}</span>
+          </button>
+          {!paymentsOpen ? null : !data?.payments.length ? (
             <p className="mt-3 text-sm leading-7 text-muted">این ماه واریزی ثبت نشده. پرداخت دستی لیست کار هم اینجا جمع می‌شود.</p>
           ) : (
             <ul className="mt-3 divide-y divide-border text-sm">
