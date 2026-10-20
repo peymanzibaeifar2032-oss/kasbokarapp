@@ -3309,6 +3309,7 @@ function MonthJobCard({
   );
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
+  const [payEdit, setPayEdit] = useState<{ id: string; amount: string; note: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [moving, setMoving] = useState(false);
   const [moveDay, setMoveDay] = useState(tehranDateInput(job.proposedSlotStart));
@@ -3399,6 +3400,23 @@ function MonthJobCard({
       toast.success(`واریز ثبت شد. مجموع ${formatTattooToman(next.paid)} و مانده ${formatTattooToman(next.remaining)}.`);
       setAmount("");
       setNote("");
+      onChange();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePaymentEdit() {
+    if (!payEdit) return;
+    const toman = Number(digitsOnly(payEdit.amount));
+    if (!toman) return toast.error("مبلغ واریز را بنویسید.");
+    setBusy(true);
+    try {
+      await saveAction("updateStudioPayment", { id: payEdit.id, amountToman: toman, note: payEdit.note.trim() });
+      toast.success("واریز اصلاح شد.");
+      setPayEdit(null);
       onChange();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -3774,10 +3792,22 @@ function MonthJobCard({
         {job.payments?.length ? (
           <ul className="mt-3 space-y-1 text-sm text-muted">
             {job.payments.map((payment) => (
-              <li key={payment.id}>
-                {formatTattooToman(payment.amountToman)}
-                {payment.note ? ` · ${payment.note}` : ""}
-                {payment.createdAt ? ` · ${formatFaDateTime(payment.createdAt)}` : ""}
+              <li key={payment.id} className="rounded-xl bg-bg px-3 py-2">
+                {payEdit?.id === payment.id ? (
+                  <div className="grid gap-2">
+                    <Input inputMode="numeric" dir="ltr" className="text-left" value={formatGroupedDigits(payEdit.amount)} onChange={(event) => setPayEdit({ ...payEdit, amount: digitsOnly(event.target.value) })} />
+                    <Input value={payEdit.note} onChange={(event) => setPayEdit({ ...payEdit, note: event.target.value })} placeholder="یادداشت" />
+                    <button type="button" className="text-sm font-bold text-[#1C3D52]" disabled={busy} onClick={() => void savePaymentEdit()}>ذخیره اصلاح</button>
+                  </div>
+                ) : (
+                  <span className="flex items-center justify-between gap-2">
+                    <span>
+                      {formatTattooToman(payment.amountToman)}
+                      {payment.note ? ` · ${payment.note}` : ""}
+                    </span>
+                    <button type="button" className="text-xs font-bold text-[#1C3D52]" onClick={() => setPayEdit({ id: payment.id, amount: String(payment.amountToman), note: payment.note || "" })}>ویرایش</button>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

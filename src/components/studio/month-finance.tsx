@@ -40,6 +40,8 @@ export function StudioMonthFinance() {
   const [cadence, setCadence] = useState<"once" | "month" | "day">("day");
   const [busy, setBusy] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [editId, setEditId] = useState("");
+  const [editAmount, setEditAmount] = useState("");
 
   async function load() {
     setLoading(true);
@@ -80,6 +82,23 @@ export function StudioMonthFinance() {
       );
       setTitle("");
       setAmount("");
+      await load();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePayment(id: string) {
+    const toman = Number(digitsOnly(editAmount));
+    if (!toman) return toast.error("مبلغ درست را بنویس.");
+    setBusy(true);
+    try {
+      await saveAction("updateStudioPayment", { id, amountToman: toman });
+      toast.success("واریز اصلاح شد.");
+      setEditId("");
+      setEditAmount("");
       await load();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -272,10 +291,18 @@ export function StudioMonthFinance() {
                     </p>
                   </div>
                   <div className="text-left">
-                    <p className="font-bold text-[#1f8a4c]">{formatPlainToman(row.amountToman)}</p>
-                    <button type="button" className="text-xs text-muted" disabled={busy} onClick={() => void removePayment(row.id)}>
-                      حذف
-                    </button>
+                    {editId === row.id ? (
+                      <div className="grid gap-1">
+                        <Input value={editAmount} inputMode="numeric" dir="ltr" className="h-9 w-28 text-left" onChange={(event) => setEditAmount(formatGroupedDigits(digitsOnly(event.target.value)))} />
+                        <button type="button" className="text-xs font-bold text-[#1C3D52]" disabled={busy} onClick={() => void savePayment(row.id)}>ذخیره</button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-bold text-[#1f8a4c]">{formatPlainToman(row.amountToman)}</p>
+                        <button type="button" className="text-xs font-bold text-[#1C3D52]" disabled={busy} onClick={() => { setEditId(row.id); setEditAmount(formatGroupedDigits(String(row.amountToman))); }}>ویرایش</button>
+                        <button type="button" className="mr-2 text-xs text-muted" disabled={busy} onClick={() => void removePayment(row.id)}>حذف</button>
+                      </>
+                    )}
                   </div>
                 </li>
               ))}
