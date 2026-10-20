@@ -51,7 +51,7 @@ import {
   studioActor,
   type StudioActor,
 } from "@/lib/server/studio-artists";
-import { occupiedDayKeys } from "@/lib/server/studio-open-days";
+import { dayAlreadyTaken, occupiedDayKeys } from "@/lib/server/studio-open-days";
 import { performListStudioConsents, performSaveStudioConsent, performStudioConsent } from "@/lib/server/studio-consent";
 import { summarizeCustomerFiles, type FileSample } from "@/lib/customer-file-summary";
 import { STUDIO_EXPENSE_CATEGORIES, accountTotals, countedDailyDays, dailyExpenseNote, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
@@ -3814,6 +3814,8 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
       }
       throw new Error(studioClashMessage(clash));
     }
+    const taken = await dayAlreadyTaken(sql, start.toISOString(), current[0].booking_id, panelClashScope(actor));
+    if (taken) throw new Error(`این روز را ${taken.customer_name || "یک مشتری"} گرفته، حتی برای یک ساعت. روز دیگری را انتخاب کن.`);
     await sql.query(
       `update tattoo_requests
           set proposed_slot_start=$2, proposed_slot_end=$3, session_minutes=$4, updated_at=now()
@@ -4214,6 +4216,8 @@ async function performCreateStudioJob(userId: string, raw: unknown) {
   const note = data.continuation ? "ادامه کار" : "ثبت دستی از تقویم کاری";
   const clash = await findStudioClash(sql, businessId, start.toISOString(), slotEnd, null, resourceId, panelClashScope(actor));
   if (clash) throw new Error(studioClashMessage(clash));
+  const taken = await dayAlreadyTaken(sql, start.toISOString(), null, panelClashScope(actor));
+  if (taken) throw new Error(`این روز را ${taken.customer_name || "یک مشتری"} گرفته، حتی برای یک ساعت. روز دیگری را انتخاب کن.`);
   if (paid > 0 && !data.continuation) {
     const repeat = await findRepeatDeposit(sql, phone, phone2, paid);
     if (repeat && !data.fillInId) throw new Error(repeatDepositMessage(repeat.name, paid));
@@ -4376,6 +4380,8 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   );
   if (clash && !samePerson) throw new Error(studioClashMessage(clash));
   const own = samePerson ? clash : null;
+  const taken = await dayAlreadyTaken(sql, start.toISOString(), own?.id ?? null, panelClashScope(actor));
+  if (taken && !samePerson) throw new Error(`این روز را ${taken.customer_name || "یک مشتری"} گرفته، حتی برای یک ساعت. روز دیگری را انتخاب کن.`);
   let bookingId = own?.id ?? crypto.randomUUID();
   let createdBooking = false;
   if (own) {
