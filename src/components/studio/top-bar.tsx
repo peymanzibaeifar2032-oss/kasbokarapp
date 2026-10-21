@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bell } from "lucide-react";
+import { Mark } from "@/components/studio/marks";
 import { useEffect, useState } from "react";
 import { StudioNoticeBanner, useStudioNotices } from "@/components/studio/notice-watcher";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
@@ -32,13 +32,16 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
             </button>
             {menuOpen ? (
               <nav className="mt-3 grid grid-cols-2 gap-2" aria-label="منوی استودیو">
-                <Link to="/studio/request" className={`flex h-14 items-center justify-center rounded-2xl text-sm font-bold ${light ? "bg-[#2f80ed] text-white" : "bg-[#b7955b] text-black"}`}>
+                <Link to="/studio/request" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm font-bold ${light ? "bg-[#2f80ed] text-white" : "bg-[#b7955b] text-black"}`}>
+                  <Mark name="request" className="size-4" />
                   درخواست نوبت
                 </Link>
-                <Link to="/studio/status" className={`flex h-14 items-center justify-center rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}>
+                <Link to="/studio/status" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}>
+                  <Mark name="status" className="size-4" />
                   وضعیت نوبت{unread > 0 ? ` · ${new Intl.NumberFormat("fa-IR").format(unread)}` : ""}
                 </Link>
-                <Link to="/studio/open" className={`col-span-2 flex h-14 items-center justify-center rounded-2xl text-sm font-bold ${light ? "bg-emerald-50 text-emerald-900" : "bg-emerald-500/20 text-emerald-50"}`}>
+                <Link to="/studio/open" className={`col-span-2 flex h-14 items-center justify-center gap-2 rounded-2xl text-sm font-bold ${light ? "bg-emerald-50 text-emerald-900" : "bg-emerald-500/20 text-emerald-50"}`}>
+                  <Mark name="open" className="size-4" />
                   روزهای خالی
                 </Link>
                 <button
@@ -50,10 +53,10 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
                 </button>
                 {moreOpen ? (
                   <>
-                    <Link to="/studio/club" className={`flex h-14 items-center justify-center rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}>باشگاه</Link>
-                    <Link to="/studio/care" className={`flex h-14 items-center justify-center rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}>مراقبت</Link>
-                    <Link to="/studio/guide" className={`flex h-14 items-center justify-center rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}>آموزش فرم</Link>
-                    <Link to="/studio/designs" className={`flex h-14 items-center justify-center rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}>انتخاب طرح</Link>
+                    <Link to="/studio/club" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}><Mark name="club" className="size-4" />باشگاه</Link>
+                    <Link to="/studio/care" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}><Mark name="care" className="size-4" />مراقبت</Link>
+                    <Link to="/studio/guide" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}><Mark name="guide" className="size-4" />آموزش فرم</Link>
+                    <Link to="/studio/designs" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}><Mark name="designs" className="size-4" />انتخاب طرح</Link>
                   </>
                 ) : null}
                 <a href={ADMIN_URL} className={`col-span-2 flex h-14 items-center justify-center rounded-2xl text-sm font-bold ${light ? "bg-[#1c3d52] text-white" : "bg-black text-[#b7955b]"}`}>
@@ -86,13 +89,14 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
                 to="/studio/request"
                 className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl px-3 text-sm font-bold ${light ? "bg-[#2f80ed] text-white" : "bg-[#b7955b] text-black"}`}
               >
+                <Mark name="request" className="size-4" />
                 درخواست
               </Link>
               <Link
                 to="/studio/status"
                 className={`relative inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-[#b7955b]/45 text-[#e5d2ae]"}`}
               >
-                <Bell className="size-4" />
+                <Mark name="bell" className="size-4" />
                 وضعیت
                 {unread > 0 ? (
                   <span className={`absolute -left-1 -top-1 min-w-4 rounded-full px-1 text-center text-[10px] font-bold ${light ? "bg-[#eb5757] text-white" : "bg-[#b7955b] text-black"}`}>
@@ -102,8 +106,9 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
               </Link>
               <Link
                 to="/studio/open"
-                className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-sm ${light ? "border-emerald-200 text-emerald-800" : "border-emerald-300/40 text-emerald-100"}`}
+                className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-emerald-200 text-emerald-800" : "border-emerald-300/40 text-emerald-100"}`}
               >
+                <Mark name="open" className="size-4" />
                 روز خالی
               </Link>
               <button
@@ -111,14 +116,15 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
                 className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}
                 onClick={() => setMoreOpen((open) => !open)}
               >
+                <Mark name="more" className="size-4" />
                 {moreOpen ? "بستن" : "بیشتر"}
               </button>
               {moreOpen ? (
                 <>
-                  <Link to="/studio/club" className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-[#b7955b]/40 text-[#e5d2ae]"}`}>باشگاه</Link>
-                  <Link to="/studio/care" className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}>مراقبت</Link>
-                  <Link to="/studio/guide" className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}>آموزش</Link>
-                  <Link to="/studio/designs" className={`inline-flex h-12 items-center justify-center rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}>طرح</Link>
+                  <Link to="/studio/club" className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-[#b7955b]/40 text-[#e5d2ae]"}`}><Mark name="club" className="size-4" />باشگاه</Link>
+                  <Link to="/studio/care" className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}><Mark name="care" className="size-4" />مراقبت</Link>
+                  <Link to="/studio/guide" className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}><Mark name="guide" className="size-4" />آموزش</Link>
+                  <Link to="/studio/designs" className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}><Mark name="designs" className="size-4" />طرح</Link>
                 </>
               ) : null}
               </nav>

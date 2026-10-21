@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Copy, CreditCard, FileDown, RefreshCw } from "lucide-react";
+import { Mark, type MarkName } from "@/components/studio/marks";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { OwnerCalendar } from "@/components/calendar/owner-calendar";
@@ -260,6 +261,21 @@ function CopyLine({ line, ltr }: { line: string; ltr?: boolean }) {
   return <p className="break-words">{line}</p>;
 }
 
+const tabMark: Record<string, MarkName> = {
+  goals: "goals",
+  calendar: "today",
+  jobs: "jobs",
+  requests: "inbox",
+  money: "money",
+  contacts: "contacts",
+  fill: "wait",
+  consent: "consent",
+  club: "club",
+  apprentices: "apprentice",
+  messages: "messages",
+  artists: "artists",
+};
+
 function StudioAdminPage() {
   const { user, isPending, sessionError, retry } = useCurrentUserState();
   const search = Route.useSearch();
@@ -450,18 +466,20 @@ function StudioAdminPage() {
               type="button"
               onClick={() => { setMoreOpen(false); setTab(id); }}
               className={cn(
-                "h-11 shrink-0 rounded-xl px-4 text-sm font-bold",
+                "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold",
                 tab === id ? "bg-[#1C3D52] text-white shadow-sm" : "text-[#1C3D52]",
               )}
             >
+              <Mark name={tabMark[id]} className="size-4" />
               {label}
             </button>
           ))}
           <button
             type="button"
             onClick={() => setMoreOpen((value) => !value)}
-            className={cn("h-11 shrink-0 rounded-xl px-4 text-sm font-bold", moreOpen ? "bg-white text-[#1C3D52] shadow-sm" : "text-[#1C3D52]")}
+            className={cn("inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold", moreOpen ? "bg-white text-[#1C3D52] shadow-sm" : "text-[#1C3D52]")}
           >
+            <Mark name="more" className="size-4" />
             بیشتر
           </button>
         </div>
@@ -485,10 +503,11 @@ function StudioAdminPage() {
                   type="button"
                   onClick={() => setTab(id)}
                   className={cn(
-                    "h-11 shrink-0 rounded-xl px-4 text-sm font-bold",
+                    "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold",
                     tab === id ? "bg-white text-[#1C3D52] shadow-sm" : "text-muted",
                   )}
                 >
+                  <Mark name={tabMark[id]} className="size-4" />
                   {label}
                 </button>
               ))}

@@ -1,17 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  CalendarDays,
-  CheckCircle2,
-  ChevronDown,
-  CircleDollarSign,
-  Clock3,
-  Instagram,
-  MapPin,
-  ShieldCheck,
-  Sparkles,
-  Upload,
-} from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, ChevronDown, Instagram, MapPin, ShieldCheck, Sparkles } from "lucide-react";
+import { Mark, type MarkName } from "@/components/studio/marks";
 import { StudioTopBar } from "@/components/studio/top-bar";
 import { StudioGuideGallery } from "@/components/studio/guide-gallery";
 import { useStudioAdminEntry } from "@/components/studio/use-studio-admin";
@@ -20,10 +9,10 @@ export const Route = createFileRoute("/studio")({
   component: StudioLanding,
 });
 
-const services = [
-  { title: "رئال و بلک‌اندگری", text: "طراحی اختصاصی با تمرکز بر کنتراست، جزئیات و هیلد تمیز." },
-  { title: "کاور و بازطراحی", text: "بررسی تاتوی قبلی، فرم بدن و ساخت راه‌حل اجرایی برای پوشش حرفه‌ای." },
-  { title: "مشاوره و آموزش", text: "مشاوره تخصصی طرح و دوره‌های آموزشی ساختاریافته برای هنرجویان." },
+const services: { title: string; text: string; mark: MarkName }[] = [
+  { title: "رئال و بلک‌اندگری", text: "طراحی اختصاصی با تمرکز بر کنتراست، جزئیات و هیلد تمیز.", mark: "designs" },
+  { title: "کاور و بازطراحی", text: "بررسی تاتوی قبلی، فرم بدن و ساخت راه‌حل اجرایی برای پوشش حرفه‌ای.", mark: "studio" },
+  { title: "مشاوره و آموزش", text: "مشاوره تخصصی طرح و دوره‌های آموزشی ساختاریافته برای هنرجویان.", mark: "guide" },
 ];
 
 const steps = [
@@ -130,7 +119,7 @@ function StudioLanding() {
               <div className="absolute inset-0 grid place-items-center px-10 text-center">
                 <div>
                   <span className="mx-auto grid size-16 place-items-center rounded-full border border-[#b7955b]/40 bg-[#b7955b]/10 text-[#b7955b]">
-                    <Upload className="size-7" />
+                    <Mark name="designs" className="size-7" />
                   </span>
                   <p className="mt-5 font-semibold">محل نمایش نمونه‌کار شاخص</p>
                   <p className="mt-2 text-sm leading-6 text-white/42">عکس اصلی شما بدون برش نامناسب در این بخش قرار می‌گیرد.</p>
@@ -181,7 +170,7 @@ function StudioLanding() {
           <div className="mt-9 grid gap-4 md:grid-cols-3">
             {services.map((item, index) => (
               <article key={item.title} className="group min-h-64 rounded-3xl border border-white/10 bg-white/[.035] p-6 transition hover:-translate-y-1 hover:border-[#b7955b]/45">
-                <span className="text-5xl font-black text-white/[.07]">۰{index + 1}</span>
+                <Mark name={item.mark} className="size-7 text-[#b7955b]" />
                 <h3 className="mt-10 text-xl font-bold">{item.title}</h3>
                 <p className="mt-3 text-sm leading-7 text-white/50">{item.text}</p>
               </article>
@@ -202,9 +191,9 @@ function StudioLanding() {
               ))}
             </div>
             <div className="mt-6 grid gap-3 rounded-3xl border border-[#b7955b]/25 bg-[#b7955b]/[.07] p-5 sm:grid-cols-3">
-              <Mini icon={Upload} label="آپلود طرح و محل بدن" />
-              <Mini icon={Clock3} label="تأیید زمان پیشنهادی پیمان" />
-              <Mini icon={CircleDollarSign} label="پرداخت بیعانه و رسید" />
+              <Mini name="upload" label="آپلود طرح و محل بدن" />
+              <Mini name="status" label="تأیید زمان پیشنهادی پیمان" />
+              <Mini name="money" label="پرداخت بیعانه و رسید" />
             </div>
           </div>
         </section>
@@ -275,8 +264,8 @@ function StudioLanding() {
   );
 }
 
-function Mini({ icon: Icon, label }: { icon: typeof Upload; label: string }) {
-  return <span className="flex items-center gap-3 text-sm"><Icon className="size-5 text-[#b7955b]" />{label}</span>;
+function Mini({ name, label }: { name: MarkName; label: string }) {
+  return <span className="flex items-center gap-3 text-sm"><Mark name={name} className="size-5 text-[#b7955b]" />{label}</span>;
 }
 
 function CareCard({ title, points, hash }: { title: string; points: string[]; hash: string }) {

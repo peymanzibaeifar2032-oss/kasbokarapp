@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, BookOpen, CalendarDays, PenLine, UserRound } from "lucide-react";
+import { Mark } from "@/components/studio/marks";
 import { SignedIn, UserButton } from "@/lib/auth/gates";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { saveAction } from "@/lib/save";
@@ -22,7 +22,7 @@ function NoticeBell() {
       className="relative inline-flex size-11 items-center justify-center rounded-md border border-border bg-surface"
       aria-label="وضعیت نوبت"
     >
-      <Bell className="size-5" />
+      <Mark name="bell" className="size-5" />
       {unread > 0 ? (
         <span className="absolute -left-1 -top-1 min-w-4 rounded-full bg-accent px-1 text-[10px] text-accent-fg">
           {unread > 9 ? "۹+" : new Intl.NumberFormat("fa-IR").format(unread)}
@@ -47,7 +47,7 @@ function AuthSlot() {
 }
 
 const headerLink =
-  "inline-flex h-10 shrink-0 items-center rounded-md px-3 text-sm text-fg hover:bg-surface";
+  "inline-flex h-10 shrink-0 items-center gap-1 rounded-md px-3 text-sm text-fg hover:bg-surface";
 const tabClass =
   "flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted";
 
@@ -59,16 +59,16 @@ export function Shell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-border bg-bg">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2">
           <Link to="/studio" className="flex shrink-0 items-center gap-2">
-            <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-fg text-xs font-black">
-              تاتو
-            </span>
+            <img src="/apps/tattoo-app-icon.png" alt="" className="size-9 rounded-lg" />
             <strong className="text-sm font-semibold">رزرو وقت تاتو</strong>
           </Link>
           <nav className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto">
             <Link to="/studio/request" className={headerLink}>
+              <Mark name="request" className="size-4" />
               درخواست
             </Link>
             <Link to="/studio/status" className={headerLink}>
+              <Mark name="status" className="size-4" />
               وضعیت
             </Link>
             {owner ? (
@@ -87,24 +87,25 @@ export function Shell({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
         <div className="grid grid-cols-5">
           <Link to="/studio" className={tabClass}>
-            <span className="text-[11px] font-bold">استودیو</span>
+            <Mark name="studio" className="size-5" />
+            استودیو
           </Link>
           <Link to="/studio/guide" className={tabClass}>
-            <BookOpen className="size-5" />
+            <Mark name="guide" className="size-5" />
             آموزش
           </Link>
           <Link to="/studio/request" className={`${tabClass} text-primary`}>
             <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-fg shadow-md">
-              <PenLine className="size-5" />
+              <Mark name="request" className="size-5" />
             </span>
             درخواست
           </Link>
           <Link to="/studio/status" className={tabClass}>
-            <CalendarDays className="size-5" />
+            <Mark name="status" className="size-5" />
             وضعیت
           </Link>
           <Link to={owner ? "/studio/admin" : "/account"} className={tabClass}>
-            <UserRound className="size-5" />
+            <Mark name={owner ? "studio" : "contacts"} className="size-5" />
             {owner ? "مدیریت" : "حساب"}
           </Link>
         </div>
