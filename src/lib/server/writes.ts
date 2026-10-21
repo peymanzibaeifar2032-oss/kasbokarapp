@@ -1824,6 +1824,12 @@ async function performReschedule(userId: string, raw: unknown) {
       slotEnd,
       resourceId,
     ]);
+    await sql.query(
+      `update tattoo_requests
+          set proposed_slot_start = $2, proposed_slot_end = $3, updated_at = now()
+        where booking_id = $1 and status = 'booked'`,
+      [data.id, data.slotStart, slotEnd],
+    );
   } catch (err) {
     if (isOccupancyConflict(err)) {
       throw new Error("این زمان همین الان توسط شخص دیگری رزرو شد. زمان‌های آزاد به‌روزرسانی شدند.");
@@ -3042,18 +3048,46 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
     throw new Error("ماه یا هفته را مشخص کن.");
   }
   const scope =
-    actor.role === "artist" ? "and artist_id = $3" : data.mine ? "and artist_id is null" : "";
+    actor.role === "artist"
+      ? "and artist_id = $3"
+      : data.mine
+        ? `and (
+            artist_id is null
+            or not exists (
+              select 1 from studio_artists a
+               where a.id = tattoo_requests.artist_id and a.deal = 'own' and a.active = true
+            )
+          )`
+        : "";
   const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
+  await sql.query(
+    `update bookings b
+        set slot_start = t.proposed_slot_start,
+            slot_end = coalesce(t.proposed_slot_end, b.slot_end, t.proposed_slot_start + interval '3 hours')
+       from tattoo_requests t
+      where t.booking_id = b.id
+        and t.status = 'booked'
+        and t.proposed_slot_start is not null
+        and b.status <> 'cancelled'
+        and (b.slot_start at time zone 'Asia/Tehran')::date
+            is distinct from (t.proposed_slot_start at time zone 'Asia/Tehran')::date
+        and t.proposed_slot_start >= $1
+        and t.proposed_slot_start < $2`,
+    [range.start, range.end],
+  );
   const rows = await sql.query<TattooRequestRow>(
     `${tattooRequestListSelect}
       where status = 'booked'
         and (
           (proposed_slot_start >= $1 and proposed_slot_start < $2)
-          or booking_id in (
-            select id from bookings
-             where status not in ('cancelled')
-               and kind = 'booking'
-               and slot_start >= $1 and slot_start < $2
+          or (
+            proposed_slot_start is null
+            and booking_id in (
+              select id from bookings
+               where status not in ('cancelled')
+                 and kind = 'booking'
+                 and slot_start >= $1 and slot_start < $2
+            )
           )
         )
       ${scope}
@@ -3872,7 +3906,7 @@ async function performUpdateStudioJob(userId: string, raw: unknown) {
     );
     if (current[0].booking_id) {
       await sql.query(
-        `update bookings set slot_start=$2, slot_end=$3 where id=$1 and status in ('requested','confirmed')`,
+        `update bookings set slot_start=$2, slot_end=$3 where id=$1 and status <> 'cancelled'`,
         [current[0].booking_id, start.toISOString(), end.toISOString()],
       );
     }

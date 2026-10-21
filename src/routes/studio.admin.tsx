@@ -2284,9 +2284,9 @@ function TomorrowReminders({ bookings }: { bookings: Booking[] }) {
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
           {!loading && !listed.length ? <p className="text-sm text-muted">برای فردا نوبتی نیست.</p> : null}
           {listed.map((job) => {
-            const when = job.bookingId
-              ? bookings.find((row) => row.id === job.bookingId)?.slotStart || job.proposedSlotStart
-              : job.proposedSlotStart;
+            const when = job.proposedSlotStart
+              || (job.bookingId ? bookings.find((row) => row.id === job.bookingId)?.slotStart : "")
+              || "";
             const money = tattooBalance(job.priceMinToman, job.paidToman);
             const phone = usablePhone(job.customerPhone) || usablePhone(job.customerPhone2);
             const text = bookingReminderSms({
@@ -2866,7 +2866,7 @@ function jobStamp(job: TattooRequest, bookings: Booking[] = []) {
   const linked = job.bookingId
     ? bookings.find((row) => row.id === job.bookingId && row.kind === "booking" && row.status !== "cancelled")
     : undefined;
-  const when = linked?.slotStart || job.proposedSlotStart || job.updatedAt;
+  const when = job.proposedSlotStart || linked?.slotStart || job.updatedAt;
   const time = Date.parse(when);
   return Number.isFinite(time) ? time : 0;
 }
@@ -3319,7 +3319,7 @@ function MonthJobCard({
   const [actions, setActions] = useState(false);
   const balance = tattooBalance(job.priceMinToman, job.paidToman);
   const linked = bookings.find((booking) => booking.id === job.bookingId && booking.kind === "booking" && booking.status !== "cancelled");
-  const when = linked?.slotStart || job.proposedSlotStart || job.updatedAt;
+  const when = job.proposedSlotStart || linked?.slotStart || job.updatedAt;
   const visit = jobVisitStatus(job, bookings, when);
   const phone = job.customerPhone && job.customerPhone !== "09000000000" ? job.customerPhone : "";
   const phone2 = job.customerPhone2 || "";
