@@ -422,9 +422,12 @@ function StudioAdminPage() {
   return (
     <Shell>
       <div className="flex items-end justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-[#1C3D52]">{ownPanel ? "پنل شخصی" : "استودیو"}</p>
-          <h1 className="text-2xl font-bold">{owner ? "میز کار" : panelName || "همکار"}</h1>
+        <div className="flex items-center gap-3">
+          <img src="/apps/tattoo-app-icon.png" alt="" className="size-12 rounded-2xl border border-[#1C3D52]/10" />
+          <div>
+            <p className="text-sm font-semibold text-[#1C3D52]">{ownPanel ? "پنل شخصی" : "استودیو"}</p>
+            <h1 className="text-2xl font-bold">{owner ? "میز کار" : panelName || "همکار"}</h1>
+          </div>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()}>
           <RefreshCw className="size-4" /> تازه‌سازی

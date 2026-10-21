@@ -72,11 +72,14 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
               </a>
             ) : null}
             <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:h-16 sm:flex-row sm:items-center sm:gap-2 sm:py-0">
-              <Link to="/studio" className="leading-tight sm:min-w-0 sm:flex-1">
-                <strong className="block text-sm tracking-wide">پیمان زیبائی‌فر</strong>
-                {compact ? null : (
-                  <span className={`hidden text-[11px] sm:block ${light ? "text-slate-400" : "text-white/45"}`}>TATTOO ARTIST · KERMANSHAH</span>
-                )}
+              <Link to="/studio" className="flex items-center gap-2 leading-tight sm:min-w-0 sm:flex-1">
+                <img src="/apps/tattoo-app-icon.png" alt="" className="size-10 rounded-xl" />
+                <span>
+                  <strong className="block text-sm tracking-wide">پیمان زیبائی‌فر</strong>
+                  {compact ? null : (
+                    <span className={`hidden text-[11px] sm:block ${light ? "text-slate-400" : "text-white/45"}`}>TATTOO ARTIST · KERMANSHAH</span>
+                  )}
+                </span>
               </Link>
               <nav className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
               <Link
