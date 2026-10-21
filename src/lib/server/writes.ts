@@ -3021,6 +3021,22 @@ async function reconcilePaidFromPayments(sql: Awaited<ReturnType<typeof getSql>>
   }
 }
 
+function studioSearchNeedle(raw: string) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/ي/g, "ی")
+    .replace(/ك/g, "ک")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/[ۀة]/g, "ه")
+    .replace(/[%_\\]/g, "");
+}
+
+const studioSearchSql = `translate(replace(lower(coalesce(%COL%, '')), ' ', ''), 'يككۀةأإآ۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', 'یککههااا01234567890123456789')`;
+
 async function performStudioMonthJobs(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z
@@ -3030,25 +3046,41 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
       mine: z.boolean().optional(),
       start: z.string().optional(),
       end: z.string().optional(),
+      q: z.string().trim().max(80).optional(),
     })
     .parse(raw);
   const sql = await getSql();
   await ensureSessionColumns(sql);
   await rememberUnreliableCustomers(sql, userId);
   await reconcilePaidFromPayments(sql);
-  let range: { start: string; end: string };
-  if (data.start && data.end) {
-    const startMs = Date.parse(data.start);
-    const endMs = Date.parse(data.end);
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) throw new Error("بازه هفته درست نیست.");
-    range = { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
-  } else if (data.jy && data.jm) {
-    range = jalaliMonthRange(data.jy, data.jm);
-  } else {
-    throw new Error("ماه یا هفته را مشخص کن.");
+  const queryText = studioSearchNeedle(data.q || "");
+  const searching = queryText.length >= 2;
+  let range: { start: string; end: string } | null = null;
+  if (!searching) {
+    if (data.start && data.end) {
+      const startMs = Date.parse(data.start);
+      const endMs = Date.parse(data.end);
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) throw new Error("بازه هفته درست نیست.");
+      range = { start: new Date(startMs).toISOString(), end: new Date(endMs).toISOString() };
+    } else if (data.jy && data.jm) {
+      range = jalaliMonthRange(data.jy, data.jm);
+    } else {
+      throw new Error("ماه یا هفته را مشخص کن.");
+    }
   }
-  const scope =
-    actor.role === "artist"
+  const scope = searching
+    ? actor.role === "artist"
+      ? "and artist_id = $2"
+      : data.mine
+        ? `and (
+            artist_id is null
+            or not exists (
+              select 1 from studio_artists a
+               where a.id = tattoo_requests.artist_id and a.deal = 'own' and a.active = true
+            )
+          )`
+        : ""
+    : actor.role === "artist"
       ? "and artist_id = $3"
       : data.mine
         ? `and (
@@ -3059,39 +3091,60 @@ async function performStudioMonthJobs(userId: string, raw: unknown) {
             )
           )`
         : "";
-  const params = actor.role === "artist" ? [range.start, range.end, actor.artistId] : [range.start, range.end];
-  await sql.query(
-    `update bookings b
-        set slot_start = t.proposed_slot_start,
-            slot_end = coalesce(t.proposed_slot_end, b.slot_end, t.proposed_slot_start + interval '3 hours')
-       from tattoo_requests t
-      where t.booking_id = b.id
-        and t.status = 'booked'
-        and t.proposed_slot_start is not null
-        and b.status <> 'cancelled'
-        and (b.slot_start at time zone 'Asia/Tehran')::date
-            is distinct from (t.proposed_slot_start at time zone 'Asia/Tehran')::date
-        and t.proposed_slot_start >= $1
-        and t.proposed_slot_start < $2`,
-    [range.start, range.end],
-  );
+  const params = searching
+    ? actor.role === "artist"
+      ? [queryText, actor.artistId]
+      : [queryText]
+    : actor.role === "artist"
+      ? [range!.start, range!.end, actor.artistId]
+      : [range!.start, range!.end];
+  if (!searching && range) {
+    await sql.query(
+      `update bookings b
+          set slot_start = t.proposed_slot_start,
+              slot_end = coalesce(t.proposed_slot_end, b.slot_end, t.proposed_slot_start + interval '3 hours')
+         from tattoo_requests t
+        where t.booking_id = b.id
+          and t.status = 'booked'
+          and t.proposed_slot_start is not null
+          and b.status <> 'cancelled'
+          and (b.slot_start at time zone 'Asia/Tehran')::date
+              is distinct from (t.proposed_slot_start at time zone 'Asia/Tehran')::date
+          and t.proposed_slot_start >= $1
+          and t.proposed_slot_start < $2`,
+      [range.start, range.end],
+    );
+  }
+  const nameSql = studioSearchSql.replace("%COL%", "customer_name");
+  const phoneSql = studioSearchSql.replace("%COL%", "customer_phone");
+  const phone2Sql = studioSearchSql.replace("%COL%", "customer_phone_2");
+  const instagramSql = studioSearchSql.replace("%COL%", "customer_instagram");
+  const where = searching
+    ? `and (
+        ${nameSql} like '%' || $1 || '%'
+        or ${phoneSql} like '%' || $1 || '%'
+        or ${phone2Sql} like '%' || $1 || '%'
+        or ${instagramSql} like '%' || $1 || '%'
+      )`
+    : `and (
+        (proposed_slot_start >= $1 and proposed_slot_start < $2)
+        or (
+          proposed_slot_start is null
+          and booking_id in (
+            select id from bookings
+             where status not in ('cancelled')
+               and kind = 'booking'
+               and slot_start >= $1 and slot_start < $2
+          )
+        )
+      )`;
   const rows = await sql.query<TattooRequestRow>(
     `${tattooRequestListSelect}
       where status = 'booked'
-        and (
-          (proposed_slot_start >= $1 and proposed_slot_start < $2)
-          or (
-            proposed_slot_start is null
-            and booking_id in (
-              select id from bookings
-               where status not in ('cancelled')
-                 and kind = 'booking'
-                 and slot_start >= $1 and slot_start < $2
-            )
-          )
-        )
+      ${where}
       ${scope}
-      order by coalesce(proposed_slot_start, created_at)`,
+      order by coalesce(proposed_slot_start, created_at)
+      limit 300`,
     params,
   );
   const mapped = await mapTattooRequestRows(sql, rows);
