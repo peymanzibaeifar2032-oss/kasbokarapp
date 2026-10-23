@@ -203,7 +203,7 @@ function mentionedPart(text: string) {
 function ask(draft: IntakeDraft, step: IntakeStep): IntakeTurn {
   if (step === "confirm") {
     const ready = { ...draft, step: "confirm" as const, fixing: false };
-    return { draft: ready, say: ["اطلاعات کامل شد. درخواست را می‌فرستم."], chips: [], image: false, payload: toPayload(ready) };
+    return { draft: ready, say: [], chips: [], image: false, payload: toPayload(ready) };
   }
   const next = { ...draft, step };
   return speak(next, [question(next)]);

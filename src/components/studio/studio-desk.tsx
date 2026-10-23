@@ -33,7 +33,7 @@ export function StudioDesk({
   busy: boolean;
   preferredDay?: string;
   sent: { code: string; phone: string } | null;
-  onSubmit: (payload: IntakePayload & { images: WizardImage[] }) => void;
+  onSubmit: (payload: IntakePayload & { images: WizardImage[] }) => Promise<void>;
 }) {
   const clubCode = useRef("");
   const opened = useRef(false);
@@ -240,9 +240,9 @@ export function StudioDesk({
   async function ask(question: string) {
     setWaiting(true);
     say("customer", question);
-    if (phone) void postCustomerLine(phone, question);
     say("desk", "دارم جواب می‌دهم…");
     const history = lines.slice(-8).flatMap((line) => ("text" in line ? [{ role: line.from === "customer" ? "user" as const : "assistant" as const, content: line.text }] : []));
+    const filedCode = phone ? await postCustomerLine(phone, question) : "";
     const answer = await askStudio(question, history);
     setWaiting(false);
     setLines((current) => {
@@ -250,7 +250,12 @@ export function StudioDesk({
       const last = next[next.length - 1];
       if (last && "text" in last && last.text === "دارم جواب می‌دهم…") next.pop();
       if (answer === "handoff") {
-        return [...next, { id: crypto.randomUUID(), from: "desk" as const, tone: "sent" as const, text: "پیام برای پیمان زیبائی‌فر ارسال شد. در اولین فرصت جواب می‌دهد." }];
+        const text = !phone
+          ? "این پیام هنوز به پنل نرسیده، چون شماره موبایل نداریم. شماره را بنویس تا ثبت شود."
+          : filedCode
+            ? `پیامت در ورودی پنل ثبت شد. کد ${filedCode}. جواب همین‌جا می‌آید.`
+            : "پیامت کنار درخواست قبلی‌ات ماند. جواب پیمان همین‌جا می‌آید.";
+        return [...next, { id: crypto.randomUUID(), from: "desk" as const, tone: "sent" as const, text }];
       }
       return [...next, { id: crypto.randomUUID(), from: "desk" as const, text: answer }];
     });
@@ -292,7 +297,13 @@ export function StudioDesk({
       ...turn.say.map((text) => ({ id: crypto.randomUUID(), from: "desk" as const, text })),
     ]);
     setChips(turn.payload ? MENU : turn.chips);
-    if (turn.payload) onSubmit({ ...turn.payload, images: nextImages, referralCode: clubCode.current || undefined });
+    if (!turn.payload) return;
+    say("desk", "دارم درخواست را برای پنل می‌فرستم…");
+    try {
+      await onSubmit({ ...turn.payload, images: nextImages, referralCode: clubCode.current || undefined });
+    } catch (err) {
+      say("desk", `به پنل نرسید. ${friendlyError(err)}`);
+    }
   }
 
   async function lookup(raw: string) {
@@ -484,7 +495,8 @@ export function StudioDesk({
       setImages(nextImages);
       void applyIntake("فرستادم", nextImages, "عکس را فرستادم");
     } catch (err) {
-      toast.error(friendlyError(err));
+      const raw = friendlyError(err);
+      say("desk", /decode|format|image|تصویر|عکس/i.test(raw) ? "این عکس باز نشد. یک عکس معمولی از گالری بفرست." : raw);
     }
   }
 
@@ -738,13 +750,15 @@ function customerText(raw: string) {
 
 async function postCustomerLine(phone: string, text: string) {
   try {
-    await fetch("/api/tattoo-public?op=chat-send", {
+    const res = await fetch("/api/tattoo-public?op=chat-send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ phone, text }),
     });
+    const data = (await res.json().catch(() => null)) as { trackingCode?: string } | null;
+    return data?.trackingCode || "";
   } catch {
-    /* the line stays on screen; the next question can retry */
+    return "";
   }
 }
 

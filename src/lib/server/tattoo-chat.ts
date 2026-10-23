@@ -1,5 +1,6 @@
 import type { Sql } from "@/lib/db";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
+import { makeTattooTrackingCode } from "@/lib/tattoo-flow";
 
 export type TattooChatLine = {
   id: string;
@@ -41,6 +42,103 @@ export async function postTattooChat(sql: Sql, phone: string, from: "customer" |
     `insert into tattoo_chat (id, phone, request_id, from_side, body) values ($1,$2,$3,$4,$5)`,
     [crypto.randomUUID(), normalized, requestId || null, from, text.slice(0, 2000)],
   );
+}
+
+export function shouldFileChat(body: string) {
+  const text = body.trim();
+  if (text.length < 8 || text.startsWith("[[") || text.startsWith("درخواست ثبت شد")) return false;
+  if (/^(سلام|درود|خسته نباشید|ممنون|مرسی|باشه|اوکی|ok)[.!؟?\s]*$/i.test(text)) return false;
+  return true;
+}
+
+export async function listUnfiledTattooChats(sql: Sql) {
+  await ensureTattooChat(sql);
+  const rows = await sql.query<{ phone: string; body: string; created_at: string }>(
+    `select phone, body, created_at
+       from (
+         select distinct on (phone) phone, body, created_at
+           from tattoo_chat
+          where from_side = 'customer'
+            and created_at > now() - interval '21 days'
+            and body not like 'درخواست ثبت شد%'
+          order by phone, created_at desc
+       ) c
+      where not exists (
+        select 1 from tattoo_requests r
+         where right(regexp_replace(coalesce(r.customer_phone, ''), '\\D', '', 'g'), 10)
+               = right(regexp_replace(c.phone, '\\D', '', 'g'), 10)
+           and r.created_at > now() - interval '21 days'
+      )
+      order by created_at desc
+      limit 30`,
+  );
+  return rows.map((row) => ({ phone: row.phone, body: row.body, createdAt: row.created_at }));
+}
+
+/** A site chat that never became a form still has to show up in «در جریان». */
+export async function fileLooseChatRequests(sql: Sql) {
+  const chats = await listUnfiledTattooChats(sql);
+  for (const chat of chats) {
+    if (!shouldFileChat(chat.body)) continue;
+    try {
+      await insertChatRequest(sql, chat.phone, chat.body);
+    } catch {
+      /* the inbox must still open */
+    }
+  }
+}
+
+export async function fileChatRequest(sql: Sql, phone: string, body: string) {
+  if (!shouldFileChat(body)) return null;
+  try {
+    return await insertChatRequest(sql, phone, body);
+  } catch {
+    return null;
+  }
+}
+
+async function insertChatRequest(sql: Sql, phone: string, body: string) {
+  const normalized = normalizeIranPhone(phone);
+  if (!isIranMobile(normalized)) return null;
+  const existing = await sql.query<{ id: string }>(
+    `select id from tattoo_requests
+      where right(regexp_replace(coalesce(customer_phone, ''), '\\D', '', 'g'), 10)
+            = right(regexp_replace($1, '\\D', '', 'g'), 10)
+        and created_at > now() - interval '21 days'
+      limit 1`,
+    [normalized],
+  );
+  if (existing[0]) return null;
+  const idea = `پیام مشتری از چت سایت، بدون فرم کامل:\n${body.trim()}`.slice(0, 1500);
+  const id = crypto.randomUUID();
+  let trackingCode = "";
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    trackingCode = makeTattooTrackingCode();
+    try {
+      await sql.query(
+        `insert into tattoo_requests
+          (id, tracking_code, customer_id, customer_name, customer_phone, customer_phone_2, customer_instagram,
+           request_type, style, idea, placement, size_cm, preferred_dates, reference_images, body_images)
+         values ($1,$2,null,$3,$4,null,null,'consultation','از چت',$5,'نامشخص','نامشخص',null,'[]'::jsonb,'[]'::jsonb)`,
+        [id, trackingCode, "مشتری چت", normalized, idea],
+      );
+      break;
+    } catch (error) {
+      if (attempt === 5 || !/unique|duplicate/i.test(error instanceof Error ? error.message : "")) throw error;
+    }
+  }
+  try {
+    const admins = await sql.query<{ user_id: string }>("select user_id from profiles where is_admin = true");
+    for (const admin of admins) {
+      await sql.query(
+        `insert into notifications (id, user_id, title, body, kind) values ($1,$2,$3,$4,'tattoo_request_new')`,
+        [crypto.randomUUID(), admin.user_id, "درخواست از چت سایت", `پیام بدون فرم از ${normalized} · کد ${trackingCode}`],
+      );
+    }
+  } catch {
+    /* the inbox row is enough */
+  }
+  return { id, trackingCode };
 }
 
 export async function readTattooChat(sql: Sql, phone: string): Promise<TattooChatLine[]> {

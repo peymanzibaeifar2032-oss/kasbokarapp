@@ -71,55 +71,77 @@ function StudioRequestPage() {
   async function submit(payload: WizardPayload) {
     setBusy(true);
     try {
-      const body = {
-        customerName: payload.customerName,
-        customerPhone: payload.customerPhone,
-        customerPhone2: payload.customerPhone2,
-        customerInstagram: payload.customerInstagram,
-        requestType: payload.requestType,
-        style: payload.style,
-        styles: payload.styles,
-        idea: payload.idea,
-        placement: payload.placement,
-        sizeCm: payload.sizeCm,
-        sizeMode: payload.sizeMode,
-        colorMode: payload.colorMode,
-        bodySide: payload.bodySide,
-        preferredDates: payload.preferredDates,
-        referralCode: payload.referralCode,
-        images: payload.images,
-        referenceImages: [] as string[],
-        bodyImages: [] as string[],
-      };
-      let code = "";
-      if (userId) {
-        const created = await saveAction<{ id: string; trackingCode?: string; referralNote?: string }>("createTattooRequest", body);
-        code = created.trackingCode || "";
-        if (created.referralNote) toast.message(created.referralNote);
-      } else {
-        const res = await fetch("/api/tattoo-public", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string; referralNote?: string } | null;
-        if (!res.ok) throw new Error(data?.error || "ثبت انجام نشد.");
-        code = data?.trackingCode || "";
-        if (data?.referralNote) toast.message(data.referralNote);
-      }
-      setSent({ code, phone: payload.customerPhone });
-      refresh();
+      const pictures = (payload.images || []).filter(
+        (image) => image.data.length <= 900_000 && /^data:image\/(jpeg|png|webp);base64,/i.test(image.data),
+      );
+      const droppedPhoto = pictures.length !== (payload.images || []).length;
+      await sendRequest({ ...payload, images: pictures });
+      if (droppedPhoto) toast.message("عکس قبول نشد؛ خود درخواست بدون عکس در ورودی ثبت شد.");
     } catch (err) {
-      toast.error(friendlyError(err));
+      const message = friendlyError(err);
+      if ((payload.images || []).length && /عکس|تصویر|حجم|فرمت/.test(message)) {
+        try {
+          await sendRequest({ ...payload, images: [] });
+          toast.message("عکس‌ها رد شد؛ درخواست بدون عکس در ورودی ثبت شد.");
+          return;
+        } catch (again) {
+          const againMessage = friendlyError(again);
+          toast.error(againMessage);
+          throw new Error(againMessage);
+        }
+      }
+      toast.error(message);
+      throw new Error(message);
     } finally {
       setBusy(false);
     }
   }
 
+  async function sendRequest(payload: WizardPayload) {
+    const body = {
+      customerName: payload.customerName,
+      customerPhone: payload.customerPhone,
+      customerPhone2: payload.customerPhone2,
+      customerInstagram: payload.customerInstagram,
+      requestType: payload.requestType,
+      style: payload.style,
+      styles: payload.styles,
+      idea: payload.idea,
+      placement: payload.placement,
+      sizeCm: payload.sizeCm,
+      sizeMode: payload.sizeMode,
+      colorMode: payload.colorMode,
+      bodySide: payload.bodySide,
+      preferredDates: payload.preferredDates,
+      referralCode: payload.referralCode,
+      images: payload.images,
+      referenceImages: [] as string[],
+      bodyImages: [] as string[],
+    };
+    let code = "";
+    if (userId) {
+      const created = await saveAction<{ id: string; trackingCode?: string; referralNote?: string }>("createTattooRequest", body);
+      code = created.trackingCode || "";
+      if (created.referralNote) toast.message(created.referralNote);
+    } else {
+      const res = await fetch("/api/tattoo-public", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = (await res.json().catch(() => null)) as { error?: string; trackingCode?: string; referralNote?: string } | null;
+      if (!res.ok) throw new Error(data?.error || "ثبت انجام نشد.");
+      code = data?.trackingCode || "";
+      if (data?.referralNote) toast.message(data.referralNote);
+    }
+    setSent({ code, phone: payload.customerPhone });
+    refresh();
+  }
+
   return (
     <div ref={frame} className="fixed inset-x-0 top-0 z-40 flex h-dvh flex-col overflow-hidden bg-[#f6f8fb] text-[#1c1917]" dir="rtl">
       <StudioTopBar compact light />
-      <StudioDesk busy={busy} preferredDay={preferredDay} sent={sent} onSubmit={(payload) => void submit(payload)} />
+      <StudioDesk busy={busy} preferredDay={preferredDay} sent={sent} onSubmit={(payload) => submit(payload)} />
     </div>
   );
 }

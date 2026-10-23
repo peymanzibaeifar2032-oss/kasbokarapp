@@ -597,7 +597,7 @@ function StudioAdminPage() {
           </p>
           {!filtered.length ? (
             <p className="mt-5 rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
-              در این بخش درخواستی وجود ندارد.
+              در این بخش درخواستی وجود ندارد. پیام دایرکت اینستاگرام خودش به این لیست نمی‌آید.
             </p>
           ) : null}
           <div className="mt-4 grid gap-4">

@@ -7,7 +7,7 @@ import { allowRate, clientKey } from "@/lib/server/rate-limit";
 import { acceptGuestByPhone, submitGuestReceiptByPhone } from "@/lib/server/tattoo-guest-pay";
 import { makeTattooTrackingCode, normalizeTattooTrackingCode } from "@/lib/tattoo-flow";
 import { attachReferral, lookupReferralCode } from "@/lib/server/studio-referrals";
-import { listTattooChatFiles, postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
+import { fileChatRequest, listTattooChatFiles, postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
 import { finalizeNewTattooRequest } from "@/lib/server/tattoo-estimate";
 
 const imageDataSchema = z.string().max(1_000_000).refine(
@@ -201,24 +201,28 @@ async function createGuest(request: Request) {
     customerPhone2: phone2,
     code: data.referralCode,
   });
-  const priced = await finalizeNewTattooRequest(sql, id, {
-    requestType: data.requestType,
-    placement: data.placement,
-    style: data.style,
-    sizeCm: data.sizeCm,
-    colorMode: data.colorMode || "",
-    idea: data.idea,
-    imageCount: pictures.length + data.referenceImages.length + data.bodyImages.length,
-    bodySide: data.bodySide,
-    sizeMode: data.sizeMode,
-    styles: data.styles,
-    images: pictures.length
-      ? pictures
-      : [
-          ...data.referenceImages.map((item) => ({ kind: "reference", data: item })),
-          ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
-        ],
-  });
+  try {
+    await finalizeNewTattooRequest(sql, id, {
+      requestType: data.requestType,
+      placement: data.placement,
+      style: data.style,
+      sizeCm: data.sizeCm,
+      colorMode: data.colorMode || "",
+      idea: data.idea,
+      imageCount: pictures.length + data.referenceImages.length + data.bodyImages.length,
+      bodySide: data.bodySide,
+      sizeMode: data.sizeMode,
+      styles: data.styles,
+      images: pictures.length
+        ? pictures
+        : [
+            ...data.referenceImages.map((item) => ({ kind: "reference", data: item })),
+            ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
+          ],
+    });
+  } catch {
+    /* row is already saved; a rejected photo must not pretend the request never arrived */
+  }
   return json({ id, trackingCode, referralNote: referral.note });
 }
 
@@ -272,9 +276,11 @@ async function sendChat(request: Request) {
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   if (!isIranMobile(phone)) return json({ error: "شماره موبایل را بنویس." }, 400);
   if (text.length < 1 || text.length > 2000) return json({ error: "متن پیام را بنویس." }, 400);
-  await postTattooChat(await getSql(), phone, "customer", text);
-  const lines = await readTattooChat(await getSql(), phone);
-  return json({ lines });
+  const sql = await getSql();
+  await postTattooChat(sql, phone, "customer", text);
+  const filed = await fileChatRequest(sql, phone, text);
+  const lines = await readTattooChat(sql, phone);
+  return json({ lines, trackingCode: filed?.trackingCode || "" });
 }
 
 async function lookup(request: Request) {

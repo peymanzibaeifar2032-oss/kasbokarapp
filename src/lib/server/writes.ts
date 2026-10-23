@@ -19,7 +19,7 @@ import {
   type OccupancyHit,
 } from "@/lib/calendar/resources";
 import { jalaliMonthLength, jalaliToGregorian, gregorianToJalali } from "@/lib/calendar/jalali";
-import { postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
+import { fileLooseChatRequests, postTattooChat, postTattooChatFile, readTattooChat, readTattooChatFile } from "@/lib/server/tattoo-chat";
 import { tattooBalance, STUDIO_ADDRESS, STUDIO_CONTACT_PHONE, STUDIO_OWNER_STAFF_NAME, isRetiredCollaborator, makeTattooTrackingCode, withPayNextStep, withStudioVisitDetails } from "@/lib/tattoo-flow";
 import { closeThursdayHours, isThursdayIso, THURSDAY_CUSTOMER_BLOCK_MESSAGE } from "@/lib/studio-apprentices";
 import {
@@ -717,25 +717,33 @@ async function performCreateTattooRequest(userId: string, raw: unknown) {
     customerUserId: userId,
     code: data.referralCode,
   });
-  const priced = await finalizeNewTattooRequest(sql, id, {
-    requestType: data.requestType,
-    placement: data.placement,
-    style: data.style,
-    sizeCm: data.sizeCm,
-    colorMode: data.colorMode || "",
-    idea: data.idea,
-    imageCount: (data.images?.length || 0) + data.referenceImages.length + data.bodyImages.length,
-    bodySide: data.bodySide,
-    sizeMode: data.sizeMode,
-    styles: data.styles,
-    images: data.images?.length
-      ? data.images
-      : [
-          ...data.referenceImages.map((item) => ({ kind: "reference", data: item })),
-          ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
-        ],
-  });
-  return { id, trackingCode, estimateMin: priced.estimateMin, estimateMax: priced.estimateMax, referralNote: referral.note };
+  let estimateMin: number | null = null;
+  let estimateMax: number | null = null;
+  try {
+    const priced = await finalizeNewTattooRequest(sql, id, {
+      requestType: data.requestType,
+      placement: data.placement,
+      style: data.style,
+      sizeCm: data.sizeCm,
+      colorMode: data.colorMode || "",
+      idea: data.idea,
+      imageCount: (data.images?.length || 0) + data.referenceImages.length + data.bodyImages.length,
+      bodySide: data.bodySide,
+      sizeMode: data.sizeMode,
+      styles: data.styles,
+      images: data.images?.length
+        ? data.images
+        : [
+            ...data.referenceImages.map((item) => ({ kind: "reference", data: item })),
+            ...data.bodyImages.map((item) => ({ kind: "placement", data: item })),
+          ],
+    });
+    estimateMin = priced.estimateMin;
+    estimateMax = priced.estimateMax;
+  } catch {
+    /* the row is already in the inbox; a heavy photo must not hide it */
+  }
+  return { id, trackingCode, estimateMin, estimateMax, referralNote: referral.note };
 }
 
 async function performMyTattooRequests(userId: string) {
@@ -758,7 +766,20 @@ async function performStudioTattooRequests(userId: string) {
   await ensureSessionColumns(sql);
   await expireOpenTattooHolds(sql);
   await remindOverdueTattooReviews(sql);
-  const scope = actor.role === "artist" ? "where artist_id = $1" : "where artist_id is null";
+  try {
+    await fileLooseChatRequests(sql);
+  } catch {
+    /* an old chat must not blank the inbox */
+  }
+  const scope = actor.role === "artist"
+    ? "where artist_id = $1"
+    : `where (
+        artist_id is null
+        or not exists (
+          select 1 from studio_artists a
+           where a.id = tattoo_requests.artist_id and a.deal = 'own' and a.active = true
+        )
+      )`;
   const params = actor.role === "artist" ? [actor.artistId] : [];
   const rows = await sql.query<TattooRequestRow>(`${tattooRequestListSelect} ${scope} order by
     case
