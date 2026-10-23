@@ -287,6 +287,7 @@ function StudioAdminPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [requests, setRequests] = useState<TattooRequest[]>([]);
+  const [occupiedDays, setOccupiedDays] = useState<string[]>([]);
   const [tab, setTabState] = useState<PanelTab>(search.tab ?? "calendar");
   const [moreOpen, setMoreOpen] = useState(false);
   const [filter, setFilter] = useState<RequestFilter>("active");
@@ -308,12 +309,14 @@ function StudioAdminPage() {
     setLoading(true);
     setError("");
     try {
-      const [nextBusinesses, nextBookings] = await Promise.all([
+      const [nextBusinesses, nextBookings, nextOccupied] = await Promise.all([
         saveAction<Business[]>("mine"),
         saveAction<Booking[]>("ownerBookings"),
+        saveAction<string[]>("studioOccupiedDays").catch(() => [] as string[]),
       ]);
       setBusinesses(nextBusinesses);
       setBookings(nextBookings);
+      setOccupiedDays(nextOccupied);
       setLoading(false);
       try {
         const nextRequests = await saveAction<TattooRequest[]>("studioTattooRequests");
@@ -608,6 +611,7 @@ function StudioAdminPage() {
                 requests={requests}
                 businesses={businesses}
                 bookings={bookings}
+                occupiedDays={occupiedDays}
                 canEnroll={owner}
                 onChange={() => void refresh()}
               />
@@ -1037,6 +1041,7 @@ function TattooAdminCard({
   requests,
   businesses,
   bookings,
+  occupiedDays,
   canEnroll,
   onChange,
 }: {
@@ -1044,6 +1049,7 @@ function TattooAdminCard({
   requests: TattooRequest[];
   businesses: Business[];
   bookings: Booking[];
+  occupiedDays: string[];
   canEnroll?: boolean;
   onChange: () => void;
 }) {
@@ -1068,18 +1074,27 @@ function TattooAdminCard({
   const showProposalForm =
     request.status !== "booked" && request.status !== "rejected" && !slotLocked;
   const busyKeys = useMemo(() => {
-    const keys = new Set<string>();
+    const keys = new Set(occupiedDays);
     for (const booking of bookings) {
-      if (booking.businessId !== businessId || booking.status === "cancelled" || booking.kind !== "booking") continue;
-      keys.add(tehranDayKey(new Date(booking.slotStart)));
+      if (booking.status === "cancelled" || booking.kind !== "booking") continue;
+      const key = tehranDayKey(new Date(booking.slotStart));
+      if (key) keys.add(key);
     }
     for (const other of requests) {
-      if (other.id === request.id || other.businessId !== businessId || !other.proposedSlotStart) continue;
-      if (!["proposal_pending", "awaiting_payment", "receipt_submitted", "rejected"].includes(other.paymentStatus)) continue;
-      keys.add(tehranDayKey(new Date(other.proposedSlotStart)));
+      if (other.id === request.id || other.status === "rejected" || !other.proposedSlotStart) continue;
+      const held =
+        other.status === "booked" ||
+        other.status === "approved" ||
+        other.paymentStatus === "proposal_pending" ||
+        other.paymentStatus === "awaiting_payment" ||
+        other.paymentStatus === "receipt_submitted" ||
+        other.paymentStatus === "approved";
+      if (!held) continue;
+      const key = tehranDayKey(new Date(other.proposedSlotStart));
+      if (key) keys.add(key);
     }
     return [...keys];
-  }, [bookings, businessId, request.id, requests]);
+  }, [bookings, occupiedDays, request.id, requests]);
   useEffect(() => {
     if (day) return;
     setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));

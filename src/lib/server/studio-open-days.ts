@@ -23,13 +23,12 @@ export async function occupiedDayKeys(sql: Awaited<ReturnType<typeof getSql>>, a
   const scope = artistId ? "artist_id = $1" : ownerScope;
   const params = artistId ? [artistId] : [];
   const rows = await sql.query<{ slot: string | Date | null }>(
-    `select coalesce(b.slot_start, t.proposed_slot_start) as slot
+    `select t.proposed_slot_start as slot
        from tattoo_requests t
-       left join bookings b on b.id = t.booking_id and b.status <> 'cancelled'
       where t.status = 'booked'
-        and coalesce(b.slot_start, t.proposed_slot_start) is not null
-        and coalesce(b.slot_start, t.proposed_slot_start) >= now() - interval '60 days'
-        and coalesce(b.slot_start, t.proposed_slot_start) < now() + interval '540 days'
+        and t.proposed_slot_start is not null
+        and t.proposed_slot_start >= now() - interval '60 days'
+        and t.proposed_slot_start < now() + interval '540 days'
         and ${scope.replaceAll("artist_id", "t.artist_id")}
      union
      select k.slot_start as slot
@@ -66,10 +65,9 @@ export async function dayAlreadyTaken(
     `select customer_name from (
        select t.customer_name
          from tattoo_requests t
-         left join bookings b on b.id = t.booking_id and b.status <> 'cancelled'
         where t.status = 'booked'
-          and coalesce(b.slot_start, t.proposed_slot_start) >= $1
-          and coalesce(b.slot_start, t.proposed_slot_start) < $2
+          and t.proposed_slot_start >= $1
+          and t.proposed_slot_start < $2
           and coalesce(t.booking_id, '') <> $3
           and ${scope.replaceAll("artist_id", "t.artist_id")}
        union
