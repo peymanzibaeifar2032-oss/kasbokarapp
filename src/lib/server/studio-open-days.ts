@@ -33,7 +33,7 @@ export async function occupiedDayKeys(sql: Awaited<ReturnType<typeof getSql>>, a
      union
      select k.slot_start as slot
        from bookings k
-      where k.status <> 'cancelled'
+      where k.status not in ('cancelled', 'no_show')
         and k.kind = 'booking'
         and k.slot_start is not null
         and k.slot_start >= now() - interval '60 days'
@@ -73,7 +73,7 @@ export async function dayAlreadyTaken(
        union
        select k.customer_name
          from bookings k
-        where k.status <> 'cancelled'
+        where k.status not in ('cancelled', 'no_show')
           and k.kind = 'booking'
           and k.slot_start >= $1
           and k.slot_start < $2

@@ -4111,6 +4111,7 @@ async function performCancelStudioJob(userId: string, raw: unknown) {
   await sql.query(
     `update tattoo_requests
         set status='rejected', payment_status='not_required', booking_id=null,
+            proposed_slot_start=null, proposed_slot_end=null,
             artist_message=$2, message_seen_at=null, updated_at=now()
       where id=$1`,
     [data.id, message],

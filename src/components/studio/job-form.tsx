@@ -8,12 +8,17 @@ import { DurationFields, formatSitting } from "@/components/studio/duration-fiel
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import type { BusinessResource } from "@/lib/calendar/resources";
-import { firstOpenCustomerDay, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
+import { firstOpenCustomerDay, jalaliDayLabel, tehranDayKey, tehranLocalToIso } from "@/lib/hours";
 import { isIranMobile, normalizeIranPhone } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
 import { digitsOnly, formatGroupedDigits, formatTattooToman, isRetiredCollaborator } from "@/lib/tattoo-flow";
 import { thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { Booking, Business } from "@/lib/types";
+
+function lockedLabel(day: string) {
+  const [y, m, d] = day.split("-").map(Number);
+  return y && m && d ? jalaliDayLabel(y, m, d) : day;
+}
 
 function uniqueStaff(rows: BusinessResource[]) {
   const seen = new Set<string>();
@@ -62,12 +67,14 @@ export function StudioJobForm({
   onCreated,
   embedded = false,
   personal = false,
+  lockedDay = "",
 }: {
   businesses: Business[];
   bookings: Booking[];
   onCreated: () => void;
   embedded?: boolean;
   personal?: boolean;
+  lockedDay?: string;
 }) {
   const [open, setOpen] = useState(embedded);
   const [businessId, setBusinessId] = useState(() => ownStudioId(businesses, personal));
@@ -101,16 +108,21 @@ export function StudioJobForm({
   const busyKeys = useMemo(() => {
     const keys = new Set(serverBusy);
     for (const booking of bookings) {
-      if (booking.businessId === businessId && booking.status !== "cancelled" && booking.kind === "booking") {
+      if (booking.businessId === businessId && booking.status !== "cancelled" && booking.status !== "no_show" && booking.kind === "booking") {
         keys.add(tehranDayKey(new Date(booking.slotStart)));
       }
     }
     return [...keys];
   }, [bookings, businessId, serverBusy]);
   useEffect(() => {
-    if (dayTouched || !serverBusy.length) return;
+    if (lockedDay || dayTouched || !serverBusy.length) return;
     setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));
-  }, [busyKeys, dayTouched, serverBusy.length]);
+  }, [busyKeys, dayTouched, lockedDay, serverBusy.length]);
+  useEffect(() => {
+    if (!lockedDay) return;
+    setDay(lockedDay);
+    setDayTouched(true);
+  }, [lockedDay]);
   useEffect(() => {
     let gone = false;
     void saveAction<string[]>("studioOccupiedDays")
@@ -123,7 +135,7 @@ export function StudioJobForm({
     return () => {
       gone = true;
     };
-  }, []);
+  }, [bookings]);
   const visibleStaff = uniqueStaff(resources.filter((row) => row.active !== false && !isRetiredCollaborator(row.name)));
 
   useEffect(() => {
@@ -496,9 +508,18 @@ export function StudioJobForm({
           </div>
         ))}
       <div className="mt-4 rounded-2xl border border-emerald-700/30 bg-emerald-50 p-3 text-emerald-950">
-        <p className="text-sm font-bold">روز کاملاً خالی</p>
-        <p className="mt-1 text-xs leading-6">تقویم روی اولین ماه خالی است. روزی که حتی دو ساعت کار دارد اینجا انتخاب نمی‌شود. ساعت خالی همان روز را بعداً از لیست انتظار پر کن.</p>
-        <JalaliDatePicker alwaysOpen emptyOnly value={day} busyKeys={busyKeys} onChange={(next) => { setDayTouched(true); setDay(next); }} />
+        {lockedDay ? (
+          <>
+            <p className="text-sm font-bold">ثبت نوبت برای همین روز</p>
+            <p className="mt-1 text-sm leading-7">{lockedLabel(lockedDay)}</p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-bold">روز کاملاً خالی</p>
+            <p className="mt-1 text-xs leading-6">تقویم روی اولین ماه خالی است. روزی که حتی دو ساعت کار دارد اینجا انتخاب نمی‌شود. ساعت خالی همان روز را بعداً از لیست انتظار پر کن.</p>
+            <JalaliDatePicker alwaysOpen emptyOnly value={day} busyKeys={busyKeys} onChange={(next) => { setDayTouched(true); setDay(next); }} />
+          </>
+        )}
       </div>
       <Button className="mt-3" disabled={busy} onClick={() => void submit()}>
         ثبت روی همین روز خالی

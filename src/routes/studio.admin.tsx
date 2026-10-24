@@ -2667,7 +2667,14 @@ function MonthJobsPanel({
         const showTodayBefore = todayMissing && !previous && group.day > todayKey;
         return (
         <div key={group.day} className="grid gap-4">
-          {showTodayBefore ? <DayGap day={todayKey} jobs={[]} waiting={waiting} /> : null}
+          {showTodayBefore ? (
+            <>
+              <DayGap day={todayKey} jobs={[]} waiting={waiting} />
+              {daysBetween(todayKey, group.day).map((day) => (
+                <EmptyDayOffer key={`lead-${day}`} day={day} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
+              ))}
+            </>
+          ) : null}
           {chronological && !(span === "month" && viewingToday && !jobQuery.trim() && group.day === todayKey) ? (
             <p className="text-sm font-bold text-muted">{dayHeading(group.day)}</p>
           ) : null}
@@ -2687,7 +2694,7 @@ function MonthJobsPanel({
           ))}
           <DayGap day={group.day} jobs={group.jobs} waiting={waiting} />
           {holes.map((day) => (
-            <EmptyDayOffer key={day} day={day} waiting={waiting} onBooked={() => void refreshAll()} />
+            <EmptyDayOffer key={day} day={day} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
           ))}
         </div>
         );
@@ -2732,7 +2739,22 @@ function dayHeading(day: string) {
   return jalaliDayLabel(y, m, d);
 }
 
-function EmptyDayOffer({ day, waiting, onBooked }: { day: string; waiting: StudioFillIn[]; onBooked: () => void }) {
+function EmptyDayOffer({
+  day,
+  waiting,
+  businesses,
+  bookings,
+  personal,
+  onBooked,
+}: {
+  day: string;
+  waiting: StudioFillIn[];
+  businesses: Business[];
+  bookings: Booking[];
+  personal: boolean;
+  onBooked: () => void;
+}) {
+  const [fresh, setFresh] = useState(false);
   const [time, setTime] = useState("10:30");
   const [busy, setBusy] = useState(false);
   const title = dayHeading(day);
@@ -2812,8 +2834,26 @@ function EmptyDayOffer({ day, waiting, onBooked }: { day: string; waiting: Studi
           })}
         </div>
       ) : (
-        <p className="mt-2 text-sm leading-7">در لیست انتظار کسی با مدت مشخص نیست. اول در لیست انتظار مدت کار را ذخیره کن.</p>
+        <p className="mt-2 text-sm leading-7">اگر از لیست انتظار کسی را نمی‌خواهی، پایین مشتری جدید را ثبت کن.</p>
       )}
+      <Button className="mt-3" size="sm" variant="outline" onClick={() => setFresh((value) => !value)}>
+        {fresh ? "بستن ثبت نوبت" : "ثبت نوبت جدید برای این روز"}
+      </Button>
+      {fresh ? (
+        <div className="mt-3 rounded-2xl bg-white p-3 text-slate-900">
+          <StudioJobForm
+            businesses={businesses}
+            bookings={bookings}
+            personal={personal}
+            embedded
+            lockedDay={day}
+            onCreated={() => {
+              setFresh(false);
+              onBooked();
+            }}
+          />
+        </div>
+      ) : null}
     </aside>
   );
 }
