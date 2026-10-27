@@ -118,21 +118,38 @@ function designPrompt(idea: string, style: string, colorMode: string, variation?
   return prepPrompt({ task: "design", idea, style, colorMode, variation });
 }
 
-async function imageData(item: { b64_json?: string; url?: string }) {
-  if (item.b64_json) return `data:image/png;base64,${item.b64_json}`;
+async function imageData(item: { b64_json?: string; url?: string; mime_type?: string }) {
+  const mime = item.mime_type === "image/jpeg" || item.mime_type === "image/webp" ? item.mime_type : "image/png";
+  if (item.b64_json) {
+    if (item.b64_json.length > 2_200_000) return "";
+    return `data:${mime};base64,${item.b64_json}`;
+  }
   if (!item.url || !/^https:\/\//.test(item.url)) return "";
-  const response = await fetch(item.url);
+  const response = await fetch(item.url, { signal: AbortSignal.timeout(20_000) });
   if (!response.ok) return "";
   const bytes = Buffer.from(await response.arrayBuffer());
-  const type = response.headers.get("content-type")?.split(";")[0] || "image/png";
+  if (bytes.length > 1_600_000) return "";
+  const type = response.headers.get("content-type")?.split(";")[0] || mime;
   if (!type.startsWith("image/")) return "";
   return `data:${type};base64,${bytes.toString("base64")}`;
 }
 
-async function ownerRequest(request: Request) {
-  if (!authConfigured) return false;
-  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
-  return isStudioOwnerEmail(session?.user?.email);
+function imageFailure(status: number, detail: string) {
+  const raw = detail.toLowerCase();
+  const code = /"code"\s*:\s*"([a-z0-9_]{1,40})"/i.exec(detail)?.[1];
+  const suffix = code ? ` (${code})` : "";
+  if (status === 429 || raw.includes("rate")) return "سرویس تصویر شلوغ است. کمی بعد دوباره بزن.";
+  if (status === 401 || status === 403 || raw.includes("permission") || raw.includes("api key")) {
+    return "ساخت تصویر روی سرور مجاز نیست." + suffix;
+  }
+  if (raw.includes("invalid_image") || raw.includes("dimension") || raw.includes("too large") || raw.includes("too small")) {
+    return "این عکس قابل استفاده نیست. یک عکس واضح‌تر بگذار." + suffix;
+  }
+  if (raw.includes("timeout") || status === 504 || raw.includes("bad-json")) return "ساخت تصویر طول کشید و قطع شد. یک بار دیگر بزن.";
+  if (raw.includes("content") || raw.includes("moderat") || raw.includes("safety") || raw.includes("policy")) {
+    return "این عکس قبول نشد. عکس خود طرح را بگذار.";
+  }
+  return "ساخت طرح انجام نشد. یک بار دیگر بزن." + suffix;
 }
 
 async function requestImage(apiKey: string, prompt: string, image: string) {
@@ -143,7 +160,6 @@ async function requestImage(apiKey: string, prompt: string, image: string) {
           model: "grok-imagine-image-2.0",
           prompt,
           response_format: "b64_json" as const,
-          resolution: "2k",
           image: { url: image, type: "image_url" as const },
         },
         {
@@ -154,35 +170,43 @@ async function requestImage(apiKey: string, prompt: string, image: string) {
         },
       ]
     : [
-        { model: "grok-imagine-image-2.0", prompt, n: 1, response_format: "b64_json" as const, resolution: "2k" },
+        { model: "grok-imagine-image-2.0", prompt, n: 1, response_format: "b64_json" as const },
         { model: "grok-imagine-image", prompt, n: 1, response_format: "b64_json" as const },
       ];
   let status = 502;
   let detail = "";
   for (const payload of attempts) {
-    const endpoint = withImage ? "https://api.x.ai/v1/images/edits" : "https://api.x.ai/v1/images/generations";
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(90_000),
-    });
-    if (response.ok) {
-      const result = (await response.json()) as { data?: { b64_json?: string; url?: string }[] };
-      const picture = result.data?.[0] ? await imageData(result.data[0]) : "";
-      if (picture) return { image: picture };
+    try {
+      const endpoint = withImage ? "https://api.x.ai/v1/images/edits" : "https://api.x.ai/v1/images/generations";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(40_000),
+      });
+      const text = await response.text();
+      if (!response.ok) {
+        status = response.status;
+        detail = text.slice(0, 240);
+        if (status === 429) break;
+        continue;
+      }
+      const parsed = JSON.parse(text) as { data?: { b64_json?: string; url?: string; mime_type?: string }[] };
+      const picture = parsed.data?.[0] ? await imageData(parsed.data[0]) : "";
+      if (picture.startsWith("data:image/")) return { image: picture };
       detail = "empty";
-      continue;
+    } catch {
+      detail = "timeout";
+      status = 504;
     }
-    status = response.status;
-    detail = (await response.text().catch(() => "")).slice(0, 180);
-    if (status === 429) break;
   }
-  return {
-    error: status === 429 ? "سرویس تصویر شلوغ است. کمی بعد دوباره بزن." : "ساخت طرح انجام نشد.",
-    detail,
-    status,
-  };
+  return { error: imageFailure(status, detail), status };
+}
+
+async function ownerRequest(request: Request) {
+  if (!authConfigured) return false;
+  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+  return isStudioOwnerEmail(session?.user?.email);
 }
 
 async function generate(request: Request, body: unknown) {
@@ -216,7 +240,7 @@ async function generate(request: Request, body: unknown) {
       ? designPrompt(idea, data.style || "", data.colorMode || "bw", data.variation)
       : prepPrompt({ task, idea, style: data.style, colorMode: data.colorMode, stencilMode, variation: data.variation });
   const result = await requestImage(apiKey, prompt, image);
-  if ("error" in result) return json({ error: result.error, detail: result.detail }, result.status === 429 ? 429 : 502);
+  if ("error" in result) return json({ error: result.error }, result.status === 429 ? 429 : 502);
   return json({ image: result.image });
 }
 

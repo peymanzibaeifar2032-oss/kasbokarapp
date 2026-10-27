@@ -562,11 +562,10 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
   }
 
   async function fitForApi(dataUrl: string) {
-    let image = dataUrl;
-    if (image.length > 1_100_000) image = await shrinkDataUrl(dataUrl, 960);
-    if (image.length > 1_100_000) image = await shrinkDataUrl(dataUrl, 720);
-    if (image.length > 1_100_000) image = await shrinkDataUrl(dataUrl, 480);
-    if (!image.startsWith("data:image/") || image.length > 1_200_000) throw new Error("عکس برای ساخت بزرگ است. یکی کوچک‌تر بگذار.");
+    let image = await shrinkDataUrl(dataUrl, 1024);
+    if (image.length > 900_000) image = await shrinkDataUrl(dataUrl, 720);
+    if (image.length > 900_000) image = await shrinkDataUrl(dataUrl, 480);
+    if (!image.startsWith("data:image/") || image.length > 1_000_000) throw new Error("عکس برای ساخت بزرگ است. یکی کوچک‌تر بگذار.");
     return image;
   }
 
@@ -768,7 +767,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
         {tab === "extract" ? (
           <section className="grid gap-3">
             <p className="text-sm leading-7 text-white/60">
-              طرح از پوست، دست و نور عکس جدا می‌شود و به‌صورت یک طراحی تمیز روی زمینه سفید برمی‌گردد. هر نسخه از سهم ساعت کم می‌کند.
+              طرح از پوست، دست و نور عکس جدا می‌شود و به‌صورت یک طراحی تمیز روی زمینه سفید برمی‌گردد. ساخت هر نسخه حدود بیست ثانیه طول می‌کشد؛ صفحه را نبند.
             </p>
             <p className="text-sm text-white/70">تعداد نسخه</p>
             <CountPick value={extractCopies} onChange={setExtractCopies} />
@@ -903,7 +902,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
         {tab === "stencil" ? (
           <section className="grid gap-3">
             <p className="text-sm leading-7 text-white/60">
-              استنسیل دقیق برای چاپ ترانسفر. خط دور، سایه نقطه‌ای یا هاشور. رنگ را همین‌جا عوض کن؛ دوباره ساخته نمی‌شود.
+              استنسیل دقیق برای چاپ ترانسفر: خط دور، سایه‌نقطه‌ای یا هاشور. ساختش حدود بیست ثانیه طول می‌کشد. رنگ را بعد از ساخت همین‌جا عوض کن.
             </p>
             <p className="text-sm text-white/70">نوع استنسیل</p>
             <div className="grid grid-cols-3 gap-2">
