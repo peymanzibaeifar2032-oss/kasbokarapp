@@ -204,12 +204,12 @@ export function OwnerCalendar({
     return jalaliMonthGrid(month.jy, month.jm).map((cell) => {
       const rows = byDay.get(cell.dayKey) ?? [];
       const closed = rows.some((b) => b.kind === "block" && b.eventType === "holiday");
-      const count = rows.filter((b) => b.kind !== "block" && b.status !== "cancelled").length;
+      const count = rows.filter((b) => b.kind !== "block" && b.status !== "cancelled" && b.status !== "no_show").length;
       const taken = occupied.has(cell.dayKey) || count > 0;
       const thursday = isTehranThursday(cell.dayKey);
       const past = cell.inMonth && cell.dayKey < todayKey;
-      const status: DayStatus = !cell.inMonth ? "beyond" : past ? "past" : thursday ? "thursday" : taken || closed ? (closed && !taken ? "closed" : "booked") : "free";
-      const badge = !cell.inMonth || past ? undefined : thursday ? "آموزش" : taken ? "پر" : closed ? "تعطیل" : "خالی";
+      const status: DayStatus = !cell.inMonth ? "beyond" : past ? "past" : taken ? "booked" : thursday ? "thursday" : closed ? "closed" : "free";
+      const badge = !cell.inMonth || past ? undefined : taken ? "پر" : thursday ? "آموزش" : closed ? "تعطیل" : "خالی";
       return { cell, status, badge };
     });
   }, [byDay, month.jy, month.jm, occupied, todayKey]);
@@ -222,6 +222,8 @@ export function OwnerCalendar({
   const visibleStaff = uniqueStaff(resources.filter((r) => r.active !== false && !isRetiredCollaborator(r.name)));
   const dayKey = gregKey(clock.y, clock.m, clock.day);
   const dayRows = byDay.get(dayKey) ?? [];
+  const customerRows = dayRows.filter((row) => row.kind !== "block" && row.status !== "cancelled" && row.status !== "no_show");
+  const dayTaken = occupied.has(dayKey) || customerRows.length > 0;
 
   return (
     <div className="mt-6 space-y-4">
@@ -346,16 +348,20 @@ export function OwnerCalendar({
               روز بعد
             </button>
           </div>
-          {!dayRows.length ? (
+          {dayTaken && !customerRows.length ? (
+            <p className="mt-3 text-sm leading-7 text-amber-800">این روز مشتری دارد و بسته است. لیست مشتری‌ها پاک نشده.</p>
+          ) : null}
+          {!dayTaken && !customerRows.length ? (
             <div className="mt-3 text-sm leading-7 text-muted">
               <p>در این روز نوبت ثبت‌شده‌ای نیست. لیست مشتری‌ها پاک نشده.</p>
               <MonthBusyHint byDay={byDay} except={dayKey} />
             </div>
-          ) : (
-            <p className="mt-3 text-xs text-muted">
-              {toFaDigits(dayRows.length)} نوبت در این روز، همان لیست ماه
+          ) : null}
+          {customerRows.length ? (
+            <p className="mt-3 text-xs leading-6 text-amber-800">
+              این روز بسته است. {toFaDigits(customerRows.length)} مشتری، حتی اگر جلسه یک ساعت باشد.
             </p>
-          )}
+          ) : null}
           <ul className="mt-3 space-y-2">
             {dayRows.map((b) => (
               <li key={b.id}>

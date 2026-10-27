@@ -27,10 +27,9 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
-import { formatFaDate, formatFaDateTime, toEnDigits, toSmsLink, toTelLink } from "@/lib/format";
+import { formatFaDate, formatFaDateTime, toEnDigits, toSmsLink } from "@/lib/format";
 import { firstOpenCustomerDay, jalaliDayLabel, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
-import { phoneTail, pieceMinutes, suggestWaitlist } from "@/lib/fill-gap";
 import { isTehranThursday, thursdayBusyKeys } from "@/lib/studio-apprentices";
 import type { StudioFillIn } from "@/lib/server/studio-fill-ins";
 import { compressImage, downloadImage } from "@/lib/design-images";
@@ -46,7 +45,6 @@ import {
   sessionFoodSms,
   honorificForName,
   digitsOnly,
-  fillInMissedCallSms,
   formatCardNumber,
   formatGroupedDigits,
   formatTattooToman,
@@ -291,7 +289,7 @@ function StudioAdminPage() {
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [occupiedDays, setOccupiedDays] = useState<string[]>([]);
   const [tab, setTabState] = useState<PanelTab>(search.tab ?? "calendar");
-  const [moreOpen, setMoreOpen] = useState(search.tab === "prep" || search.tab === "contacts" || search.tab === "fill" || search.tab === "consent" || search.tab === "club" || search.tab === "apprentices" || search.tab === "messages" || search.tab === "artists");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [filter, setFilter] = useState<RequestFilter>("active");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -299,7 +297,7 @@ function StudioAdminPage() {
 
   function setTab(next: PanelTab) {
     setTabState(next);
-    if (next !== "calendar" && next !== "jobs" && next !== "requests" && next !== "money" && next !== "goals") setMoreOpen(true);
+    setMenuOpen(false);
     void navigate({ search: { tab: next }, replace: true });
   }
 
@@ -469,7 +467,7 @@ function StudioAdminPage() {
             <button
               key={id}
               type="button"
-              onClick={() => { setMoreOpen(false); setTab(id); }}
+              onClick={() => { setMenuOpen(false); setTab(id); }}
               className={cn(
                 "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold",
                 tab === id ? "bg-[#1C3D52] text-white shadow-sm" : "text-[#1C3D52]",
@@ -481,45 +479,77 @@ function StudioAdminPage() {
           ))}
           <button
             type="button"
-            onClick={() => setMoreOpen((value) => !value)}
-            className={cn("inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold", moreOpen ? "bg-white text-[#1C3D52] shadow-sm" : "text-[#1C3D52]")}
+            onClick={() => setMenuOpen(true)}
+            className={cn(
+              "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold",
+              menuOpen || !["calendar", "jobs", "requests", "money"].includes(tab) ? "bg-white text-[#1C3D52] shadow-sm" : "text-[#1C3D52]",
+            )}
+            aria-expanded={menuOpen}
+            aria-label="منوی بخش‌ها"
           >
-            <Mark name="more" className="size-4" />
-            بیشتر
+            <span className="flex w-4 flex-col gap-1" aria-hidden>
+              <span className="h-0.5 rounded-full bg-current" />
+              <span className="h-0.5 rounded-full bg-current" />
+              <span className="h-0.5 rounded-full bg-current" />
+            </span>
+            منو
           </button>
         </div>
-        {moreOpen ? (
-          <div className="flex w-full flex-wrap gap-1 rounded-2xl bg-slate-100 p-1">
+      </div>
+      {menuOpen ? (
+        <div className="fixed inset-0 z-50">
+          <button type="button" className="absolute inset-0 bg-black/40" aria-label="بستن منو" onClick={() => setMenuOpen(false)} />
+          <nav className="absolute inset-y-0 right-0 flex w-[min(100%,20rem)] flex-col gap-4 overflow-y-auto bg-[#f7f4ef] p-4 text-[#1C3D52] shadow-2xl">
+            <div className="flex items-center justify-between">
+              <p className="text-base font-black">بخش‌های پنل</p>
+              <button type="button" className="h-11 rounded-xl px-3 text-sm font-bold" onClick={() => setMenuOpen(false)}>
+                بستن
+              </button>
+            </div>
             {(
               [
-                ["prep", "آماده‌سازی طرح"],
-                ["contacts", "مشتریان"],
-                ["fill", "انتظار"],
-                ["consent", "رضایت‌نامه"],
-                ["club", "باشگاه"],
-                ["apprentices", "هنرجوها"],
-                ["messages", "پیام‌ها"],
-                ["artists", "همکاران"],
+                ["کار امروز", [
+                  ["calendar", "امروز"],
+                  ["jobs", "نوبت‌ها"],
+                  ["requests", "ورودی"],
+                  ["money", owner || ownPanel ? "صندوق" : "سهم من"],
+                ]],
+                ["مشتری", [
+                  ["contacts", "مشتریان"],
+                  ["fill", "انتظار"],
+                  ["consent", "رضایت‌نامه"],
+                  ["messages", "پیام‌ها"],
+                ]],
+                ["استودیو", [
+                  ...(owner || ownPanel ? [["apprentices", "هنرجوها"] as const] : []),
+                  ...(owner ? [["artists", "همکاران"] as const, ["club", "باشگاه"] as const, ["goals", "مدیریت اهداف من"] as const] : []),
+                ]],
+                ["ابزار", owner ? [["prep", "آماده‌سازی طرح"] as const] : []],
               ] as const
-            )
-              .filter(([id]) => (id === "prep" ? owner : owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices"))))
-              .map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setTab(id)}
-                  className={cn(
-                    "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold",
-                    tab === id ? "bg-white text-[#1C3D52] shadow-sm" : "text-muted",
-                  )}
-                >
-                  <Mark name={tabMark[id]} className="size-4" />
-                  {label}
-                </button>
-              ))}
-          </div>
-        ) : null}
-      </div>
+            ).map(([title, items]) =>
+              items.length ? (
+                <div key={title} className="grid gap-1">
+                  <p className="px-2 text-xs font-bold text-[#1C3D52]/60">{title}</p>
+                  {items.map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setTab(id)}
+                      className={cn(
+                        "flex h-12 items-center gap-2 rounded-2xl px-3 text-right text-sm font-bold",
+                        tab === id ? "bg-[#1C3D52] text-white" : "bg-white",
+                      )}
+                    >
+                      <Mark name={tabMark[id]} className="size-4" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null,
+            )}
+          </nav>
+        </div>
+      ) : null}
 
       {tab === "prep" && owner ? (
         <div className="mt-4">
@@ -1428,7 +1458,7 @@ function TattooAdminCard({
           {day ? (
             <div className="mt-3 rounded-2xl border border-border bg-bg p-3">
               <p className="text-sm font-semibold">برنامه این روز</p>
-              {sameDayBookings.length || sameDayProposals.length ? (
+              {sameDayBookings.length || sameDayProposals.length || busyKeys.includes(day) ? (
                 <ul className="mt-2 space-y-1 text-sm text-muted">
                   {sameDayBookings.map((booking) => (
                     <li key={booking.id}>
@@ -1442,6 +1472,7 @@ function TattooAdminCard({
                       {other.paymentStatus === "proposal_pending" ? " (هنوز قفل نشده)" : ""}
                     </li>
                   ))}
+                  {!sameDayBookings.length && !sameDayProposals.length ? <li>این روز مشتری دارد و بسته است.</li> : null}
                 </ul>
               ) : (
                 <p className="mt-1 text-sm text-emerald-700">این روز هنوز نوبت ثبت‌شده ندارد.</p>
@@ -2666,7 +2697,7 @@ function MonthJobsPanel({
         </p>
       ) : null}
       {chronological ? null : viewingToday && !dayGroups.some((group) => group.day === todayKey) ? (
-        <DayGap day={todayKey} jobs={[]} waiting={waiting} />
+        <EmptyDayOffer day={todayKey} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
       ) : null}
       {dayGroups.map((group, index) => {
         const previous = dayGroups[index - 1];
@@ -2678,7 +2709,7 @@ function MonthJobsPanel({
         <div key={group.day} className="grid gap-4">
           {showTodayBefore ? (
             <>
-              <DayGap day={todayKey} jobs={[]} waiting={waiting} />
+              <EmptyDayOffer day={todayKey} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
               {daysBetween(todayKey, group.day).map((day) => (
                 <EmptyDayOffer key={`lead-${day}`} day={day} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
               ))}
@@ -2701,7 +2732,7 @@ function MonthJobsPanel({
               canEnroll={canEnroll}
             />
           ))}
-          <DayGap day={group.day} jobs={group.jobs} waiting={waiting} />
+          <DayGap day={group.day} jobs={group.jobs} />
           {holes.map((day) => (
             <EmptyDayOffer key={day} day={day} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
           ))}
@@ -2709,7 +2740,7 @@ function MonthJobsPanel({
         );
       })}
       {chronological && viewingToday && !dayGroups.some((group) => group.day >= todayKey) ? (
-        <DayGap day={todayKey} jobs={[]} waiting={waiting} />
+        <EmptyDayOffer day={todayKey} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
       ) : null}
       {!chronological && !focusedPast && pastJobs.length ? <p className="pt-2 text-sm font-semibold text-muted">قبل از امروز</p> : null}
       {!chronological && !focusedPast
@@ -2778,7 +2809,7 @@ function EmptyDayOffer({
   const open = waiting
     .filter((row) => {
       const minutes = row.sessionMinutes >= 30 ? row.sessionMinutes : row.historyMinutes;
-      return minutes >= 30 && minutes <= 8 * 60;
+      return minutes >= 30;
     })
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   async function book(row: StudioFillIn) {
@@ -2878,94 +2909,12 @@ function groupByDay(jobs: TattooRequest[], bookings: Booking[] = []) {
   return groups;
 }
 
-function DayGap({ day, jobs, waiting }: { day: string; jobs: TattooRequest[]; waiting: StudioFillIn[] }) {
-  if (day < tehranDayKey() || isTehranThursday(day)) return null;
-  if (jobs.some((job) => !job.sessionMinutes)) {
-    return (
-      <p className="rounded-2xl border border-border bg-surface p-4 text-sm leading-7">
-        مدت یکی از نوبت‌های این روز ثبت نشده. تا ساعتش معلوم نباشد پیشنهاد نمی‌دهم، تا روز از ۸ ساعت رد نشود.
-      </p>
-    );
-  }
-  const used = jobs.reduce((sum, job) => sum + (job.sessionMinutes || 0), 0);
-  const remaining = Math.max(0, 8 * 60 - used);
-  if (remaining < 60) return null;
-  const busy = new Set(jobs.flatMap((job) => [phoneTail(job.customerPhone), phoneTail(job.customerPhone2 || "")]).filter(Boolean));
-  const { primary, alternate, bothFit } = suggestWaitlist(
-    remaining,
-    waiting.map((row) => {
-      const piece = pieceMinutes(row.sessionMinutes || 0, row.historyMinutes || 0);
-      return {
-        id: row.id,
-        name: row.customerName,
-        phone: row.customerPhone,
-        phone2: row.customerPhone2,
-        minutes: piece.minutes,
-        createdAt: row.createdAt,
-        missedCount: row.missedCount || 0,
-        ongoing: row.ongoing,
-        source: piece.source === "none" ? undefined : piece.source,
-      };
-    }),
-    busy,
-  );
+function DayGap({ day, jobs }: { day: string; jobs: TattooRequest[] }) {
+  if (day < tehranDayKey() || isTehranThursday(day) || !jobs.length) return null;
   return (
-    <aside className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
-      <p className="text-sm font-semibold">پیشنهاد لیست انتظار</p>
-      <p className="mt-1 text-sm leading-7">
-        این روز {used ? formatSitting(used) : "هنوز کاری"} دارد. {formatSitting(remaining)} تا سقف ۸ ساعت بدن مانده.
-      </p>
-      {primary ? (
-        <>
-          <SuggestionLine row={primary} />
-          {alternate ? (
-            <>
-              <SuggestionLine row={alternate} muted />
-              <p className="mt-1 text-sm leading-7 text-muted">
-                {bothFit
-                  ? "جمع این دو در ۸ ساعت می‌ماند، ولی فقط اگر ساعت‌ها روی هم نیفتند."
-                  : "این دو را با هم نگذار. از توان ۸ ساعت رد می‌شود."}
-              </p>
-            </>
-          ) : null}
-          <p className="mt-2 text-xs leading-6 text-muted">
-            هنوز در تقویم نرفته. اگر آمد، از لیست انتظار ساعت را بزن. اگر روی نوبت دیگری بیفتد، ثبت نمی‌شود.
-            {primary.ongoing ? " کار ادامه‌دار بعد از این تکه در لیست می‌ماند." : " کار یک‌جلسه‌ای بعد از تأیید از لیست می‌رود."}
-          </p>
-        </>
-      ) : (
-        <p className="mt-2 text-sm leading-7 text-muted">
-          در لیست انتظار کاری که در این {formatSitting(remaining)} جا شود نیست. اگر مدت کسی خالی است، در ویرایش لیست بنویس.
-        </p>
-      )}
-    </aside>
-  );
-}
-
-function SuggestionLine({ row, muted = false }: { row: { name: string; phone: string; phone2?: string; minutes: number; source?: "piece" | "history"; missedCount?: number }; muted?: boolean }) {
-  const tel = toTelLink(row.phone);
-  const sms = toSmsLink(row.phone, fillInMissedCallSms(row.name));
-  const why = row.source === "history" ? "از جلسه قبلی همین مشتری" : "مدت همین تکه";
-  return (
-    <div className={muted ? "mt-2 text-sm leading-7 text-muted" : "mt-2 text-sm leading-7"}>
-      <p>
-        {muted ? "یا " : "پیشنهاد: "}
-        {row.name}، {formatSitting(row.minutes)}. {why}.
-        {row.missedCount ? ` ${toFaDigits(row.missedCount)} بار مراجعه نکرده.` : ""}
-      </p>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        {tel ? (
-          <a className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-surface text-sm font-bold" href={tel}>
-            تماس
-          </a>
-        ) : null}
-        {sms ? (
-          <a className="inline-flex h-10 items-center justify-center rounded-xl bg-primary text-sm font-bold text-primary-fg" href={sms}>
-            پیام بی‌جواب
-          </a>
-        ) : null}
-      </div>
-    </div>
+    <p className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 text-sm leading-7 text-amber-950">
+      این روز مشتری دارد و بسته است، حتی اگر جلسه‌اش یک ساعت باشد. نفر بعدی را فقط خودت از بخش انتظار به همین روز اضافه می‌کنی.
+    </p>
   );
 }
 

@@ -51,13 +51,35 @@ const headerLink =
 const tabClass =
   "flex min-h-14 flex-col items-center justify-center gap-1 py-2.5 text-[11px] text-muted";
 
+const SITE_MENU = [
+  { to: "/studio", label: "استودیو" },
+  { to: "/studio/request", label: "درخواست نوبت" },
+  { to: "/studio/status", label: "پیگیری" },
+  { to: "/studio/designs", label: "طرح‌ها" },
+  { to: "/studio/care", label: "مراقبت" },
+  { to: "/studio/guide", label: "آموزش" },
+  { to: "/studio/club", label: "باشگاه" },
+] as const;
+
 export function Shell({ children }: { children: ReactNode }) {
   const { user } = useCurrentUserState();
   const owner = isStudioOwnerEmail(user?.primaryEmail);
+  const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="min-h-dvh bg-bg text-fg">
       <header className="sticky top-0 z-40 border-b border-border bg-bg">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2">
+          <button
+            type="button"
+            className="inline-flex size-11 shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface"
+            aria-label="منوی سایت"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
+          >
+            <span className="h-0.5 w-4 rounded-full bg-current" />
+            <span className="h-0.5 w-4 rounded-full bg-current" />
+            <span className="h-0.5 w-4 rounded-full bg-current" />
+          </button>
           <Link to="/studio" className="flex shrink-0 items-center gap-2">
             <img src="/apps/tattoo-app-icon.png" alt="" className="size-9 rounded-lg" />
             <strong className="text-sm font-semibold">رزرو وقت تاتو</strong>
@@ -83,6 +105,38 @@ export function Shell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </header>
+      {menuOpen ? (
+        <div className="fixed inset-0 z-50">
+          <button type="button" className="absolute inset-0 bg-black/40" aria-label="بستن منو" onClick={() => setMenuOpen(false)} />
+          <nav className="absolute inset-y-0 right-0 flex w-[min(100%,20rem)] flex-col gap-2 overflow-y-auto bg-bg p-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <p className="text-base font-black">بخش‌های سایت</p>
+              <button type="button" className="h-11 rounded-xl px-3 text-sm font-bold" onClick={() => setMenuOpen(false)}>
+                بستن
+              </button>
+            </div>
+            {SITE_MENU.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="flex h-12 items-center rounded-2xl bg-surface px-3 text-sm font-bold"
+                onClick={() => setMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
+            {owner ? (
+              <Link to="/studio/admin" className="flex h-12 items-center rounded-2xl bg-primary px-3 text-sm font-bold text-primary-fg" onClick={() => setMenuOpen(false)}>
+                پنل مدیریت
+              </Link>
+            ) : (
+              <Link to="/account" className="flex h-12 items-center rounded-2xl bg-surface px-3 text-sm font-bold" onClick={() => setMenuOpen(false)}>
+                حساب
+              </Link>
+            )}
+          </nav>
+        </div>
+      ) : null}
       <main className="mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-4 pb-28 pt-6">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
         <div className="grid grid-cols-5">
