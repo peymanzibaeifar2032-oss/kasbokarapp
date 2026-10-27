@@ -136,20 +136,32 @@ async function imageData(item: { b64_json?: string; url?: string; mime_type?: st
 
 function imageFailure(status: number, detail: string) {
   const raw = detail.toLowerCase();
-  const code = /"code"\s*:\s*"([a-z0-9_]{1,40})"/i.exec(detail)?.[1];
-  const suffix = code ? ` (${code})` : "";
-  if (status === 429 || raw.includes("rate")) return "سرویس تصویر شلوغ است. کمی بعد دوباره بزن.";
-  if (status === 401 || status === 403 || raw.includes("permission") || raw.includes("api key")) {
-    return "ساخت تصویر روی سرور مجاز نیست." + suffix;
+  if (status === 429 || raw.includes("rate limit") || raw.includes("too many")) {
+    return "سرویس تصویر شلوغ است. کمی بعد دوباره بزن.";
+  }
+  if (
+    raw.includes("spending-limit") ||
+    raw.includes("run out of credits") ||
+    raw.includes("add credits") ||
+    raw.includes("billing") ||
+    raw.includes("quota")
+  ) {
+    return "اعتبار ساخت تصویر روی سرور تمام شده. از console.x.ai برای همین کلید اعتبار عکس اضافه کن. اشتراک سوپرگروک جداست.";
+  }
+  if (status === 401 || raw.includes("incorrect api key") || raw.includes("invalid api key") || raw.includes("invalid_api_key")) {
+    return "کلید ساخت تصویر روی سرور اشتباه است.";
+  }
+  if (status === 403 || raw.includes("permission") || raw.includes("not allowed") || raw.includes("forbidden")) {
+    return "کلید سرور اجازه ساخت عکس ندارد. در console.x.ai باید ساخت تصویر برای این کلید باز باشد.";
   }
   if (raw.includes("invalid_image") || raw.includes("dimension") || raw.includes("too large") || raw.includes("too small")) {
-    return "این عکس قابل استفاده نیست. یک عکس واضح‌تر بگذار." + suffix;
+    return "این عکس قابل استفاده نیست. یک عکس واضح‌تر بگذار.";
   }
   if (raw.includes("timeout") || status === 504 || raw.includes("bad-json")) return "ساخت تصویر طول کشید و قطع شد. یک بار دیگر بزن.";
   if (raw.includes("content") || raw.includes("moderat") || raw.includes("safety") || raw.includes("policy")) {
     return "این عکس قبول نشد. عکس خود طرح را بگذار.";
   }
-  return "ساخت طرح انجام نشد. یک بار دیگر بزن." + suffix;
+  return "ساخت طرح انجام نشد. یک بار دیگر بزن.";
 }
 
 async function requestImage(apiKey: string, prompt: string, image: string) {
