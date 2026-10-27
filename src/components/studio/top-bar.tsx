@@ -57,6 +57,7 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
                     <Link to="/studio/care" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}><Mark name="care" className="size-4" />مراقبت</Link>
                     <Link to="/studio/guide" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}><Mark name="guide" className="size-4" />آموزش فرم</Link>
                     <Link to="/studio/designs" className={`flex h-14 items-center justify-center gap-2 rounded-2xl text-sm ${light ? "bg-slate-100" : "bg-white/[.06]"}`}><Mark name="designs" className="size-4" />انتخاب طرح</Link>
+                    <a href="/tattoo-prep/" className={`col-span-2 flex min-h-14 items-center justify-center rounded-2xl px-3 text-center text-sm leading-6 ${light ? "bg-slate-100" : "bg-white/[.06] text-[#e5d2ae]"}`}>ابزارهای آماده‌سازی طرح تاتو</a>
                   </>
                 ) : null}
                 <a href={ADMIN_URL} className={`col-span-2 flex h-14 items-center justify-center rounded-2xl text-sm font-bold ${light ? "bg-[#1c3d52] text-white" : "bg-black text-[#b7955b]"}`}>
@@ -84,7 +85,7 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
                   )}
                 </span>
               </Link>
-              <nav className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+              <nav className="grid grid-cols-2 gap-2 sm:flex sm:max-w-full sm:flex-wrap sm:justify-end">
               <Link
                 to="/studio/request"
                 className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl px-3 text-sm font-bold ${light ? "bg-[#2f80ed] text-white" : "bg-[#b7955b] text-black"}`}
@@ -125,6 +126,7 @@ export function StudioTopBar({ compact, light }: { compact?: boolean; light?: bo
                   <Link to="/studio/care" className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}><Mark name="care" className="size-4" />مراقبت</Link>
                   <Link to="/studio/guide" className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}><Mark name="guide" className="size-4" />آموزش</Link>
                   <Link to="/studio/designs" className={`inline-flex h-12 items-center justify-center gap-1 rounded-2xl border px-3 text-sm ${light ? "border-slate-200 text-slate-700" : "border-white/15 text-white/80"}`}><Mark name="designs" className="size-4" />طرح</Link>
+                  <a href="/tattoo-prep/" className={`col-span-2 inline-flex min-h-12 items-center justify-center rounded-2xl border px-3 text-center text-sm leading-6 sm:col-span-1 ${light ? "border-slate-200 text-slate-700" : "border-[#b7955b]/50 text-[#e5d2ae]"}`}>ابزارهای آماده‌سازی طرح تاتو</a>
                 </>
               ) : null}
               </nav>

@@ -96,6 +96,12 @@ function StudioLanding() {
                     روزهای خالی
                   </Link>
                 </div>
+                <a
+                  href="/tattoo-prep/"
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-[#b7955b]/50 px-4 text-center text-sm font-bold leading-6 text-[#e5d2ae]"
+                >
+                  ابزارهای آماده‌سازی طرح تاتو
+                </a>
                 <details className="rounded-2xl border border-white/10 px-3 py-2">
                   <summary className="cursor-pointer text-sm text-white/70">بیشتر: طرح، مراقبت، آموزش، باشگاه، ابزارهای طرح</summary>
                   <div className="mt-3 grid grid-cols-2 gap-3 pb-1">

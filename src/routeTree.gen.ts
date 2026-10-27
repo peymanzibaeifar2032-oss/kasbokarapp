@@ -20,6 +20,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as StudioRouteImport } from './routes/studio'
+import { Route as TattooPrepRouteImport } from './routes/tattoo-prep'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ApiApprenticeAskRouteImport } from './routes/api/apprentice-ask'
 import { Route as ApiCustomerPasswordRouteImport } from './routes/api/customer-password'
@@ -36,6 +37,7 @@ import { Route as ApiSetAppPasswordRouteImport } from './routes/api/set-app-pass
 import { Route as ApiTattooApkRouteImport } from './routes/api/tattoo-apk'
 import { Route as ApiTattooAskRouteImport } from './routes/api/tattoo-ask'
 import { Route as ApiTattooFileRouteImport } from './routes/api/tattoo-file'
+import { Route as ApiTattooPrepRouteImport } from './routes/api/tattoo-prep'
 import { Route as ApiTattooPublicRouteImport } from './routes/api/tattoo-public'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
@@ -108,6 +110,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const StudioRoute = StudioRouteImport.update({
   id: '/studio',
   path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TattooPrepRoute = TattooPrepRouteImport.update({
+  id: '/tattoo-prep',
+  path: '/tattoo-prep',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -188,6 +195,11 @@ const ApiTattooAskRoute = ApiTattooAskRouteImport.update({
 const ApiTattooFileRoute = ApiTattooFileRouteImport.update({
   id: '/api/tattoo-file',
   path: '/api/tattoo-file',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTattooPrepRoute = ApiTattooPrepRouteImport.update({
+  id: '/api/tattoo-prep',
+  path: '/api/tattoo-prep',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTattooPublicRoute = ApiTattooPublicRouteImport.update({
@@ -293,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
+  '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
   '/api/apprentice-ask': typeof ApiApprenticeAskRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
@@ -309,6 +322,7 @@ export interface FileRoutesByFullPath {
   '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/api/tattoo-ask': typeof ApiTattooAskRoute
   '/api/tattoo-file': typeof ApiTattooFileRoute
+  '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
@@ -340,6 +354,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
+  '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
   '/api/apprentice-ask': typeof ApiApprenticeAskRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
@@ -356,6 +371,7 @@ export interface FileRoutesByTo {
   '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/api/tattoo-ask': typeof ApiTattooAskRoute
   '/api/tattoo-file': typeof ApiTattooFileRoute
+  '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
@@ -388,6 +404,7 @@ export interface FileRoutesById {
   '/notifications': typeof NotificationsRoute
   '/privacy': typeof PrivacyRoute
   '/studio': typeof StudioRouteWithChildren
+  '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
   '/api/apprentice-ask': typeof ApiApprenticeAskRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
@@ -404,6 +421,7 @@ export interface FileRoutesById {
   '/api/tattoo-apk': typeof ApiTattooApkRoute
   '/api/tattoo-ask': typeof ApiTattooAskRoute
   '/api/tattoo-file': typeof ApiTattooFileRoute
+  '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
@@ -437,6 +455,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/studio'
+    | '/tattoo-prep'
     | '/terms'
     | '/api/apprentice-ask'
     | '/api/customer-password'
@@ -453,6 +472,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-apk'
     | '/api/tattoo-ask'
     | '/api/tattoo-file'
+    | '/api/tattoo-prep'
     | '/api/tattoo-public'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
@@ -484,6 +504,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/studio'
+    | '/tattoo-prep'
     | '/terms'
     | '/api/apprentice-ask'
     | '/api/customer-password'
@@ -500,6 +521,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-apk'
     | '/api/tattoo-ask'
     | '/api/tattoo-file'
+    | '/api/tattoo-prep'
     | '/api/tattoo-public'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
@@ -531,6 +553,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/privacy'
     | '/studio'
+    | '/tattoo-prep'
     | '/terms'
     | '/api/apprentice-ask'
     | '/api/customer-password'
@@ -547,6 +570,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-apk'
     | '/api/tattoo-ask'
     | '/api/tattoo-file'
+    | '/api/tattoo-prep'
     | '/api/tattoo-public'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
@@ -579,6 +603,7 @@ export interface RootRouteChildren {
   NotificationsRoute: typeof NotificationsRoute
   PrivacyRoute: typeof PrivacyRoute
   StudioRoute: typeof StudioRouteWithChildren
+  TattooPrepRoute: typeof TattooPrepRoute
   TermsRoute: typeof TermsRoute
   ApiApprenticeAskRoute: typeof ApiApprenticeAskRoute
   ApiCustomerPasswordRoute: typeof ApiCustomerPasswordRoute
@@ -595,6 +620,7 @@ export interface RootRouteChildren {
   ApiTattooApkRoute: typeof ApiTattooApkRoute
   ApiTattooAskRoute: typeof ApiTattooAskRoute
   ApiTattooFileRoute: typeof ApiTattooFileRoute
+  ApiTattooPrepRoute: typeof ApiTattooPrepRoute
   ApiTattooPublicRoute: typeof ApiTattooPublicRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -680,6 +706,13 @@ declare module '@tanstack/react-router' {
       path: '/studio'
       fullPath: '/studio'
       preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tattoo-prep': {
+      id: '/tattoo-prep'
+      path: '/tattoo-prep'
+      fullPath: '/tattoo-prep'
+      preLoaderRoute: typeof TattooPrepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terms': {
@@ -792,6 +825,13 @@ declare module '@tanstack/react-router' {
       path: '/api/tattoo-file'
       fullPath: '/api/tattoo-file'
       preLoaderRoute: typeof ApiTattooFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tattoo-prep': {
+      id: '/api/tattoo-prep'
+      path: '/api/tattoo-prep'
+      fullPath: '/api/tattoo-prep'
+      preLoaderRoute: typeof ApiTattooPrepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tattoo-public': {
@@ -978,6 +1018,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationsRoute: NotificationsRoute,
   PrivacyRoute: PrivacyRoute,
   StudioRoute: StudioRouteWithChildren,
+  TattooPrepRoute: TattooPrepRoute,
   TermsRoute: TermsRoute,
   ApiApprenticeAskRoute: ApiApprenticeAskRoute,
   ApiCustomerPasswordRoute: ApiCustomerPasswordRoute,
@@ -994,6 +1035,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTattooApkRoute: ApiTattooApkRoute,
   ApiTattooAskRoute: ApiTattooAskRoute,
   ApiTattooFileRoute: ApiTattooFileRoute,
+  ApiTattooPrepRoute: ApiTattooPrepRoute,
   ApiTattooPublicRoute: ApiTattooPublicRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
