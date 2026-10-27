@@ -103,13 +103,12 @@ function StudioLanding() {
                   ابزارهای آماده‌سازی طرح تاتو
                 </a>
                 <details className="rounded-2xl border border-white/10 px-3 py-2">
-                  <summary className="cursor-pointer text-sm text-white/70">بیشتر: طرح، مراقبت، آموزش، باشگاه، ابزارهای طرح</summary>
+                  <summary className="cursor-pointer text-sm text-white/70">بیشتر: طرح، مراقبت، آموزش، باشگاه</summary>
                   <div className="mt-3 grid grid-cols-2 gap-3 pb-1">
                     <Link to="/studio/designs" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">طرح</Link>
                     <Link to="/studio/care" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">مراقبت</Link>
                     <Link to="/studio/guide" className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/15 px-3 text-sm text-white/80">آموزش</Link>
                     <Link to="/studio/club" className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#b7955b]/40 px-3 text-sm text-[#e5d2ae]">باشگاه</Link>
-                    <a href="/tattoo-prep/" className="col-span-2 inline-flex h-12 items-center justify-center rounded-2xl border border-[#2F6F68]/50 bg-[#2F6F68]/10 px-3 text-sm text-[#a8d5d0]">ابزارهای آماده‌سازی طرح تاتو</a>
                   </div>
                 </details>
               </div>
