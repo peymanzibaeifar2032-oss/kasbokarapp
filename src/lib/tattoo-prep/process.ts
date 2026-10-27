@@ -1,10 +1,47 @@
 export type PaperId = "a4" | "a3" | "letter";
+export type InkColor = "red" | "black" | "green" | "blue";
+
+const INK_RGB: Record<InkColor, [number, number, number]> = {
+  red: [176, 36, 42],
+  black: [12, 12, 12],
+  green: [18, 120, 58],
+  blue: [24, 72, 190],
+};
 
 export const PAPERS: Record<PaperId, { label: string; w: number; h: number }> = {
   a4: { label: "A4", w: 210, h: 297 },
   a3: { label: "A3", w: 297, h: 420 },
   letter: { label: "Letter", w: 215.9, h: 279.4 },
 };
+
+export function pageSize(paper: PaperId, portrait = true) {
+  const sheet = PAPERS[paper];
+  return portrait ? { w: sheet.w, h: sheet.h, label: sheet.label } : { w: sheet.h, h: sheet.w, label: sheet.label };
+}
+
+export function sheetPlan(widthCm: number, heightCm: number, paper: PaperId, portrait = true) {
+  const page = pageSize(paper, portrait);
+  const margin = 10;
+  const usableW = Math.max(20, page.w - margin * 2);
+  const usableH = Math.max(20, page.h - margin * 2);
+  const widthMm = widthCm * 10;
+  const heightMm = heightCm * 10;
+  const cols = Math.max(1, Math.ceil(widthMm / usableW));
+  const rows = Math.max(1, Math.ceil(heightMm / usableH));
+  return {
+    label: page.label,
+    pageW: page.w,
+    pageH: page.h,
+    margin,
+    usableW,
+    usableH,
+    widthMm,
+    heightMm,
+    cols,
+    rows,
+    pages: cols * rows,
+  };
+}
 
 export function tilePlan(designW: number, designH: number, paper: PaperId, marginMm = 12) {
   const sheet = PAPERS[paper];
@@ -199,6 +236,40 @@ export async function makeStencil(
   return flipped.toDataURL("image/png");
 }
 
+export async function recolorStencil(src: string, ink: InkColor, mirror: boolean) {
+  const { canvas, ctx } = await paint(src, 1400);
+  const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const tone = INK_RGB[ink];
+  const data = frame.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const y = 0.299 * (data[i] ?? 0) + 0.587 * (data[i + 1] ?? 0) + 0.114 * (data[i + 2] ?? 0);
+    const darkness = 1 - y / 255;
+    if (darkness < 0.06) {
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = 255;
+      continue;
+    }
+    const weight = Math.min(1, (darkness - 0.06) / 0.7);
+    data[i] = Math.round(255 * (1 - weight) + tone[0] * weight);
+    data[i + 1] = Math.round(255 * (1 - weight) + tone[1] * weight);
+    data[i + 2] = Math.round(255 * (1 - weight) + tone[2] * weight);
+    data[i + 3] = 255;
+  }
+  ctx.putImageData(frame, 0, 0);
+  if (!mirror) return canvas.toDataURL("image/png");
+  const flipped = document.createElement("canvas");
+  flipped.width = canvas.width;
+  flipped.height = canvas.height;
+  const fx = flipped.getContext("2d");
+  if (!fx) return canvas.toDataURL("image/png");
+  fx.translate(flipped.width, 0);
+  fx.scale(-1, 1);
+  fx.drawImage(canvas, 0, 0);
+  return flipped.toDataURL("image/png");
+}
+
 export async function enhancePhoto(
   src: string,
   opts: { scale: number; bright: number; contrast: number; sharpen: number; denoise: number },
@@ -291,59 +362,67 @@ export async function stagePhoto(src: string, background: string, frame: "post" 
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
-export async function printSheets(src: string, widthCm: number, heightCm: number, paper: PaperId) {
-  const plan = tilePlan(widthCm * 10, heightCm * 10, paper);
+export async function printSheets(src: string, widthCm: number, heightCm: number, paper: PaperId, portrait = true) {
+  const plan = sheetPlan(widthCm, heightCm, paper, portrait);
   const image = await loadImage(src);
-  const dpi = 300;
-  const pxW = Math.max(1, Math.round((widthCm / 2.54) * dpi));
-  const pxH = Math.max(1, Math.round((heightCm / 2.54) * dpi));
-  const limitedW = Math.min(pxW, 3600);
-  const limitedH = Math.round(pxH * (limitedW / pxW));
-  const master = document.createElement("canvas");
-  master.width = limitedW;
-  master.height = limitedH;
-  const mctx = master.getContext("2d");
-  if (!mctx) throw new Error("آماده‌سازی چاپ ممکن نیست.");
-  mctx.fillStyle = "#ffffff";
-  mctx.fillRect(0, 0, limitedW, limitedH);
-  mctx.drawImage(image, 0, 0, limitedW, limitedH);
   const pages: string[] = [];
+  const fits = plan.pages === 1;
   for (let row = 0; row < plan.rows; row += 1) {
     for (let col = 0; col < plan.cols; col += 1) {
-      const tileW = Math.ceil(limitedW / plan.cols);
-      const tileH = Math.ceil(limitedH / plan.rows);
-      const page = document.createElement("canvas");
-      page.width = tileW + 80;
-      page.height = tileH + 80;
-      const ctx = page.getContext("2d");
-      if (!ctx) continue;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, page.width, page.height);
-      ctx.drawImage(master, col * tileW, row * tileH, tileW, tileH, 40, 40, tileW, tileH);
-      ctx.strokeStyle = "#111111";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(40, 40, tileW, tileH);
-      ctx.lineWidth = 1;
-      for (const [x, y] of [
-        [40, 40],
-        [40 + tileW, 40],
-        [40, 40 + tileH],
-        [40 + tileW, 40 + tileH],
-      ] as const) {
-        ctx.beginPath();
-        ctx.moveTo(x - 14, y);
-        ctx.lineTo(x + 14, y);
-        ctx.moveTo(x, y - 14);
-        ctx.lineTo(x, y + 14);
-        ctx.stroke();
-      }
-      ctx.font = "24px sans-serif";
-      ctx.fillStyle = "#111111";
-      ctx.fillText(`${col + 1}/${plan.cols} · ${row + 1}/${plan.rows}`, 44, 30);
-      pages.push(page.toDataURL("image/png"));
+      const tileW = fits ? plan.widthMm : plan.widthMm / plan.cols;
+      const tileH = fits ? plan.heightMm : plan.heightMm / plan.rows;
+      const dx = fits ? (plan.pageW - plan.widthMm) / 2 : plan.margin;
+      const dy = fits ? (plan.pageH - plan.heightMm) / 2 : plan.margin;
+      const label = plan.pages > 1 ? `${col + 1}/${plan.cols} · ${row + 1}/${plan.rows}` : "";
+      pages.push(
+        drawPrintPage(image, plan.pageW, plan.pageH, dx, dy, tileW, tileH, (col / plan.cols) * image.width, (row / plan.rows) * image.height, image.width / plan.cols, image.height / plan.rows, label),
+      );
     }
   }
   return { pages, plan };
+}
+
+function drawPrintPage(
+  image: HTMLImageElement,
+  pageWmm: number,
+  pageHmm: number,
+  dxMm: number,
+  dyMm: number,
+  dwMm: number,
+  dhMm: number,
+  sx: number,
+  sy: number,
+  sw: number,
+  sh: number,
+  label: string,
+) {
+  const dpi = 180;
+  const px = (mm: number) => (mm / 25.4) * dpi;
+  let width = Math.round(px(pageWmm));
+  let height = Math.round(px(pageHmm));
+  const fit = Math.min(1, 2800 / Math.max(width, height));
+  width = Math.max(1, Math.round(width * fit));
+  height = Math.max(1, Math.round(height * fit));
+  const scale = width / pageWmm;
+  const page = document.createElement("canvas");
+  page.width = width;
+  page.height = height;
+  const ctx = page.getContext("2d");
+  if (!ctx) throw new Error("آماده‌سازی چاپ ممکن نیست.");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(image, sx, sy, sw, sh, dxMm * scale, dyMm * scale, dwMm * scale, dhMm * scale);
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(1, scale * 0.25);
+  ctx.strokeRect(dxMm * scale, dyMm * scale, dwMm * scale, dhMm * scale);
+  if (label) {
+    ctx.fillStyle = "#111111";
+    ctx.font = `${Math.max(14, Math.round(scale * 3.2))}px sans-serif`;
+    ctx.fillText(label, 12, height - 14);
+  }
+  return page.toDataURL("image/png");
 }
 
 export async function shrinkDataUrl(src: string, max = 960) {

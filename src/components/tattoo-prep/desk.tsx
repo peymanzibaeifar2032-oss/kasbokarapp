@@ -3,13 +3,14 @@ import { StudioTopBar } from "@/components/studio/top-bar";
 import {
   downloadDataUrl,
   enhancePhoto,
-  extractTattoo,
   fileToDataUrl,
-  makeStencil,
-  PAPERS,
+  pageSize,
   printSheets,
+  recolorStencil,
+  sheetPlan,
   shrinkDataUrl,
   stagePhoto,
+  type InkColor,
   type PaperId,
 } from "@/lib/tattoo-prep/process";
 import {
@@ -32,7 +33,7 @@ type Tab = "idea" | "extract" | "design" | "stencil" | "print" | "enhance" | "ph
 const TABS: { id: Tab; label: string }[] = [
   { id: "idea", label: "فرم ایده" },
   { id: "extract", label: "استخراج طرح" },
-  { id: "design", label: "اسکچ" },
+  { id: "design", label: "طرح" },
   { id: "stencil", label: "استنسیل" },
   { id: "print", label: "پرینت واقعی" },
   { id: "enhance", label: "بهبود عکس" },
@@ -42,15 +43,28 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const STYLES = [
-  { fa: "اسکچ خط و نقطه", en: "bold line tattoo sketch with stipple dot shading" },
-  { fa: "رئال", en: "realism" },
-  { fa: "بلک‌اندگری", en: "black and grey" },
-  { fa: "فاین‌لاین", en: "fine line" },
-  { fa: "سنتی", en: "american traditional" },
-  { fa: "مینیمال", en: "minimal" },
-  { fa: "قبیله‌ای", en: "tribal" },
-  { fa: "ژاپنی", en: "japanese" },
-  { fa: "کاور", en: "cover-up" },
+  { fa: "رئال", en: "highly detailed black and grey realism tattoo design, sharp forms, controlled shading" },
+  { fa: "بلک‌اندگری", en: "highly detailed black and grey tattoo illustration, crisp edges, rich tone" },
+  { fa: "اسکچ خط و نقطه", en: "highly detailed tattoo flash, bold readable outlines, dense stipple dot shading, not a sparse sketch" },
+  { fa: "فاین‌لاین", en: "fine line tattoo design, thin precise lines, fully drawn" },
+  { fa: "سنتی", en: "american traditional tattoo, bold outlines, flat color areas" },
+  { fa: "مینیمال", en: "minimal tattoo, few precise lines, still complete" },
+  { fa: "قبیله‌ای", en: "tribal tattoo, solid black shapes, sharp edges" },
+  { fa: "ژاپنی", en: "japanese tattoo design, detailed waves, flowers, or creatures" },
+  { fa: "کاور", en: "cover-up tattoo design, dense and readable" },
+];
+
+const STENCIL_KINDS = [
+  ["outline", "خط دور"],
+  ["shading", "سایه‌نقطه‌ای"],
+  ["hatching", "هاشور"],
+] as const;
+
+const INKS: { id: InkColor; label: string; color: string }[] = [
+  { id: "red", label: "قرمز", color: "#b0242a" },
+  { id: "black", label: "مشکی", color: "#111111" },
+  { id: "green", label: "سبز", color: "#12783a" },
+  { id: "blue", label: "آبی", color: "#1848be" },
 ];
 
 const KIND_LABEL: Record<PrepKind, string> = {
@@ -104,6 +118,10 @@ function textOf(error: unknown) {
   return "انجام نشد.";
 }
 
+function faNum(value: number, digits = 1) {
+  return new Intl.NumberFormat("fa-IR", { maximumFractionDigits: digits }).format(value);
+}
+
 function extOf(dataUrl: string) {
   return dataUrl.startsWith("data:image/jpeg") ? "jpg" : "png";
 }
@@ -120,6 +138,7 @@ function downloadBlob(filename: string, blob: Blob) {
 async function postPrep(op: string, body: unknown) {
   const response = await fetch(`/api/tattoo-prep?op=${encodeURIComponent(op)}`, {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(body),
   });
@@ -167,16 +186,16 @@ function readCentimeter(value: string) {
   return size;
 }
 
-function openPrint(dataUrl: string, paper: PaperId) {
+function openPrint(dataUrl: string, paper: PaperId, portrait: boolean) {
   if (!/^data:image\/(?:png|jpeg);base64,[a-z0-9+/=]+$/i.test(dataUrl)) {
     throw new Error("این برگه برای چاپ آماده نیست.");
   }
-  const sheet = PAPERS[paper];
+  const size = pageSize(paper, portrait);
   const popup = window.open("", "_blank");
   if (!popup) throw new Error("پنجره چاپ باز نشد. دانلود برگه را بزن.");
   popup.document.open();
   popup.document.write(
-    `<!doctype html><meta charset="utf-8"><title>چاپ</title><style>@page{size:${sheet.w}mm ${sheet.h}mm;margin:0}html,body{margin:0;background:#fff}img{width:${sheet.w}mm;height:${sheet.h}mm;object-fit:contain}</style><img alt="" src="${dataUrl}">`,
+    `<!doctype html><meta charset="utf-8"><title>چاپ</title><style>@page{size:${size.w}mm ${size.h}mm;margin:0}html,body{margin:0;background:#fff}img{width:${size.w}mm;height:${size.h}mm;display:block}</style><img alt="" src="${dataUrl}">`,
   );
   popup.document.close();
   popup.onload = () => popup.print();
@@ -266,6 +285,132 @@ function Slider({
   );
 }
 
+function CountPick({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {[1, 2, 3].map((count) => (
+        <button key={count} type="button" className={value === count ? gold : ghost} onClick={() => onChange(count)}>
+          {faNum(count, 0)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function VersionStrip({ images, picked, onPick }: { images: string[]; picked: number; onPick: (index: number) => void }) {
+  if (images.length < 2) return null;
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {images.map((image, index) => (
+        <button
+          key={`${index}-${image.slice(-24)}`}
+          type="button"
+          className={`overflow-hidden rounded-2xl border ${index === picked ? "border-[#b7955b]" : "border-white/10"}`}
+          onClick={() => onPick(index)}
+        >
+          <img src={image} alt="" className="aspect-[3/4] w-full bg-white object-contain" />
+          <span className="block py-1 text-center text-xs">{faNum(index + 1, 0)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Compare({ left, right, leftLabel, rightLabel }: { left: string; right: string; leftLabel: string; rightLabel: string }) {
+  if (!left || !right) return null;
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <figure>
+        <img src={left} alt="" className="aspect-[3/4] w-full rounded-2xl bg-white object-contain" />
+        <figcaption className="mt-1 text-center text-xs text-white/55">{leftLabel}</figcaption>
+      </figure>
+      <figure>
+        <img src={right} alt="" className="aspect-[3/4] w-full rounded-2xl bg-white object-contain" />
+        <figcaption className="mt-1 text-center text-xs text-white/55">{rightLabel}</figcaption>
+      </figure>
+    </div>
+  );
+}
+
+function HopButtons({ onSend }: { onSend: (tab: Tab) => void }) {
+  return (
+    <div className="mt-2 grid grid-cols-2 gap-2">
+      <button type="button" className={ghost} onClick={() => onSend("stencil")}>
+        فرستادن به استنسیل
+      </button>
+      <button type="button" className={ghost} onClick={() => onSend("print")}>
+        فرستادن به پرینت
+      </button>
+      <button type="button" className={ghost} onClick={() => onSend("extract")}>
+        فرستادن به استخراج
+      </button>
+      <button type="button" className={ghost} onClick={() => onSend("enhance")}>
+        فرستادن به بهبود
+      </button>
+    </div>
+  );
+}
+
+function SheetPreview({
+  src,
+  widthCm,
+  heightCm,
+  paper,
+  portrait,
+}: {
+  src: string;
+  widthCm: number;
+  heightCm: number;
+  paper: PaperId;
+  portrait: boolean;
+}) {
+  const plan = sheetPlan(widthCm, heightCm, paper, portrait);
+  const ticksX = Math.max(1, Math.round(plan.pageW / 10));
+  const ticksY = Math.max(1, Math.round(plan.pageH / 10));
+  const shownW = plan.pages === 1 ? plan.widthMm : Math.min(plan.widthMm, plan.usableW);
+  const shownH = plan.pages === 1 ? plan.heightMm : Math.min(plan.heightMm, plan.usableH);
+  const left = ((plan.pages === 1 ? (plan.pageW - plan.widthMm) / 2 : plan.margin) / plan.pageW) * 100;
+  const top = ((plan.pages === 1 ? (plan.pageH - plan.heightMm) / 2 : plan.margin) / plan.pageH) * 100;
+  return (
+    <div dir="ltr" className="overflow-hidden rounded-3xl border border-white/10 bg-[#141414] p-3">
+      <div className="mb-1 flex h-4 text-[10px] leading-none text-white/45">
+        {Array.from({ length: ticksX + 1 }, (_, mark) => (
+          <span key={mark} className="flex-1 border-l border-white/25 pl-0.5">
+            {mark % 2 === 0 ? mark : ""}
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <div className="relative w-6 shrink-0 text-[10px] text-white/45">
+          {Array.from({ length: ticksY + 1 }, (_, mark) => (
+            <span key={mark} className="absolute right-0 -translate-y-1/2" style={{ top: `${(mark / ticksY) * 100}%` }}>
+              {mark % 2 === 0 ? mark : ""}
+            </span>
+          ))}
+        </div>
+        <div className="relative min-w-0 flex-1 bg-white" style={{ aspectRatio: `${plan.pageW} / ${plan.pageH}` }}>
+          {src ? (
+            <img
+              src={src}
+              alt=""
+              className="absolute object-fill"
+              style={{ left: `${left}%`, top: `${top}%`, width: `${(shownW / plan.pageW) * 100}%`, height: `${(shownH / plan.pageH) * 100}%` }}
+            />
+          ) : null}
+          <div
+            className="pointer-events-none absolute border border-black/70"
+            style={{ left: `${left}%`, top: `${top}%`, width: `${(shownW / plan.pageW) * 100}%`, height: `${(shownH / plan.pageH) * 100}%` }}
+          />
+        </div>
+      </div>
+      <p className="mt-2 text-center text-xs text-white/60" dir="rtl">
+        {plan.label} · {portrait ? "عمودی" : "افقی"} · مقیاس ۱:۱
+        {plan.pages > 1 ? ` · ${faNum(plan.pages, 0)} برگه` : ""}
+      </p>
+    </div>
+  );
+}
+
 export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
   const [tab, setTab] = useState<Tab>("idea");
   const [notice, setNotice] = useState("");
@@ -281,23 +426,28 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
   const [confirmId, setConfirmId] = useState("");
   const [deviceId, setDeviceId] = useState("");
 
-  const [transparent, setTransparent] = useState(false);
-  const [extracted, setExtracted] = useState("");
+  const [extractCopies, setExtractCopies] = useState(2);
+  const [extracts, setExtracts] = useState<string[]>([]);
+  const [extractPick, setExtractPick] = useState(0);
   const [prompt, setPrompt] = useState("");
   const [styleFa, setStyleFa] = useState(STYLES[0].fa);
   const [designColor, setDesignColor] = useState<"bw" | "color">("bw");
+  const [designSource, setDesignSource] = useState("");
   const [copies, setCopies] = useState(1);
   const [versions, setVersions] = useState<string[]>([]);
   const [picked, setPicked] = useState(0);
   const [editNote, setEditNote] = useState("");
-  const [stencilMode, setStencilMode] = useState<"outline" | "stipple" | "hatch" | "sketch">("sketch");
-  const [threshold, setThreshold] = useState(40);
-  const [thickness, setThickness] = useState(2);
-  const [mirror, setMirror] = useState(true);
+  const [stencilMode, setStencilMode] = useState<"outline" | "shading" | "hatching">("shading");
+  const [stencilInk, setStencilInk] = useState<InkColor>("red");
+  const [stencilCopies, setStencilCopies] = useState(2);
+  const [mirror, setMirror] = useState(false);
+  const [stencilRaws, setStencilRaws] = useState<string[]>([]);
+  const [stencilPick, setStencilPick] = useState(0);
   const [stencil, setStencil] = useState("");
   const [widthCm, setWidthCm] = useState("10");
   const [heightCm, setHeightCm] = useState("15");
   const [paper, setPaper] = useState<PaperId>("a4");
+  const [portrait, setPortrait] = useState(true);
   const [pages, setPages] = useState<string[]>([]);
   const [scale, setScale] = useState(1);
   const [bright, setBright] = useState(0);
@@ -335,6 +485,25 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
       .then(() => syncProjects(id).then(refresh))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const raw = stencilRaws[stencilPick];
+    if (!raw) return;
+    let cancel = false;
+    recolorStencil(raw, stencilInk, mirror)
+      .then((url) => {
+        if (!cancel) setStencil(url);
+      })
+      .catch((cause) => {
+        if (!cancel) {
+          setNotice("");
+          setError(textOf(cause));
+        }
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [stencilRaws, stencilPick, stencilInk, mirror]);
 
   async function remember(assetKind: PrepKind, dataUrl: string, name: string) {
     await saveAsset({
@@ -381,13 +550,38 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
 
   function useImage(dataUrl: string, next: Tab) {
     setSource(dataUrl);
-    setExtracted("");
+    setExtracts([]);
+    setExtractPick(0);
+    setStencilRaws([]);
     setStencil("");
     setEnhanced("");
     setStaged("");
     setPages([]);
     setTab(next);
     flash("عکس به ابزار فرستاده شد.");
+  }
+
+  async function fitForApi(dataUrl: string) {
+    let image = dataUrl;
+    if (image.length > 1_100_000) image = await shrinkDataUrl(dataUrl, 960);
+    if (image.length > 1_100_000) image = await shrinkDataUrl(dataUrl, 720);
+    if (image.length > 1_100_000) image = await shrinkDataUrl(dataUrl, 480);
+    if (!image.startsWith("data:image/") || image.length > 1_200_000) throw new Error("عکس برای ساخت بزرگ است. یکی کوچک‌تر بگذار.");
+    return image;
+  }
+
+  async function produce(
+    count: number,
+    label: string,
+    body: (index: number) => Record<string, unknown>,
+    onImage: (image: string) => void,
+  ) {
+    for (let index = 0; index < count; index += 1) {
+      setBusy(`${label} ${faNum(index + 1, 0)} از ${faNum(count, 0)}`);
+      const data = await postPrep("generate", body(index));
+      if (!data.image?.startsWith("data:image/")) throw new Error("تصویری برنگشت.");
+      onImage(data.image);
+    }
   }
 
   async function saveForm() {
@@ -467,13 +661,17 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
-  const styleEn = STYLES.find((item) => item.fa === styleFa)?.en || "bold line tattoo sketch with stipple dot shading";
+  const styleEn = STYLES.find((item) => item.fa === styleFa)?.en || STYLES[0].en;
   const filteredProjects = projects.filter((project) => {
     const haystack = [project.name, project.phone, project.idea, project.placement, project.style].join(" ");
     return haystack.includes(query.trim());
   });
   const filteredAssets = assets.filter((asset) => kind === "all" || asset.kind === kind);
   const currentDesign = versions[picked] || "";
+  const extracted = extracts[extractPick] || "";
+  const printWidth = Number(widthCm.replace(",", "."));
+  const printHeight = Number(heightCm.replace(",", "."));
+  const printReady = printWidth >= 1 && printWidth <= 120 && printHeight >= 1 && printHeight <= 120;
 
   return (
     <div className={embedded ? "overflow-x-hidden text-[#f4f1ea]" : "min-h-dvh overflow-x-hidden bg-[#0b0b0c] text-[#f4f1ea]"} dir="rtl">
@@ -487,7 +685,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
           )}
           <h1 className="text-2xl font-black leading-tight">ابزارهای آماده‌سازی طرح</h1>
           <p className="mt-2 text-sm leading-7 text-white/55">
-            اسکچ با خط واضح و سایهٔ نقطه‌چین ساخته می‌شود. عکس‌ها روی همین گوشی می‌مانند.
+            عکس تاتو را بگذار، کیفیتش را بالا ببر، طرح را از پوست جدا کن، استنسیل چاپ‌شونده بساز و همان اندازه را روی کاغذ دربیاور.
           </p>
         </div>
 
@@ -569,32 +767,65 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
 
         {tab === "extract" ? (
           <section className="grid gap-3">
-            <p className="text-sm leading-7 text-white/60">رنگ پوست و کاغذ روشن برداشته می‌شود و خط‌ها روی زمینه سفید یا شفاف می‌مانند.</p>
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={transparent} onChange={(event) => setTransparent(event.target.checked)} />
-              زمینه شفاف
-            </label>
+            <p className="text-sm leading-7 text-white/60">
+              طرح از پوست، دست و نور عکس جدا می‌شود و به‌صورت یک طراحی تمیز روی زمینه سفید برمی‌گردد. هر نسخه از سهم ساعت کم می‌کند.
+            </p>
+            <p className="text-sm text-white/70">تعداد نسخه</p>
+            <CountPick value={extractCopies} onChange={setExtractCopies} />
             <button
               type="button"
               className={gold}
               disabled={Boolean(busy)}
               onClick={() =>
                 run("استخراج", async () => {
-                  if (!source) throw new Error("اول عکس تاتو را بگذار.");
-                  setExtracted(await extractTattoo(source, transparent));
+                  if (!source) throw new Error("اول عکس تاتو روی پوست را بگذار.");
+                  const image = await fitForApi(source);
+                  let seen = extracts.length;
+                  await produce(extractCopies, "استخراج", (index) => ({
+                    task: "extract",
+                    image,
+                    variation: index + 1,
+                  }), (next) => {
+                    seen += 1;
+                    setExtracts((current) => [...current, next]);
+                    setExtractPick(seen - 1);
+                  });
                 })
               }
             >
-              استخراج طرح
+              جدا کردن طرح از پوست
             </button>
+            <VersionStrip images={extracts} picked={extractPick} onPick={setExtractPick} />
+            <Compare left={source} right={extracted} leftLabel="منبع" rightLabel="طرح جداشده" />
             <Picture src={extracted} filename={`estekhraj.${extOf(extracted)}`} onSave={() => run("ذخیره", () => remember("extract", extracted, "استخراج"))} />
+            {extracted ? <HopButtons onSend={(next) => useImage(extracted, next)} /> : null}
           </section>
         ) : null}
 
         {tab === "design" ? (
           <section className="grid gap-3">
-            <p className="text-sm leading-7 text-white/60">اسکچ روی زمینهٔ سفید: خط‌ها واضح و سایه‌ها نقطه‌چین. هر ساخت از سهم ساعت کم می‌کند؛ حداکثر شش تصویر در ساعت.</p>
+            <p className="text-sm leading-7 text-white/60">
+              طرح کامل و قابل استنسیل روی زمینه سفید. اگر عکس بگذاری، از روی همان ساخته می‌شود. تا بیست‌وچهار تصویر در ساعت.
+            </p>
             <textarea className={area} placeholder="ایده طرح را فارسی بنویس" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
+            <DropZone
+              label={designSource ? "عکس مرجع انتخاب شده. برای عوض کردن دوباره بزن" : "عکس مرجع را اینجا بگذار، اختیاری است"}
+              onFiles={(files) =>
+                run("خواندن عکس", async () => {
+                  const file = files.find((item) => item.type.startsWith("image/"));
+                  if (!file) throw new Error("فقط فایل تصویری بگذار.");
+                  setDesignSource(await fileToDataUrl(file));
+                })
+              }
+            />
+            {designSource ? (
+              <div className="grid gap-2">
+                <img src={designSource} alt="" className="max-h-40 w-full rounded-2xl bg-white object-contain" />
+                <button type="button" className={ghost} onClick={() => setDesignSource("")}>
+                  برداشتن عکس مرجع
+                </button>
+              </div>
+            ) : null}
             <div className="grid grid-cols-2 gap-2">
               <select className={field} value={styleFa} onChange={(event) => setStyleFa(event.target.value)}>
                 {STYLES.map((item) => (
@@ -608,14 +839,8 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
                 <option value="color">رنگی</option>
               </select>
             </div>
-            <label className="text-sm text-white/70">
-              تعداد نسخه
-              <select className={`${field} mt-2`} value={copies} onChange={(event) => setCopies(Number(event.target.value))}>
-                <option value={1}>یک نسخه</option>
-                <option value={2}>دو نسخه</option>
-                <option value={3}>سه نسخه</option>
-              </select>
-            </label>
+            <p className="text-sm text-white/70">تعداد نسخه</p>
+            <CountPick value={copies} onChange={setCopies} />
             <button
               type="button"
               className={gold}
@@ -623,29 +848,27 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
               onClick={() =>
                 run("ساخت طرح", async () => {
                   const idea = prompt.trim();
-                  if (idea.length < 2) throw new Error("ایده را کمی بیشتر بنویس.");
-                  const made: string[] = [];
-                  for (let index = 0; index < copies; index += 1) {
-                    const data = await postPrep("generate", { idea, style: styleEn, colorMode: designColor });
-                    if (!data.image) throw new Error("تصویری برنگشت.");
-                    made.push(data.image);
-                  }
-                  setVersions((current) => [...current, ...made]);
-                  setPicked(versions.length + made.length - 1);
+                  if (!designSource && idea.length < 2) throw new Error("ایده را کمی بیشتر بنویس.");
+                  const image = designSource ? await fitForApi(designSource) : "";
+                  let seen = versions.length;
+                  await produce(copies, "طرح", (index) => ({
+                    task: "design",
+                    idea: idea || "طرح تاتو",
+                    style: styleEn,
+                    colorMode: designColor,
+                    variation: index + 1,
+                    ...(image ? { image } : {}),
+                  }), (next) => {
+                    seen += 1;
+                    setVersions((current) => [...current, next]);
+                    setPicked(seen - 1);
+                  });
                 })
               }
             >
-              ساخت اسکچ
+              ساخت طرح
             </button>
-            {versions.length ? (
-              <div className="grid grid-cols-2 gap-2">
-                {versions.map((image, index) => (
-                  <button key={`${index}-${image.slice(-24)}`} type="button" className={`overflow-hidden rounded-2xl border ${index === picked ? "border-[#b7955b]" : "border-white/10"}`} onClick={() => setPicked(index)}>
-                    <img src={image} alt="" className="aspect-square w-full bg-white object-contain" />
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <VersionStrip images={versions} picked={picked} onPick={setPicked} />
             <textarea className={area} placeholder="برای ویرایش نسخه انتخاب‌شده بنویس چه چیزی عوض شود" value={editNote} onChange={(event) => setEditNote(event.target.value)} />
             <button
               type="button"
@@ -654,41 +877,53 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
               onClick={() =>
                 run("ویرایش", async () => {
                   if (!currentDesign) throw new Error("اول یک نسخه بساز.");
-                  let sourceImage = currentDesign.length > 1_100_000 ? await shrinkDataUrl(currentDesign, 720) : currentDesign;
-                  if (sourceImage.length > 1_100_000) sourceImage = await shrinkDataUrl(currentDesign, 480);
-                  const idea = `${prompt.trim() || "طرح تاتو"}. ویرایش: ${editNote.trim() || "خط‌ها را واضح‌تر کن و سایه‌ها را نقطه‌چین نگه دار"}`;
-                  const data = await postPrep("generate", { idea, style: styleEn, colorMode: designColor, image: sourceImage });
-                  if (!data.image) throw new Error("تصویری برنگشت.");
-                  const nextImage = data.image;
-                  setVersions((current) => [...current, nextImage]);
-                  setPicked(versions.length);
+                  const image = await fitForApi(currentDesign);
+                  const idea = `${prompt.trim() || "طرح تاتو"}. ویرایش: ${editNote.trim() || "جزئیات را کامل‌تر و خط‌ها را تمیزتر کن"}`;
+                  const at = versions.length;
+                  await produce(1, "ویرایش", () => ({
+                    task: "design",
+                    idea,
+                    style: styleEn,
+                    colorMode: designColor,
+                    image,
+                  }), (next) => {
+                    setVersions((current) => [...current, next]);
+                    setPicked(at);
+                  });
                 })
               }
             >
               ویرایش نسخه انتخاب‌شده
             </button>
             <Picture src={currentDesign} filename={`tarahi.${extOf(currentDesign)}`} onSave={() => run("ذخیره", () => remember("design", currentDesign, "طراحی"))} />
+            {currentDesign ? <HopButtons onSend={(next) => useImage(currentDesign, next)} /> : null}
           </section>
         ) : null}
 
         {tab === "stencil" ? (
           <section className="grid gap-3">
-            <div className="grid grid-cols-2 gap-2">
-              {(
-                [
-                  ["sketch", "خط و نقطه"],
-                  ["outline", "فقط خط"],
-                  ["stipple", "فقط نقطه"],
-                  ["hatch", "هاشور"],
-                ] as const
-              ).map(([id, label]) => (
+            <p className="text-sm leading-7 text-white/60">
+              استنسیل دقیق برای چاپ ترانسفر. خط دور، سایه نقطه‌ای یا هاشور. رنگ را همین‌جا عوض کن؛ دوباره ساخته نمی‌شود.
+            </p>
+            <p className="text-sm text-white/70">نوع استنسیل</p>
+            <div className="grid grid-cols-3 gap-2">
+              {STENCIL_KINDS.map(([id, label]) => (
                 <button key={id} type="button" className={stencilMode === id ? gold : ghost} onClick={() => setStencilMode(id)}>
                   {label}
                 </button>
               ))}
             </div>
-            <Slider label="ضخامت خط" min={1} max={6} step={1} value={thickness} onChange={setThickness} />
-            <Slider label="آستانه" min={10} max={180} step={1} value={threshold} onChange={setThreshold} />
+            <p className="text-sm text-white/70">تعداد نسخه</p>
+            <CountPick value={stencilCopies} onChange={setStencilCopies} />
+            <p className="text-sm text-white/70">رنگ استنسیل</p>
+            <div className="grid grid-cols-4 gap-2">
+              {INKS.map((ink) => (
+                <button key={ink.id} type="button" className={stencilInk === ink.id ? gold : ghost} onClick={() => setStencilInk(ink.id)}>
+                  <span className="me-1 inline-block h-2.5 w-2.5 rounded-full" style={{ background: ink.color }} />
+                  {ink.label}
+                </button>
+              ))}
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={mirror} onChange={(event) => setMirror(event.target.checked)} />
               آینه‌ای برای کاغذ ترانسفر
@@ -699,57 +934,102 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
               disabled={Boolean(busy)}
               onClick={() =>
                 run("استنسیل", async () => {
-                  if (!source) throw new Error("اول عکس طرح را بگذار.");
-                  setStencil(await makeStencil(source, stencilMode, threshold, thickness, mirror));
+                  if (!source) throw new Error("اول طرح جداشده یا عکس طرح را بگذار.");
+                  const image = await fitForApi(source);
+                  let seen = stencilRaws.length;
+                  await produce(stencilCopies, "استنسیل", (index) => ({
+                    task: "stencil",
+                    stencilMode,
+                    image,
+                    variation: index + 1,
+                  }), (next) => {
+                    seen += 1;
+                    setStencilRaws((current) => [...current, next]);
+                    setStencilPick(seen - 1);
+                  });
                 })
               }
             >
               ساخت استنسیل
             </button>
+            <VersionStrip images={stencilRaws} picked={stencilPick} onPick={setStencilPick} />
+            <Compare left={source} right={stencil} leftLabel="طرح" rightLabel="استنسیل" />
             <Picture src={stencil} filename="stensil.png" onSave={() => run("ذخیره", () => remember("stencil", stencil, "استنسیل"))} />
+            {stencil ? <HopButtons onSend={(next) => useImage(stencil, next)} /> : null}
           </section>
         ) : null}
 
         {tab === "print" ? (
           <section className="grid gap-3">
-            <p className="text-sm leading-7 text-white/60">در تنظیمات چاپ، مقیاس را ۱۰۰٪ بگذار نه «جا شدن در صفحه». علامت ضربدر گوشه‌ها برای چسباندن برگه‌هاست.</p>
+            <p className="text-sm leading-7 text-white/60">
+              خط‌کش سانتی‌متر است. در چاپ، مقیاس را ۱۰۰٪ بگذار و حاشیه را صفر کن. گزینه «جا شدن در صفحه» اندازه را خراب می‌کند.
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <input className={field} inputMode="decimal" value={widthCm} onChange={(event) => setWidthCm(event.target.value)} placeholder="پهنا سانتی‌متر" />
               <input className={field} inputMode="decimal" value={heightCm} onChange={(event) => setHeightCm(event.target.value)} placeholder="بلندا سانتی‌متر" />
             </div>
-            <select className={field} value={paper} onChange={(event) => setPaper(event.target.value as PaperId)}>
-              <option value="a4">A4</option>
-              <option value="a3">A3</option>
-              <option value="letter">Letter</option>
-            </select>
-            <button
-              type="button"
-              className={gold}
-              disabled={Boolean(busy)}
-              onClick={() =>
-                run("آماده‌سازی چاپ", async () => {
-                  if (!source) throw new Error("اول طرح را بگذار.");
-                  const result = await printSheets(source, readCentimeter(widthCm), readCentimeter(heightCm), paper);
-                  setPages(result.pages);
-                  flash(`${new Intl.NumberFormat("fa-IR").format(result.plan.pages)} برگه آماده شد.`);
-                })
-              }
-            >
-              تقسیم روی برگه
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <select className={field} value={paper} onChange={(event) => setPaper(event.target.value as PaperId)}>
+                <option value="a4">کاغذ A4</option>
+                <option value="a3">کاغذ A3</option>
+                <option value="letter">کاغذ Letter</option>
+              </select>
+              <select className={field} value={portrait ? "portrait" : "landscape"} onChange={(event) => setPortrait(event.target.value !== "landscape")}>
+                <option value="portrait">عمودی</option>
+                <option value="landscape">افقی</option>
+              </select>
+            </div>
+            <p className="text-sm text-[#e5d2ae]">
+              {printReady
+                ? `${faNum(printWidth)} × ${faNum(printHeight)} سانتی‌متر · مقیاس ۱:۱`
+                : "پهنا و بلندا را بین ۱ تا ۱۲۰ سانتی‌متر بنویس."}
+            </p>
+            {printReady ? <SheetPreview src={source} widthCm={printWidth} heightCm={printHeight} paper={paper} portrait={portrait} /> : null}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className={gold}
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  run("آماده‌سازی چاپ", async () => {
+                    if (!source) throw new Error("اول طرح را بگذار.");
+                    const result = await printSheets(source, readCentimeter(widthCm), readCentimeter(heightCm), paper, portrait);
+                    setPages(result.pages);
+                    flash(`${faNum(result.plan.pages, 0)} برگه با اندازه واقعی آماده شد.`);
+                  })
+                }
+              >
+                ذخیره اندازه واقعی
+              </button>
+              <button
+                type="button"
+                className={ghost}
+                disabled={Boolean(busy)}
+                onClick={() =>
+                  run("چاپ", async () => {
+                    if (!source) throw new Error("اول طرح را بگذار.");
+                    const result = await printSheets(source, readCentimeter(widthCm), readCentimeter(heightCm), paper, portrait);
+                    setPages(result.pages);
+                    openPrint(result.pages[0] || "", paper, portrait);
+                  })
+                }
+              >
+                چاپ
+              </button>
+            </div>
             {pages.map((page, index) => (
               <div key={`${index}-${page.slice(-16)}`} className="rounded-3xl border border-white/10 bg-black/30 p-3">
                 <img src={page} alt="" className="w-full rounded-2xl bg-white object-contain" />
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button type="button" className={gold} onClick={() => downloadDataUrl(page, `chap-${index + 1}.png`)}>
-                    دانلود برگه {new Intl.NumberFormat("fa-IR").format(index + 1)}
+                    دانلود برگه {faNum(index + 1, 0)}
                   </button>
                   <button
                     type="button"
                     className={ghost}
                     onClick={() => {
                       try {
-                        openPrint(page, paper);
+                        openPrint(page, paper, portrait);
                       } catch (cause) {
                         fail(cause);
                       }
@@ -770,11 +1050,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
 
         {tab === "enhance" ? (
           <section className="grid gap-3">
-            <Slider label="بزرگ‌نمایی" min={1} max={2} step={0.1} value={scale} onChange={setScale} />
-            <Slider label="روشنایی" min={-40} max={40} step={1} value={bright} onChange={setBright} />
-            <Slider label="کنتراست" min={0.6} max={1.8} step={0.1} value={contrast} onChange={setContrast} />
-            <Slider label="شارپ" min={0} max={1.2} step={0.1} value={sharpen} onChange={setSharpen} />
-            <Slider label="حذف نویز" min={0} max={2} step={0.1} value={denoise} onChange={setDenoise} />
+            <p className="text-sm leading-7 text-white/60">کیفیت خود عکس بالا می‌رود. طرح، شخص و کادر عوض نمی‌شود.</p>
             <button
               type="button"
               className={gold}
@@ -782,13 +1058,35 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
               onClick={() =>
                 run("بهبود", async () => {
                   if (!source) throw new Error("اول عکس را بگذار.");
+                  const image = await fitForApi(source);
+                  await produce(1, "بهبود", () => ({ task: "enhance", image }), (next) => setEnhanced(next));
+                })
+              }
+            >
+              بهبود حرفه‌ای عکس
+            </button>
+            <Compare left={source} right={enhanced} leftLabel="قبل" rightLabel="بعد" />
+            <Picture src={enhanced} filename="behbod.jpg" onSave={() => run("ذخیره", () => remember("enhance", enhanced, "بهبود"))} />
+            {enhanced ? <HopButtons onSend={(next) => useImage(enhanced, next)} /> : null}
+            <p className="pt-2 text-sm text-white/45">تنظیم دستی روی همین دستگاه، بدون هوش مصنوعی</p>
+            <Slider label="بزرگ‌نمایی" min={1} max={2} step={0.1} value={scale} onChange={setScale} />
+            <Slider label="روشنایی" min={-40} max={40} step={1} value={bright} onChange={setBright} />
+            <Slider label="کنتراست" min={0.6} max={1.8} step={0.1} value={contrast} onChange={setContrast} />
+            <Slider label="شارپ" min={0} max={1.2} step={0.1} value={sharpen} onChange={setSharpen} />
+            <Slider label="حذف نویز" min={0} max={2} step={0.1} value={denoise} onChange={setDenoise} />
+            <button
+              type="button"
+              className={ghost}
+              disabled={Boolean(busy)}
+              onClick={() =>
+                run("تنظیم", async () => {
+                  if (!source) throw new Error("اول عکس را بگذار.");
                   setEnhanced(await enhancePhoto(source, { scale, bright, contrast, sharpen, denoise }));
                 })
               }
             >
-              بهبود عکس
+              اعمال تنظیم دستی
             </button>
-            <Picture src={enhanced} filename="behbod.jpg" onSave={() => run("ذخیره", () => remember("enhance", enhanced, "بهبود"))} />
           </section>
         ) : null}
 
@@ -981,11 +1279,17 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
                       <button type="button" className={gold} onClick={() => downloadDataUrl(asset.dataUrl, `${asset.kind}.${extOf(asset.dataUrl)}`)}>
                         دانلود
                       </button>
+                      <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "extract")}>
+                        فرستادن به استخراج
+                      </button>
                       <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "stencil")}>
                         فرستادن به استنسیل
                       </button>
                       <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "print")}>
                         فرستادن به پرینت
+                      </button>
+                      <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "enhance")}>
+                        فرستادن به بهبود
                       </button>
                       {confirmId === `asset:${asset.id}` ? (
                         <button

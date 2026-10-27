@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z, ZodError } from "zod";
+import { auth, authConfigured } from "@/lib/auth/server";
 import { getSql } from "@/lib/db";
 import { getLlmProvider } from "@/lib/guide/provider";
 import { allowRate, clientKey } from "@/lib/server/rate-limit";
+import { prepPrompt, type PrepTask, type StencilKind } from "@/lib/tattoo-prep/prompts";
+import { isStudioOwnerEmail } from "@/lib/studio-owner";
 
 const projectSchema = z.object({
   deviceId: z.string().trim().min(8).max(80),
@@ -111,20 +114,8 @@ async function removeProject(body: unknown) {
   return json({ ok: true });
 }
 
-function designPrompt(idea: string, style: string, colorMode: string) {
-  const color =
-    colorMode === "color"
-      ? "Limited tattoo colors may sit inside the lines. Shadows stay black stipple dots, not airbrush."
-      : "Black ink only. No gray wash and no soft gray.";
-  return [
-    "Tattoo stencil sketch on a pure white background.",
-    "Bold, clean, closed black outlines. Lines are sharp and readable, thick enough to tattoo, not a photo and not messy pencil.",
-    "Every shadow is stipple dotwork: small black dots, dense in dark areas and sparse in light areas.",
-    "No smooth gradient, no airbrush, no fog, no skin texture, no body, no hands, no photo mockup, no watermark, no letters, no frame.",
-    color,
-    `Subject: ${style || "tattoo sketch"}.`,
-    `Idea: ${idea}`,
-  ].join(" ");
+function designPrompt(idea: string, style: string, colorMode: string, variation?: number) {
+  return prepPrompt({ task: "design", idea, style, colorMode, variation });
 }
 
 async function imageData(item: { b64_json?: string; url?: string }) {
@@ -138,37 +129,95 @@ async function imageData(item: { b64_json?: string; url?: string }) {
   return `data:${type};base64,${bytes.toString("base64")}`;
 }
 
-async function generate(request: Request, body: unknown) {
-  if (!allowRate(`tattoo-prep-image:${clientKey(request)}`, 6, 60 * 60 * 1000)) {
-    return json({ error: "ساخت تصویر برای این ساعت تمام شد. کمی بعد دوباره بزن." }, 429);
+async function ownerRequest(request: Request) {
+  if (!authConfigured) return false;
+  const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
+  return isStudioOwnerEmail(session?.user?.email);
+}
+
+async function requestImage(apiKey: string, prompt: string, image: string) {
+  const withImage = Boolean(image);
+  const attempts = withImage
+    ? [
+        {
+          model: "grok-imagine-image-2.0",
+          prompt,
+          response_format: "b64_json" as const,
+          resolution: "2k",
+          image: { url: image, type: "image_url" as const },
+        },
+        {
+          model: "grok-imagine-image",
+          prompt,
+          response_format: "b64_json" as const,
+          image: { url: image, type: "image_url" as const },
+        },
+      ]
+    : [
+        { model: "grok-imagine-image-2.0", prompt, n: 1, response_format: "b64_json" as const, resolution: "2k" },
+        { model: "grok-imagine-image", prompt, n: 1, response_format: "b64_json" as const },
+      ];
+  let status = 502;
+  let detail = "";
+  for (const payload of attempts) {
+    const endpoint = withImage ? "https://api.x.ai/v1/images/edits" : "https://api.x.ai/v1/images/generations";
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(90_000),
+    });
+    if (response.ok) {
+      const result = (await response.json()) as { data?: { b64_json?: string; url?: string }[] };
+      const picture = result.data?.[0] ? await imageData(result.data[0]) : "";
+      if (picture) return { image: picture };
+      detail = "empty";
+      continue;
+    }
+    status = response.status;
+    detail = (await response.text().catch(() => "")).slice(0, 180);
+    if (status === 429) break;
   }
-  const data = z.object({
-    idea: z.string().trim().min(2).max(800),
-    style: z.string().trim().max(80).optional(),
-    colorMode: z.enum(["color", "bw"]).optional(),
-    image: z.string().max(1_200_000).optional(),
-  }).parse(body);
+  return {
+    error: status === 429 ? "سرویس تصویر شلوغ است. کمی بعد دوباره بزن." : "ساخت طرح انجام نشد.",
+    detail,
+    status,
+  };
+}
+
+async function generate(request: Request, body: unknown) {
+  if (!(await ownerRequest(request))) {
+    return json({ error: "ساخت تصویر فقط از پنل مدیر ممکن است. با ایمیل استودیو وارد شو." }, 401);
+  }
+  if (!allowRate(`tattoo-prep-image:${clientKey(request)}`, 24, 60 * 60 * 1000)) {
+    return json({ error: "سهم تصویر این ساعت تمام شد. کمی بعد دوباره بزن." }, 429);
+  }
+  const data = z
+    .object({
+      task: z.enum(["design", "extract", "stencil", "enhance"]).optional(),
+      idea: z.string().trim().max(800).optional(),
+      style: z.string().trim().max(120).optional(),
+      colorMode: z.enum(["color", "bw"]).optional(),
+      image: z.string().max(1_200_000).optional(),
+      stencilMode: z.enum(["outline", "shading", "hatching"]).optional(),
+      variation: z.number().int().min(1).max(3).optional(),
+    })
+    .parse(body);
+  const task: PrepTask = data.task || "design";
+  const image = data.image && data.image.startsWith("data:image/") ? data.image : "";
+  const idea = data.idea || "";
+  if (task !== "design" && !image) return json({ error: "اول عکس را بگذار." }, 400);
+  if (task === "design" && !image && idea.trim().length < 2) return json({ error: "ایده را کمی بیشتر بنویس." }, 400);
   const apiKey = process.env.XAI_API_KEY?.trim();
   if (!apiKey) return json({ error: "ساخت تصویر الان در دسترس نیست." }, 503);
-  const prompt = designPrompt(data.idea, data.style || "", data.colorMode || "bw");
-  const image = data.image && data.image.startsWith("data:image/") ? data.image : "";
-  const endpoint = image ? "https://api.x.ai/v1/images/edits" : "https://api.x.ai/v1/images/generations";
-  const payload = image
-    ? { model: "grok-imagine-image", prompt: `Redraw the reference as a tattoo stencil sketch. Keep bold clean outlines and stipple-dot shadows on white. ${prompt}`, response_format: "b64_json", image: { url: image, type: "image_url" } }
-    : { model: "grok-imagine-image", prompt, n: 1, response_format: "b64_json" };
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    return json({ error: response.status === 429 ? "سرویس تصویر شلوغ است. کمی بعد دوباره بزن." : "ساخت طرح انجام نشد.", detail: detail.slice(0, 180) }, 502);
-  }
-  const result = (await response.json()) as { data?: { b64_json?: string; url?: string }[] };
-  const picture = result.data?.[0] ? await imageData(result.data[0]) : "";
-  if (!picture) return json({ error: "تصویری برنگشت." }, 502);
-  return json({ image: picture });
+  const stencilMode: StencilKind = data.stencilMode || "shading";
+  const prompt =
+    task === "design"
+      ? designPrompt(idea, data.style || "", data.colorMode || "bw", data.variation)
+      : prepPrompt({ task, idea, style: data.style, colorMode: data.colorMode, stencilMode, variation: data.variation });
+  const result = await requestImage(apiKey, prompt, image);
+  if ("error" in result) return json({ error: result.error, detail: result.detail }, result.status === 429 ? 429 : 502);
+  return json({ image: result.image });
 }
 
 async function caption(request: Request, body: unknown) {
