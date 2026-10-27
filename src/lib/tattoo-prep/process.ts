@@ -99,127 +99,185 @@ export async function fileToDataUrl(file: File) {
   }
 }
 
-export async function extractTattoo(src: string, transparent: boolean) {
-  const { canvas, ctx } = await paint(src);
-  const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = frame.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i] ?? 0;
-    const g = data[i + 1] ?? 0;
-    const b = data[i + 2] ?? 0;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const y = 0.299 * r + 0.587 * g + 0.114 * b;
-    const skin = r > 75 && g > 35 && b > 15 && r > g && r + 8 >= b && r - g > 10 && y > 55 && y < 235;
-    const paper = y > 228 && max - min < 28;
-    if (skin || paper) {
-      data[i] = transparent ? 0 : 255;
-      data[i + 1] = transparent ? 0 : 255;
-      data[i + 2] = transparent ? 0 : 255;
-      data[i + 3] = transparent ? 0 : 255;
-    } else {
-      const ink = Math.max(0, Math.min(255, (y - 30) * 1.35));
-      const v = ink < 210 ? Math.round(ink * 0.45) : 255;
-      data[i] = v;
-      data[i + 1] = v;
-      data[i + 2] = v;
-      data[i + 3] = 255;
+function meanBox(src: Float32Array, w: number, h: number, radius: number) {
+  const r = Math.max(1, radius | 0);
+  const iw = w + 1;
+  const integral = new Float32Array(iw * (h + 1));
+  for (let y = 1; y <= h; y += 1) {
+    let row = 0;
+    const srcRow = (y - 1) * w;
+    const intRow = y * iw;
+    const prev = (y - 1) * iw;
+    for (let x = 1; x <= w; x += 1) {
+      row += src[srcRow + x - 1] ?? 0;
+      integral[intRow + x] = (integral[prev + x] ?? 0) + row;
     }
   }
-  ctx.putImageData(frame, 0, 0);
-  return canvas.toDataURL("image/png");
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y += 1) {
+    const y0 = Math.max(0, y - r);
+    const y1 = Math.min(h - 1, y + r);
+    for (let x = 0; x < w; x += 1) {
+      const x0 = Math.max(0, x - r);
+      const x1 = Math.min(w - 1, x + r);
+      const sum =
+        (integral[(y1 + 1) * iw + (x1 + 1)] ?? 0) -
+        (integral[y0 * iw + (x1 + 1)] ?? 0) -
+        (integral[(y1 + 1) * iw + x0] ?? 0) +
+        (integral[y0 * iw + x0] ?? 0);
+      out[y * w + x] = sum / ((x1 - x0 + 1) * (y1 - y0 + 1));
+    }
+  }
+  return out;
 }
 
-function grayOf(data: Uint8ClampedArray, width: number, x: number, y: number) {
-  const i = (y * width + x) * 4;
-  return 0.299 * (data[i] ?? 0) + 0.587 * (data[i + 1] ?? 0) + 0.114 * (data[i + 2] ?? 0);
+function dotHash(x: number, y: number, salt: number) {
+  let n = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(salt, 1442695041)) >>> 0;
+  n = Math.imul(n ^ (n >>> 13), 1274126177) >>> 0;
+  return (n ^ (n >>> 16)) >>> 0;
 }
 
-export async function makeStencil(
+function looksLikeSkin(r: number, g: number, b: number) {
+  const y = 0.299 * r + 0.587 * g + 0.114 * b;
+  const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+  const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+  return y > 45 && y < 245 && cb > 77 && cb < 140 && cr > 130 && cr < 185 && r > 55 && r >= g - 8;
+}
+
+async function renderSketch(
   src: string,
   mode: "outline" | "stipple" | "hatch" | "sketch",
-  threshold: number,
-  thickness: number,
+  variation: number,
+  transparent: boolean,
   mirror: boolean,
+  edgeBase: number,
+  thickness: number,
 ) {
-  const { canvas, ctx } = await paint(src, 1400);
-  const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const out = ctx.createImageData(canvas.width, canvas.height);
+  await new Promise((resolve) => setTimeout(resolve, 16));
+  const { canvas, ctx } = await paint(src, 1000);
   const w = canvas.width;
   const h = canvas.height;
-  const ink = (x: number, y: number) => {
-    const i = (y * w + x) * 4;
-    out.data[i] = 0;
-    out.data[i + 1] = 0;
-    out.data[i + 2] = 0;
-    out.data[i + 3] = 255;
-  };
-  const paper = () => {
-    for (let i = 0; i < out.data.length; i += 4) {
-      out.data[i] = 255;
-      out.data[i + 1] = 255;
-      out.data[i + 2] = 255;
-      out.data[i + 3] = 255;
+  const frame = ctx.getImageData(0, 0, w, h);
+  const pixels = frame.data;
+  const count = w * h;
+  const gray = new Float32Array(count);
+  const chroma = new Uint8Array(count);
+  const skin = new Uint8Array(count);
+  for (let p = 0, i = 0; p < count; p += 1, i += 4) {
+    const r = pixels[i] ?? 0;
+    const g = pixels[i + 1] ?? 0;
+    const b = pixels[i + 2] ?? 0;
+    gray[p] = 0.299 * r + 0.587 * g + 0.114 * b;
+    chroma[p] = Math.max(r, g, b) - Math.min(r, g, b);
+    skin[p] = looksLikeSkin(r, g, b) ? 1 : 0;
+  }
+  const local = meanBox(gray, w, h, Math.max(14, Math.round(Math.min(w, h) * 0.08)));
+  const dark = new Float32Array(count);
+  for (let p = 0; p < count; p += 1) {
+    const y = gray[p] ?? 0;
+    const around = local[p] ?? y;
+    const delta = around - y;
+    const body = skin[p] === 1;
+    const colorInk = (chroma[p] ?? 0) > 42 && !body && y < 210;
+    const veryDark = y < 88;
+    const greyInk = !body && y < 150 && delta > 28;
+    const skinInk = body && y < 118 && delta > 36;
+    if (!veryDark && !greyInk && !skinInk && !colorInk) continue;
+    dark[p] = Math.max(0, Math.min(255, (veryDark ? 230 - y : 190 - y) + (colorInk ? 70 : 0)));
+  }
+  const soft = meanBox(dark, w, h, 1);
+  const edge = new Uint8Array(count);
+  const cut = edgeBase + variation * 8;
+  for (let y = 1; y < h - 1; y += 1) {
+    for (let x = 1; x < w - 1; x += 1) {
+      const p = y * w + x;
+      const gx =
+        -(soft[p - w - 1] ?? 0) +
+        (soft[p - w + 1] ?? 0) -
+        2 * (soft[p - 1] ?? 0) +
+        2 * (soft[p + 1] ?? 0) -
+        (soft[p + w - 1] ?? 0) +
+        (soft[p + w + 1] ?? 0);
+      const gy =
+        -(soft[p - w - 1] ?? 0) -
+        2 * (soft[p - w] ?? 0) -
+        (soft[p - w + 1] ?? 0) +
+        (soft[p + w - 1] ?? 0) +
+        2 * (soft[p + w] ?? 0) +
+        (soft[p + w + 1] ?? 0);
+      if (Math.hypot(gx, gy) > cut) edge[p] = 1;
     }
-  };
-  paper();
-  const blot = (x: number, y: number, radius: number) => {
-    const r = Math.max(1, radius);
-    for (let dy = -r; dy <= r; dy += 1) {
-      for (let dx = -r; dx <= r; dx += 1) {
-        if (dx * dx + dy * dy > r * r) continue;
-        const px = x + dx;
+  }
+  const thick = new Uint8Array(count);
+  const rad = Math.max(1, thickness + (variation === 1 ? 1 : 0));
+  const rad2 = rad * rad;
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      if (!edge[y * w + x]) continue;
+      for (let dy = -rad; dy <= rad; dy += 1) {
         const py = y + dy;
-        if (px < 0 || py < 0 || px >= w || py >= h) continue;
-        ink(px, py);
+        if (py < 0 || py >= h) continue;
+        for (let dx = -rad; dx <= rad; dx += 1) {
+          if (dx * dx + dy * dy > rad2) continue;
+          const px = x + dx;
+          if (px < 0 || px >= w) continue;
+          thick[py * w + px] = 1;
+        }
       }
     }
+  }
+  const out = ctx.createImageData(w, h);
+  const dest = out.data;
+  for (let i = 0; i < dest.length; i += 4) {
+    dest[i] = transparent ? 0 : 255;
+    dest[i + 1] = transparent ? 0 : 255;
+    dest[i + 2] = transparent ? 0 : 255;
+    dest[i + 3] = transparent ? 0 : 255;
+  }
+  const inkAt = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const i = (y * w + x) * 4;
+    dest[i] = 0;
+    dest[i + 1] = 0;
+    dest[i + 2] = 0;
+    dest[i + 3] = 255;
   };
-  const spot = (x: number, y: number) => blot(x, y, thickness);
-  const drawOutline = () => {
-    for (let y = 1; y < h - 1; y += 1) {
-      for (let x = 1; x < w - 1; x += 1) {
-        const gx =
-          -grayOf(frame.data, w, x - 1, y - 1) +
-          grayOf(frame.data, w, x + 1, y - 1) -
-          2 * grayOf(frame.data, w, x - 1, y) +
-          2 * grayOf(frame.data, w, x + 1, y) -
-          grayOf(frame.data, w, x - 1, y + 1) +
-          grayOf(frame.data, w, x + 1, y + 1);
-        const gy =
-          -grayOf(frame.data, w, x - 1, y - 1) -
-          2 * grayOf(frame.data, w, x, y - 1) -
-          grayOf(frame.data, w, x + 1, y - 1) +
-          grayOf(frame.data, w, x - 1, y + 1) +
-          2 * grayOf(frame.data, w, x, y + 1) +
-          grayOf(frame.data, w, x + 1, y + 1);
-        const mag = Math.hypot(gx, gy);
-        if (mag > threshold * 1.4) spot(x, y);
+  if (mode !== "stipple") {
+    for (let p = 0; p < count; p += 1) {
+      if (!thick[p]) continue;
+      const i = p * 4;
+      dest[i] = 0;
+      dest[i + 1] = 0;
+      dest[i + 2] = 0;
+      dest[i + 3] = 255;
+    }
+  }
+  if (mode === "stipple" || mode === "sketch") {
+    const step = variation === 1 ? 6 : variation === 2 ? 9 : 7;
+    for (let y = step; y < h - 1; y += step) {
+      for (let x = step; x < w - 1; x += step) {
+        const jx = x + ((dotHash(x, y, variation) % 5) - 2);
+        const jy = y + ((dotHash(y, x, variation + 3) % 5) - 2);
+        if (jx < 1 || jy < 1 || jx >= w - 1 || jy >= h - 1) continue;
+        const tone = soft[jy * w + jx] ?? 0;
+        if (tone < 55) continue;
+        if (mode === "sketch" && thick[jy * w + jx]) continue;
+        const dot = tone > 150 ? 2 : 1;
+        for (let dy = -dot; dy <= dot; dy += 1) {
+          for (let dx = -dot; dx <= dot; dx += 1) {
+            if (dx * dx + dy * dy > dot * dot) continue;
+            inkAt(jx + dx, jy + dy);
+          }
+        }
       }
     }
-  };
-  const drawStipple = (dot: number) => {
-    const step = Math.max(5, 14 - thickness);
-    for (let y = step; y < h; y += step) {
-      for (let x = step; x < w; x += step) {
-        const tone = grayOf(frame.data, w, x, y);
-        if (tone < threshold + 40) blot(x, y, dot);
-      }
-    }
-  };
-  if (mode === "outline") {
-    drawOutline();
-  } else if (mode === "stipple") {
-    drawStipple(Math.max(1, thickness));
-  } else if (mode === "sketch") {
-    drawOutline();
-    drawStipple(1);
-  } else {
-    const gap = Math.max(4, 16 - thickness * 2);
+  } else if (mode === "hatch") {
+    const gap = variation === 1 ? 5 : 7;
     for (let y = 0; y < h; y += 1) {
       for (let x = 0; x < w; x += 1) {
+        if ((soft[y * w + x] ?? 0) < 70) continue;
         if ((x + y) % gap > 1) continue;
-        if (grayOf(frame.data, w, x, y) < threshold + 30) ink(x, y);
+        inkAt(x, y);
       }
     }
   }
@@ -234,6 +292,21 @@ export async function makeStencil(
   fx.scale(-1, 1);
   fx.drawImage(canvas, 0, 0);
   return flipped.toDataURL("image/png");
+}
+
+export async function extractTattoo(src: string, transparent: boolean, variation = 0) {
+  return renderSketch(src, "sketch", variation, transparent, false, 42, 2);
+}
+
+export async function makeStencil(
+  src: string,
+  mode: "outline" | "stipple" | "hatch" | "sketch",
+  threshold: number,
+  thickness: number,
+  mirror: boolean,
+  variation = 0,
+) {
+  return renderSketch(src, mode, variation, false, mirror, threshold, thickness);
 }
 
 export async function recolorStencil(src: string, ink: InkColor, mirror: boolean) {

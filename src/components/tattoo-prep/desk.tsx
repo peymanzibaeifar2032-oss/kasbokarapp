@@ -3,7 +3,9 @@ import { StudioTopBar } from "@/components/studio/top-bar";
 import {
   downloadDataUrl,
   enhancePhoto,
+  extractTattoo,
   fileToDataUrl,
+  makeStencil,
   pageSize,
   printSheets,
   recolorStencil,
@@ -767,7 +769,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
         {tab === "extract" ? (
           <section className="grid gap-3">
             <p className="text-sm leading-7 text-white/60">
-              طرح از پوست، دست و نور عکس جدا می‌شود و به‌صورت یک طراحی تمیز روی زمینه سفید برمی‌گردد. ساخت هر نسخه حدود بیست ثانیه طول می‌کشد؛ صفحه را نبند.
+              رایگان و روی همین گوشی، بدون سرور. سایهٔ انحنای بدن کنار می‌رود. نتیجه خط ضخیم، سایهٔ نقطه‌چین و زمینهٔ سفید است.
             </p>
             <p className="text-sm text-white/70">تعداد نسخه</p>
             <CountPick value={extractCopies} onChange={setExtractCopies} />
@@ -778,17 +780,15 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
               onClick={() =>
                 run("استخراج", async () => {
                   if (!source) throw new Error("اول عکس تاتو روی پوست را بگذار.");
-                  const image = await fitForApi(source);
                   let seen = extracts.length;
-                  await produce(extractCopies, "استخراج", (index) => ({
-                    task: "extract",
-                    image,
-                    variation: index + 1,
-                  }), (next) => {
+                  for (let index = 0; index < extractCopies; index += 1) {
+                    setBusy(`استخراج ${faNum(index + 1, 0)} از ${faNum(extractCopies, 0)}`);
+                    const next = await extractTattoo(source, false, index);
                     seen += 1;
                     setExtracts((current) => [...current, next]);
                     setExtractPick(seen - 1);
-                  });
+                  }
+                  flash("طرح روی همین گوشی ساخته شد.");
                 })
               }
             >
@@ -902,7 +902,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
         {tab === "stencil" ? (
           <section className="grid gap-3">
             <p className="text-sm leading-7 text-white/60">
-              استنسیل دقیق برای چاپ ترانسفر: خط دور، سایه‌نقطه‌ای یا هاشور. ساختش حدود بیست ثانیه طول می‌کشد. رنگ را بعد از ساخت همین‌جا عوض کن.
+              رایگان و روی همین گوشی. خط دور، سایه‌نقطه‌ای یا هاشور، با زمینهٔ سفید. رنگ را بعد از ساخت همین‌جا عوض کن.
             </p>
             <p className="text-sm text-white/70">نوع استنسیل</p>
             <div className="grid grid-cols-3 gap-2">
@@ -934,18 +934,16 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
               onClick={() =>
                 run("استنسیل", async () => {
                   if (!source) throw new Error("اول طرح جداشده یا عکس طرح را بگذار.");
-                  const image = await fitForApi(source);
+                  const mode = stencilMode === "outline" ? "outline" : stencilMode === "hatching" ? "hatch" : "sketch";
                   let seen = stencilRaws.length;
-                  await produce(stencilCopies, "استنسیل", (index) => ({
-                    task: "stencil",
-                    stencilMode,
-                    image,
-                    variation: index + 1,
-                  }), (next) => {
+                  for (let index = 0; index < stencilCopies; index += 1) {
+                    setBusy(`استنسیل ${faNum(index + 1, 0)} از ${faNum(stencilCopies, 0)}`);
+                    const next = await makeStencil(source, mode, 48, 2, false, index);
                     seen += 1;
                     setStencilRaws((current) => [...current, next]);
                     setStencilPick(seen - 1);
-                  });
+                  }
+                  flash("استنسیل روی همین گوشی ساخته شد.");
                 })
               }
             >
