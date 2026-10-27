@@ -19,6 +19,7 @@ import { ReferralAdmin } from "@/components/studio/referral-admin";
 import { StudioJobForm } from "@/components/studio/job-form";
 import { StudioMonthFinance } from "@/components/studio/month-finance";
 import { GoalsBoard } from "@/components/studio/goals-board";
+import { TattooPrepDesk } from "@/components/tattoo-prep/desk";
 import { SignedOutPanel } from "@/components/layout/auth-required";
 import { Shell } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
@@ -67,9 +68,9 @@ import {
 import type { Booking, Business, Profile, TattooRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type PanelTab = "goals" | "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists" | "consent" | "club";
+type PanelTab = "goals" | "requests" | "messages" | "jobs" | "contacts" | "calendar" | "money" | "apprentices" | "fill" | "artists" | "consent" | "club" | "prep";
 
-const panelTabs: PanelTab[] = ["goals", "requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists", "consent", "club"];
+const panelTabs: PanelTab[] = ["goals", "requests", "messages", "jobs", "contacts", "calendar", "money", "apprentices", "fill", "artists", "consent", "club", "prep"];
 
 export const Route = createFileRoute("/studio/admin")({
   validateSearch: (search: Record<string, unknown>): { tab?: PanelTab } => {
@@ -274,6 +275,7 @@ const tabMark: Record<string, MarkName> = {
   apprentices: "apprentice",
   messages: "messages",
   artists: "artists",
+  prep: "designs",
 };
 
 function StudioAdminPage() {
@@ -289,7 +291,7 @@ function StudioAdminPage() {
   const [requests, setRequests] = useState<TattooRequest[]>([]);
   const [occupiedDays, setOccupiedDays] = useState<string[]>([]);
   const [tab, setTabState] = useState<PanelTab>(search.tab ?? "calendar");
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(search.tab === "prep" || search.tab === "contacts" || search.tab === "fill" || search.tab === "consent" || search.tab === "club" || search.tab === "apprentices" || search.tab === "messages" || search.tab === "artists");
   const [filter, setFilter] = useState<RequestFilter>("active");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -490,6 +492,7 @@ function StudioAdminPage() {
           <div className="flex w-full flex-wrap gap-1 rounded-2xl bg-slate-100 p-1">
             {(
               [
+                ["prep", "آماده‌سازی طرح"],
                 ["contacts", "مشتریان"],
                 ["fill", "انتظار"],
                 ["consent", "رضایت‌نامه"],
@@ -499,7 +502,7 @@ function StudioAdminPage() {
                 ["artists", "همکاران"],
               ] as const
             )
-              .filter(([id]) => owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices")))
+              .filter(([id]) => (id === "prep" ? owner : owner || (id !== "artists" && id !== "club" && (ownPanel || id !== "apprentices"))))
               .map(([id, label]) => (
                 <button
                   key={id}
@@ -517,6 +520,12 @@ function StudioAdminPage() {
           </div>
         ) : null}
       </div>
+
+      {tab === "prep" && owner ? (
+        <div className="mt-4">
+          <TattooPrepDesk embedded />
+        </div>
+      ) : null}
 
       {tab === "goals" && owner ? <GoalsBoard /> : null}
       {tab === "messages" ? <ReadyMessages /> : null}

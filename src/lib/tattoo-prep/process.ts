@@ -100,7 +100,7 @@ function grayOf(data: Uint8ClampedArray, width: number, x: number, y: number) {
 
 export async function makeStencil(
   src: string,
-  mode: "outline" | "stipple" | "hatch",
+  mode: "outline" | "stipple" | "hatch" | "sketch",
   threshold: number,
   thickness: number,
   mirror: boolean,
@@ -126,11 +126,11 @@ export async function makeStencil(
     }
   };
   paper();
-  const spot = (x: number, y: number) => {
-    const radius = Math.max(1, thickness);
-    for (let dy = -radius; dy <= radius; dy += 1) {
-      for (let dx = -radius; dx <= radius; dx += 1) {
-        if (dx * dx + dy * dy > radius * radius) continue;
+  const blot = (x: number, y: number, radius: number) => {
+    const r = Math.max(1, radius);
+    for (let dy = -r; dy <= r; dy += 1) {
+      for (let dx = -r; dx <= r; dx += 1) {
+        if (dx * dx + dy * dy > r * r) continue;
         const px = x + dx;
         const py = y + dy;
         if (px < 0 || py < 0 || px >= w || py >= h) continue;
@@ -138,7 +138,8 @@ export async function makeStencil(
       }
     }
   };
-  if (mode === "outline") {
+  const spot = (x: number, y: number) => blot(x, y, thickness);
+  const drawOutline = () => {
     for (let y = 1; y < h - 1; y += 1) {
       for (let x = 1; x < w - 1; x += 1) {
         const gx =
@@ -159,14 +160,23 @@ export async function makeStencil(
         if (mag > threshold * 1.4) spot(x, y);
       }
     }
-  } else if (mode === "stipple") {
-    const step = Math.max(4, 14 - thickness);
+  };
+  const drawStipple = (dot: number) => {
+    const step = Math.max(5, 14 - thickness);
     for (let y = step; y < h; y += step) {
       for (let x = step; x < w; x += step) {
         const tone = grayOf(frame.data, w, x, y);
-        if (tone < threshold + 40) spot(x, y);
+        if (tone < threshold + 40) blot(x, y, dot);
       }
     }
+  };
+  if (mode === "outline") {
+    drawOutline();
+  } else if (mode === "stipple") {
+    drawStipple(Math.max(1, thickness));
+  } else if (mode === "sketch") {
+    drawOutline();
+    drawStipple(1);
   } else {
     const gap = Math.max(4, 16 - thickness * 2);
     for (let y = 0; y < h; y += 1) {

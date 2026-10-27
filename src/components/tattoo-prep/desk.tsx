@@ -32,7 +32,7 @@ type Tab = "idea" | "extract" | "design" | "stencil" | "print" | "enhance" | "ph
 const TABS: { id: Tab; label: string }[] = [
   { id: "idea", label: "فرم ایده" },
   { id: "extract", label: "استخراج طرح" },
-  { id: "design", label: "طراحی هوشمند" },
+  { id: "design", label: "اسکچ" },
   { id: "stencil", label: "استنسیل" },
   { id: "print", label: "پرینت واقعی" },
   { id: "enhance", label: "بهبود عکس" },
@@ -42,6 +42,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const STYLES = [
+  { fa: "اسکچ خط و نقطه", en: "bold line tattoo sketch with stipple dot shading" },
   { fa: "رئال", en: "realism" },
   { fa: "بلک‌اندگری", en: "black and grey" },
   { fa: "فاین‌لاین", en: "fine line" },
@@ -265,7 +266,7 @@ function Slider({
   );
 }
 
-export function TattooPrepDesk() {
+export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
   const [tab, setTab] = useState<Tab>("idea");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -289,7 +290,7 @@ export function TattooPrepDesk() {
   const [versions, setVersions] = useState<string[]>([]);
   const [picked, setPicked] = useState(0);
   const [editNote, setEditNote] = useState("");
-  const [stencilMode, setStencilMode] = useState<"outline" | "stipple" | "hatch">("outline");
+  const [stencilMode, setStencilMode] = useState<"outline" | "stipple" | "hatch" | "sketch">("sketch");
   const [threshold, setThreshold] = useState(40);
   const [thickness, setThickness] = useState(2);
   const [mirror, setMirror] = useState(true);
@@ -466,7 +467,7 @@ export function TattooPrepDesk() {
     }
   }
 
-  const styleEn = STYLES.find((item) => item.fa === styleFa)?.en || "realism";
+  const styleEn = STYLES.find((item) => item.fa === styleFa)?.en || "bold line tattoo sketch with stipple dot shading";
   const filteredProjects = projects.filter((project) => {
     const haystack = [project.name, project.phone, project.idea, project.placement, project.style].join(" ");
     return haystack.includes(query.trim());
@@ -475,16 +476,18 @@ export function TattooPrepDesk() {
   const currentDesign = versions[picked] || "";
 
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-[#0b0b0c] text-[#f4f1ea]" dir="rtl">
-      <StudioTopBar compact />
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-5">
+    <div className={embedded ? "overflow-x-hidden text-[#f4f1ea]" : "min-h-dvh overflow-x-hidden bg-[#0b0b0c] text-[#f4f1ea]"} dir="rtl">
+      {embedded ? null : <StudioTopBar compact />}
+      <main className={embedded ? "flex w-full flex-col gap-4 rounded-3xl bg-[#0b0b0c] px-3 py-4" : "mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-5"}>
         <div>
-          <a href="/studio" className="text-sm text-[#e5d2ae]">
-            بازگشت به استودیو
-          </a>
-          <h1 className="mt-2 text-3xl font-black leading-tight">ابزارهای آماده‌سازی طرح تاتو</h1>
+          {embedded ? null : (
+            <a href="/studio/admin" className="text-sm text-[#e5d2ae]">
+              بازگشت به پنل
+            </a>
+          )}
+          <h1 className="text-2xl font-black leading-tight">ابزارهای آماده‌سازی طرح</h1>
           <p className="mt-2 text-sm leading-7 text-white/55">
-            فرم، استخراج، طراحی، استنسیل، پرینت و عکس. متن پروژه اگر اینترنت باشد روی سرور می‌ماند؛ خود عکس‌ها روی همین دستگاه ذخیره می‌شوند.
+            اسکچ با خط واضح و سایهٔ نقطه‌چین ساخته می‌شود. عکس‌ها روی همین گوشی می‌مانند.
           </p>
         </div>
 
@@ -590,7 +593,7 @@ export function TattooPrepDesk() {
 
         {tab === "design" ? (
           <section className="grid gap-3">
-            <p className="text-sm leading-7 text-white/60">طرح از متن فارسی ساخته می‌شود. هر ساخت از سهم ساعت کم می‌کند؛ حداکثر شش تصویر در ساعت.</p>
+            <p className="text-sm leading-7 text-white/60">اسکچ روی زمینهٔ سفید: خط‌ها واضح و سایه‌ها نقطه‌چین. هر ساخت از سهم ساعت کم می‌کند؛ حداکثر شش تصویر در ساعت.</p>
             <textarea className={area} placeholder="ایده طرح را فارسی بنویس" value={prompt} onChange={(event) => setPrompt(event.target.value)} />
             <div className="grid grid-cols-2 gap-2">
               <select className={field} value={styleFa} onChange={(event) => setStyleFa(event.target.value)}>
@@ -632,7 +635,7 @@ export function TattooPrepDesk() {
                 })
               }
             >
-              ساخت طرح
+              ساخت اسکچ
             </button>
             {versions.length ? (
               <div className="grid grid-cols-2 gap-2">
@@ -653,7 +656,7 @@ export function TattooPrepDesk() {
                   if (!currentDesign) throw new Error("اول یک نسخه بساز.");
                   let sourceImage = currentDesign.length > 1_100_000 ? await shrinkDataUrl(currentDesign, 720) : currentDesign;
                   if (sourceImage.length > 1_100_000) sourceImage = await shrinkDataUrl(currentDesign, 480);
-                  const idea = `${prompt.trim() || "طرح تاتو"}. ویرایش: ${editNote.trim() || "خطوط را تمیزتر و قابل استنسیل کن"}`;
+                  const idea = `${prompt.trim() || "طرح تاتو"}. ویرایش: ${editNote.trim() || "خط‌ها را واضح‌تر کن و سایه‌ها را نقطه‌چین نگه دار"}`;
                   const data = await postPrep("generate", { idea, style: styleEn, colorMode: designColor, image: sourceImage });
                   if (!data.image) throw new Error("تصویری برنگشت.");
                   const nextImage = data.image;
@@ -670,11 +673,12 @@ export function TattooPrepDesk() {
 
         {tab === "stencil" ? (
           <section className="grid gap-3">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {(
                 [
-                  ["outline", "خط دور"],
-                  ["stipple", "سایه نقطه‌ای"],
+                  ["sketch", "خط و نقطه"],
+                  ["outline", "فقط خط"],
+                  ["stipple", "فقط نقطه"],
                   ["hatch", "هاشور"],
                 ] as const
               ).map(([id, label]) => (

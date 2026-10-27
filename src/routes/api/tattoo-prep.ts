@@ -112,13 +112,18 @@ async function removeProject(body: unknown) {
 }
 
 function designPrompt(idea: string, style: string, colorMode: string) {
-  const color = colorMode === "color" ? "full color tattoo ink" : "black and grey ink only";
+  const color =
+    colorMode === "color"
+      ? "Limited tattoo colors may sit inside the lines. Shadows stay black stipple dots, not airbrush."
+      : "Black ink only. No gray wash and no soft gray.";
   return [
-    "Professional tattoo flash artwork on a pure white background.",
-    "Clean linework an artist can stencil. No skin, no body, no hands, no photo mockup, no watermark, no letters.",
-    `Style: ${style || "black and grey realism"}.`,
-    `Color: ${color}.`,
-    `Client idea: ${idea}`,
+    "Tattoo stencil sketch on a pure white background.",
+    "Bold, clean, closed black outlines. Lines are sharp and readable, thick enough to tattoo, not a photo and not messy pencil.",
+    "Every shadow is stipple dotwork: small black dots, dense in dark areas and sparse in light areas.",
+    "No smooth gradient, no airbrush, no fog, no skin texture, no body, no hands, no photo mockup, no watermark, no letters, no frame.",
+    color,
+    `Subject: ${style || "tattoo sketch"}.`,
+    `Idea: ${idea}`,
   ].join(" ");
 }
 
@@ -149,7 +154,7 @@ async function generate(request: Request, body: unknown) {
   const image = data.image && data.image.startsWith("data:image/") ? data.image : "";
   const endpoint = image ? "https://api.x.ai/v1/images/edits" : "https://api.x.ai/v1/images/generations";
   const payload = image
-    ? { model: "grok-imagine-image", prompt: `Redraw the reference as a clean tattoo design. ${prompt}`, response_format: "b64_json", image: { url: image, type: "image_url" } }
+    ? { model: "grok-imagine-image", prompt: `Redraw the reference as a tattoo stencil sketch. Keep bold clean outlines and stipple-dot shadows on white. ${prompt}`, response_format: "b64_json", image: { url: image, type: "image_url" } }
     : { model: "grok-imagine-image", prompt, n: 1, response_format: "b64_json" };
   const response = await fetch(endpoint, {
     method: "POST",
