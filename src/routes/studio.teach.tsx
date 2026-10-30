@@ -180,10 +180,10 @@ function LessonDesk({ snap, busy, run }: { snap: Snap; busy: boolean; run: (work
       {lessons.map((item) => (
         <article key={item.id} className="rounded-2xl border border-border p-3">
           <p className="font-bold">{item.title}</p>
-          <p className="mt-1 text-xs">{item.isPublished ? "منتشر شده" : "پیش‌نویس"}</p>
+          <p className="mt-1 text-xs">{item.isPublished ? "کارآموز این درس را می‌بیند" : "کارآموز این درس را نمی‌بیند"}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <button type="button" className="h-10 rounded-xl border px-3 text-sm" onClick={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }}>ویرایش</button>
-            <button type="button" className="h-10 rounded-xl border px-3 text-sm" disabled={busy} onClick={() => run(() => callSchool("save-lesson", { ...item, isPublished: !item.isPublished }).then(() => undefined))}>{item.isPublished ? "برداشتن از انتشار" : "انتشار"}</button>
+            <button type="button" className="h-10 rounded-xl border px-3 text-sm" disabled={busy} onClick={() => run(() => callSchool("save-lesson", { ...item, isPublished: !item.isPublished }).then(() => undefined))}>{item.isPublished ? "پنهان کن" : "نشان بده به کارآموز"}</button>
             <button type="button" className="h-10 rounded-xl border px-3 text-sm text-red-800" disabled={busy} onClick={() => run(() => callSchool("delete-lesson", { id: item.id }).then(() => undefined))}>حذف</button>
           </div>
         </article>

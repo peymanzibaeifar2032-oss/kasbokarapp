@@ -141,7 +141,7 @@ function Library({
   const [view, setView] = useState<"home" | "module" | "lesson" | "questions">("home");
   const [modules, setModules] = useState<ModuleCard[]>([]);
   const [moduleId, setModuleId] = useState("");
-  const [lessons, setLessons] = useState<LessonCard[]>([]);
+  const [lessonsByModule, setLessonsByModule] = useState<Record<string, LessonCard[]>>({});
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState("");
@@ -165,7 +165,17 @@ function Library({
 
   useEffect(() => {
     load("/api/tattoo/modules")
-      .then((data) => setModules(data.modules || []))
+      .then(async (data) => {
+        const list = (data.modules || []) as ModuleCard[];
+        setModules(list);
+        const pairs = await Promise.all(
+          list.map(async (item) => {
+            const lessonsData = await load(`/api/tattoo/lessons/${item.id}`);
+            return [item.id, (lessonsData.lessons || []) as LessonCard[]] as const;
+          }),
+        );
+        setLessonsByModule(Object.fromEntries(pairs));
+      })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "خوانده نشد."));
   }, [token]);
 
@@ -174,7 +184,7 @@ function Library({
     setModuleId(item.id);
     setView("module");
     const data = await load(`/api/tattoo/lessons/${item.id}`);
-    setLessons(data.lessons || []);
+    setLessonsByModule((current) => ({ ...current, [item.id]: data.lessons || [] }));
   }
 
   async function openLesson(id: string) {
@@ -191,6 +201,7 @@ function Library({
     setQuestions(data.questions || []);
   }
 
+  const lessons = lessonsByModule[moduleId] || [];
   const moduleTitle = modules.find((item) => item.id === moduleId)?.title || "درس‌ها";
   const card = dark ? "border-white/10 bg-[#182229]" : "border-[#1c3d52]/10 bg-white";
 
@@ -220,7 +231,11 @@ function Library({
             <button key={item.id} type="button" className={`rounded-3xl border p-5 text-right ${card}`} onClick={() => void openModule(item)}>
               <p className="text-xs font-bold text-[#9a7340]">بخش {index + 1}</p>
               <h2 className="mt-1 text-xl font-black">{item.title}</h2>
-              {item.description ? <p className="mt-2 text-sm leading-7 opacity-75">{item.description}</p> : null}
+              <p className="mt-2 text-sm leading-7 opacity-75">
+                {(lessonsByModule[item.id] || []).length
+                  ? `${(lessonsByModule[item.id] || []).length} درس برای کارآموز باز است`
+                  : "هنوز درس منتشرشده ندارد"}
+              </p>
             </button>
           ))}
         </section>
