@@ -2,14 +2,14 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createFileRoute } from "@tanstack/react-router";
 
-const FILE = "tattoo-class-1.2.0.apk";
+const FILE = "tattoo-class-1.3.0.apk";
 
 async function apkBytes() {
   const paths = [
     join(process.cwd(), ".output", "public", FILE),
     join(process.cwd(), "public", FILE),
-    join(process.cwd(), ".output", "public", "tattoo-class.apk"),
-    join(process.cwd(), "public", "tattoo-class.apk"),
+    join(process.cwd(), ".output", "public", "tattoo-class-1.2.0.apk"),
+    join(process.cwd(), "public", "tattoo-class-1.2.0.apk"),
   ];
   for (const path of paths) {
     try {
