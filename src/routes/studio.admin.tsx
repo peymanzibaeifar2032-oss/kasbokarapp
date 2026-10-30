@@ -448,9 +448,16 @@ function StudioAdminPage() {
             <h1 className="text-2xl font-bold">{owner ? "میز کار" : panelName || "همکار"}</h1>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void refresh()}>
-          <RefreshCw className="size-4" /> تازه‌سازی
-        </Button>
+        <div className="flex items-center gap-2">
+          {owner ? (
+            <a href="/studio/teach" className="inline-flex h-9 items-center rounded-full bg-[#1C3D52] px-3 text-sm font-bold text-white">
+              آموزش تاتو
+            </a>
+          ) : null}
+          <Button variant="outline" size="sm" onClick={() => void refresh()}>
+            <RefreshCw className="size-4" /> تازه‌سازی
+          </Button>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-2">
