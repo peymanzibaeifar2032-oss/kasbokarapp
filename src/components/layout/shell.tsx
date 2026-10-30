@@ -144,9 +144,9 @@ export function Shell({ children }: { children: ReactNode }) {
             <Mark name="studio" className="size-5" />
             استودیو
           </Link>
-          <Link to="/studio/guide" className={tabClass}>
+          <Link to={owner ? "/studio/teach" : "/studio/guide"} className={tabClass}>
             <Mark name="guide" className="size-5" />
-            آموزش
+            {owner ? "آموزش تاتو" : "آموزش"}
           </Link>
           <Link to="/studio/request" className={`${tabClass} text-primary`}>
             <span className="grid size-10 place-items-center rounded-full bg-primary text-primary-fg shadow-md">

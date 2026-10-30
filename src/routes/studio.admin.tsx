@@ -460,7 +460,11 @@ function StudioAdminPage() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2">
+      {owner ? (
+        <a href="/studio/teach" className="mt-4 flex h-14 items-center justify-center rounded-2xl bg-[#1C3D52] text-base font-black text-white">
+          مدیریت آموزش تاتو
+        </a>
+      ) : null}
         <div className="flex w-full gap-1 overflow-x-auto rounded-2xl bg-[#1C3D52]/8 p-1">
           {(
             [
@@ -502,7 +506,6 @@ function StudioAdminPage() {
             منو
           </button>
         </div>
-      </div>
       {menuOpen ? (
         <div className="fixed inset-0 z-50">
           <button type="button" className="absolute inset-0 bg-black/40" aria-label="بستن منو" onClick={() => setMenuOpen(false)} />
