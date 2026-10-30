@@ -39,6 +39,7 @@ import { Route as ApiTattooAskRouteImport } from './routes/api/tattoo-ask'
 import { Route as ApiTattooFileRouteImport } from './routes/api/tattoo-file'
 import { Route as ApiTattooPrepRouteImport } from './routes/api/tattoo-prep'
 import { Route as ApiTattooPublicRouteImport } from './routes/api/tattoo-public'
+import { Route as ApiTattooSchoolRouteImport } from './routes/api/tattoo-school'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
@@ -52,9 +53,11 @@ import { Route as StudioOpenRouteImport } from './routes/studio.open'
 import { Route as StudioPocketRouteImport } from './routes/studio.pocket'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
 import { Route as StudioStatusRouteImport } from './routes/studio.status'
+import { Route as StudioTeachRouteImport } from './routes/studio.teach'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/callback'
 import { Route as ApiPaymentsWebhookRouteImport } from './routes/api/payments/webhook'
+import { Route as ApiTattooSplatRouteImport } from './routes/api/tattoo/$'
 import { Route as ApiTilesSplatRouteImport } from './routes/api/tiles/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -207,6 +210,11 @@ const ApiTattooPublicRoute = ApiTattooPublicRouteImport.update({
   path: '/api/tattoo-public',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTattooSchoolRoute = ApiTattooSchoolRouteImport.update({
+  id: '/api/tattoo-school',
+  path: '/api/tattoo-school',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
@@ -272,6 +280,11 @@ const StudioStatusRoute = StudioStatusRouteImport.update({
   path: '/status',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioTeachRoute = StudioTeachRouteImport.update({
+  id: '/teach',
+  path: '/teach',
+  getParentRoute: () => StudioRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -285,6 +298,11 @@ const ApiPaymentsCallbackRoute = ApiPaymentsCallbackRouteImport.update({
 const ApiPaymentsWebhookRoute = ApiPaymentsWebhookRouteImport.update({
   id: '/api/payments/webhook',
   path: '/api/payments/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTattooSplatRoute = ApiTattooSplatRouteImport.update({
+  id: '/api/tattoo/$',
+  path: '/api/tattoo/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTilesSplatRoute = ApiTilesSplatRouteImport.update({
@@ -324,6 +342,7 @@ export interface FileRoutesByFullPath {
   '/api/tattoo-file': typeof ApiTattooFileRoute
   '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
+  '/api/tattoo-school': typeof ApiTattooSchoolRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -337,9 +356,11 @@ export interface FileRoutesByFullPath {
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
+  '/studio/teach': typeof StudioTeachRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
+  '/api/tattoo/$': typeof ApiTattooSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRoutesByTo {
@@ -373,6 +394,7 @@ export interface FileRoutesByTo {
   '/api/tattoo-file': typeof ApiTattooFileRoute
   '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
+  '/api/tattoo-school': typeof ApiTattooSchoolRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -386,9 +408,11 @@ export interface FileRoutesByTo {
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
+  '/studio/teach': typeof StudioTeachRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
+  '/api/tattoo/$': typeof ApiTattooSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRoutesById {
@@ -423,6 +447,7 @@ export interface FileRoutesById {
   '/api/tattoo-file': typeof ApiTattooFileRoute
   '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
+  '/api/tattoo-school': typeof ApiTattooSchoolRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -436,9 +461,11 @@ export interface FileRoutesById {
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
+  '/studio/teach': typeof StudioTeachRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
+  '/api/tattoo/$': typeof ApiTattooSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
 }
 export interface FileRouteTypes {
@@ -474,6 +501,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-file'
     | '/api/tattoo-prep'
     | '/api/tattoo-public'
+    | '/api/tattoo-school'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -487,9 +515,11 @@ export interface FileRouteTypes {
     | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
+    | '/studio/teach'
     | '/api/auth/$'
     | '/api/payments/callback'
     | '/api/payments/webhook'
+    | '/api/tattoo/$'
     | '/api/tiles/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -523,6 +553,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-file'
     | '/api/tattoo-prep'
     | '/api/tattoo-public'
+    | '/api/tattoo-school'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -536,9 +567,11 @@ export interface FileRouteTypes {
     | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
+    | '/studio/teach'
     | '/api/auth/$'
     | '/api/payments/callback'
     | '/api/payments/webhook'
+    | '/api/tattoo/$'
     | '/api/tiles/$'
   id:
     | '__root__'
@@ -572,6 +605,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-file'
     | '/api/tattoo-prep'
     | '/api/tattoo-public'
+    | '/api/tattoo-school'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -585,9 +619,11 @@ export interface FileRouteTypes {
     | '/studio/pocket'
     | '/studio/request'
     | '/studio/status'
+    | '/studio/teach'
     | '/api/auth/$'
     | '/api/payments/callback'
     | '/api/payments/webhook'
+    | '/api/tattoo/$'
     | '/api/tiles/$'
   fileRoutesById: FileRoutesById
 }
@@ -622,10 +658,12 @@ export interface RootRouteChildren {
   ApiTattooFileRoute: typeof ApiTattooFileRoute
   ApiTattooPrepRoute: typeof ApiTattooPrepRoute
   ApiTattooPublicRoute: typeof ApiTattooPublicRoute
+  ApiTattooSchoolRoute: typeof ApiTattooSchoolRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPaymentsCallbackRoute: typeof ApiPaymentsCallbackRoute
   ApiPaymentsWebhookRoute: typeof ApiPaymentsWebhookRoute
+  ApiTattooSplatRoute: typeof ApiTattooSplatRoute
   ApiTilesSplatRoute: typeof ApiTilesSplatRoute
 }
 
@@ -841,6 +879,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTattooPublicRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tattoo-school': {
+      id: '/api/tattoo-school'
+      path: '/api/tattoo-school'
+      fullPath: '/api/tattoo-school'
+      preLoaderRoute: typeof ApiTattooSchoolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/business/$id': {
       id: '/business/$id'
       path: '/business/$id'
@@ -932,6 +977,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioStatusRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/teach': {
+      id: '/studio/teach'
+      path: '/teach'
+      fullPath: '/studio/teach'
+      preLoaderRoute: typeof StudioTeachRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -951,6 +1003,13 @@ declare module '@tanstack/react-router' {
       path: '/api/payments/webhook'
       fullPath: '/api/payments/webhook'
       preLoaderRoute: typeof ApiPaymentsWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tattoo/$': {
+      id: '/api/tattoo/$'
+      path: '/api/tattoo/$'
+      fullPath: '/api/tattoo/$'
+      preLoaderRoute: typeof ApiTattooSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tiles/$': {
@@ -987,6 +1046,7 @@ interface StudioRouteChildren {
   StudioPocketRoute: typeof StudioPocketRoute
   StudioRequestRoute: typeof StudioRequestRoute
   StudioStatusRoute: typeof StudioStatusRoute
+  StudioTeachRoute: typeof StudioTeachRoute
 }
 
 const StudioRouteChildren: StudioRouteChildren = {
@@ -1001,6 +1061,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioPocketRoute: StudioPocketRoute,
   StudioRequestRoute: StudioRequestRoute,
   StudioStatusRoute: StudioStatusRoute,
+  StudioTeachRoute: StudioTeachRoute,
 }
 
 const StudioRouteWithChildren =
@@ -1037,10 +1098,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTattooFileRoute: ApiTattooFileRoute,
   ApiTattooPrepRoute: ApiTattooPrepRoute,
   ApiTattooPublicRoute: ApiTattooPublicRoute,
+  ApiTattooSchoolRoute: ApiTattooSchoolRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPaymentsCallbackRoute: ApiPaymentsCallbackRoute,
   ApiPaymentsWebhookRoute: ApiPaymentsWebhookRoute,
+  ApiTattooSplatRoute: ApiTattooSplatRoute,
   ApiTilesSplatRoute: ApiTilesSplatRoute,
 }
 export const routeTree = rootRouteImport

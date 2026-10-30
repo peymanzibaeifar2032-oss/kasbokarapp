@@ -547,6 +547,11 @@ function StudioAdminPage() {
                 </div>
               ) : null,
             )}
+            {owner ? (
+              <a href="/studio/teach" className="flex h-12 items-center rounded-2xl bg-white px-3 text-sm font-bold">
+                آموزش تاتو
+              </a>
+            ) : null}
           </nav>
         </div>
       ) : null}
