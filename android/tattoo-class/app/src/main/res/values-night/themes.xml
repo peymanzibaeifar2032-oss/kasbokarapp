@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.TattooClass" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#1C3D52</item>
+        <item name="colorPrimaryVariant">#142C3C</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="android:statusBarColor">#10161B</item>
+        <item name="android:navigationBarColor">#10161B</item>
+        <item name="android:windowBackground">#10161B</item>
+    </style>
+</resources>
