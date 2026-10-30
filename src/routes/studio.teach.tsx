@@ -12,12 +12,13 @@ export const Route = createFileRoute("/studio/teach")({
 });
 
 type ModuleRow = { id: string; title: string; description: string; order: number; isActive: boolean };
-type LessonRow = { id: string; moduleId: string; title: string; content: string; order: number; isPublished: boolean };
+type LessonRow = { id: string; moduleId: string; title: string; content: string; order: number; isPublished: boolean; groupId: string | null };
+type GroupRow = { id: string; moduleId: string; title: string; order: number };
 type ImageRow = { id: string; lessonId: string; path: string; caption: string; order: number };
 type CodeRow = { id: string; code: string; maxDevices: number; usedCount: number; isActive: boolean; expiresAt: string | null; note: string };
 type AccessRow = { id: string; deviceId: string; activatedAt: string; lastSeen: string; isBlocked: boolean; code: string };
 type QuestionRow = { id: string; questionText: string; answerText: string | null; status: string; createdAt: string; deviceId: string; lessonId: string | null; lessonTitle: string | null };
-type Snap = { modules: ModuleRow[]; lessons: LessonRow[]; images: ImageRow[]; codes: CodeRow[]; access: AccessRow[]; questions: QuestionRow[]; ownerCode?: string };
+type Snap = { modules: ModuleRow[]; groups?: GroupRow[]; lessons: LessonRow[]; images: ImageRow[]; codes: CodeRow[]; access: AccessRow[]; questions: QuestionRow[]; ownerCode?: string };
 
 const sections = ["ماژول", "درس", "تصویر", "کد", "دسترسی", "سؤال", "پیش‌نمایش"] as const;
 
@@ -163,35 +164,67 @@ function LessonDesk({ snap, busy, run }: { snap: Snap; busy: boolean; run: (work
   const [moduleId, setModuleId] = useState(snap.modules[0]?.id || "");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [groupTitle, setGroupTitle] = useState("سوزن rl");
   const [editing, setEditing] = useState("");
   const lessons = snap.lessons.filter((item) => item.moduleId === moduleId);
+  const groups = (snap.groups || []).filter((item) => item.moduleId === moduleId);
+  const loose = lessons.filter((item) => !item.groupId);
   return (
     <section className="grid gap-3">
       <select className="h-11 rounded-xl border border-border px-3" value={moduleId} onChange={(event) => setModuleId(event.target.value)}>
         {snap.modules.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
       </select>
+      <div className="rounded-2xl border border-[#1C3D52]/20 p-3">
+        <p className="text-sm font-bold">مجموعهٔ کشویی داخل همین بخش</p>
+        <input className="mt-2 h-11 w-full rounded-xl border border-border px-3" placeholder="مثلاً سوزن rl" value={groupTitle} onChange={(event) => setGroupTitle(event.target.value)} />
+        <button type="button" disabled={busy || !moduleId || groupTitle.trim().length < 2} className="mt-2 h-11 w-full rounded-xl bg-[#1C3D52] text-sm font-bold text-white" onClick={() => run(() => callSchool("pack-group", { moduleId, title: groupTitle.trim() }).then(() => undefined))}>
+          درس‌های بدون دسته را بگذار در این مجموعه
+        </button>
+        <p className="mt-2 text-xs leading-6 text-muted">{loose.length} درس هنوز بیرون از مجموعه‌هاست.</p>
+      </div>
       <input className="h-11 rounded-xl border border-border px-3" placeholder="عنوان درس" value={title} onChange={(event) => setTitle(event.target.value)} />
       <textarea className="min-h-48 rounded-xl border border-border px-3 py-2 leading-8" placeholder="متن درس. خط جدید حفظ می‌شود." value={content} onChange={(event) => setContent(event.target.value)} />
       <button type="button" disabled={busy || !moduleId} className="h-11 rounded-xl bg-[#1C3D52] text-sm font-bold text-white" onClick={() => run(async () => {
-        await callSchool("save-lesson", { id: editing || undefined, moduleId, title, content, order: editing ? lessons.find((item) => item.id === editing)?.order ?? lessons.length : lessons.length, isPublished: false });
+        const current = lessons.find((item) => item.id === editing);
+        await callSchool("save-lesson", { id: editing || undefined, moduleId, title, content, order: current?.order ?? lessons.length, isPublished: current?.isPublished ?? false, groupId: current?.groupId ?? null });
         setTitle("");
         setContent("");
         setEditing("");
       })}>
         {editing ? "ذخیره درس" : "افزودن درس"}
       </button>
-      {lessons.map((item) => (
-        <article key={item.id} className="rounded-2xl border border-border p-3">
-          <p className="font-bold">{item.title}</p>
-          <p className="mt-1 text-xs">{item.isPublished ? "کارآموز این درس را می‌بیند" : "کارآموز این درس را نمی‌بیند"}</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button type="button" className="h-10 rounded-xl border px-3 text-sm" onClick={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }}>ویرایش</button>
-            <button type="button" className="h-10 rounded-xl border px-3 text-sm" disabled={busy} onClick={() => run(() => callSchool("save-lesson", { ...item, isPublished: !item.isPublished }).then(() => undefined))}>{item.isPublished ? "پنهان کن" : "نشان بده به کارآموز"}</button>
-            <button type="button" className="h-10 rounded-xl border px-3 text-sm text-red-800" disabled={busy} onClick={() => run(() => callSchool("delete-lesson", { id: item.id }).then(() => undefined))}>حذف</button>
-          </div>
-        </article>
+      {groups.map((group) => (
+        <div key={group.id} className="grid gap-2">
+          <p className="text-sm font-black">{group.title}</p>
+          {lessons.filter((item) => item.groupId === group.id).map((item) => (
+            <LessonCard key={item.id} item={item} groups={groups} busy={busy} run={run} onEdit={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }} />
+          ))}
+        </div>
+      ))}
+      {loose.map((item) => (
+        <LessonCard key={item.id} item={item} groups={groups} busy={busy} run={run} onEdit={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }} />
       ))}
     </section>
+  );
+}
+
+function LessonCard({ item, groups, busy, run, onEdit }: { item: LessonRow; groups: GroupRow[]; busy: boolean; run: (work: () => Promise<void>) => Promise<void>; onEdit: () => void }) {
+  return (
+    <article className="rounded-2xl border border-border p-3">
+      <p className="font-bold">{item.title}</p>
+      <p className="mt-1 text-xs">{item.isPublished ? "کارآموز این درس را می‌بیند" : "کارآموز این درس را نمی‌بیند"}</p>
+      {groups.length ? (
+        <select className="mt-2 h-10 w-full rounded-xl border border-border px-2 text-sm" value={item.groupId || ""} onChange={(event) => run(() => callSchool("save-lesson", { ...item, groupId: event.target.value || null }).then(() => undefined))}>
+          <option value="">بدون مجموعه</option>
+          {groups.map((group) => <option key={group.id} value={group.id}>{group.title}</option>)}
+        </select>
+      ) : null}
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" className="h-10 rounded-xl border px-3 text-sm" onClick={onEdit}>ویرایش</button>
+        <button type="button" className="h-10 rounded-xl border px-3 text-sm" disabled={busy} onClick={() => run(() => callSchool("save-lesson", { ...item, isPublished: !item.isPublished }).then(() => undefined))}>{item.isPublished ? "پنهان کن" : "نشان بده به کارآموز"}</button>
+        <button type="button" className="h-10 rounded-xl border px-3 text-sm text-red-800" disabled={busy} onClick={() => run(() => callSchool("delete-lesson", { id: item.id }).then(() => undefined))}>حذف</button>
+      </div>
+    </article>
   );
 }
 

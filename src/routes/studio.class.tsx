@@ -12,7 +12,9 @@ export const Route = createFileRoute("/studio/class")({
 });
 
 type ModuleCard = { id: string; title: string; description: string; order: number };
-type LessonCard = { id: string; title: string; order: number };
+type LessonCard = { id: string; title: string; order: number; groupId?: string | null };
+type LessonGroup = { id: string; title: string; order: number; lessons: LessonCard[] };
+type Catalog = { groups: LessonGroup[]; lessons: LessonCard[] };
 type LessonImage = { id: string; path: string; caption: string; order: number };
 type Lesson = { id: string; moduleId: string; title: string; content: string; images: LessonImage[] };
 type Question = { id: string; lessonId: string | null; questionText: string; answerText: string | null; status: string };
@@ -141,7 +143,7 @@ function Library({
   const [view, setView] = useState<"home" | "module" | "lesson" | "questions">("home");
   const [modules, setModules] = useState<ModuleCard[]>([]);
   const [moduleId, setModuleId] = useState("");
-  const [lessonsByModule, setLessonsByModule] = useState<Record<string, LessonCard[]>>({});
+  const [catalog, setCatalog] = useState<Record<string, Catalog>>({});
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState("");
@@ -171,10 +173,10 @@ function Library({
         const pairs = await Promise.all(
           list.map(async (item) => {
             const lessonsData = await load(`/api/tattoo/lessons/${item.id}`);
-            return [item.id, (lessonsData.lessons || []) as LessonCard[]] as const;
+            return [item.id, { groups: lessonsData.groups || [], lessons: lessonsData.lessons || [] } as Catalog] as const;
           }),
         );
-        setLessonsByModule(Object.fromEntries(pairs));
+        setCatalog(Object.fromEntries(pairs));
       })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "خوانده نشد."));
   }, [token]);
@@ -184,7 +186,7 @@ function Library({
     setModuleId(item.id);
     setView("module");
     const data = await load(`/api/tattoo/lessons/${item.id}`);
-    setLessonsByModule((current) => ({ ...current, [item.id]: data.lessons || [] }));
+    setCatalog((current) => ({ ...current, [item.id]: { groups: data.groups || [], lessons: data.lessons || [] } }));
   }
 
   async function openLesson(id: string) {
@@ -201,7 +203,7 @@ function Library({
     setQuestions(data.questions || []);
   }
 
-  const lessons = lessonsByModule[moduleId] || [];
+  const lessons = catalog[moduleId]?.lessons || [];
   const moduleTitle = modules.find((item) => item.id === moduleId)?.title || "درس‌ها";
   const card = dark ? "border-white/10 bg-[#182229]" : "border-[#1c3d52]/10 bg-white";
 
@@ -227,17 +229,37 @@ function Library({
       {view === "home" ? (
         <section className="mt-6 grid gap-3">
           {!modules.length ? <p className="leading-8 opacity-70">هنوز درسی منتشر نشده. به محض انتشار در پنل، همین‌جا می‌آید.</p> : null}
-          {modules.map((item, index) => (
-            <button key={item.id} type="button" className={`rounded-3xl border p-5 text-right ${card}`} onClick={() => void openModule(item)}>
-              <p className="text-xs font-bold text-[#9a7340]">بخش {index + 1}</p>
-              <h2 className="mt-1 text-xl font-black">{item.title}</h2>
-              <p className="mt-2 text-sm leading-7 opacity-75">
-                {(lessonsByModule[item.id] || []).length
-                  ? `${(lessonsByModule[item.id] || []).length} درس برای کارآموز باز است`
-                  : "هنوز درس منتشرشده ندارد"}
-              </p>
-            </button>
-          ))}
+          {modules.map((item, index) => {
+            const box = catalog[item.id] || { groups: [], lessons: [] };
+            const loose = box.lessons.filter((lesson) => !box.groups.some((group) => group.lessons.some((row) => row.id === lesson.id)));
+            return (
+              <article key={item.id} className={`rounded-3xl border p-5 ${card}`}>
+                <p className="text-xs font-bold text-[#9a7340]">بخش {index + 1}</p>
+                <h2 className="mt-1 text-xl font-black">{item.title}</h2>
+                <div className="mt-3 grid gap-2">
+                  {box.groups.map((group) => (
+                    <details key={group.id} className="rounded-2xl border border-current/10 px-3 py-2">
+                      <summary className="cursor-pointer py-2 text-base font-black">{group.title}</summary>
+                      <div className="grid gap-2 pb-2">
+                        {group.lessons.map((lesson, lessonIndex) => (
+                          <button key={lesson.id} type="button" className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right" onClick={() => { setModuleId(item.id); void openLesson(lesson.id); }}>
+                            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lessonIndex + 1}</span>
+                            <span className="font-bold">{lesson.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                  {loose.map((lesson) => (
+                    <button key={lesson.id} type="button" className="rounded-2xl px-1 py-2 text-right font-bold" onClick={() => { setModuleId(item.id); void openLesson(lesson.id); }}>
+                      {lesson.title}
+                    </button>
+                  ))}
+                  {!box.groups.length && !loose.length ? <p className="text-sm opacity-70">هنوز درس منتشرشده ندارد.</p> : null}
+                </div>
+              </article>
+            );
+          })}
         </section>
       ) : null}
 
@@ -256,7 +278,7 @@ function Library({
 
       {view === "lesson" && lesson ? (
         <article className="mt-6">
-          <button type="button" className="text-sm font-bold text-[#9a7340]" onClick={() => setView("module")}>بازگشت به فهرست بخش</button>
+          <button type="button" className="text-sm font-bold text-[#9a7340]" onClick={() => setView("home")}>بازگشت به فهرست</button>
           <h2 className="mt-3 text-3xl font-black leading-tight">{lesson.title}</h2>
           <p className="mt-5 whitespace-pre-wrap text-lg leading-10">{lesson.content}</p>
           {lesson.images.map((image) => (

@@ -17,6 +17,7 @@ export type LearnLesson = {
   content: string;
   order: number;
   isPublished: boolean;
+  groupId: string | null;
 };
 
 export type LearnImage = {
@@ -166,15 +167,27 @@ export async function listPublicModules() {
 
 export async function listPublicLessons(moduleId: string) {
   const db = await sql();
-  const rows = await db.query<{ id: string; title: string; order: number }>(
-    `select l.id, l.title, l."order"
+  const lessons = await db.query<{ id: string; title: string; order: number; groupId: string | null }>(
+    `select l.id, l.title, l."order", l.group_id as "groupId"
        from tattoo_lessons l
        join tattoo_modules m on m.id = l.module_id
       where l.module_id = $1 and l.is_published = true and m.is_active = true
       order by l."order", l.created_at`,
     [moduleId],
   );
-  return rows;
+  const groups = await db.query<{ id: string; title: string; order: number }>(
+    `select id, title, "order" from tattoo_lesson_groups where module_id = $1 order by "order", created_at`,
+    [moduleId],
+  );
+  return {
+    groups: groups
+      .map((group) => ({
+        ...group,
+        lessons: lessons.filter((lesson) => lesson.groupId === group.id),
+      }))
+      .filter((group) => group.lessons.length > 0),
+    lessons,
+  };
 }
 
 export async function publicLesson(lessonId: string) {
@@ -257,8 +270,11 @@ export async function schoolSnapshot() {
     `select id, title, description, "order", is_active as "isActive" from tattoo_modules order by "order", created_at`,
   );
   const lessons = await db.query<LearnLesson>(
-    `select id, module_id as "moduleId", title, content, "order", is_published as "isPublished"
+    `select id, module_id as "moduleId", title, content, "order", is_published as "isPublished", group_id as "groupId"
        from tattoo_lessons order by "order", created_at`,
+  );
+  const groups = await db.query<{ id: string; moduleId: string; title: string; order: number }>(
+    `select id, module_id as "moduleId", title, "order" from tattoo_lesson_groups order by "order", created_at`,
   );
   const images = await db.query<LearnImage>(
     `select id, lesson_id as "lessonId", image_path as path, caption, "order"
@@ -285,7 +301,7 @@ export async function schoolSnapshot() {
       order by case when q.status = 'pending' then 0 else 1 end, q.created_at desc
       limit 200`,
   );
-  return { modules, lessons, images, codes, access, questions, ownerCode };
+  return { modules, groups, lessons, images, codes, access, questions, ownerCode };
 }
 
 async function ownerTestCode(db: Sql) {
@@ -324,18 +340,41 @@ export async function saveLesson(input: {
   content: string;
   order: number;
   isPublished: boolean;
+  groupId?: string | null;
 }) {
   const db = await sql();
   const lessonId = input.id || id();
   await db.query(
-    `insert into tattoo_lessons (id, module_id, title, content, "order", is_published, updated_at)
-     values ($1,$2,$3,$4,$5,$6, now())
+    `insert into tattoo_lessons (id, module_id, title, content, "order", is_published, group_id, updated_at)
+     values ($1,$2,$3,$4,$5,$6,$7, now())
      on conflict (id) do update set
        module_id = excluded.module_id, title = excluded.title, content = excluded.content,
-       "order" = excluded."order", is_published = excluded.is_published, updated_at = now()`,
-    [lessonId, input.moduleId, input.title, input.content, input.order, input.isPublished],
+       "order" = excluded."order", is_published = excluded.is_published, group_id = excluded.group_id, updated_at = now()`,
+    [lessonId, input.moduleId, input.title, input.content, input.order, input.isPublished, input.groupId || null],
   );
   return { id: lessonId };
+}
+
+export async function packLessons(moduleId: string, title: string) {
+  const db = await sql();
+  const found = await db.query<{ id: string }>(
+    `select id from tattoo_lesson_groups where module_id = $1 and title = $2 limit 1`,
+    [moduleId, title],
+  );
+  let groupId = found[0]?.id || "";
+  if (!groupId) {
+    const count = await db.query<{ n: number }>(`select count(*)::int as n from tattoo_lesson_groups where module_id = $1`, [moduleId]);
+    groupId = id();
+    await db.query(
+      `insert into tattoo_lesson_groups (id, module_id, title, "order") values ($1,$2,$3,$4)`,
+      [groupId, moduleId, title, count[0]?.n || 0],
+    );
+  }
+  await db.query(
+    `update tattoo_lessons set group_id = $1, updated_at = now() where module_id = $2 and group_id is null`,
+    [groupId, moduleId],
+  );
+  return { id: groupId };
 }
 
 export async function deleteLesson(lessonId: string) {

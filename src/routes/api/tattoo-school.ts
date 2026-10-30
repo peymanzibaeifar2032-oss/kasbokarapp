@@ -9,6 +9,7 @@ import {
   deleteModule,
   makeCodes,
   ownerPreview,
+  packLessons,
   saveLesson,
   saveLessonImage,
   saveModule,
@@ -63,8 +64,16 @@ async function handle(request: Request) {
         content: z.string().max(80_000),
         order: z.number().int().min(0).max(999),
         isPublished: z.boolean(),
+        groupId: z.string().trim().min(4).max(80).nullable().optional(),
       }).parse(body);
       return json(await saveLesson(data));
+    }
+    if (op === "pack-group") {
+      const data = z.object({
+        moduleId: z.string().trim().min(4).max(80),
+        title: z.string().trim().min(2).max(80),
+      }).parse(body);
+      return json(await packLessons(data.moduleId, data.title));
     }
     if (op === "delete-lesson") {
       const data = z.object({ id: z.string().trim().min(4).max(80) }).parse(body);

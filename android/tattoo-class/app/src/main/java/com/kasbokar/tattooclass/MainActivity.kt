@@ -27,7 +27,7 @@ class MainActivity : AppCompatActivity() {
     private var token: String = ""
     private var moduleId: String = ""
     private var moduleTitle: String = ""
-    private val stack = ArrayDeque<String>()
+    private val openGroups = mutableSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val dark = prefs.getBoolean("dark", false)
@@ -163,12 +163,23 @@ class MainActivity : AppCompatActivity() {
         page.addView(host)
         host.addView(ProgressBar(this))
         work(
-            { Api(token).lessons(moduleId) },
-            { lessons ->
+            { Api(token).catalog(moduleId) },
+            { groups ->
                 host.removeAllViews()
-                if (lessons.isEmpty()) host.addView(body("در این بخش هنوز درس منتشر نشده."))
-                lessons.forEachIndexed { index, item ->
-                    host.addView(cardButton("${index + 1}", item.title, "") { show("lesson:${item.id}") })
+                if (groups.isEmpty()) host.addView(body("در این بخش هنوز درس منتشر نشده."))
+                groups.forEach { group ->
+                    val opened = group.title.isBlank() || openGroups.contains(group.title)
+                    if (group.title.isNotBlank()) {
+                        host.addView(cardButton(if (opened) "بستن" else "باز کردن", group.title, "${group.lessons.size} درس") {
+                            if (opened) openGroups.remove(group.title) else openGroups.add(group.title)
+                            render("module")
+                        })
+                    }
+                    if (opened) {
+                        group.lessons.forEachIndexed { index, item ->
+                            host.addView(cardButton("${index + 1}", item.title, "") { show("lesson:${item.id}") })
+                        }
+                    }
                 }
             },
             { message ->

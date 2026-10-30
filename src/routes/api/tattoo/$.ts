@@ -77,7 +77,7 @@ async function dispatch(request: Request) {
     const access = await student(request);
     if (!access) return json({ error: "اول کد فعال‌سازی را بزن." }, 401);
     if (head === "modules" && request.method === "GET") return json({ modules: await listPublicModules() });
-    if (head === "lessons" && arg && request.method === "GET") return json({ lessons: await listPublicLessons(arg) });
+    if (head === "lessons" && arg && request.method === "GET") return json(await listPublicLessons(arg));
     if (head === "lesson" && arg && request.method === "GET") {
       const lesson = await publicLesson(arg);
       if (!lesson) return json({ error: "این درس منتشر نشده." }, 404);

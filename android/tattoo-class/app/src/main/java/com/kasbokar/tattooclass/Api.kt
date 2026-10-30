@@ -8,6 +8,8 @@ class ApiException(message: String, val code: Int) : Exception(message)
 
 data class ModuleCard(val id: String, val title: String, val description: String)
 data class LessonCard(val id: String, val title: String)
+
+data class LessonGroup(val title: String, val lessons: List<LessonCard>)
 data class LessonImage(val path: String, val caption: String)
 data class Lesson(val id: String, val title: String, val content: String, val images: List<LessonImage>)
 data class Question(val id: String, val text: String, val answer: String, val answered: Boolean)
@@ -28,8 +30,21 @@ class Api(private val token: String?) {
         }
     }
 
-    fun lessons(moduleId: String): List<LessonCard> {
-        val list = request("GET", "/api/tattoo/lessons/$moduleId", null).optJSONArray("lessons") ?: return emptyList()
+    fun catalog(moduleId: String): List<LessonGroup> {
+        val json = request("GET", "/api/tattoo/lessons/$moduleId", null)
+        val groups = json.optJSONArray("groups")
+        if (groups != null && groups.length() > 0) {
+            return List(groups.length()) { index ->
+                val group = groups.getJSONObject(index)
+                LessonGroup(group.optString("title"), cards(group.optJSONArray("lessons")))
+            }
+        }
+        val loose = cards(json.optJSONArray("lessons"))
+        return if (loose.isEmpty()) emptyList() else listOf(LessonGroup("", loose))
+    }
+
+    private fun cards(list: org.json.JSONArray?): List<LessonCard> {
+        if (list == null) return emptyList()
         return List(list.length()) { index ->
             val item = list.getJSONObject(index)
             LessonCard(item.optString("id"), item.optString("title"))
