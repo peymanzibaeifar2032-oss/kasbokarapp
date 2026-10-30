@@ -17,7 +17,7 @@ type ImageRow = { id: string; lessonId: string; path: string; caption: string; o
 type CodeRow = { id: string; code: string; maxDevices: number; usedCount: number; isActive: boolean; expiresAt: string | null; note: string };
 type AccessRow = { id: string; deviceId: string; activatedAt: string; lastSeen: string; isBlocked: boolean; code: string };
 type QuestionRow = { id: string; questionText: string; answerText: string | null; status: string; createdAt: string; deviceId: string; lessonId: string | null; lessonTitle: string | null };
-type Snap = { modules: ModuleRow[]; lessons: LessonRow[]; images: ImageRow[]; codes: CodeRow[]; access: AccessRow[]; questions: QuestionRow[] };
+type Snap = { modules: ModuleRow[]; lessons: LessonRow[]; images: ImageRow[]; codes: CodeRow[]; access: AccessRow[]; questions: QuestionRow[]; ownerCode?: string };
 
 const sections = ["ماژول", "درس", "تصویر", "کد", "دسترسی", "سؤال", "پیش‌نمایش"] as const;
 
@@ -88,6 +88,18 @@ function TeachPage() {
           <a href="/studio/class" className="mt-2 inline-flex text-sm font-bold text-[#1C3D52] underline">
             kasbokarapp.com/studio/class
           </a>
+          {snap?.ownerCode ? (
+            <label className="mt-3 block">
+              <span className="text-sm font-bold">کد ورود خودت، مثل کارآموز</span>
+              <input
+                readOnly
+                value={snap.ownerCode}
+                dir="ltr"
+                className="mt-1 h-14 w-full rounded-2xl border border-[#1C3D52] bg-white px-3 text-center text-lg font-black tracking-wider"
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            </label>
+          ) : null}
         </div>
         <div className="flex gap-2 overflow-x-auto">
           {sections.map((item) => (

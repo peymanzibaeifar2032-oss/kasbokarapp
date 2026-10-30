@@ -252,6 +252,7 @@ export async function lessonImage(imageId: string) {
 
 export async function schoolSnapshot() {
   const db = await sql();
+  const ownerCode = await ownerTestCode(db);
   const modules = await db.query<LearnModule>(
     `select id, title, description, "order", is_active as "isActive" from tattoo_modules order by "order", created_at`,
   );
@@ -284,7 +285,17 @@ export async function schoolSnapshot() {
       order by case when q.status = 'pending' then 0 else 1 end, q.created_at desc
       limit 200`,
   );
-  return { modules, lessons, images, codes, access, questions };
+  return { modules, lessons, images, codes, access, questions, ownerCode };
+}
+
+async function ownerTestCode(db: Sql) {
+  const existing = await db.query<{ code: string }>(
+    `select code from tattoo_activation_codes where note = $1 and is_active = true order by created_at desc limit 1`,
+    ["ورود خودم"],
+  );
+  if (existing[0]?.code) return existing[0].code;
+  const made = await makeCodes(1, 2, "ورود خودم", null);
+  return made[0] || "";
 }
 
 export async function saveModule(input: { id?: string; title: string; description: string; order: number; isActive: boolean }) {
