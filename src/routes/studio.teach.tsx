@@ -82,7 +82,12 @@ function TeachPage() {
             بازگشت به میز کار
           </Link>
           <h1 className="mt-2 text-2xl font-black">آموزش تاتو</h1>
-          <p className="mt-1 text-sm leading-7 text-muted">جدا از نوبت‌ها. درس منتشرشده همان لحظه از سرور خوانده می‌شود.</p>
+          <p className="mt-1 text-sm leading-7 text-muted">
+            درس منتشرشده همان لحظه برای هنرجویی می‌آید که کد دارد. خودش این آدرس را باز می‌کند:
+          </p>
+          <a href="/studio/class" className="mt-2 inline-flex text-sm font-bold text-[#1C3D52] underline">
+            kasbokarapp.com/studio/class
+          </a>
         </div>
         <div className="flex gap-2 overflow-x-auto">
           {sections.map((item) => (
