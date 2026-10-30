@@ -27,13 +27,17 @@ class MainActivity : AppCompatActivity() {
     private var token: String = ""
     private var moduleId: String = ""
     private var moduleTitle: String = ""
+    private val stack = ArrayDeque<String>()
     private val openGroups = mutableSetOf<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
         val dark = prefs.getBoolean("dark", false)
         val mode = if (dark) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
-        if (AppCompatDelegate.getDefaultNightMode() != mode) AppCompatDelegate.setDefaultNightMode(mode)
-        super.onCreate(savedInstanceState)
+        if (AppCompatDelegate.getDefaultNightMode() != mode) {
+            AppCompatDelegate.setDefaultNightMode(mode)
+            return
+        }
         frame = FrameLayout(this)
         setContentView(frame)
         token = prefs.getString("token", "").orEmpty()
