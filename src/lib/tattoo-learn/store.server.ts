@@ -105,8 +105,25 @@ export async function activateLearnCode(rawCode: string, deviceId: string) {
     return { token, accessId: existing[0].id, maxDevices: row.max_devices, usedCount: row.used_count };
   }
   if (!canAddDevice(row.used_count, row.max_devices)) {
-    await log(db, "activate_denied", row.id, device, "device-limit");
-    return { error: "ظرفیت دستگاه این کد پر شده.", status: 403 as const };
+    const oldest = await db.query<{ id: string }>(
+      `select id from tattoo_user_access
+        where code_id = $1
+        order by is_blocked desc, last_seen asc
+        limit 1`,
+      [row.id],
+    );
+    if (!oldest[0]) {
+      await log(db, "activate_denied", row.id, device, "device-limit");
+      return { error: "ظرفیت دستگاه این کد پر شده.", status: 403 as const };
+    }
+    await db.query(
+      `update tattoo_user_access
+          set device_id = $2, token_hash = $3, is_blocked = false, last_seen = now()
+        where id = $1`,
+      [oldest[0].id, device, hashToken(token)],
+    );
+    await log(db, "activate_ok", row.id, device, "replaced-oldest");
+    return { token, accessId: oldest[0].id, maxDevices: row.max_devices, usedCount: row.used_count };
   }
   const bumped = await db.query<{ id: string; used_count: number; max_devices: number }>(
     `update tattoo_activation_codes
