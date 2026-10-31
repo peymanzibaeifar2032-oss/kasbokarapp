@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createFileRoute } from "@tanstack/react-router";
 
-const FILE = "tattoo-class-1.3.0.apk";
+const FILE = "tattoo-class-1.4.0.apk";
 
 async function apkBytes() {
   const paths = [

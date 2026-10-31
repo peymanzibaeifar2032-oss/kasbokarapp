@@ -1,5 +1,6 @@
 package com.kasbokar.tattooclass
 
+import android.app.Activity
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.Typeface
@@ -15,13 +16,10 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
 import java.util.UUID
 import java.util.concurrent.Executors
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
     private val io = Executors.newSingleThreadExecutor()
     private lateinit var frame: FrameLayout
     private val prefs by lazy { getSharedPreferences("tattoo-class", MODE_PRIVATE) }
@@ -36,18 +34,8 @@ class MainActivity : AppCompatActivity() {
         try {
             frame = FrameLayout(this)
             setContentView(frame)
+            window.decorView.setBackgroundColor(pageColor())
             token = prefs.getString("token", "").orEmpty()
-            onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-                override fun handleOnBackPressed() {
-                    if (stack.size > 1) {
-                        stack.removeLast()
-                        render(stack.last())
-                    } else {
-                        isEnabled = false
-                        onBackPressedDispatcher.onBackPressed()
-                    }
-                }
-            })
             show(if (token.isBlank()) "gate" else "home", reset = true)
         } catch (error: Throwable) {
             val text = TextView(this)
@@ -97,7 +85,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun gate(page: LinearLayout) {
         page.addView(space(28))
-        page.addView(gold("نسخه ۱.۳.۰"))
+        page.addView(gold("نسخه ۱.۴.۰"))
         page.addView(title("کلاس آموزش تاتو", 32f))
         page.addView(body("این کلاس فقط برای کسی است که پرداخت کرده و کد ورود گرفته. بدون کد، درسی نشان داده نمی‌شود."))
         val input = EditText(this).apply {
@@ -337,9 +325,9 @@ class MainActivity : AppCompatActivity() {
         val text = title(heading, 26f)
         row.addView(text, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(chip(if (night()) "روشن" else "تیره") {
-            val next = !night()
-            prefs.edit().putBoolean("dark", next).apply()
-            AppCompatDelegate.setDefaultNightMode(if (next) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO)
+            prefs.edit().putBoolean("dark", !night()).apply()
+            window.decorView.setBackgroundColor(pageColor())
+            render(stack.lastOrNull() ?: "home")
         })
         if (token.isNotBlank()) row.addView(chip("خروج") { logout() })
         page.addView(row)
@@ -460,7 +448,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun ink() = if (night()) 0xFFF4EFE6.toInt() else 0xFF1C3D52.toInt()
-    private fun night() = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    private fun night(): Boolean {
+        if (prefs.contains("dark")) return prefs.getBoolean("dark", false)
+        return (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun pageColor() = if (night()) 0xFF10161B.toInt() else 0xFFF4EFE6.toInt()
     private fun space(n: Int) = View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(n)) }
     private fun match() = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()

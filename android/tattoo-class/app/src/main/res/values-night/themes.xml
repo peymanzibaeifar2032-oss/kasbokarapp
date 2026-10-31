@@ -1,8 +1,5 @@
 <resources>
-    <style name="Theme.TattooClass" parent="Theme.AppCompat.DayNight.NoActionBar">
-        <item name="colorPrimary">#1C3D52</item>
-        <item name="colorPrimaryDark">#10161B</item>
-        <item name="colorAccent">#9A7340</item>
+    <style name="Theme.TattooClass" parent="@android:style/Theme.DeviceDefault.NoActionBar">
         <item name="android:statusBarColor">#10161B</item>
         <item name="android:navigationBarColor">#10161B</item>
         <item name="android:windowBackground">#10161B</item>
