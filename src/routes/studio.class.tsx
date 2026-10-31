@@ -192,6 +192,7 @@ function Library({
   async function openLesson(id: string) {
     setError("");
     setView("lesson");
+    window.scrollTo(0, 0);
     const data = await load(`/api/tattoo/lesson/${id}`);
     setLesson(data.lesson);
   }
@@ -206,6 +207,27 @@ function Library({
   const lessons = catalog[moduleId]?.lessons || [];
   const moduleTitle = modules.find((item) => item.id === moduleId)?.title || "درس‌ها";
   const card = dark ? "border-white/10 bg-[#182229]" : "border-[#1c3d52]/10 bg-white";
+  const sequence = modules.flatMap((item) => {
+    const box = catalog[item.id] || { groups: [], lessons: [] };
+    const seen = new Set(box.groups.flatMap((group) => group.lessons.map((lesson) => lesson.id)));
+    return [...box.groups.flatMap((group) => group.lessons), ...box.lessons.filter((lesson) => !seen.has(lesson.id))];
+  });
+  const place = sequence.findIndex((item) => item.id === lesson?.id);
+  const previousLesson = place > 0 ? sequence[place - 1] : null;
+  const nextLesson = place >= 0 && place < sequence.length - 1 ? sequence[place + 1] : null;
+
+  function LessonNav({ stick = false }: { stick?: boolean }) {
+    return (
+      <div className={`${stick ? "sticky bottom-3 z-10" : ""} mt-4 grid grid-cols-2 gap-2 rounded-2xl border p-2 ${card}`}>
+        <button type="button" disabled={!previousLesson} className="h-12 rounded-xl border text-sm font-bold disabled:opacity-35" onClick={() => previousLesson && void openLesson(previousLesson.id)}>
+          درس قبل
+        </button>
+        <button type="button" disabled={!nextLesson} className="h-12 rounded-xl bg-[#1c3d52] text-sm font-bold text-white disabled:opacity-35" onClick={() => nextLesson && void openLesson(nextLesson.id)}>
+          درس بعد
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-5">
@@ -278,13 +300,14 @@ function Library({
 
       {view === "lesson" && lesson ? (
         <article className="mt-6">
-          <button type="button" className="text-sm font-bold text-[#9a7340]" onClick={() => setView("home")}>بازگشت به فهرست</button>
+          <LessonNav />
           <h2 className="mt-3 text-3xl font-black leading-tight">{lesson.title}</h2>
           <p className="mt-5 whitespace-pre-wrap text-lg leading-10">{lesson.content}</p>
           {lesson.images.map((image) => (
             <LessonFigure key={image.id} image={image} token={token} onZoom={setZoom} />
           ))}
           <AskBox token={token} lessonId={lesson.id} onDone={() => void openQuestions()} />
+          <LessonNav stick />
         </article>
       ) : null}
 

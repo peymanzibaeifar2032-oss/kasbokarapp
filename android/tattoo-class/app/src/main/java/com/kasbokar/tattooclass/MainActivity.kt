@@ -28,6 +28,7 @@ class MainActivity : Activity() {
     private var moduleTitle: String = ""
     private val stack = ArrayDeque<String>()
     private val openGroups = mutableSetOf<String>()
+    private var lessonOrder = listOf<LessonCard>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -159,6 +160,7 @@ class MainActivity : Activity() {
         work(
             { Api(token).catalog(moduleId) },
             { groups ->
+                lessonOrder = groups.flatMap { it.lessons }
                 host.removeAllViews()
                 if (groups.isEmpty()) host.addView(body("در این بخش هنوز درس منتشر نشده."))
                 groups.forEach { group ->
@@ -193,10 +195,13 @@ class MainActivity : Activity() {
             { Api(token).lesson(id) },
             { item ->
                 host.removeAllViews()
+                val index = lessonOrder.indexOfFirst { it.id == id }
+                host.addView(lessonMoves(index))
                 host.addView(title(item.title, 28f))
                 host.addView(body(item.content))
                 item.images.forEach { image -> host.addView(picture(image)) }
                 host.addView(askBox(id))
+                host.addView(lessonMoves(index))
             },
             { message ->
                 host.removeAllViews()
@@ -318,6 +323,22 @@ class MainActivity : Activity() {
             }
         }
         return box
+    }
+
+    private fun lessonMoves(index: Int): View {
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val back = chip("درس قبل") {
+            if (index > 0) show("lesson:${lessonOrder[index - 1].id}")
+        }
+        val forward = primary("درس بعد").apply {
+            setOnClickListener { if (index in 0 until lessonOrder.lastIndex) show("lesson:${lessonOrder[index + 1].id}") }
+            isEnabled = index in 0 until lessonOrder.lastIndex
+        }
+        back.isEnabled = index > 0
+        row.addView(back, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(space(8), LinearLayout.LayoutParams(dp(8), 1))
+        row.addView(forward, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        return row
     }
 
     private fun header(page: LinearLayout, heading: String) {
