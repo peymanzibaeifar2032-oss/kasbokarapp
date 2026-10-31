@@ -86,7 +86,7 @@ class MainActivity : Activity() {
 
     private fun gate(page: LinearLayout) {
         page.addView(space(28))
-        page.addView(gold("نسخه ۱.۴.۰"))
+        page.addView(gold("نسخه ۱.۵.۰"))
         page.addView(title("کلاس آموزش تاتو", 32f))
         page.addView(body("این کلاس فقط برای کسی است که پرداخت کرده و کد ورود گرفته. بدون کد، درسی نشان داده نمی‌شود."))
         val input = EditText(this).apply {

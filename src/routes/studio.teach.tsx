@@ -90,7 +90,7 @@ function TeachPage() {
             kasbokarapp.com/studio/class
           </a>
           <a href="/api/tattoo-apk" className="mt-2 block text-sm font-bold text-[#1C3D52] underline">
-            دانلود اپ ۱.۴.۰
+            دانلود اپ ۱.۵.۰
           </a>
           {snap?.ownerCode ? (
             <label className="mt-3 block">
