@@ -50,7 +50,7 @@ jobs:
           set -eu
           LAST_ERR=""
           i=0
-          while [ "$i" -lt 7 ]; do
+          while [ "$i" -lt 30 ]; do
             i=$((i + 1))
             if LAST_ERR=$(node scripts/check-production-health.mjs \
               https://kasbokarapp.com/api/health \
