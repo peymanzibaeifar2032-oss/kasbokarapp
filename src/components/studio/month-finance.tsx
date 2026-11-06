@@ -42,6 +42,7 @@ export function StudioMonthFinance() {
   const [paymentsOpen, setPaymentsOpen] = useState(false);
   const [editId, setEditId] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [expenseEdit, setExpenseEdit] = useState<{ id: string; title: string; amount: string; recurring: boolean; daily: boolean } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -122,9 +123,30 @@ export function StudioMonthFinance() {
   }
 
   async function removeExpense(id: string, stopRecurring = false) {
+    if (!window.confirm(stopRecurring ? "تکرار این هزینه قطع شود؟" : "این هزینه حذف شود؟")) return;
     setBusy(true);
     try {
       await saveAction("deleteStudioExpense", { id, stopRecurring });
+      setExpenseEdit(null);
+      toast.success(stopRecurring ? "تکرار قطع شد." : "هزینه حذف شد.");
+      await load();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveExpense() {
+    if (!expenseEdit) return;
+    const toman = Number(digitsOnly(expenseEdit.amount));
+    if (expenseEdit.title.trim().length < 2) return toast.error("عنوان را بنویس.");
+    if (!toman) return toast.error("مبلغ را بنویس.");
+    setBusy(true);
+    try {
+      await saveAction("updateStudioExpense", { id: expenseEdit.id, title: expenseEdit.title.trim(), amountToman: toman });
+      toast.success("هزینه اصلاح شد.");
+      setExpenseEdit(null);
       await load();
     } catch (err) {
       toast.error(friendlyError(err));
@@ -318,22 +340,52 @@ export function StudioMonthFinance() {
             <ul className="mt-3 divide-y divide-border text-sm">
               {data.expenses.map((row) => {
                 const daily = readDailyExpense(row.note);
+                const open = expenseEdit?.id === row.id;
                 return (
-                  <li key={row.id} className="flex items-center gap-3 py-3">
-                    <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#fde8e8] text-sm font-bold text-[#eb5757]">−</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{row.title}</p>
-                      <p className="text-xs text-muted">
-                        {expenseCategoryMeta(row.category).label}
-                        {daily ? ` · هر روز ${formatPlainToman(daily.perDay)} × ${toFaDigits(daily.days)} روز` : row.recurring ? " · هر ماه" : ""}
-                      </p>
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold text-[#eb5757]">{formatPlainToman(row.amountToman)}</p>
-                      <button type="button" className="text-xs text-muted" disabled={busy} onClick={() => void removeExpense(row.id, row.recurring)}>
-                        {row.recurring ? "قطع تکرار" : "حذف"}
+                  <li key={row.id} className="py-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        className="grid size-11 shrink-0 place-items-center rounded-full bg-[#fde8e8] text-lg font-bold text-[#eb5757]"
+                        aria-label="ویرایش یا حذف"
+                        onClick={() => setExpenseEdit(open ? null : {
+                          id: row.id,
+                          title: row.title,
+                          amount: String(daily ? daily.perDay : row.amountToman),
+                          recurring: row.recurring,
+                          daily: Boolean(daily),
+                        })}
+                      >
+                        −
                       </button>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold">{row.title}</p>
+                        <p className="text-xs text-muted">
+                          {expenseCategoryMeta(row.category).label}
+                          {daily ? ` · هر روز ${formatPlainToman(daily.perDay)} × ${toFaDigits(daily.days)} روز` : row.recurring ? " · هر ماه" : ""}
+                        </p>
+                      </div>
+                      <p className="font-bold text-[#eb5757]">{formatPlainToman(row.amountToman)}</p>
                     </div>
+                    {open && expenseEdit ? (
+                      <div className="mt-3 grid gap-2">
+                        <Input value={expenseEdit.title} onChange={(event) => setExpenseEdit({ ...expenseEdit, title: event.target.value })} />
+                        <Input
+                          value={formatGroupedDigits(expenseEdit.amount)}
+                          inputMode="numeric"
+                          dir="ltr"
+                          className="text-left"
+                          onChange={(event) => setExpenseEdit({ ...expenseEdit, amount: digitsOnly(event.target.value) })}
+                        />
+                        <p className="text-xs text-muted">{expenseEdit.daily ? "مبلغ یک روز را عوض کن." : "مبلغ همین هزینه را عوض کن."}</p>
+                        <div className="flex gap-2">
+                          <Button type="button" className="h-11 flex-1" disabled={busy} onClick={() => void saveExpense()}>ذخیره</Button>
+                          <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => void removeExpense(row.id, row.recurring)}>
+                            {row.recurring ? "قطع تکرار" : "حذف"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                   </li>
                 );
               })}

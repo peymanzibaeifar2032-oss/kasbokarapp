@@ -54,7 +54,7 @@ import {
 import { dayAlreadyTaken, occupiedDayKeys } from "@/lib/server/studio-open-days";
 import { performListStudioConsents, performSaveStudioConsent, performStudioConsent } from "@/lib/server/studio-consent";
 import { summarizeCustomerFiles, type FileSample } from "@/lib/customer-file-summary";
-import { STUDIO_EXPENSE_CATEGORIES, accountTotals, countedDailyDays, dailyExpenseNote, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
+import { STUDIO_EXPENSE_CATEGORIES, accountTotals, countedDailyDays, dailyExpenseNote, monthCustomerLines, normalizeLedgerName, openReceivable, paymentPlan, readDailyExpense, receiptPlan, samePersonWarnings, studioMonthSummary, type ReceivableJob, type StudioExpenseCategory } from "@/lib/studio-finance";
 import { deriveVerificationLevel, nextVerificationLevel, type VerificationLevel } from "@/lib/search/verification";
 import { shouldBumpRankingFresh } from "@/lib/search/ranking";
 import {
@@ -3560,6 +3560,37 @@ async function performDeleteStudioExpense(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
+async function performUpdateStudioExpense(userId: string, raw: unknown) {
+  await requireStudioStaff(userId);
+  const data = z.object({
+    id: z.string().min(1),
+    title: z.string().trim().min(2).max(80),
+    amountToman: z.number().int().min(1).max(2_000_000_000),
+  }).parse(raw);
+  const sql = await getSql();
+  const rows = await sql.query<{ category: string; title: string; note: string | null; recurring: boolean }>(
+    `select category, title, note, recurring from studio_expenses where id=$1 and user_id=$2`,
+    [data.id, userId],
+  );
+  const current = rows[0];
+  if (!current) throw new Error("هزینه پیدا نشد.");
+  const daily = readDailyExpense(current.note);
+  const stored = daily ? data.amountToman * Math.max(daily.days, 1) : data.amountToman;
+  const note = daily ? dailyExpenseNote(data.amountToman, daily.days) : current.note;
+  await sql.query(
+    `update studio_expenses set title=$2, amount_toman=$3, note=$4 where id=$1 and user_id=$5`,
+    [data.id, data.title, stored, note, userId],
+  );
+  if (current.recurring) {
+    await sql.query(
+      `update studio_expense_templates set title=$4, amount_toman=$5
+        where user_id=$1 and category=$2 and title=$3`,
+      [userId, current.category, current.title, data.title, data.amountToman],
+    );
+  }
+  return { ok: true as const };
+}
+
 async function performDeleteStudioPayment(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
   const data = z.object({ id: z.string().min(1) }).parse(raw);
@@ -4923,6 +4954,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performAddStudioExpense(userId, payload);
     case "deleteStudioExpense":
       return performDeleteStudioExpense(userId, payload);
+    case "updateStudioExpense":
+      return performUpdateStudioExpense(userId, payload);
     case "deleteStudioPayment":
       return performDeleteStudioPayment(userId, payload);
     case "updateStudioPayment":
