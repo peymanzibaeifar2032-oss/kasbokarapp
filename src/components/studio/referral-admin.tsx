@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect, Textarea } from "@/components/ui/input";
 import { formatFaDate, toSmsLink, toTelLink } from "@/lib/format";
 import { friendlyError, saveAction } from "@/lib/save";
+import { clubMemberSms } from "@/lib/referral-sms";
 
 type Desk = {
   summary: { members: number; active: number; pending: number; successful: number; prizesActive: number; prizesUsed: number };
@@ -285,25 +286,6 @@ function SettingsForm({ settings, onSaved }: { settings: Desk["settings"]; onSav
   );
 }
 
-const FALLBACK_SMS = {
-  smsSubmitted: "یکی از دوستانی که با کد معرف شما درخواست داده، وارد مرحله بررسی شد.\nکد عضویت شما: {code}",
-  smsPriced: "برای یکی از معرفی‌های شما قیمت و شرایط مشخص شد.\nکد عضویت شما: {code}",
-  smsBooked: "یک معرفی موفق برای شما ثبت شد. اکنون {count} معرفی موفق از ۱۰ معرفی دارید.\nکد عضویت شما: {code}",
-  smsPrize5: "تبریک! شما ۵ معرفی موفق دارید. جایزه شما فعال شد: {prize}. برای هماهنگی ثبت نوبت از پنل خود اقدام کنید.\nکد عضویت شما: {code}",
-  smsPrize10: "تبریک! شما ۱۰ معرفی موفق دارید. جایزه دوم شما فعال شد: {prize}.\nکد عضویت شما: {code}",
-  prize5: "یک طرح مینیمال تا ۱۲ سانتی‌متر",
-  prize10: "یک طرح تا ۲۶ سانتی‌متر",
-};
-
-function fillClubSms(text: string, count: number, prize: string, code: string) {
-  const body = text
-    .replaceAll("{count}", new Intl.NumberFormat("fa-IR").format(count))
-    .replaceAll("{prize}", prize)
-    .replaceAll("{code}", code);
-  if (!code || body.includes(code)) return body;
-  return `${body}\nکد عضویت شما: ${code}`;
-}
-
 function openClubSms(phone: string, text: string) {
   const href = toSmsLink(phone, text);
   if (!href) {
@@ -324,20 +306,7 @@ function MemberSms({
   rewards: { milestone: number; title: string; status: string }[];
   settings?: Desk["settings"];
 }) {
-  const prize5 = rewards.find((item) => item.milestone === 5)?.title || settings?.prize5 || FALLBACK_SMS.prize5;
-  const prize10 = rewards.find((item) => item.milestone === 10)?.title || settings?.prize10 || FALLBACK_SMS.prize10;
-  const texts = settings || FALLBACK_SMS;
-  const ready = [
-    {
-      label: "کد عضویت",
-      body: `سلام ${person.name}\nکد عضویت باشگاه مشتریان تو: ${person.code}\nاین کد را به دوستت بده. وقتی نوبت او قطعی شد، یک معرفی موفق برای تو ثبت می‌شود.\n۵ معرفی موفق: ${prize5}\n۱۰ معرفی موفق: ${prize10}`,
-    },
-    { label: "وارد بررسی شد", body: fillClubSms(texts.smsSubmitted, success, "", person.code) },
-    { label: "قیمت اعلام شد", body: fillClubSms(texts.smsPriced, success, "", person.code) },
-    { label: "معرفی موفق", body: fillClubSms(texts.smsBooked, success, "", person.code) },
-    { label: "جایزه ۵", body: fillClubSms(texts.smsPrize5, success, prize5, person.code) },
-    { label: "جایزه ۱۰", body: fillClubSms(texts.smsPrize10, success, prize10, person.code) },
-  ];
+  const ready = clubMemberSms(person, success, rewards, settings);
   return (
     <div className="mt-4 rounded-2xl border border-border bg-bg p-3">
       <p className="text-sm font-semibold">پیامک از گوشی خودت</p>
