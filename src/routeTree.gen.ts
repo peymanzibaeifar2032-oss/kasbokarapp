@@ -32,6 +32,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiMapConfigRouteImport } from './routes/api/map-config'
 import { Route as ApiMehrLoanLeadsRouteImport } from './routes/api/mehr-loan-leads'
 import { Route as ApiPasswordResetRouteImport } from './routes/api/password-reset'
+import { Route as ApiPocketLicenseRouteImport } from './routes/api/pocket-license'
 import { Route as ApiPocketRequestRouteImport } from './routes/api/pocket-request'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
@@ -52,6 +53,7 @@ import { Route as StudioClubRouteImport } from './routes/studio.club'
 import { Route as StudioDesignsRouteImport } from './routes/studio.designs'
 import { Route as StudioGuideRouteImport } from './routes/studio.guide'
 import { Route as StudioLearnRouteImport } from './routes/studio.learn'
+import { Route as StudioLicensesRouteImport } from './routes/studio.licenses'
 import { Route as StudioOpenRouteImport } from './routes/studio.open'
 import { Route as StudioPocketRouteImport } from './routes/studio.pocket'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
@@ -178,6 +180,11 @@ const ApiPasswordResetRoute = ApiPasswordResetRouteImport.update({
   path: '/api/password-reset',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPocketLicenseRoute = ApiPocketLicenseRouteImport.update({
+  id: '/api/pocket-license',
+  path: '/api/pocket-license',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPocketRequestRoute = ApiPocketRequestRouteImport.update({
   id: '/api/pocket-request',
   path: '/api/pocket-request',
@@ -278,6 +285,11 @@ const StudioLearnRoute = StudioLearnRouteImport.update({
   path: '/learn',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioLicensesRoute = StudioLicensesRouteImport.update({
+  id: '/licenses',
+  path: '/licenses',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioOpenRoute = StudioOpenRouteImport.update({
   id: '/open',
   path: '/open',
@@ -353,6 +365,7 @@ export interface FileRoutesByFullPath {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/password-reset': typeof ApiPasswordResetRoute
+  '/api/pocket-license': typeof ApiPocketLicenseRoute
   '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
@@ -373,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/learn': typeof StudioLearnRoute
+  '/studio/licenses': typeof StudioLicensesRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
@@ -408,6 +422,7 @@ export interface FileRoutesByTo {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/password-reset': typeof ApiPasswordResetRoute
+  '/api/pocket-license': typeof ApiPocketLicenseRoute
   '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
@@ -428,6 +443,7 @@ export interface FileRoutesByTo {
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/learn': typeof StudioLearnRoute
+  '/studio/licenses': typeof StudioLicensesRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
@@ -464,6 +480,7 @@ export interface FileRoutesById {
   '/api/map-config': typeof ApiMapConfigRoute
   '/api/mehr-loan-leads': typeof ApiMehrLoanLeadsRoute
   '/api/password-reset': typeof ApiPasswordResetRoute
+  '/api/pocket-license': typeof ApiPocketLicenseRoute
   '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
@@ -484,6 +501,7 @@ export interface FileRoutesById {
   '/studio/designs': typeof StudioDesignsRoute
   '/studio/guide': typeof StudioGuideRoute
   '/studio/learn': typeof StudioLearnRoute
+  '/studio/licenses': typeof StudioLicensesRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
@@ -521,6 +539,7 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/mehr-loan-leads'
     | '/api/password-reset'
+    | '/api/pocket-license'
     | '/api/pocket-request'
     | '/api/save'
     | '/api/search-trace'
@@ -541,6 +560,7 @@ export interface FileRouteTypes {
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/learn'
+    | '/studio/licenses'
     | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
@@ -576,6 +596,7 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/mehr-loan-leads'
     | '/api/password-reset'
+    | '/api/pocket-license'
     | '/api/pocket-request'
     | '/api/save'
     | '/api/search-trace'
@@ -596,6 +617,7 @@ export interface FileRouteTypes {
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/learn'
+    | '/studio/licenses'
     | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
@@ -631,6 +653,7 @@ export interface FileRouteTypes {
     | '/api/map-config'
     | '/api/mehr-loan-leads'
     | '/api/password-reset'
+    | '/api/pocket-license'
     | '/api/pocket-request'
     | '/api/save'
     | '/api/search-trace'
@@ -651,6 +674,7 @@ export interface FileRouteTypes {
     | '/studio/designs'
     | '/studio/guide'
     | '/studio/learn'
+    | '/studio/licenses'
     | '/studio/open'
     | '/studio/pocket'
     | '/studio/request'
@@ -687,6 +711,7 @@ export interface RootRouteChildren {
   ApiMapConfigRoute: typeof ApiMapConfigRoute
   ApiMehrLoanLeadsRoute: typeof ApiMehrLoanLeadsRoute
   ApiPasswordResetRoute: typeof ApiPasswordResetRoute
+  ApiPocketLicenseRoute: typeof ApiPocketLicenseRoute
   ApiPocketRequestRoute: typeof ApiPocketRequestRoute
   ApiSaveRoute: typeof ApiSaveRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
@@ -868,6 +893,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPasswordResetRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pocket-license': {
+      id: '/api/pocket-license'
+      path: '/api/pocket-license'
+      fullPath: '/api/pocket-license'
+      preLoaderRoute: typeof ApiPocketLicenseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/pocket-request': {
       id: '/api/pocket-request'
       path: '/api/pocket-request'
@@ -1008,6 +1040,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioLearnRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/licenses': {
+      id: '/studio/licenses'
+      path: '/licenses'
+      fullPath: '/studio/licenses'
+      preLoaderRoute: typeof StudioLicensesRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/open': {
       id: '/studio/open'
       path: '/open'
@@ -1102,6 +1141,7 @@ interface StudioRouteChildren {
   StudioDesignsRoute: typeof StudioDesignsRoute
   StudioGuideRoute: typeof StudioGuideRoute
   StudioLearnRoute: typeof StudioLearnRoute
+  StudioLicensesRoute: typeof StudioLicensesRoute
   StudioOpenRoute: typeof StudioOpenRoute
   StudioPocketRoute: typeof StudioPocketRoute
   StudioRequestRoute: typeof StudioRequestRoute
@@ -1118,6 +1158,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioDesignsRoute: StudioDesignsRoute,
   StudioGuideRoute: StudioGuideRoute,
   StudioLearnRoute: StudioLearnRoute,
+  StudioLicensesRoute: StudioLicensesRoute,
   StudioOpenRoute: StudioOpenRoute,
   StudioPocketRoute: StudioPocketRoute,
   StudioRequestRoute: StudioRequestRoute,
@@ -1152,6 +1193,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMapConfigRoute: ApiMapConfigRoute,
   ApiMehrLoanLeadsRoute: ApiMehrLoanLeadsRoute,
   ApiPasswordResetRoute: ApiPasswordResetRoute,
+  ApiPocketLicenseRoute: ApiPocketLicenseRoute,
   ApiPocketRequestRoute: ApiPocketRequestRoute,
   ApiSaveRoute: ApiSaveRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
