@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d9488" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>تقویم نوبت</title>
+    <style>
+      html, body, #root { margin: 0; min-height: 100%; background: #fff9f2; color: #1e293b; }
+      #boot-error { display:none; margin:1rem; padding:1rem; border-radius:1rem; background:#fee2e2; color:#991b1b; font-family:Tahoma,sans-serif; line-height:1.7; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="boot-error"></div>
+    <script>
+      window.onerror = function (msg, src, line) {
+        var el = document.getElementById('boot-error');
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = 'خطای اجرا: ' + msg + (src ? (' @ ' + src + ':' + line) : '');
+      };
+      window.addEventListener('unhandledrejection', function (e) {
+        var el = document.getElementById('boot-error');
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = 'خطای وعده: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason));
+      });
+    </script>
+    <script type="module" src="/src/pocket-offline/main.tsx"></script>
+  </body>
+</html>

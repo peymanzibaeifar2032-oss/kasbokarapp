@@ -1,7 +1,14 @@
 package com.peymanzibaeifar.tattoobooking;
 
+import com.peymanzibaeifar.tattoobooking.BuildConfig;
+
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.webkit.JsResult;
+import android.webkit.JsPromptResult;
+import android.widget.EditText;
+import android.util.Base64;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -25,6 +32,9 @@ import android.text.TextDirectionHeuristics;
 import android.text.TextPaint;
 import android.provider.MediaStore;
 import android.view.View;
+import android.view.Gravity;
+import android.widget.Button;
+import android.widget.FrameLayout;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -34,6 +44,10 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebResourceResponse;
+import android.webkit.ConsoleMessage;
+import android.util.Log;
+import androidx.webkit.WebViewAssetLoader;
 import android.content.SharedPreferences;
 import org.json.JSONObject;
 import android.widget.Toast;
@@ -46,16 +60,29 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class MainActivity extends Activity {
-    private static final String HOME = "https://kasbokarapp.com/studio/pocket";
+    private static final String PROD_HOME = "https://kasbokarapp.com/studio/pocket";
+    // Virtual https origin so classic/module scripts + storage work inside WebView.
+    private static final String OFFLINE_HOME = "https://appassets.androidplatform.net/assets/pocket/index.html";
+    private static final String HOME = BuildConfig.DEBUG ? OFFLINE_HOME : PROD_HOME;
+    private static final String TAG = "TattooBookingWV";
     private static final String ADMIN = "https://kasbokarapp.com/studio/admin";
     private static final String LOGIN = "https://kasbokarapp.com/login?next=/studio/admin";
     private static final String LOGOUT = "https://kasbokarapp.com/login?out=1";
     private static final String CHANNEL = "tattoo-notices";
     private static final int FILE_CHOOSER = 1001;
+    private static final int POCKET_SAVE_FILE = 1004;
+    private byte[] pendingFileBytes;
+    private String pendingFileRequest;
+    private String pendingFileOrigin;
 
     private WebView webView;
+    private WebViewAssetLoader assetLoader;
     private ValueCallback<Uri[]> fileCallback;
     private boolean savingPdf;
+    private boolean pocketLoginInProgress;
+    private boolean clearPocketHistory;
+    private Button pocketReturnButton;
+    private boolean pocketExportInProgress;
     private String pendingPdfName;
     private String pendingPdfHtml;
 
@@ -64,12 +91,25 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         webView = findViewById(R.id.web);
-        webView.setBackgroundColor(0xFF0B0B0C);
+        webView.setBackgroundColor(0xFFFFF9F2);
+        // Native control remains available on old website deployments and failed login pages.
+        pocketReturnButton = new Button(this);
+        pocketReturnButton.setText("بررسی حساب / بازگشت به اپ");
+        pocketReturnButton.setVisibility(View.GONE);
+        pocketReturnButton.setOnClickListener(v -> finishPocketLogin());
+        FrameLayout.LayoutParams returnLayout = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, loginBarHeight(), Gravity.BOTTOM);
+        ((FrameLayout) webView.getParent()).addView(pocketReturnButton, returnLayout);
+        pocketLoginInProgress = savedInstanceState != null && savedInstanceState.getBoolean("pocketLoginInProgress");
+        showPocketReturn(pocketLoginInProgress);
+
+        assetLoader = new WebViewAssetLoader.Builder()
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .build();
 
         ensureNoticeChannel();
-        if (Build.VERSION.SDK_INT >= 33) {
-            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 2002);
-        }
+        // Do not block first paint with a permission dialog (esp. slow emulators).
+        // DEBUG APKs skip the runtime prompt; release asks after the first page loads.
 
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
@@ -86,40 +126,122 @@ public class MainActivity extends Activity {
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setSupportMultipleWindows(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(!BuildConfig.DEBUG);
+        settings.setSupportMultipleWindows(!BuildConfig.DEBUG);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        if (BuildConfig.DEBUG) {
+            // Emulator/TCG WebView is fragile; software layer avoids some GPU renderer traps.
+            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        webView.clearCache(true);
+        // Keep assets warm in debug offline shell; avoid wiping every launch.
+        settings.setCacheMode(BuildConfig.DEBUG ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_NO_CACHE);
+        if (!BuildConfig.DEBUG) {
+            webView.clearCache(true);
+        }
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.11");
+            settings.setUserAgentString(ua + " TattooApp/1.14.1");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                WebResourceResponse local = assetLoader.shouldInterceptRequest(request.getUrl());
+                if (local != null) return local;
+                return super.shouldInterceptRequest(view, request);
+            }
+
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                Uri uri = Uri.parse(url);
+                // Existing login/report bridge must never remain exposed on third-party pages.
+                if (isTrustedBridgeOrigin(uri)) view.addJavascriptInterface(new AppBridge(), "AndroidApp");
+                else view.removeJavascriptInterface("AndroidApp");
+                super.onPageStarted(view, url, favicon);
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
+                if (request.isForMainFrame() && pocketLoginInProgress && isProductionOrigin(uri)
+                        && "/studio/pocket".equals(uri.getPath())) {
+                    finishPocketLogin();
+                    return true;
+                }
                 if (keepInApp(uri)) {
                     return false;
                 }
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                } catch (Exception ignored) {
-                    Toast.makeText(MainActivity.this, "این پیوند باز نشد", Toast.LENGTH_SHORT).show();
-                }
+                openExternalSafely(uri);
                 return true;
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
+                Log.i(TAG, "page finished: " + url);
+                if (pocketLoginInProgress && isProductionOrigin(Uri.parse(url))
+                        && "/studio/pocket".equals(Uri.parse(url).getPath())) {
+                    finishPocketLogin();
+                    return;
+                }
+                if (clearPocketHistory && isOfflinePage()) {
+                    clearPocketHistory = false;
+                    view.clearHistory();
+                }
+                maybeAskNotifications();
+            }
+
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                Log.e(TAG, "webview error " + errorCode + " " + description + " @ " + failingUrl);
+                super.onReceivedError(view, errorCode, description, failingUrl);
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                boolean crashed = detail != null && detail.didCrash();
+                Log.e(TAG, "render process gone crashed=" + crashed);
+                if (view != null) {
+                    try {
+                        view.loadUrl(HOME);
+                    } catch (Exception e) {
+                        Log.e(TAG, "reload after render gone failed", e);
+                    }
+                }
+                // Prevent process-wide FATAL when Chromium renderer dies (common on slow emulators).
+                return true;
             }
         });
 
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
+                if (!isTrustedBridgeOrigin(Uri.parse(url))) { result.cancel(); return true; }
+                EditText input = new EditText(MainActivity.this);
+                input.setText(defaultValue == null ? "" : defaultValue);
+                new AlertDialog.Builder(MainActivity.this).setMessage(message).setView(input)
+                    .setPositiveButton("ثبت", (dialog, which) -> result.confirm(input.getText().toString()))
+                    .setNegativeButton("لغو", (dialog, which) -> result.cancel())
+                    .setOnCancelListener(dialog -> result.cancel()).show();
+                return true;
+            }
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                if (!isTrustedBridgeOrigin(Uri.parse(url))) { result.cancel(); return true; }
+                new AlertDialog.Builder(MainActivity.this).setMessage(message)
+                    .setPositiveButton("تأیید", (dialog, which) -> result.confirm())
+                    .setNegativeButton("لغو", (dialog, which) -> result.cancel())
+                    .setOnCancelListener(dialog -> result.cancel()).show();
+                return true;
+            }
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+                Log.i(TAG, consoleMessage.messageLevel() + ":" + consoleMessage.message()
+                        + " @" + consoleMessage.sourceId() + ":" + consoleMessage.lineNumber());
+                return true;
+            }
             @Override
             public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
                 WebView extra = new WebView(view.getContext());
@@ -130,11 +252,7 @@ public class MainActivity extends Activity {
                         if (keepInApp(uri)) {
                             view.loadUrl(uri.toString());
                         } else {
-                            try {
-                                startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                            } catch (Exception ignored) {
-                                Toast.makeText(MainActivity.this, "این پیوند باز نشد", Toast.LENGTH_SHORT).show();
-                            }
+                            openExternalSafely(uri);
                         }
                         return true;
                     }
@@ -160,19 +278,23 @@ public class MainActivity extends Activity {
                 }
                 fileCallback = callback;
                 Intent intent = params.createIntent();
-                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
                 try {
-                    startActivityForResult(Intent.createChooser(intent, "انتخاب عکس"), FILE_CHOOSER);
+                    startActivityForResult(Intent.createChooser(intent, "انتخاب عکس یا فایل"), FILE_CHOOSER);
                 } catch (Exception e) {
+                    fileCallback.onReceiveValue(null);
                     fileCallback = null;
-                    return false;
+                    return true;
                 }
                 return true;
             }
         });
 
         if (savedInstanceState == null) {
-            webView.loadUrl(openUrlFromIntent(getIntent()));
+            String startUrl = openUrlFromIntent(getIntent());
+            Log.i(TAG, "loadUrl " + startUrl + " debug=" + BuildConfig.DEBUG);
+            webView.loadUrl(startUrl);
         } else {
             webView.restoreState(savedInstanceState);
         }
@@ -188,10 +310,26 @@ public class MainActivity extends Activity {
         }
     }
 
+
+    private boolean askedNotifications;
+
+    private void maybeAskNotifications() {
+        if (askedNotifications || BuildConfig.DEBUG) {
+            return;
+        }
+        if (Build.VERSION.SDK_INT < 33) {
+            return;
+        }
+        askedNotifications = true;
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 2002);
+        }
+    }
+
     private String openUrlFromIntent(Intent intent) {
         if (intent != null && intent.getData() != null) {
             Uri data = intent.getData();
-            if ("https".equals(data.getScheme()) && data.getHost() != null && data.getHost().endsWith("kasbokarapp.com")) {
+            if ("https".equals(data.getScheme()) && data.getHost() != null && isProductionOrigin(data)) {
                 return data.toString();
             }
         }
@@ -201,13 +339,63 @@ public class MainActivity extends Activity {
         return HOME;
     }
 
+    private int loginBarHeight() {
+        return (int) (56 * getResources().getDisplayMetrics().density);
+    }
+
+    private void showPocketReturn(boolean show) {
+        pocketReturnButton.setVisibility(show ? View.VISIBLE : View.GONE);
+        FrameLayout.LayoutParams layout = (FrameLayout.LayoutParams) webView.getLayoutParams();
+        layout.bottomMargin = show ? loginBarHeight() : 0;
+        webView.setLayoutParams(layout);
+    }
+
+    private void finishPocketLogin() {
+        // A return is NOT authentication. The fresh offline document probes the server again.
+        pocketLoginInProgress = false;
+        showPocketReturn(false);
+        CookieManager.getInstance().flush();
+        clearPocketHistory = true;
+        webView.loadUrl(OFFLINE_HOME);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (isOfflinePage()) webView.evaluateJavascript(
+                "window.dispatchEvent(new Event('pocket-account-refresh'));", null);
+    }
+
+    private boolean isProductionOrigin(Uri uri) {
+        return "https".equals(uri.getScheme()) && (uri.getPort() == -1 || uri.getPort() == 443)
+                && ("kasbokarapp.com".equals(uri.getHost()) || "www.kasbokarapp.com".equals(uri.getHost()));
+    }
+
+    private boolean isOfflinePage() {
+        return webView != null && OFFLINE_HOME.equals(webView.getUrl());
+    }
+
+    private boolean isTrustedBridgeOrigin(Uri uri) {
+        return isProductionOrigin(uri) || ("https".equals(uri.getScheme())
+                && "appassets.androidplatform.net".equals(uri.getHost())
+                && (uri.getPort() == -1 || uri.getPort() == 443) && uri.getPath() != null
+                && uri.getPath().startsWith("/assets/pocket/"));
+    }
+
     private boolean keepInApp(Uri uri) {
         String scheme = uri.getScheme() == null ? "" : uri.getScheme();
-        if ("tel".equals(scheme) || "mailto".equals(scheme) || "sms".equals(scheme) || "intent".equals(scheme)) {
-            return false;
+        if ("file".equals(scheme)) {
+            return true;
+        }
+        if ("appassets.androidplatform.net".equals(uri.getHost())) {
+            return true;
+        }
+        if ("tel".equals(scheme) || "mailto".equals(scheme) || "sms".equals(scheme) || "smsto".equals(scheme)
+                || "intent".equals(scheme)) {
+            return false; // handled (or refused) by openExternalSafely
         }
         String host = uri.getHost() == null ? "" : uri.getHost();
-        if (host.endsWith("kasbokarapp.com")) {
+        if (isProductionOrigin(uri)) {
             String path = uri.getPath() == null ? "" : uri.getPath();
             if (path.startsWith("/studio/admin")) return false;
             if ("/login".equals(path) || path.startsWith("/login/")) {
@@ -226,6 +414,45 @@ public class MainActivity extends Activity {
                 || host.endsWith("youtube.com")
                 || host.endsWith("ytimg.com")
                 || host.endsWith("ggpht.com");
+    }
+
+    /**
+     * Only dial/SMS/mail composers and plain https pages may leave the WebView. intent:, javascript:,
+     * content:, file: and every other scheme are refused, so page links cannot launch arbitrary components.
+     * tel/sms open the phone's own dialer/messaging app; the user still presses call/send there.
+     */
+    private void openExternalSafely(Uri uri) {
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(java.util.Locale.ROOT);
+        Intent intent;
+        if ("tel".equals(scheme)) {
+            intent = new Intent(Intent.ACTION_DIAL, uri);
+        } else if ("sms".equals(scheme) || "smsto".equals(scheme) || "mailto".equals(scheme)) {
+            intent = new Intent(Intent.ACTION_SENDTO, uri);
+            String body = null;
+            try { body = uri.getQueryParameter("body"); } catch (Exception ignored) { }
+            if (body == null) {
+                String ssp = uri.getSchemeSpecificPart();
+                int q = ssp == null ? -1 : ssp.indexOf("?body=");
+                if (q >= 0) body = ssp.substring(q + 6);
+                if (q >= 0) intent.setData(Uri.parse(scheme + ":" + ssp.substring(0, q)));
+            } else {
+                String ssp = uri.getSchemeSpecificPart();
+                int q = ssp == null ? -1 : ssp.indexOf('?');
+                if (q >= 0) intent.setData(Uri.parse(scheme + ":" + ssp.substring(0, q)));
+            }
+            if (body != null && !"mailto".equals(scheme)) intent.putExtra("sms_body", body);
+        } else if ("https".equals(scheme) && uri.getHost() != null) {
+            intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addCategory(Intent.CATEGORY_BROWSABLE);
+        } else {
+            Toast.makeText(this, "این نوع پیوند مجاز نیست", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            startActivity(intent);
+        } catch (Exception ignored) {
+            Toast.makeText(this, "این پیوند باز نشد", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void openOutside(String url) {
@@ -278,7 +505,170 @@ public class MainActivity extends Activity {
         nm.notify((int) (System.currentTimeMillis() & 0xfffffff), builder.build());
     }
 
+    private interface LicenseRequest { PocketExportClient.Result run() throws Exception; }
+
+    private void licenseCall(String requestId, String name, LicenseRequest request) {
+        if (requestId == null || !requestId.matches("[a-zA-Z0-9-]{1,80}")) return;
+        runOnUiThread(() -> {
+            if (!isOfflinePage()) return;
+            new Thread(() -> {
+                try {
+                    PocketExportClient.Result result = request.run();
+                    runOnUiThread(() -> deliverPocketExport(requestId, result.status, result.body, null));
+                } catch (IllegalArgumentException bad) {
+                    runOnUiThread(() -> deliverPocketExport(requestId, 400, "{\"code\":\"bad_request\"}", null));
+                } catch (Exception error) {
+                    runOnUiThread(() -> deliverPocketExport(requestId, 0, null, "NETWORK_OR_SERVER_ERROR"));
+                }
+            }, name).start();
+        });
+    }
+
+    private void deliverPocketExport(String requestId, int status, String body, String error) {
+        if (!isOfflinePage()) return; // Don't deliver private data into a different document.
+        try {
+            JSONObject result = new JSONObject();
+            result.put("requestId", requestId);
+            result.put("status", status);
+            if (body != null) result.put("data", new JSONObject(body));
+            if (error != null) result.put("error", error);
+            String script = "window.dispatchEvent(new CustomEvent('pocket-export-result',{detail:"
+                    + result.toString() + "}));";
+            webView.evaluateJavascript(script, null);
+        } catch (Exception ignored) {
+            if (body != null) deliverPocketExport(requestId, 0, null, "SERVER_INVALID_JSON");
+        }
+    }
+
+    private boolean isPocketDocument() {
+        if (webView == null) return false;
+        if (isOfflinePage()) return true;
+        Uri uri = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
+        return isProductionOrigin(uri) && "/studio/pocket".equals(uri.getPath());
+    }
+
+    private void fileSaveResult(String requestId, boolean ok, boolean cancelled, String origin) {
+        if (webView == null || !isPocketDocument() || !origin.equals(webView.getUrl())) return;
+        try {
+            JSONObject result = new JSONObject();
+            result.put("requestId", requestId); result.put("ok", ok); result.put("cancelled", cancelled);
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('pocket-file-result',{detail:" + result + "}));", null);
+        } catch (Exception ignored) { }
+    }
+
+    private void beginPocketFile(String requestId, String filename, String mime, String base64) {
+        if (!isPocketDocument() || requestId == null || !requestId.matches("[a-zA-Z0-9-]{1,80}")) return;
+        String origin = webView.getUrl();
+        if (pendingFileBytes != null || base64 == null || base64.length() > 48 * 1024 * 1024
+                || !("application/json".equals(mime) || "application/pdf".equals(mime))) {
+            fileSaveResult(requestId, false, false, origin); return;
+        }
+        try {
+            byte[] bytes = Base64.decode(base64, Base64.NO_WRAP);
+            if (bytes.length == 0 || bytes.length > 36 * 1024 * 1024) throw new IOException("size");
+            String name = filename == null ? "kasbokar-export" : filename.replaceAll("[^a-zA-Z0-9._-]", "-");
+            if (name.length() > 100) name = name.substring(0, 100);
+            String ext = "application/pdf".equals(mime) ? ".pdf" : ".json";
+            if (!name.endsWith(ext)) name += ext;
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE); intent.setType(mime); intent.putExtra(Intent.EXTRA_TITLE, name);
+            pendingFileBytes = bytes; pendingFileRequest = requestId; pendingFileOrigin = origin;
+            startActivityForResult(intent, POCKET_SAVE_FILE);
+        } catch (Exception error) {
+            pendingFileBytes = null; pendingFileRequest = null; pendingFileOrigin = null;
+            fileSaveResult(requestId, false, false, origin);
+        }
+    }
+
     public class AppBridge {
+        @JavascriptInterface
+        public void savePocketFile(String requestId, String filename, String mime, String base64) {
+            runOnUiThread(() -> beginPocketFile(requestId, filename, mime, base64));
+        }
+
+        @JavascriptInterface
+        public void openPocketLogin() {
+            runOnUiThread(() -> {
+                if (!isOfflinePage()) return;
+                pocketLoginInProgress = true;
+                showPocketReturn(true);
+                webView.loadUrl("https://kasbokarapp.com/login?next=/studio/pocket");
+            });
+        }
+
+        @JavascriptInterface
+        public void downloadPocketBookings(String requestId) {
+            if (requestId == null || !requestId.matches("[a-zA-Z0-9-]{1,80}")) return;
+            runOnUiThread(() -> {
+                if (!isOfflinePage()) return;
+                if (pocketExportInProgress) {
+                    deliverPocketExport(requestId, 0, null, "SYNC_BUSY");
+                    return;
+                }
+                pocketExportInProgress = true;
+                // Use only this app's WebView session, set by the ordinary website login.
+                // Cookies never cross the JS bridge, enter logs, or get sent to another host.
+                final String cookie = CookieManager.getInstance().getCookie(PocketExportClient.ENDPOINT);
+                new Thread(() -> {
+                    try {
+                        PocketExportClient.Result result = PocketExportClient.download(cookie);
+                        runOnUiThread(() -> {
+                            pocketExportInProgress = false;
+                            deliverPocketExport(requestId, result.status, result.body, null);
+                        });
+                    } catch (Exception error) {
+                        runOnUiThread(() -> {
+                            pocketExportInProgress = false;
+                            deliverPocketExport(requestId, 0, null, "NETWORK_OR_SERVER_ERROR");
+                        });
+                    }
+                }, "pocket-export").start();
+            });
+        }
+
+        @JavascriptInterface
+        public void verifyPocketAccount(String requestId) {
+            if (requestId == null || !requestId.matches("[a-zA-Z0-9-]{1,80}")) return;
+            runOnUiThread(() -> {
+                if (!isOfflinePage()) return;
+                final String cookie = CookieManager.getInstance().getCookie(PocketExportClient.ENDPOINT);
+                if (cookie == null || cookie.isEmpty()) {
+                    // Not signed in on the website inside this app: no network call, owner UI stays hidden.
+                    deliverPocketExport(requestId, 401, "{}", null);
+                    return;
+                }
+                new Thread(() -> {
+                    try {
+                        PocketExportClient.Result result = PocketExportClient.send(cookie, PocketExportClient.Action.ACCESS);
+                        runOnUiThread(() -> deliverPocketExport(requestId, result.status, result.body, null));
+                    } catch (Exception error) {
+                        runOnUiThread(() -> deliverPocketExport(requestId, 0, null, "NETWORK_OR_SERVER_ERROR"));
+                    }
+                }, "pocket-access").start();
+            });
+        }
+
+        @JavascriptInterface
+        public void activatePocketLicense(String requestId, String code, String device) {
+            licenseCall(requestId, "license-activate", () -> PocketExportClient.activate(code, device));
+        }
+
+        @JavascriptInterface
+        public void refreshPocketLicense(String requestId, String token, String device) {
+            licenseCall(requestId, "license-refresh", () -> PocketExportClient.refresh(token, device));
+        }
+
+        @JavascriptInterface
+        public void selfPocketLicense(String requestId, String device) {
+            if (requestId == null || !requestId.matches("[a-zA-Z0-9-]{1,80}")) return;
+            runOnUiThread(() -> {
+                if (!isOfflinePage()) return;
+                final String cookie = CookieManager.getInstance().getCookie(PocketExportClient.ENDPOINT);
+                if (cookie == null || cookie.isEmpty()) { deliverPocketExport(requestId, 401, "{}", null); return; }
+                licenseCall(requestId, "license-self", () -> PocketExportClient.selfLicense(cookie, device));
+            });
+        }
+
         @JavascriptInterface
         public boolean noticesReady() {
             return true;
@@ -411,6 +801,28 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == POCKET_SAVE_FILE) {
+            final byte[] bytes = pendingFileBytes;
+            final String id = pendingFileRequest;
+            final String origin = pendingFileOrigin;
+            pendingFileBytes = null; pendingFileRequest = null; pendingFileOrigin = null;
+            if (id == null || origin == null) return;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null || bytes == null) {
+                fileSaveResult(id, false, true, origin); return;
+            }
+            final Uri destination = data.getData();
+            if (!"content".equals(destination.getScheme())) { fileSaveResult(id, false, false, origin); return; }
+            new Thread(() -> {
+                boolean ok = false;
+                try (OutputStream output = getContentResolver().openOutputStream(destination, "wt")) {
+                    if (output == null) throw new IOException("stream");
+                    output.write(bytes); output.flush(); ok = true;
+                } catch (Exception ignored) { }
+                final boolean saved = ok;
+                runOnUiThread(() -> fileSaveResult(id, saved, false, origin));
+            }, "pocket-file-save").start();
+            return;
+        }
         if (requestCode != FILE_CHOOSER) {
             super.onActivityResult(requestCode, resultCode, data);
             return;
@@ -435,6 +847,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (pocketLoginInProgress) { finishPocketLogin(); return; }
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
@@ -445,6 +858,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        outState.putBoolean("pocketLoginInProgress", pocketLoginInProgress);
         if (webView != null) {
             webView.saveState(outState);
         }
