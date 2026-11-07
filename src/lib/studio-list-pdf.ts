@@ -64,23 +64,22 @@ export function studioJobsReportHtml(jobs: TattooRequest[], title: string, inclu
 
 type AndroidSave = { saveReport?: (filename: string, html: string) => void };
 
+function androidReportBridge(): AndroidSave | null {
+  if (typeof window === "undefined") return null;
+  const bridge = (window as Window & { AndroidApp?: AndroidSave }).AndroidApp;
+  return bridge?.saveReport ? bridge : null;
+}
+
 export function downloadStudioJobsPdf(jobs: TattooRequest[], title: string): "apk" | "print" {
   if (!jobs.length) throw new Error("لیستی برای دانلود نیست.");
   const stamp = new Date().toISOString().slice(0, 10);
   const filename = `list-moshtari-${stamp}.pdf`;
-  const bridge =
-    typeof window !== "undefined"
-      ? (window as Window & { AndroidApp?: AndroidSave }).AndroidApp
-      : undefined;
-  if (typeof bridge?.saveReport === "function") {
+  const bridge = androidReportBridge();
+  if (bridge) {
     let html = studioJobsReportHtml(jobs, title, true);
     if (html.length > 350_000) html = studioJobsReportHtml(jobs, title, false);
-    bridge.saveReport(filename, html);
+    bridge.saveReport!(filename, html);
     return "apk";
-  }
-  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  if (/TattooApp\//.test(ua)) {
-    throw new Error("برای ذخیره PDF، آخرین نسخه اپ را از صفحه دانلود نصب کن. بعد فایل در پوشه دانلود گوشی می‌آید.");
   }
   const html = studioJobsReportHtml(jobs, title, true);
   const frame = document.createElement("iframe");

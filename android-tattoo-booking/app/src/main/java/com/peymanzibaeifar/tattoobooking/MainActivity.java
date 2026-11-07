@@ -94,7 +94,7 @@ public class MainActivity extends Activity {
         webView.clearCache(true);
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.11");
+            settings.setUserAgentString(ua + " TattooApp/1.16");
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -102,6 +102,7 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
+                if (openPhoneLink(uri)) return true;
                 if (keepInApp(uri)) {
                     return false;
                 }
@@ -127,6 +128,7 @@ public class MainActivity extends Activity {
                     @Override
                     public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
                         Uri uri = request.getUrl();
+                        if (openPhoneLink(uri)) return true;
                         if (keepInApp(uri)) {
                             view.loadUrl(uri.toString());
                         } else {
@@ -199,6 +201,30 @@ public class MainActivity extends Activity {
             return intent.getStringExtra("open");
         }
         return HOME;
+    }
+
+    private boolean openPhoneLink(Uri uri) {
+        String scheme = uri.getScheme() == null ? "" : uri.getScheme();
+        if (!"sms".equals(scheme) && !"smsto".equals(scheme)) return false;
+        String phone = uri.getSchemeSpecificPart() == null ? "" : uri.getSchemeSpecificPart();
+        int cut = phone.indexOf('?');
+        if (cut >= 0) phone = phone.substring(0, cut);
+        String body = uri.getQueryParameter("body");
+        if (body == null) body = uri.getQueryParameter("sms_body");
+        sendSms(phone, body == null ? "" : body);
+        return true;
+    }
+
+    private void sendSms(String phone, String body) {
+        try {
+            Uri uri = Uri.parse("smsto:" + phone);
+            Intent intent = new Intent(Intent.ACTION_SENDTO, uri);
+            intent.putExtra("sms_body", body);
+            intent.putExtra(Intent.EXTRA_TEXT, body);
+            startActivity(intent);
+        } catch (Exception ignored) {
+            Toast.makeText(this, "برنامه پیامک باز نشد", Toast.LENGTH_LONG).show();
+        }
     }
 
     private boolean keepInApp(Uri uri) {
@@ -303,6 +329,13 @@ public class MainActivity extends Activity {
         public void openExternal(String url) {
             if (url == null || url.isEmpty()) return;
             runOnUiThread(() -> openOutside(url));
+        }
+
+        @JavascriptInterface
+        public void sms(String phone, String body) {
+            if (phone == null || phone.trim().isEmpty()) return;
+            String text = body == null ? "" : body;
+            runOnUiThread(() -> sendSms(phone.trim(), text));
         }
 
         @JavascriptInterface
