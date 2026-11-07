@@ -22,7 +22,9 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TattooPrepRouteImport } from './routes/tattoo-prep'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ApiAppTelemetryRouteImport } from './routes/api/app-telemetry'
 import { Route as ApiApprenticeAskRouteImport } from './routes/api/apprentice-ask'
+import { Route as ApiBookingApkRouteImport } from './routes/api/booking-apk'
 import { Route as ApiCustomerPasswordRouteImport } from './routes/api/customer-password'
 import { Route as ApiGeoStatsRouteImport } from './routes/api/geo-stats'
 import { Route as ApiGuideRouteImport } from './routes/api/guide'
@@ -126,9 +128,19 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAppTelemetryRoute = ApiAppTelemetryRouteImport.update({
+  id: '/api/app-telemetry',
+  path: '/api/app-telemetry',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiApprenticeAskRoute = ApiApprenticeAskRouteImport.update({
   id: '/api/apprentice-ask',
   path: '/api/apprentice-ask',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBookingApkRoute = ApiBookingApkRouteImport.update({
+  id: '/api/booking-apk',
+  path: '/api/booking-apk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCustomerPasswordRoute = ApiCustomerPasswordRouteImport.update({
@@ -331,7 +343,9 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRouteWithChildren
   '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
+  '/api/app-telemetry': typeof ApiAppTelemetryRoute
   '/api/apprentice-ask': typeof ApiApprenticeAskRoute
+  '/api/booking-apk': typeof ApiBookingApkRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
@@ -384,7 +398,9 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRouteWithChildren
   '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
+  '/api/app-telemetry': typeof ApiAppTelemetryRoute
   '/api/apprentice-ask': typeof ApiApprenticeAskRoute
+  '/api/booking-apk': typeof ApiBookingApkRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
@@ -438,7 +454,9 @@ export interface FileRoutesById {
   '/studio': typeof StudioRouteWithChildren
   '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
+  '/api/app-telemetry': typeof ApiAppTelemetryRoute
   '/api/apprentice-ask': typeof ApiApprenticeAskRoute
+  '/api/booking-apk': typeof ApiBookingApkRoute
   '/api/customer-password': typeof ApiCustomerPasswordRoute
   '/api/geo-stats': typeof ApiGeoStatsRoute
   '/api/guide': typeof ApiGuideRoute
@@ -493,7 +511,9 @@ export interface FileRouteTypes {
     | '/studio'
     | '/tattoo-prep'
     | '/terms'
+    | '/api/app-telemetry'
     | '/api/apprentice-ask'
+    | '/api/booking-apk'
     | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
@@ -546,7 +566,9 @@ export interface FileRouteTypes {
     | '/studio'
     | '/tattoo-prep'
     | '/terms'
+    | '/api/app-telemetry'
     | '/api/apprentice-ask'
+    | '/api/booking-apk'
     | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
@@ -599,7 +621,9 @@ export interface FileRouteTypes {
     | '/studio'
     | '/tattoo-prep'
     | '/terms'
+    | '/api/app-telemetry'
     | '/api/apprentice-ask'
+    | '/api/booking-apk'
     | '/api/customer-password'
     | '/api/geo-stats'
     | '/api/guide'
@@ -653,7 +677,9 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRouteWithChildren
   TattooPrepRoute: typeof TattooPrepRoute
   TermsRoute: typeof TermsRoute
+  ApiAppTelemetryRoute: typeof ApiAppTelemetryRoute
   ApiApprenticeAskRoute: typeof ApiApprenticeAskRoute
+  ApiBookingApkRoute: typeof ApiBookingApkRoute
   ApiCustomerPasswordRoute: typeof ApiCustomerPasswordRoute
   ApiGeoStatsRoute: typeof ApiGeoStatsRoute
   ApiGuideRoute: typeof ApiGuideRoute
@@ -772,11 +798,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/app-telemetry': {
+      id: '/api/app-telemetry'
+      path: '/api/app-telemetry'
+      fullPath: '/api/app-telemetry'
+      preLoaderRoute: typeof ApiAppTelemetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/apprentice-ask': {
       id: '/api/apprentice-ask'
       path: '/api/apprentice-ask'
       fullPath: '/api/apprentice-ask'
       preLoaderRoute: typeof ApiApprenticeAskRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/booking-apk': {
+      id: '/api/booking-apk'
+      path: '/api/booking-apk'
+      fullPath: '/api/booking-apk'
+      preLoaderRoute: typeof ApiBookingApkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/customer-password': {
@@ -1102,7 +1142,9 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRouteWithChildren,
   TattooPrepRoute: TattooPrepRoute,
   TermsRoute: TermsRoute,
+  ApiAppTelemetryRoute: ApiAppTelemetryRoute,
   ApiApprenticeAskRoute: ApiApprenticeAskRoute,
+  ApiBookingApkRoute: ApiBookingApkRoute,
   ApiCustomerPasswordRoute: ApiCustomerPasswordRoute,
   ApiGeoStatsRoute: ApiGeoStatsRoute,
   ApiGuideRoute: ApiGuideRoute,

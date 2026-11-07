@@ -1,3 +1,6 @@
+import { exportPocketTrainees } from "./pocket-trainees-export";
+import { exportPocketFinance } from "./pocket-finance-export";
+import { exportPocketBookings } from "./pocket-bookings-export";
 import { z } from "zod";
 import { DEFAULT_HOURS, KERMANSHAH_CENTER } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
@@ -49,8 +52,10 @@ import {
   performStudioChairLedger,
   performStudioWhoami,
   studioActor,
+  emailOf as studioEmailOf,
   type StudioActor,
 } from "@/lib/server/studio-artists";
+import { normalizeOwnerEmail } from "@/lib/studio-owner";
 import { dayAlreadyTaken, occupiedDayKeys } from "@/lib/server/studio-open-days";
 import { performListStudioConsents, performSaveStudioConsent, performStudioConsent } from "@/lib/server/studio-consent";
 import { summarizeCustomerFiles, type FileSample } from "@/lib/customer-file-summary";
@@ -3678,53 +3683,82 @@ async function performUpdateStudioPayment(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
-async function performStudioPocketExport(userId: string) {
+async function performStudioPocketExport(userId: string, options: { full?: boolean } = {}) {
   const actor = await requireStudioStaff(userId);
+  // Pocket server sync is owner-email only (Peyman). Collaborating artists stay offline-only here.
+  // Authorization happens BEFORE any data query; nothing from the request body is trusted.
+  if (actor.role !== "owner") {
+    throw new Error("بارگذاری از سرور فقط برای صاحب استودیو با ایمیل ثبت‌شده فعال است.");
+  }
   const sql = await getSql();
-  const scope = actor.role === "artist"
-    ? "and r.artist_id = $1"
-    : "and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')";
-  const params = actor.role === "artist" ? [actor.artistId] : [];
-  const rows = await sql.query<{
-    id: string;
-    customer_name: string;
-    customer_phone: string | null;
-    style: string | null;
-    placement: string | null;
-    slot_start: string;
-  }>(
-    `select r.id, r.customer_name, r.customer_phone, r.style, r.placement,
-            coalesce(b.slot_start, r.proposed_slot_start) as slot_start
-       from tattoo_requests r
-       left join bookings b on b.id = r.booking_id and b.status <> 'cancelled'
-      where r.status = 'booked'
-        and coalesce(b.slot_start, r.proposed_slot_start) is not null
-        ${scope}
-      order by coalesce(b.slot_start, r.proposed_slot_start)
-      limit 2000`,
-    params,
-  );
+  const bookings = await exportPocketBookings(sql);
+  if (!options.full) return { schemaVersion: 2, bookings };
+  const training = await exportPocketTrainees(sql, userId);
+  const clock = tehranClock();
+  const today = gregorianToJalali(clock.y, clock.m, clock.day);
+  const range = jalaliMonthRange(today.jy, today.jm);
+  const receivable = await loadOpenReceivable(sql, actor, range.start, range.end);
+  const finance = await exportPocketFinance(sql, userId, { month: receivable.month, all: receivable.all });
+  // Identity flags come only from the verified session + server-side role checks, never from the payload.
+  const email = normalizeOwnerEmail(await studioEmailOf(sql, userId));
+  let appStats: unknown = null;
+  let canViewAppStats = false;
+  try {
+    const analytics = await import("@/lib/server/app-analytics");
+    appStats = await analytics.performAppAnalyticsReport(userId, requireAdmin);
+    canViewAppStats = true;
+  } catch {
+    canViewAppStats = false;
+    appStats = null;
+  }
   return {
-    bookings: rows.flatMap((row) => {
-      const when = new Date(row.slot_start);
-      if (Number.isNaN(when.getTime())) return [];
-      const clock = tehranClock(when);
-      const jalali = gregorianToJalali(clock.y, clock.m, clock.day);
-      return [{
-        serverId: row.id,
-        day: `${jalali.jy}-${String(jalali.jm).padStart(2, "0")}-${String(jalali.jd).padStart(2, "0")}`,
-        time: `${String(clock.hh).padStart(2, "0")}:${String(clock.mm).padStart(2, "0")}`,
-        name: row.customer_name,
-        phone: row.customer_phone || "",
-        style: row.style || "",
-        placement: row.placement || "",
-      }];
-    }),
+    schemaVersion: 2,
+    account: { isOwner: true, canViewAppStats, accountEmail: email },
+    ...training,
+    finance,
+    appStats,
+    bookings,
   };
+}
+
+/**
+ * Lightweight role probe for the Pocket app. Flags derive ONLY from the verified session user id
+ * (studioActor + requireAdmin + app-analytics owner check); the request payload is ignored.
+ * Non-owners get all-false flags and no owner data.
+ */
+async function performStudioPocketAccess(userId: string) {
+  const sql = await getSql();
+  const email = normalizeOwnerEmail(await studioEmailOf(sql, userId));
+  const actor = await studioActor(userId);
+  let isOwner = false;
+  if (actor?.role === "owner") {
+    try {
+      await requireAdmin(userId);
+      isOwner = true;
+    } catch {
+      isOwner = false;
+    }
+  }
+  let appStats: unknown = null;
+  let canViewAppStats = false;
+  if (isOwner) {
+    try {
+      const analytics = await import("@/lib/server/app-analytics");
+      appStats = await analytics.performAppAnalyticsReport(userId, requireAdmin);
+      canViewAppStats = true;
+    } catch {
+      canViewAppStats = false;
+      appStats = null;
+    }
+  }
+  return { account: { isOwner, canViewAppStats, accountEmail: email }, appStats: canViewAppStats ? appStats : null };
 }
 
 async function performStudioPocketImport(userId: string, raw: unknown) {
   const actor = await requireStudioStaff(userId);
+  if (actor.role !== "owner") {
+    throw new Error("بارگذاری از سرور فقط برای صاحب استودیو با ایمیل ثبت‌شده فعال است.");
+  }
   const data = z.object({
     rows: z.array(z.object({
       id: z.string().max(80),
@@ -3748,9 +3782,7 @@ async function performStudioPocketImport(userId: string, raw: unknown) {
   const current = await performStudioPocketExport(userId);
   const occupied = new Set(current.bookings.map((row) => row.day));
   const known = new Set(current.bookings.map((row) => row.serverId));
-  const businessId = actor.role === "artist"
-    ? await ensureStudioShop(sql, actor.ownerUserId)
-    : await ensureStudioShop(sql, userId);
+  const businessId = await ensureStudioShop(sql, userId);
   const used = new Map<string, Set<number>>();
   const linked: { id: string; serverId: string }[] = [];
   const errors: string[] = [];
@@ -4961,7 +4993,9 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     case "updateStudioPayment":
       return performUpdateStudioPayment(userId, payload);
     case "studioPocketExport":
-      return performStudioPocketExport(userId);
+      return performStudioPocketExport(userId, { full: true });
+    case "studioPocketAccess":
+      return performStudioPocketAccess(userId);
     case "studioPocketImport":
       return performStudioPocketImport(userId, payload);
     case "updateStudioJob":
@@ -5130,6 +5164,18 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     case "providerStatus": {
       const { financeProviderStatus } = await import("@/lib/finance/server");
       return financeProviderStatus();
+    }
+    case "appTelemetryInstall": {
+      const analytics = await import("@/lib/server/app-analytics");
+      return analytics.performAppTelemetryInstall(userId, payload);
+    }
+    case "appTelemetryRevenue": {
+      const analytics = await import("@/lib/server/app-analytics");
+      return analytics.performAppTelemetryRevenue(userId, payload);
+    }
+    case "appAnalyticsReport": {
+      const analytics = await import("@/lib/server/app-analytics");
+      return analytics.performAppAnalyticsReport(userId, requireAdmin);
     }
     default:
       throw new Error("درخواست نامعتبر است.");

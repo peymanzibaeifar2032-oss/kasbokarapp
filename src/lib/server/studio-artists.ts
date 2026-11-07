@@ -36,7 +36,7 @@ function mapArtist(row: ArtistRow): StudioArtistCard {
   };
 }
 
-async function emailOf(sql: Sql, userId: string) {
+export async function emailOf(sql: Sql, userId: string) {
   const users = await sql.query<{ email: string }>(`select email from "user" where id = $1`, [userId]);
   return users[0]?.email ?? "";
 }
