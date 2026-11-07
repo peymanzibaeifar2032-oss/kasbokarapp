@@ -35,18 +35,22 @@ export async function requireAppAnalyticsOwner(
   return { sql, email: normalizeOwnerEmail(email) };
 }
 
-/** Register/refresh a distinct install (first launch device id). Not an admin auth path. */
+export const installSchema = z.object({
+  installId: z.string().trim().regex(/^[A-Za-z0-9_-]{16,80}$/),
+  platform: z.enum(["android", "web"]).default("android"),
+  appVersion: z.string().trim().regex(/^[0-9A-Za-z.+-]{1,40}$/).optional(),
+});
+
+/**
+ * Register/refresh an install id. Install pings are SELF-REPORTED by the app (a client can invent ids),
+ * so they are shown as such in the owner report. Account email is never taken from the payload:
+ * it is bound only when the call comes from a verified session (userId), using that session's email.
+ * Upsert on install_id keeps it idempotent; an anonymous ping can never overwrite a bound account.
+ */
 export async function performAppTelemetryInstall(userId: string | null, raw: unknown) {
-  const data = z
-    .object({
-      installId: z.string().trim().min(16).max(80),
-      accountEmail: emailSchema.optional(),
-      platform: z.string().trim().max(40).default("android"),
-      appVersion: z.string().trim().max(40).optional(),
-    })
-    .parse(raw);
+  const data = installSchema.parse(raw);
   const sql = await getSql();
-  const email = data.accountEmail ? normalizeOwnerEmail(data.accountEmail) : null;
+  const email = userId ? normalizeOwnerEmail(await emailOf(sql, userId)) || null : null;
   await sql.query(
     `insert into app_devices (install_id, account_email, user_id, platform, app_version, first_seen_at, last_seen_at)
      values ($1, $2, $3, $4, $5, now(), now())
@@ -91,14 +95,10 @@ export async function performAppTelemetryRevenue(userId: string, raw: unknown) {
   return { ok: true as const };
 }
 
-export async function recordAppDownloadEvent(input: {
-  fileName: string;
-  installId?: string | null;
-  userId?: string | null;
-  accountEmail?: string | null;
-}) {
+/** Server-observed: called only after the APK bytes were actually served. No client-supplied email. */
+export async function recordAppDownloadEvent(input: { fileName: string; installId?: string | null; userId?: string | null }) {
   const sql = await getSql();
-  const email = input.accountEmail ? normalizeOwnerEmail(input.accountEmail) : null;
+  const email = null;
   await sql.query(
     `insert into app_download_events (id, file_name, install_id, user_id, account_email, downloaded_at)
      values ($1, $2, $3, $4, $5, now())`,
@@ -140,6 +140,10 @@ export async function performAppAnalyticsReport(
   );
 
   return {
+    // Provenance: downloads = server-observed (APK served by this server, rate-limited per IP; mirror
+    // downloads e.g. Netlify are NOT counted). installs/accounts = self-reported by the app.
+    // monthlyRevenue = self-reported cash-box totals from each signed-in account, not verified income.
+    provenance: { downloads: "server-observed", installs: "self-reported", monthlyRevenue: "self-reported" } as const,
     installs: Number(installs[0]?.c || 0),
     downloads: Number(downloads[0]?.c || 0),
     accounts: accounts.map((row) => ({

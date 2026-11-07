@@ -1,5 +1,6 @@
 import { exportPocketTrainees } from "./pocket-trainees-export";
 import { exportPocketFinance } from "./pocket-finance-export";
+import { exportPocketBookings } from "./pocket-bookings-export";
 import { z } from "zod";
 import { DEFAULT_HOURS, KERMANSHAH_CENTER } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
@@ -3690,76 +3691,9 @@ async function performStudioPocketExport(userId: string, options: { full?: boole
     throw new Error("بارگذاری از سرور فقط برای صاحب استودیو با ایمیل ثبت‌شده فعال است.");
   }
   const sql = await getSql();
-  const scope = "and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')";
-  const params: string[] = [];
-  const rows = await sql.query<{
-    id: string;
-    customer_name: string;
-    customer_phone: string | null;
-    customer_phone_2: string | null;
-    customer_instagram: string | null;
-    style: string | null;
-    placement: string | null;
-    size_cm: string | null;
-    request_type: string | null;
-    idea: string | null;
-    price_min_toman: number | string | null;
-    price_max_toman: number | string | null;
-    deposit_toman: number | string | null;
-    paid_toman: number | string | null;
-    session_count: number | string | null;
-    session_minutes: number | string | null;
-    booking_id: string | null;
-    slot_start: string;
-  }>(
-    `select r.id, r.customer_name, r.customer_phone, r.customer_phone_2, r.customer_instagram,
-            r.style, r.placement, r.size_cm, r.request_type, r.idea,
-            r.price_min_toman, r.price_max_toman, r.deposit_toman, r.paid_toman,
-            r.session_count, r.session_minutes, b.id as booking_id,
-            coalesce(b.slot_start, r.proposed_slot_start) as slot_start
-       from tattoo_requests r
-       left join bookings b on b.id = r.booking_id and b.status <> 'cancelled'
-      where r.status = 'booked'
-        and coalesce(b.slot_start, r.proposed_slot_start) is not null
-        ${scope}
-      order by coalesce(b.slot_start, r.proposed_slot_start)
-      limit 2000`,
-    params,
-  );
-  const bookings = rows.flatMap((row) => {
-    const when = new Date(row.slot_start);
-    if (Number.isNaN(when.getTime())) return [];
-    const clock = tehranClock(when);
-    const jalali = gregorianToJalali(clock.y, clock.m, clock.day);
-    const money = (value: number | string | null) => {
-      const n = Math.round(Number(value));
-      return Number.isFinite(n) && n > 0 ? n : 0;
-    };
-    return [{
-      serverId: row.id,
-      day: `${jalali.jy}-${String(jalali.jm).padStart(2, "0")}-${String(jalali.jd).padStart(2, "0")}`,
-      time: `${String(clock.hh).padStart(2, "0")}:${String(clock.mm).padStart(2, "0")}`,
-      name: row.customer_name,
-      phone: row.customer_phone || "",
-      style: row.style || "",
-      placement: row.placement || "",
-      phone2: row.customer_phone_2 || "",
-      instagram: row.customer_instagram || "",
-      sizeCm: row.size_cm || "",
-      requestType: row.request_type || "",
-      idea: (row.idea || "").slice(0, 2000),
-      priceMinToman: money(row.price_min_toman),
-      priceMaxToman: money(row.price_max_toman),
-      depositToman: money(row.deposit_toman),
-      paidToman: money(row.paid_toman),
-      sessionCount: money(row.session_count),
-      sessionMinutes: money(row.session_minutes),
-      bookingId: row.booking_id || "",
-      slotStart: when.toISOString(),
-    }];
-  });
+  const bookings = await exportPocketBookings(sql);
   if (!options.full) return { schemaVersion: 2, bookings };
-  const training = await exportPocketTrainees(sql,userId);
+  const training = await exportPocketTrainees(sql, userId);
   const clock = tehranClock();
   const today = gregorianToJalali(clock.y, clock.m, clock.day);
   const range = jalaliMonthRange(today.jy, today.jm);

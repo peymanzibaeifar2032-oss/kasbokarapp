@@ -48,7 +48,7 @@ test("real table export is user-scoped, read-only, includes progress, debts and 
     code.indexOf("async function performStudioPocketImport"),
   );
   assert.ok(
-    action.indexOf('actor.role !== "owner"') < action.indexOf("exportPocketTrainees(sql,userId)"),
+    action.indexOf('actor.role !== "owner"') < action.indexOf("exportPocketTrainees(sql, userId)"),
   );
   assert.ok(action.includes("requireStudioStaff(userId)"));
 });
