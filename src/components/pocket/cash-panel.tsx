@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowDownLeft, ArrowUpRight, CloudDownload, Landmark, ListOrdered, Trash2 } from "lucide-react";
 import { toFaDigits } from "@/lib/calendar/jalali";
-import { listCashEntries, newCashId, readServerCashSummary, saveCashEntries, summarizeCash, type CashEntry, type CashEntryKind, type ServerCashSummary } from "@/lib/pocket/cash-box";
+import { parsePaymentToman } from "@/lib/pocket/booking-payments";
+import { appendCashEntry, deleteCashEntry, listCashEntries, newCashId, readServerCashSummary, summarizeCash, type CashEntry, type CashEntryKind, type ServerCashSummary } from "@/lib/pocket/cash-box";
 import { JALALI_MONTHS } from "@/lib/calendar/jalali";
 import type { PocketLocale, ProfessionPack } from "@/lib/pocket/professions";
 import { packText } from "@/lib/pocket/professions";
@@ -43,21 +44,14 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
     [rows],
   );
 
-  // Save first: a blocked (unlicensed) or failed write must never show as if it had been stored.
-  async function persist(next: CashEntry[]) {
-    await saveCashEntries(next);
-    setRows(next);
-  }
-
   async function addEntry() {
     const cleanTitle = title.trim();
-    const toman = Number(amount.replace(/\D/g, "")) || 0;
+    const toman = parsePaymentToman(amount) ?? 0;
     if (cleanTitle.length < 2) return toast.error(locale === "en" ? "Write a title." : "عنوان را بنویس.");
     if (toman <= 0) return toast.error(locale === "en" ? "Enter an amount." : "مبلغ را بنویس.");
-    await persist([
-      { id: newCashId(), day: todayKey, kind, title: cleanTitle, amountToman: toman, note: note.trim(), createdAt: new Date().toISOString() },
-      ...rows,
-    ]);
+    // Append only this row (never rewrite the whole box from a possibly stale list).
+    await appendCashEntry({ id: newCashId(), day: todayKey, kind, title: cleanTitle, amountToman: toman, note: note.trim(), createdAt: new Date().toISOString() });
+    setRows(await listCashEntries());
     setTitle("");
     setAmount("");
     setNote("");
@@ -72,7 +66,8 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
 
   async function remove(id: string) {
     if (!window.confirm(locale === "en" ? "Delete this entry?" : "این ردیف از صندوق حذف شود؟")) return;
-    await persist(rows.filter((row) => row.id !== id));
+    await deleteCashEntry(id);
+    setRows(await listCashEntries());
   }
 
   return (

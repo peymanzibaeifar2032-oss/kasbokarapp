@@ -50,7 +50,10 @@ import {
   queueInstallTelemetry,
 } from "@/lib/pocket/telemetry";
 import { PocketBookingActions } from "./booking-actions";
-import { applyServerFinance } from "@/lib/pocket/cash-box";
+import { applyServerClub } from "@/lib/pocket/referral-club";
+import { ReferralClubPanel } from "./referral-club-panel";
+import { applyServerFinance, listCashEntries, type CashEntry } from "@/lib/pocket/cash-box";
+import { bookingTotals, newPaymentId, parsePaymentToman, recordBookingPayment } from "@/lib/pocket/booking-payments";
 import type { PocketAppStats, PocketServerAccount } from "@/lib/pocket/sync-response";
 import { canRequestServerSync } from "@/lib/pocket/professions";
 import { friendlyError } from "@/lib/save";
@@ -393,6 +396,13 @@ function PocketShell(props: {
     showServerDownload,
   } = props;
 
+  // 1.15.2: per-booking «ثبت واریز» rows live in the cash box; re-read whenever the calendar is shown or rows change.
+  const [cashRows, setCashRows] = useState<CashEntry[]>([]);
+  const reloadCash = useCallback(() => listCashEntries().then(setCashRows).catch(() => undefined), []);
+  useEffect(() => {
+    if (tab === "calendar") void reloadCash();
+  }, [tab, rows, reloadCash]);
+
   useEffect(() => {
     queueInstallTelemetry();
     void queueCurrentMonthRevenue()
@@ -404,6 +414,7 @@ function PocketShell(props: {
   const [templateEnabled, setTemplateEnabled] = useState(false);
   const [traineeRevision, setTraineeRevision] = useState(0);
   const [cashRevision, setCashRevision] = useState(0);
+  const [clubRevision, setClubRevision] = useState(0);
   const [cashStatus, setCashStatus] = useState("");
   // Owner-only UI is driven ONLY by a server response in this session (memory, never persisted).
   // Starts hidden; typed offline email, cached data or settings can never grant it.
@@ -582,6 +593,15 @@ function PocketShell(props: {
         cashNote = "سرور صندوق را نفرستاد (نسخهٔ سرور قدیمی است)؛ صندوق گوشی تغییری نکرد.";
       }
       setCashStatus(cashNote);
+      // 1b) Referral club (owner only, read-only snapshot). Failure never touches the cached club.
+      if (snapshot.account?.isOwner && snapshot.referralClub) {
+        try {
+          applyServerClub(snapshot.referralClub);
+          setClubRevision((v) => v + 1);
+        } catch (error) {
+          toast.error(isLicenseLockedError(error) ? error.message : "ذخیرهٔ باشگاه مشتریان روی گوشی انجام نشد؛ نسخهٔ قبلی حفظ شد.");
+        }
+      }
 
       // 2) Bookings + trainees in one atomic local transaction.
       const next = applyDownload(rows, incoming);
@@ -733,6 +753,7 @@ function PocketShell(props: {
 
         {tab !== "backup" ? <PocketLicenseCard license={license} compact onOpenBackup={() => setTab("backup")} /> : null}
         {tab === "backup" ? <PocketLicenseCard license={license} /> : null}
+        {ready && tab === "backup" ? <ReferralClubPanel revision={clubRevision} onChanged={() => setClubRevision((v) => v + 1)} /> : null}
         {ready && tab === "backup" ? (
           <PocketBackupPanel
             rows={rows}
@@ -969,17 +990,7 @@ function PocketShell(props: {
                         {row.style ? <span className="pocket-chip-service">{row.style}</span> : null}
                       </span>
                     </div>
-                    {row.server && (row.server.priceMinToman > 0 || row.server.paidToman > 0) ? (
-                      <p className="pocket-muted" data-testid="booking-money" style={{ marginTop: "0.25rem" }}>
-                        {locale === "en" ? "Paid " : "واریزی "}
-                        <span className="pocket-price">{tomanText(row.server.paidToman, locale) || "0"}</span>
-                        {" · "}
-                        {locale === "en" ? "Remaining " : "مانده "}
-                        <span className="pocket-price">
-                          {tomanText(Math.max(0, row.server.priceMinToman - row.server.paidToman), locale) || "0"}
-                        </span>
-                      </p>
-                    ) : null}
+                    <BookingPayment row={row} cash={cashRows} locale={locale} todayKey={todayKey} onSaved={reloadCash} />
                     {row.photo ? (
                       <img
                         src={row.photo}
@@ -1310,6 +1321,93 @@ function AllAppointments({ rows, todayKey, locale, onPick }: { rows: PocketBooki
           <p className="pocket-muted">{fa ? "از امروز به بعد نوبتی ثبت نشده است." : "No upcoming appointments."}</p>
         )
       ) : null}
+    </div>
+  );
+}
+
+/** Paid / remaining for one booking plus the «ثبت واریز» CTA (append-only, recorded on this phone). */
+function BookingPayment({ row, cash, locale, todayKey, onSaved }: { row: PocketBooking; cash: CashEntry[]; locale: PocketLocale; todayKey: string; onSaved: () => Promise<unknown> | void }) {
+  const fa = locale !== "en";
+  const t = bookingTotals(row, cash);
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  // One stable id per opened form: a double tap or a retry after a slow save cannot create a second deposit.
+  const draftId = useRef<string>("");
+  const parsed = parsePaymentToman(amount);
+  function openForm() {
+    draftId.current = newPaymentId();
+    setAmount("");
+    setNote("");
+    setError("");
+    setOpen(true);
+  }
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    if (parsed === null) {
+      setError(fa ? "مبلغ را به عدد صحیح تومان بنویس (بزرگ‌تر از صفر)." : "Enter a whole Toman amount above zero.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const { saved } = await recordBookingPayment(row, { id: draftId.current, amountToman: parsed, note, day: todayKey });
+      await onSaved();
+      setOpen(false);
+      toast.success(saved ? (fa ? "واریز روی این گوشی ثبت شد." : "Payment saved on this phone.") : fa ? "این واریز قبلاً ثبت شده بود." : "Already saved.");
+    } catch (err) {
+      setError(isLicenseLockedError(err) ? err.message : fa ? "ذخیره نشد؛ هیچ تغییری اعمال نشد. دوباره امتحان کن." : "Not saved; nothing changed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  const money = (v: number) => tomanText(v, locale) || (fa ? "۰ تومان" : "0");
+  return (
+    <div className="pocket-pay" data-testid="booking-pay">
+      {t.price > 0 || t.paid > 0 ? (
+        <p className="pocket-muted" data-testid="booking-money" style={{ marginTop: "0.25rem" }}>
+          {fa ? "واریزی " : "Paid "}
+          <span className="pocket-price" data-testid="booking-paid">{money(t.paid)}</span>
+          {" · "}
+          {fa ? "مانده " : "Remaining "}
+          <span className="pocket-price" data-testid="booking-remaining">{money(t.remaining)}</span>
+          {t.price > 0 ? <>{" · "}{fa ? "مبلغ کل " : "Total "}<span className="pocket-price">{money(t.price)}</span></> : null}
+          {t.overpaid > 0 ? <span className="pocket-pay-over">{fa ? ` · بیش‌پرداخت ${money(t.overpaid)}` : ` · overpaid ${money(t.overpaid)}`}</span> : null}
+        </p>
+      ) : null}
+      {t.localPaid > 0 ? (
+        <p className="pocket-pay-local" data-testid="booking-local-paid">
+          {fa ? `از این مبلغ ${money(t.localPaid)} فقط روی این گوشی ثبت شده و در سایت ثبت نشده است.` : `${money(t.localPaid)} recorded on this phone only, not on the site.`}
+        </p>
+      ) : null}
+      {!open ? (
+        <button type="button" className="pocket-btn pocket-pay-cta" data-testid="booking-pay-open" onClick={openForm}>
+          {fa ? "＋ ثبت واریز" : "+ Add payment"}
+        </button>
+      ) : (
+        <form className="pocket-pay-form" onSubmit={submit} data-testid="booking-pay-form">
+          <label>
+            {fa ? "مبلغ واریزی جدید (تومان)" : "New payment (Toman)"}
+            <input inputMode="numeric" autoComplete="off" value={amount} onChange={(e) => setAmount(e.target.value)} data-testid="booking-pay-amount" aria-invalid={Boolean(error)} />
+          </label>
+          {parsed !== null ? <p className="pocket-muted">{money(parsed)}</p> : null}
+          <label>
+            {fa ? "یادداشت (اختیاری)" : "Note (optional)"}
+            <input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} data-testid="booking-pay-note" />
+          </label>
+          {error ? <p role="alert" className="pocket-pay-error">{error}</p> : null}
+          <p className="pocket-muted" style={{ fontSize: ".8rem" }}>
+            {fa ? "ثبت روی این گوشی: به صندوق گوشی اضافه می‌شود. سایت خودکار به‌روز نمی‌شود؛ اگر در پنل سایت هم ثبت کردی، ردیف گوشی را از صندوق حذف کن تا دوبار حساب نشود." : "Saved on this phone and in its cash box only. The site is not updated."}
+          </p>
+          <div style={{ display: "flex", gap: ".5rem" }}>
+            <button type="submit" className="pocket-btn pocket-pay-cta" disabled={busy} data-testid="booking-pay-save">{busy ? (fa ? "در حال ذخیره…" : "Saving…") : fa ? "ثبت واریز" : "Save payment"}</button>
+            <button type="button" className="pocket-btn" disabled={busy} onClick={() => setOpen(false)}>{fa ? "انصراف" : "Cancel"}</button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

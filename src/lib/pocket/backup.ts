@@ -1,3 +1,4 @@
+import { readReferralState, referralStateSchema, writeReferralState, type PocketReferralState } from "./referral-club.ts";
 import { assertCanMutate } from "./license-gate.ts";
 import { z } from "zod";
 import { jalaliMonthLength } from "../calendar/jalali.ts";
@@ -146,6 +147,8 @@ const cashEntry = z.object({
   source: z.literal("server").optional(),
   category: z.string().max(400).optional(),
   ref: z.string().max(2000).optional(),
+  bookingId: z.string().max(200).optional(),
+  bookingServerId: z.string().max(200).optional(),
 });
 const settingsSchema = z.object({
   locale: z.enum(["fa", "en"]),
@@ -163,6 +166,8 @@ export type PocketBackup = {
   trainees: Trainee[];
   traineePayments: TraineePayment[];
   settings?: PocketSettings;
+  /** 1.15.2: cached referral club + phone-only club SMS text edits. undefined = old file, leave as is. */
+  referral?: PocketReferralState;
 };
 const unique = (rows: { id: string }[], name: string) => {
   if (new Set(rows.map((r) => r.id)).size !== rows.length)
@@ -218,6 +223,7 @@ export function parsePocketBackup(input: string | unknown): PocketBackup {
     trainees,
     traineePayments,
     settings: raw.settings ? settingsSchema.parse(raw.settings) : undefined,
+    referral: raw.referral === undefined || raw.referral === null ? undefined : referralStateSchema.parse(raw.referral),
   };
 }
 /** Merge defaults to preserving local conflicts. Explicit replace overwrites matches, never deletes unmentioned rows. */
@@ -249,6 +255,14 @@ export function mergeBackup(
       incoming.cashEntries === undefined
         ? local.cashEntries
         : mergeById(local.cashEntries ?? [], incoming.cashEntries, replace),
+    // Club snapshot: a file's club only fills an empty phone (or replaces it on explicit replace); phone text edits win unless replace.
+    referral:
+      incoming.referral === undefined
+        ? local.referral
+        : {
+            club: replace || !local.referral?.club ? incoming.referral.club ?? local.referral?.club ?? null : local.referral.club,
+            localSettings: replace || !local.referral?.localSettings ? incoming.referral.localSettings ?? local.referral?.localSettings ?? null : local.referral.localSettings,
+          },
   };
 }
 export async function currentBackup(
@@ -269,6 +283,7 @@ export async function currentBackup(
     traineePayments,
     cashEntries,
     settings,
+    referral: readReferralState(),
   };
 }
 /** Backup + all 3 stores in one IDB transaction. Quota/error abort leaves ALL old stores intact. */
@@ -308,6 +323,15 @@ export async function commitBackup(next: PocketBackup, previous: PocketBackup) {
     } catch (error) {
       // Cash lives in its own database: roll the appointment/trainee stores back so the import stays all-or-nothing.
       await commitBackup({ ...previous, cashEntries: undefined }, previous).catch(() => undefined);
+      throw error;
+    }
+  }
+  if (next.referral !== undefined && next.referral !== previous.referral) {
+    try {
+      writeReferralState(next.referral);
+    } catch (error) {
+      if (next.cashEntries !== undefined && previous.cashEntries !== undefined) await saveCashEntries(previous.cashEntries).catch(() => undefined);
+      await commitBackup({ ...previous, cashEntries: undefined, referral: undefined }, previous).catch(() => undefined);
       throw error;
     }
   }

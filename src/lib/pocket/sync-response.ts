@@ -1,3 +1,4 @@
+import { parseReferralClub } from "./referral-club.ts";
 import { z } from "zod";
 import { parsePocketBackup, serverDetailsSchema } from "./backup.ts";
 import type { PocketIncoming } from "../pocket-book.ts";
@@ -182,7 +183,10 @@ export function parsePocketSnapshot(status: number, data: unknown) {
     const parsed = appStatsSchema.safeParse(raw.appStats);
     appStats = parsed.success ? parsed.data : null;
   }
-  if (!("trainees" in raw)) return { bookings, training: undefined, trainingSkipped: 0, account, finance, appStats };
+  // Referral club is accepted only next to a verified owner account; anything malformed is ignored, never partial.
+  const referralClub = account?.isOwner ? parseReferralClub(raw.referralClub) : null;
+  const referralError = account?.isOwner && typeof raw.referralError === "string" ? raw.referralError.slice(0, 200) : undefined;
+  if (!("trainees" in raw)) return { bookings, training: undefined, trainingSkipped: 0, account, finance, appStats, referralClub, referralError };
   const training = parseTraining(raw.trainees, raw.traineePayments);
   return {
     bookings,
@@ -191,6 +195,8 @@ export function parsePocketSnapshot(status: number, data: unknown) {
     account,
     finance,
     appStats,
+    referralClub,
+    referralError,
   };
 }
 

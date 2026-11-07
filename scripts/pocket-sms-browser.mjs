@@ -55,8 +55,10 @@ const download = async (label, name) => {
   return result;
 };
 const shots = [];
-const shot = async (name) => { const p = `/workspace/screenshots/pocket-1.15.1/${name}.png`; await page.screenshot({ path: p, fullPage: true }); shots.push(p); };
-await mkdir("/workspace/screenshots/pocket-1.15.1", { recursive: true });
+const shot = async (name) => { const p = `/workspace/screenshots/pocket-1.15.2/${name}.png`; await page.screenshot({ path: p, fullPage: true }); shots.push(p); };
+await mkdir("/workspace/screenshots/pocket-1.15.2", { recursive: true });
+const textOf = async (scope) => { const box = scope.getByTestId("sms-text"); for (let i = 0; i < 50; i++) { const v = await box.inputValue(); if (v) return v; await page.waitForTimeout(100); } return ""; };
+const waitText = async (scope, pred) => { const box = scope.getByTestId("sms-text"); let v = ""; for (let i = 0; i < 50; i++) { v = await box.inputValue(); if (pred(v)) return v; await page.waitForTimeout(100); } return v; };
 const decodeSms = (href) => decodeURIComponent(href.split(/[?&]body=/)[1] || "");
 try {
   await page.goto(base + "/index.html");
@@ -75,6 +77,7 @@ try {
   await page.getByRole("textbox", { name: "طرح", exact: true }).fill("خط ظریف");
   await page.getByRole("textbox", { name: "موبایل", exact: true }).fill("09120000000");
   await page.locator("input[type=time]").fill("14:30");
+  await page.getByRole("textbox", { name: "قیمت به تومان", exact: true }).fill("۴۰۰۰۰۰۰");
   await page.getByRole("button", { name: "ذخیره", exact: true }).click();
   await page.waitForTimeout(400);
   await shot("home-booking-390");
@@ -82,13 +85,37 @@ try {
   const choices = await page.locator("[data-sms]").count();
   assert.ok(choices >= 14, `choices ${choices}`);
   await page.locator('[data-sms="confirm"]').click();
-  const text = await page.getByTestId("sms-text").inputValue();
+  const text = await textOf(page);
+  if (!text.includes("سارا آزمایشی") || /undefined|null|NaN/.test(text)) console.log("CONFIRM", JSON.stringify(text));
   assert.ok(text.includes("سارا آزمایشی") && !/undefined|null|NaN/.test(text), "confirm text");
   const href = await page.getByTestId("sms-open").getAttribute("href");
   assert.ok(href.startsWith("sms:"), href); assert.equal(decodeSms(href), text);
   await page.getByTestId("sms-text").fill(text + "\nتست");
   assert.equal(decodeSms(await page.getByTestId("sms-open").getAttribute("href")), text + "\nتست");
   await shot("sms-preview-390");
+  // ---- 1.15.2 «ثبت واریز» on the booking card (synthetic, local only) ----
+  const card = page.locator(".pocket-booking-card").filter({ hasText: "سارا آزمایشی" });
+  await card.getByTestId("booking-pay-open").click();
+  await card.getByTestId("booking-pay-amount").fill("abc");
+  await card.getByTestId("booking-pay-save").click();
+  await card.getByRole("alert").waitFor();
+  await card.getByTestId("booking-pay-amount").fill("۵۰۰٬۰۰۰");
+  await card.getByTestId("booking-pay-note").fill("بیعانه آزمایشی");
+  await card.getByTestId("booking-pay-save").dblclick();
+  await card.getByTestId("booking-local-paid").waitFor();
+  const paidTxt = await card.getByTestId("booking-paid").innerText();
+  const remTxt = await card.getByTestId("booking-remaining").innerText();
+  assert.ok(paidTxt.includes("۵۰۰,۰۰۰") || paidTxt.includes("۵۰۰٬۰۰۰"), paidTxt);
+  assert.ok(remTxt.includes("۳,۵۰۰,۰۰۰") || remTxt.includes("۳٬۵۰۰٬۰۰۰"), remTxt);
+  await shot("booking-payment-390");
+  await page.reload();
+  await page.locator(".pocket-booking-card").filter({ hasText: "سارا آزمایشی" }).getByTestId("booking-local-paid").waitFor();
+  const cashRows = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open("pocket-cash"); r.onsuccess = () => { const q = r.result.transaction("entries").objectStore("entries").getAll(); q.onsuccess = () => res(q.result); }; }));
+  const pays = cashRows.filter((e) => e.bookingId);
+  assert.equal(pays.length, 1, "double tap → exactly one cash row");
+  assert.equal(pays[0].amountToman, 500000);
+  // re-open composer after reload
+  await page.getByTestId("sms-toggle").first().click();
   await page.getByTestId("all-appointments").click();
   await shot("all-appointments-390");
   // cash + trainees
@@ -108,6 +135,30 @@ try {
   assert.ok(tt.includes("علی") && !/undefined|null|NaN/.test(tt), "trainee text");
   assert.equal(decodeSms(await page.getByTestId("sms-open").getAttribute("href")), tt);
   await shot("trainees-390"); await page.setViewportSize({ width: 320, height: 844 }); await shot("trainees-320");
+  // ---- referral club (synthetic cached snapshot shaped like the owner export) ----
+  await page.evaluate(() => localStorage.setItem("pocket.referral.v1", JSON.stringify({ club: { status: "ok", generatedAt: "2026-11-07T09:00:00Z", truncated: false,
+    settings: null, members: [{ id: "m1", name: "عضو آزمایشی", phone: "09120000009", code: "TEST-1", active: true, tier: "active", successful: 3, total: 4, rewards: [] }],
+    outbox: [{ id: "o1", phone: "09120000009", body: "متن آماده سایت", referrerId: "m1" }] }, localSettings: null })));
+  await page.reload();
+  await page.locator(".pocket-tabs").getByText("پشتیبان", { exact: true }).click();
+  await page.getByTestId("club-member").first().click();
+  await page.getByTestId("club-sms").locator('[data-sms="club-booked"]').click();
+  const club = await textOf(page.getByTestId("club-sms"));
+  assert.equal(club, "یک معرفی موفق برای شما ثبت شد. اکنون ۳ معرفی موفق از ۱۰ معرفی دارید.\nکد عضویت شما: TEST-1");
+  assert.equal(decodeSms(await page.getByTestId("club-sms").getByTestId("sms-open").getAttribute("href")), club);
+  await page.getByTestId("club-sms").locator('[data-sms="club-code"]').click();
+  assert.ok((await waitText(page.getByTestId("club-sms"), (v) => v.startsWith("سلام"))).startsWith("سلام عضو آزمایشی\nکد عضویت باشگاه مشتریان تو: TEST-1"));
+  await page.getByTestId("club-settings-toggle").click();
+  await page.locator('[data-field="smsBooked"]').fill("معرفی ثبت شد: {count}");
+  await page.getByTestId("club-settings-save").click();
+  await page.reload();
+  await page.locator(".pocket-tabs").getByText("پشتیبان", { exact: true }).click();
+  await page.getByTestId("club-member").first().click();
+  await page.getByTestId("club-sms").locator('[data-sms="club-booked"]').click();
+  assert.equal(await waitText(page.getByTestId("club-sms"), Boolean), "معرفی ثبت شد: ۳\nکد عضویت شما: TEST-1");
+  await page.setViewportSize({ width: 360, height: 844 });
+  await shot("club-sms-360");
+  await page.setViewportSize({ width: 390, height: 844 });
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ ok: true, choices, shots }, null, 2));
 } finally { await browser.close(); server.close(); }

@@ -17,8 +17,8 @@ android {
         minSdk 26
         targetSdk 34
         testInstrumentationRunner "com.peymanzibaeifar.tattoobooking.PocketSyncTest"
-        versionCode 23
-        versionName "1.15.1"
+        versionCode 24
+        versionName "1.15.2"
     }
 
     signingConfigs {

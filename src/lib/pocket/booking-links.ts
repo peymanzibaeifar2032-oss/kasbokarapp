@@ -2,7 +2,7 @@ import { toEnDigits } from "../format.ts";
 
 /** Real routes that exist in the site's owner panel (src/routes/studio.admin.tsx validateSearch `tab`). */
 export const STUDIO_PANEL_ORIGIN = "https://kasbokarapp.com";
-export const STUDIO_PANEL_TABS = ["requests", "messages", "calendar", "money", "jobs", "apprentices"] as const;
+export const STUDIO_PANEL_TABS = ["requests", "messages", "calendar", "money", "jobs", "apprentices", "club"] as const;
 export type StudioPanelTab = (typeof STUDIO_PANEL_TABS)[number];
 export const studioPanelUrl = (tab: StudioPanelTab) => `${STUDIO_PANEL_ORIGIN}/studio/admin?tab=${tab}`;
 

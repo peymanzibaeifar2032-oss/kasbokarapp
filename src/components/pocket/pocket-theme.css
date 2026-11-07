@@ -409,3 +409,12 @@ li.pocket-card { border-inline-start: 4px solid var(--pk-accent); }
 .pocket-sms-choice{display:inline-flex;align-items:center;gap:.3rem;min-height:44px;padding:.3rem .7rem;border-radius:12px;border:1px solid var(--pk-warm);background:#fff;font-weight:800;font-size:.85rem;color:var(--pk-navy)}
 .pocket-sms-choice.is-active{background:var(--pk-teal);border-color:var(--pk-teal);color:#fff}
 .pocket-stat.is-fee p,.pocket-stat.is-paid p,.pocket-stat.is-left p{color:#fff!important}
+.pocket-pay{margin-top:.35rem;display:grid;gap:.35rem}
+.pocket-pay-cta{min-height:44px;background:#1fa463;color:#fff;border:0;border-radius:12px;font-weight:900;padding:0 1rem;justify-self:start}
+.pocket-pay-cta:disabled{opacity:.6}
+.pocket-pay-form{display:grid;gap:.45rem;background:#f1fbf5;border:1px solid #cfe9db;border-radius:14px;padding:.6rem}
+.pocket-pay-form label{display:grid;gap:.2rem;font-weight:800;font-size:.85rem}
+.pocket-pay-local{margin:0;font-size:.8rem;color:#8a4a0c;background:#fdf1e2;border-radius:10px;padding:.3rem .55rem}
+.pocket-pay-error{margin:0;color:#c62828;font-weight:800}
+.pocket-pay-over{color:#8a4a0c}
+.pocket-club{display:grid;gap:.5rem}.pocket-club-member{width:100%;min-height:44px;display:grid;gap:.1rem;text-align:start;background:none;border:0;color:inherit;padding:0}

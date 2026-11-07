@@ -14,6 +14,9 @@ export type CashEntry = {
   source?: "server";
   category?: string;
   ref?: string;
+  /** 1.15.2: a «ثبت واریز» recorded on this phone for one booking (stable local booking id, plus its site id if any). */
+  bookingId?: string;
+  bookingServerId?: string;
 };
 
 export type ServerCashSummary = {
@@ -186,4 +189,41 @@ export function summarizeCash(rows: CashEntry[]) {
     else expense += row.amountToman;
   }
   return { income, expense, balance: income - expense };
+}
+
+/**
+ * Append ONE row in its own readwrite transaction (never rewrites the box). `add` fails on an existing id,
+ * which makes a repeated submit of the same draft id a no-op instead of a second deposit.
+ * Returns false when that id was already stored.
+ */
+export async function appendCashEntry(row: CashEntry): Promise<boolean> {
+  assertCanMutate();
+  const db = await openDb();
+  try {
+    const tx = db.transaction(STORE, "readwrite");
+    const store = tx.objectStore(STORE);
+    const exists = await new Promise<boolean>((resolve, reject) => {
+      const r = store.getKey(row.id);
+      r.onsuccess = () => resolve(r.result !== undefined);
+      r.onerror = () => reject(r.error);
+    });
+    if (!exists) store.add(row);
+    await txDone(tx);
+    return !exists;
+  } finally {
+    db.close();
+  }
+}
+
+/** Delete one row by id (manual rows only; server rows are owned by the site snapshot). */
+export async function deleteCashEntry(id: string) {
+  assertCanMutate();
+  const db = await openDb();
+  try {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(id);
+    await txDone(tx);
+  } finally {
+    db.close();
+  }
 }
