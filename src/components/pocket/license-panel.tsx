@@ -9,6 +9,13 @@ import { licenseEnforced, setLicenseChecker } from "@/lib/pocket/license-gate";
 import { licenseCall, openPocketLogin } from "@/lib/pocket/sync";
 
 const LAST_REFRESH = "pocket.license.lastRefresh.v1";
+/** Set when «ورود صاحب برنامه» sent the user to the site login. Holds only a timestamp (no email, cookie or token). */
+export const OWNER_PENDING = "pocket.license.ownerPending.v1";
+const OWNER_PENDING_MS = 30 * 60 * 1000;
+export function ownerEnrollmentPending(now = Date.now()) {
+  const t = Number(localStorage.getItem(OWNER_PENDING)) || 0;
+  return t > 0 && now - t < OWNER_PENDING_MS && now >= t;
+}
 
 type ServerReply = { token?: string; serverNow?: number; error?: string; code?: string };
 
@@ -107,14 +114,30 @@ export function usePocketLicense() {
     } finally { setBusy(false); }
   }, [accept]);
 
-  const ownerSelf = useCallback(async () => {
+  // auto = called after returning from the site login: never re-opens the login page (no loops).
+  const ownerSelf = useCallback(async (auto = false) => {
     setBusy(true);
     try {
       const device = await installDeviceId();
       const reply = await licenseCall("selfPocketLicense", [device]);
       if (reply.status === 401) {
-        toast.message("اول با ایمیل صاحب برنامه در سایت وارد شوید؛ بعد دوباره همین دکمه را بزنید.");
+        if (auto) {
+          localStorage.removeItem(OWNER_PENDING);
+          const msg = "ورود به سایت انجام نشد یا نشست سایت پیدا نشد. دوباره «ورود صاحب برنامه» را بزنید و با ایمیل صاحب برنامه وارد شوید.";
+          setServerNote(msg);
+          toast.error(msg);
+          return false;
+        }
+        localStorage.setItem(OWNER_PENDING, String(Date.now()));
+        toast.message("با ایمیل صاحب برنامه در سایت وارد شوید؛ بعد از برگشت به اپ، فعال‌سازی خودکار انجام می‌شود.");
         openPocketLogin();
+        return false;
+      }
+      localStorage.removeItem(OWNER_PENDING);
+      if (reply.status === 403) {
+        const msg = "این حساب سایت صاحب برنامه نیست؛ مجوز خودکار فقط برای حساب صاحب برنامه صادر می‌شود. با حساب درست وارد شوید یا کد فعال‌سازی وارد کنید.";
+        setServerNote(msg);
+        toast.error(msg);
         return false;
       }
       return await accept(reply, "مجوز صاحب برنامه روی این گوشی فعال شد.");
@@ -123,6 +146,19 @@ export function usePocketLicense() {
       setServerNote(msg); toast.error(msg); return false;
     } finally { setBusy(false); }
   }, [accept]);
+
+  // After the native login flow reloads the offline page (or the app comes back to the foreground),
+  // finish the owner enrollment the user started. The server decides ownership from its own session.
+  useEffect(() => {
+    if (!enforced || !checked || state.status === "valid") return;
+    const run = () => {
+      if (document.visibilityState === "hidden" || !ownerEnrollmentPending()) return;
+      void ownerSelf(true);
+    };
+    run();
+    window.addEventListener("pocket-account-refresh", run);
+    return () => window.removeEventListener("pocket-account-refresh", run);
+  }, [enforced, checked, state.status, ownerSelf]);
 
   return { enforced, state, checked, busy, serverNote, activate, ownerSelf, refresh };
 }
@@ -168,9 +204,12 @@ export function PocketLicenseCard({ license, compact = false, onOpenBackup }: { 
               <KeyRound size={18} aria-hidden /> {busy ? "در حال بررسی…" : "فعال‌سازی"}
             </button>
           </form>
+          <p className="pocket-muted" data-testid="license-owner-help">
+            صاحب برنامه کد لازم ندارد: «ورود صاحب برنامه» را بزنید، در سایت با ایمیل صاحب برنامه وارد شوید و به اپ برگردید؛ مجوز یک‌ساله (تا ۵ گوشی) خودش فعال می‌شود؛ برای تمدید، هر وقت لازم شد دوباره همین کار را بکنید.
+          </p>
           <div className="pocket-license-actions">
-            <button type="button" className="pocket-btn" disabled={busy} onClick={() => void license.ownerSelf()}>
-              <LogIn size={18} aria-hidden /> ورود صاحب برنامه
+            <button type="button" className="pocket-btn" disabled={busy} onClick={() => void license.ownerSelf()} data-testid="license-owner">
+              <LogIn size={18} aria-hidden /> ورود صاحب برنامه (فعال‌سازی خودکار، بدون کد)
             </button>
             {onOpenBackup ? <button type="button" className="pocket-btn" onClick={onOpenBackup}>خروجی JSON / PDF</button> : null}
           </div>
