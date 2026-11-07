@@ -4854,6 +4854,34 @@ async function performFavoriteToggle(userId: string, raw: unknown) {
   return performFavorites(userId);
 }
 
+/**
+ * Owner-only license administration. Identity comes ONLY from the verified session user id
+ * (studioActor owner + requireAdmin), never from the payload. Non-owners get 403.
+ */
+async function performPocketLicenseOwnerAction(userId: string, type: string, payload: unknown) {
+  const actor = await studioActor(userId);
+  if (actor?.role !== "owner") throw new Error("Forbidden: دسترسی مدیریت مجوز ندارید.");
+  await requireAdmin(userId);
+  const lic = await import("@/lib/server/pocket-license");
+  const sql = await getSql();
+  const raw = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
+  try {
+    switch (type) {
+      case "pocketLicenseList": return await lic.ownerList(sql);
+      case "pocketLicenseIssue": return await lic.ownerIssue(sql, userId, raw);
+      case "pocketLicenseUpdate": return await lic.ownerUpdate(sql, raw);
+      case "pocketLicenseRevoke": return await lic.ownerRevoke(sql, raw);
+      case "pocketLicenseReissueCode": return await lic.ownerReissueCode(sql, raw);
+      case "pocketLicenseReleaseDevice": return await lic.ownerReleaseDevice(sql, raw);
+      case "pocketLicenseSelf": return await lic.selfLicense(sql, userId, { device: raw.device });
+    }
+  } catch (err) {
+    if (err instanceof lic.LicenseError) throw new Error(err.message);
+    throw err;
+  }
+  throw new Error("نوع درخواست مشخص نیست.");
+}
+
 export async function dispatchSave(userId: string, type: string, payload: unknown, displayName?: string) {
   switch (type) {
     case "profile":
@@ -5015,6 +5043,14 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioPocketExport(userId, { full: true });
     case "studioPocketAccess":
       return performStudioPocketAccess(userId);
+    case "pocketLicenseList":
+    case "pocketLicenseIssue":
+    case "pocketLicenseUpdate":
+    case "pocketLicenseRevoke":
+    case "pocketLicenseReissueCode":
+    case "pocketLicenseReleaseDevice":
+    case "pocketLicenseSelf":
+      return performPocketLicenseOwnerAction(userId, type, payload);
     case "studioPocketImport":
       return performStudioPocketImport(userId, payload);
     case "updateStudioJob":
