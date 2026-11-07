@@ -35,6 +35,9 @@ export type PocketServerFinance = {
 };
 
 const LIMIT = 5000;
+/** Keep every exported field inside the app's wire limits so one odd DB row can't break the ledger. */
+const safeId = (raw: string) => String(raw).replace(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 100) || "x";
+const clip = (v: string | null | undefined, n: number) => (v ?? "").slice(0, n);
 
 /** Asia/Tehran has had a fixed +03:30 offset since 2022. */
 export function tehranJalaliDay(iso: string) {
@@ -101,14 +104,14 @@ export async function exportPocketFinance(
     const day = tehranJalaliDay(row.created_at);
     if (!day || !Number.isFinite(amount) || amount <= 0) continue;
     records.push({
-      serverId: `pay:${row.id}`,
+      serverId: `pay:${safeId(row.id)}`,
       kind: "income",
       day,
       amountToman: amount,
-      title: row.customer_name?.trim() || "واریز مشتری",
-      note: row.note || "",
+      title: clip(row.customer_name?.trim() || "واریز مشتری", 200),
+      note: clip(row.note, 500),
       category: "واریز مشتری",
-      ref: [row.style, row.placement].filter(Boolean).join(" · "),
+      ref: clip([row.style, row.placement].filter(Boolean).join(" · "), 300),
     });
   }
   for (const row of expenses.slice(0, LIMIT)) {
@@ -118,13 +121,13 @@ export async function exportPocketFinance(
     if (!Number.isFinite(amount) || amount <= 0 || !(jm >= 1 && jm <= 12) || !(jy > 1300)) continue;
     const daily = /^daily:(\d+)x(\d+)$/.exec(row.note || "");
     records.push({
-      serverId: `exp:${row.id}`,
+      serverId: `exp:${safeId(row.id)}`,
       kind: "expense",
       day: `${jy}-${String(jm).padStart(2, "0")}-01`,
       amountToman: amount,
-      title: row.title,
-      note: daily ? `روزانه ${daily[1]} × ${daily[2]} روز` : row.note || "",
-      category: categoryLabel(row.category),
+      title: clip(row.title?.trim() || categoryLabel(row.category), 200),
+      note: daily ? `روزانه ${daily[1]} × ${daily[2]} روز` : clip(row.note, 500),
+      category: clip(categoryLabel(row.category), 80),
       ref: "هزینهٔ ماهانهٔ سایت",
     });
   }

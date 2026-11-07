@@ -101,3 +101,29 @@ describe("telemetry / download security contract", () => {
     assert.ok(lib.includes('monthlyRevenue: "self-reported"'));
   });
 });
+
+describe("export stays inside app wire limits on odd rows", () => {
+  it("odd ids / empty titles / long notes / zero goals are normalized, not dropped", async () => {
+    await db.exec(`
+      insert into tattoo_payments (id, request_id, amount_toman, note) values ('odd id/ü','r1',100,'${"x".repeat(900)}');
+      insert into studio_expenses (id, user_id, category, title, amount_toman, month_jy, month_jm) values ('e3','owner','rent','',50,1405,8);
+      insert into studio_apprentices (id, user_id, slug, name, phone, session_goal) values ('a3','owner','a3','صفر','0',0);`);
+    const f = await exportPocketFinance(sql, "owner", { month: 0, all: 0 }, new Date("2026-11-07T09:00:00Z"));
+    const odd = f.records.find((r) => r.serverId.startsWith("pay:odd"));
+    assert.ok(odd && /^pay:[A-Za-z0-9_.:-]+$/.test(odd.serverId));
+    assert.ok(odd.note.length <= 500);
+    assert.ok(f.records.find((r) => r.serverId === "exp:e3")!.title.length > 0);
+    const t = await exportPocketTrainees(sql, "owner");
+    assert.equal(t.trainees.find((x) => x.serverId === "a3")!.sessionGoal, 1);
+  });
+});
+
+describe("full export isolates sections", () => {
+  it("finance/trainee failures are reported as errors, never as empty data", () => {
+    const code = readFileSync(join(root, "src/lib/server/writes.ts"), "utf8");
+    const fn = code.slice(code.indexOf("async function performStudioPocketExport"), code.indexOf("async function performStudioPocketAccess"));
+    assert.ok(fn.includes("financeError"));
+    assert.ok(fn.includes("trainingError"));
+    assert.ok(fn.indexOf('actor.role !== "owner"') < fn.indexOf("exportPocketBookings(sql)"));
+  });
+});

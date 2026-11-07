@@ -3693,12 +3693,29 @@ async function performStudioPocketExport(userId: string, options: { full?: boole
   const sql = await getSql();
   const bookings = await exportPocketBookings(sql);
   if (!options.full) return { schemaVersion: 2, bookings };
-  const training = await exportPocketTrainees(sql, userId);
-  const clock = tehranClock();
-  const today = gregorianToJalali(clock.y, clock.m, clock.day);
-  const range = jalaliMonthRange(today.jy, today.jm);
-  const receivable = await loadOpenReceivable(sql, actor, range.start, range.end);
-  const finance = await exportPocketFinance(sql, userId, { month: receivable.month, all: receivable.all });
+  // Each section is independent: one failing section is reported, never a silent empty/zero section.
+  let training: Awaited<ReturnType<typeof exportPocketTrainees>> | null = null;
+  let trainingError: string | undefined;
+  try {
+    training = await exportPocketTrainees(sql, userId);
+  } catch (error) {
+    console.error("[pocket-export] trainees", error);
+    trainingError = "خطا در خواندن هنرجوهای سایت";
+  }
+  let finance: Awaited<ReturnType<typeof exportPocketFinance>> | null = null;
+  let financeError: string | undefined;
+  try {
+    const clock = tehranClock();
+    const today = gregorianToJalali(clock.y, clock.m, clock.day);
+    const range = jalaliMonthRange(today.jy, today.jm);
+    // Same as opening the site's money tab for this month: materialize recurring expense templates.
+    await applyStudioExpenseTemplates(sql, userId, today.jy, today.jm);
+    const receivable = await loadOpenReceivable(sql, actor, range.start, range.end);
+    finance = await exportPocketFinance(sql, userId, { month: receivable.month, all: receivable.all });
+  } catch (error) {
+    console.error("[pocket-export] finance", error);
+    financeError = "خطا در خواندن صندوق سایت";
+  }
   // Identity flags come only from the verified session + server-side role checks, never from the payload.
   const email = normalizeOwnerEmail(await studioEmailOf(sql, userId));
   let appStats: unknown = null;
@@ -3714,8 +3731,10 @@ async function performStudioPocketExport(userId: string, options: { full?: boole
   return {
     schemaVersion: 2,
     account: { isOwner: true, canViewAppStats, accountEmail: email },
-    ...training,
+    ...(training ?? {}),
+    ...(trainingError ? { trainingError } : {}),
     finance,
+    ...(financeError ? { financeError } : {}),
     appStats,
     bookings,
   };
