@@ -345,3 +345,67 @@ li.pocket-card { border-inline-start: 4px solid var(--pk-accent); }
 .pocket-license-recheck { justify-self: start; }
 .pocket-month-nav .pocket-btn { white-space: nowrap; gap: 0.25rem; }
 @media (max-width: 22rem) { .pocket-month-nav .pocket-btn { padding-inline: 0.5rem; font-size: 0.85rem; } }
+
+/* ===== 1.15.1 — cream / navy / teal refresh ===== */
+.pocket-app{--pk-bg:#fbf7ef;--pk-cream:#fbf7ef;--pk-navy:#1b2a4a;--pk-teal:#0f9d94;--pk-teal-soft:#e3f5f3;--pk-warm:#efe4cf;background:var(--pk-cream);color:var(--pk-navy)}
+.pocket-title{color:var(--pk-navy);font-weight:900}
+.pocket-title-accent{color:var(--pk-teal)}
+.pocket-hero-tiles{display:grid;grid-template-columns:repeat(var(--n,4),minmax(0,1fr));gap:.6rem;margin:.6rem 0}
+.pocket-hero-tiles[data-count="3"]{--n:3}
+.pocket-hero-tile{aspect-ratio:1/1;min-height:72px;border:0;border-radius:20px;color:#fff;font-weight:900;font-size:.9rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.35rem;box-shadow:0 6px 16px rgba(27,42,74,.14);cursor:pointer;padding:.4rem;text-align:center;line-height:1.3}
+.pocket-hero-tile.is-cash{background:#1fa463}.pocket-hero-tile.is-calendar{background:var(--pk-teal)}
+.pocket-hero-tile.is-stats{background:#2f9be0}.pocket-hero-tile.is-trainees{background:#f08a24}
+.pocket-hero-tile:focus-visible{outline:3px solid var(--pk-navy);outline-offset:2px}
+@media (max-width:359px){.pocket-hero-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.pocket-hero-tile{aspect-ratio:auto;min-height:76px}}
+.pocket-cal-card{background:#fff;border:1px solid var(--pk-warm);border-radius:22px;box-shadow:0 8px 22px rgba(27,42,74,.08);padding:.6rem 0 .7rem;margin:.4rem 0 .8rem}
+.pocket-cal-card button svg{color:var(--pk-teal)}
+.pocket-cal-card .dot.n1{background:var(--pk-teal)}.pocket-cal-card .dot.n2{background:#f08a24}.pocket-cal-card .dot.n3{background:#e04848}
+.pocket-day-panel{background:#fff8ec;border:1px solid var(--pk-warm);border-radius:20px;padding:.8rem}
+.pocket-booking-head{display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap}
+.pocket-booking-chips{display:flex;gap:.35rem;flex-wrap:wrap}
+.pocket-chip-time,.pocket-chip-service{border-radius:999px;padding:.15rem .6rem;font-size:.8rem;font-weight:800}
+.pocket-chip-time{background:var(--pk-teal-soft);color:#08665f}.pocket-chip-service{background:#fdebd6;color:#8a4a0c}
+.pocket-all-toggle{width:100%;min-height:44px;margin-top:.6rem;background:var(--pk-teal);color:#fff;border:0;border-radius:14px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:.3rem}
+.pocket-all-list{list-style:none;margin:.5rem 0 0;padding:0;display:grid;gap:.4rem}
+.pocket-all-list button{width:100%;min-height:44px;display:grid;grid-template-columns:auto 1fr;gap:.1rem .6rem;text-align:start;background:#fff;border:1px solid var(--pk-warm);border-radius:12px;padding:.5rem .7rem;color:inherit}
+.pocket-all-date{grid-row:span 2;color:var(--pk-teal);font-weight:900;align-self:center}
+.pocket-all-name{font-weight:800}.pocket-all-meta{font-size:.8rem;opacity:.75}
+.pocket-tabs{background:#fff}.pocket-tabs [aria-current="page"],.pocket-tabs [aria-selected="true"]{color:var(--pk-teal)}
+/* cash */
+.pocket-cash-hero{display:flex;align-items:center;justify-content:space-between;gap:.6rem;background:#e6f7ee;border-radius:18px;padding:.8rem 1rem}
+.pocket-cash-hero h2{margin:0;color:#14834f;font-weight:900;font-size:1.2rem}
+.pocket-cash-hero-sub{margin:.15rem 0 0;font-size:.85rem;color:#2c5a43}
+.pocket-cash-hero-art{flex:none}
+.pocket-metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem}
+.pocket-metric{border-radius:16px;padding:.6rem;min-width:0}
+.pocket-metric p{margin:0;overflow-wrap:anywhere}.pocket-metric p:first-child{font-size:.8rem;font-weight:800}.pocket-metric p:last-child{font-weight:900}
+.pocket-metric.is-income{background:#1fa463;color:#fff}.pocket-metric.is-expense{background:#c9efd9;color:#0e4d30}.pocket-metric.is-balance{background:#fff;border:1px solid #cfe9db;color:#0e4d30}
+.pocket-quick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.45rem}
+.pocket-quick-tile{min-height:64px;background:#fff;border:1px solid #e2eee7;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.25rem;font-size:.75rem;font-weight:800;color:var(--pk-navy);padding:.3rem}
+.pocket-quick-tile:disabled{opacity:.5}
+.pocket-quick-icon{width:32px;height:32px;border-radius:50%;background:#1fa463;color:#fff;display:grid;place-items:center}
+@media (max-width:359px){.pocket-quick{grid-template-columns:repeat(2,minmax(0,1fr))}.pocket-metric-grid{grid-template-columns:1fr}}
+.pocket-list-title{margin:.4rem 0 0;font-size:1rem;font-weight:900}
+.pocket-tx-list{list-style:none;margin:0;padding:0;display:grid;gap:.45rem}
+.pocket-tx{background:#fff;border:1px solid #e8eee9;border-radius:14px;padding:.6rem .75rem}
+.pocket-tx.is-in .pocket-tx-amount{color:#14834f}.pocket-tx.is-out .pocket-tx-amount{color:#d33b3b}
+/* trainees */
+.pocket-section-hero{display:flex;align-items:center;gap:.6rem}
+.pocket-section-hero.is-trainee h2{color:#e07a12;font-weight:900}
+.pocket-section-icon{width:40px;height:40px;border-radius:12px;background:#f08a24;color:#fff;display:grid;place-items:center}
+.pocket-stat.is-fee{background:#f08a24;color:#fff}.pocket-stat.is-paid{background:#1fa463;color:#fff}.pocket-stat.is-left{background:#e04848;color:#fff}
+.pocket-cta.is-trainee{width:100%;min-height:48px;background:#f08a24;color:#fff;border:0;border-radius:14px;font-weight:900}
+.pocket-form-card{border-color:#ead7bd}
+/* sms composer */
+.pocket-sms{background:#fff;border:1px solid var(--pk-warm);border-radius:16px;padding:.7rem;display:grid;gap:.5rem}
+.pocket-sms textarea{width:100%;min-height:9rem;border:1px solid #d9d2c3;border-radius:12px;padding:.6rem;font:inherit;line-height:1.7;white-space:pre-wrap}
+.pocket-sms [data-sms]{min-height:44px}
+@media (prefers-reduced-motion:reduce){.pocket-app *{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+.pocket-app[data-section="calendar"]{--pk-accent:#0f9d94;--pk-accent-soft:#e3f5f3}
+.pocket-app[data-section="cash"]{--pk-accent:#1fa463;--pk-accent-soft:#e6f7ee}
+.pocket-app[data-section="trainees"]{--pk-accent:#e07a12;--pk-accent-soft:#fdebd6}
+.pocket-sms-group-title{margin:.2rem 0;font-weight:900;font-size:.85rem;color:var(--pk-navy)}
+.pocket-sms-choices{display:flex;flex-wrap:wrap;gap:.35rem}
+.pocket-sms-choice{display:inline-flex;align-items:center;gap:.3rem;min-height:44px;padding:.3rem .7rem;border-radius:12px;border:1px solid var(--pk-warm);background:#fff;font-weight:800;font-size:.85rem;color:var(--pk-navy)}
+.pocket-sms-choice.is-active{background:var(--pk-teal);border-color:var(--pk-teal);color:#fff}
+.pocket-stat.is-fee p,.pocket-stat.is-paid p,.pocket-stat.is-left p{color:#fff!important}

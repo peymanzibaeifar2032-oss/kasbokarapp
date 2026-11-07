@@ -1,8 +1,7 @@
 import { MessageSquare, Phone } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { toFaDigits } from "@/lib/calendar/jalali";
-import { instagramProfileUrl, toSmsLink, toTelLink, toWhatsAppLink } from "@/lib/format";
+import { instagramProfileUrl, toTelLink, toWhatsAppLink } from "@/lib/format";
 import { plainSmsLink, studioPanelUrl, usablePhone } from "@/lib/pocket/booking-links";
 import {
   aftercareGuideSms,
@@ -15,12 +14,15 @@ import {
   tattooBalance,
 } from "@/lib/tattoo-flow";
 import type { PocketBooking } from "@/lib/pocket-book";
+import { BOOKING_SMS, HONORIFIC_CHOICE_KINDS, bookingSmsText, bookingSmsWarnings, type BookingSmsKind } from "@/lib/pocket/sms-templates";
+import { SmsComposer } from "./sms-composer";
 import type { PocketLocale } from "@/lib/pocket/professions";
 
 export { studioPanelUrl, usablePhone, plainSmsLink };
 
 type SmsKind = "confirm" | "card" | "balance" | "prep" | "food" | "care";
 
+/** Kept for compatibility; the full list lives in @/lib/pocket/sms-templates (same website functions). */
 export function tattooSmsText(row: PocketBooking, kind: SmsKind) {
   const server = row.server;
   const paid = server && server.paidToman > 0 ? server.paidToman : server?.depositToman ?? 0;
@@ -88,19 +90,6 @@ export function PocketBookingActions({
   const fromSite = Boolean(row.serverId && server);
   const insta = server?.instagram ? instagramProfileUrl(server.instagram) : null;
   const balance = server ? tattooBalance(server.priceMinToman, server.paidToman) : null;
-
-  function sendTemplate(phone: string, kind: SmsKind) {
-    if (kind === "confirm" && !server?.slotStart) {
-      toast.error("اول تاریخ و ساعت اجرا در سایت ثبت شود، بعد پیامک قطعی را بفرست.");
-      return;
-    }
-    const href = toSmsLink(phone, tattooSmsText(row, kind));
-    if (!href) {
-      toast.error("شماره برای پیامک معتبر نیست.");
-      return;
-    }
-    window.location.assign(href);
-  }
 
   return (
     <div className="pocket-actions" data-testid="booking-actions">
@@ -197,22 +186,20 @@ export function PocketBookingActions({
           </a>
         ) : null}
       </div>
-      {fromSite && phones.length ? (
+      {(fromSite || row.professionId === "tattoo_artist") && phones.length ? (
         <div>
-          <button type="button" className="pocket-btn pocket-btn-ghost" onClick={() => setSmsOpen((v) => !v)} aria-expanded={smsOpen}>
-            {smsOpen ? "بستن پیامک‌های آماده" : "پیامک‌های آماده (مثل پنل سایت)"}
+          <button type="button" className="pocket-btn pocket-btn-ghost" data-testid="sms-toggle" onClick={() => setSmsOpen((v) => !v)} aria-expanded={smsOpen}>
+            <MessageSquare size={16} aria-hidden /> {smsOpen ? "بستن پیامک‌های آماده" : "پیامک‌های آماده (مثل پنل سایت)"}
           </button>
           {smsOpen ? (
-            <div className="pocket-action-row" style={{ marginTop: "0.5rem" }}>
-              {(Object.keys(SMS_LABELS) as SmsKind[]).map((kind) => (
-                <button key={kind} type="button" className="pocket-btn pocket-btn-sms" data-sms={kind} onClick={() => sendTemplate(phones[0], kind)}>
-                  {SMS_LABELS[kind]}
-                </button>
-              ))}
-              <p className="pocket-muted" style={{ fontSize: "0.75rem", width: "100%" }}>
-                متن در برنامهٔ پیامک گوشی باز می‌شود؛ ارسال را خودت می‌زنی.
-              </p>
-            </div>
+            <SmsComposer
+              phones={phones}
+              choices={BOOKING_SMS}
+              honorificKinds={HONORIFIC_CHOICE_KINDS}
+              build={(kind, honorific) => bookingSmsText(row, kind as BookingSmsKind, { honorific })}
+              warnings={(kind) => bookingSmsWarnings(row, kind as BookingSmsKind)}
+              testId="booking-sms"
+            />
           ) : null}
         </div>
       ) : null}

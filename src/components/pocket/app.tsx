@@ -640,7 +640,7 @@ function PocketShell(props: {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="pocket-kicker">{packText(pack, locale, "nameFa", "nameEn")}</p>
-              <p className="pocket-title">{packText(pack, locale, "appTitleFa", "appTitleEn")}</p>
+              <p className="pocket-title"><AccentTitle text={packText(pack, locale, "appTitleFa", "appTitleEn")} /></p>
             </div>
             <button
               type="button"
@@ -656,6 +656,24 @@ function PocketShell(props: {
               {locale === "en" ? "Language / job" : "زبان / شغل"}
             </button>
           </div>
+          {tab === "calendar" ? (
+            <nav className="pocket-hero-tiles" aria-label={locale === "en" ? "Sections" : "بخش‌ها"} data-count={canViewStats ? 4 : 3}>
+              <button type="button" className="pocket-hero-tile is-cash" onClick={() => setTab("cash")}>
+                <Coins size={28} aria-hidden /><span>{packText(pack, locale, "cashLabelFa", "cashLabelEn")}</span>
+              </button>
+              <button type="button" className="pocket-hero-tile is-calendar" aria-current="page" onClick={() => setTab("calendar")}>
+                <CalendarDays size={28} aria-hidden /><span>{packText(pack, locale, "calendarLabelFa", "calendarLabelEn")}</span>
+              </button>
+              {canViewStats ? (
+                <button type="button" className="pocket-hero-tile is-stats" onClick={() => setTab("stats")}>
+                  <BarChart3 size={28} aria-hidden /><span>{locale === "en" ? "Stats" : "آمار"}</span>
+                </button>
+              ) : null}
+              <button type="button" className="pocket-hero-tile is-trainees" onClick={() => setTab("trainees")}>
+                <GraduationCap size={28} aria-hidden /><span>{packText(pack, locale, "traineesLabelFa", "traineesLabelEn")}</span>
+              </button>
+            </nav>
+          ) : null}
           <nav
             className="pocket-tabs"
             role="tablist"
@@ -775,6 +793,7 @@ function PocketShell(props: {
 
         {tab === "calendar" ? (
           <>
+            <div className="pocket-cal-card">
             <div className="pocket-cal-head flex items-start justify-between gap-3 px-4 pb-2">
               <div>
                 <p className="pocket-title">{monthLabel}</p>
@@ -846,13 +865,15 @@ function PocketShell(props: {
                     onClick={() => cell.inMonth && openDay(key)}
                   >
                     {cell.inMonth ? (locale === "en" ? cell.jd : toFaDigits(cell.jd)) : ""}
-                    {count > 0 && cell.inMonth ? <span className="dot" /> : null}
+                    {count > 0 && cell.inMonth ? <span className={`dot n${Math.min(count, 3)}`} aria-label={`${count}`} /> : null}
                   </button>
                 );
               })}
             </div>
 
-            <section className="pocket-panel">
+            </div>
+
+            <section className="pocket-panel pocket-day-panel">
               <div className="flex items-center justify-between gap-3">
                 <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900 }}>
                   {weekday} {locale === "en" ? selectedJd : toFaDigits(selectedJd)}{" "}
@@ -940,8 +961,14 @@ function PocketShell(props: {
 
               <ul className="mt-4 grid gap-3">
                 {dayRows.map((row) => (
-                  <li key={row.id} className="pocket-card">
-                    <p className="font-black">{row.name}</p>
+                  <li key={row.id} className="pocket-card pocket-booking-card">
+                    <div className="pocket-booking-head">
+                      <p className="font-black">{row.name}</p>
+                      <span className="pocket-booking-chips">
+                        {row.time ? <span className="pocket-chip-time">{locale === "en" ? row.time : toFaDigits(row.time)}</span> : null}
+                        {row.style ? <span className="pocket-chip-service">{row.style}</span> : null}
+                      </span>
+                    </div>
                     {row.server && (row.server.priceMinToman > 0 || row.server.paidToman > 0) ? (
                       <p className="pocket-muted" data-testid="booking-money" style={{ marginTop: "0.25rem" }}>
                         {locale === "en" ? "Paid " : "واریزی "}
@@ -1031,6 +1058,12 @@ function PocketShell(props: {
                   </li>
                 ))}
               </ul>
+              <AllAppointments rows={rows} todayKey={todayKey} locale={locale} onPick={(day) => {
+                const [jy, jm] = day.split("-").map(Number);
+                if (jy && jm) setMonth({ jy, jm });
+                setSelected(day);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }} />
 
               {draft ? (
                 <form
@@ -1232,5 +1265,51 @@ function PocketShell(props: {
         ) : null}
       </div>
     </main>
+  );
+}
+
+/** Title with the last word emphasised (e.g. «تقویم نوبت تاتو»). */
+function AccentTitle({ text }: { text: string }) {
+  const parts = text.trim().split(/\s+/);
+  if (parts.length < 2) return <>{text}</>;
+  const last = parts.pop();
+  return <>{parts.join(" ")} <span className="pocket-title-accent">{last}</span></>;
+}
+
+/** Read-only list of upcoming appointments from phone storage (real rows only). */
+function AllAppointments({ rows, todayKey, locale, onPick }: { rows: PocketBooking[]; todayKey: string; locale: PocketLocale; onPick: (day: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const upcoming = useMemo(
+    () => rows.filter((r) => r.day >= todayKey).sort((a, b) => a.day.localeCompare(b.day) || (a.time || "").localeCompare(b.time || "")),
+    [rows, todayKey],
+  );
+  const fa = locale !== "en";
+  return (
+    <div className="pocket-all">
+      <button type="button" className="pocket-btn pocket-all-toggle" aria-expanded={open} data-testid="all-appointments" onClick={() => setOpen((v) => !v)}>
+        {open ? (fa ? "بستن فهرست نوبت‌ها" : "Hide all appointments") : fa ? "مشاهده همه نوبت‌ها" : "See all appointments"}
+        {fa ? <ChevronLeft size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
+      </button>
+      {open ? (
+        upcoming.length ? (
+          <ul className="pocket-all-list">
+            {upcoming.map((r) => {
+              const [, m, d] = r.day.split("-").map(Number);
+              return (
+                <li key={r.id}>
+                  <button type="button" onClick={() => onPick(r.day)}>
+                    <span className="pocket-all-date">{fa ? `${toFaDigits(d || 0)} ${JALALI_MONTHS[(m || 1) - 1]}` : r.day}</span>
+                    <span className="pocket-all-name">{r.name}</span>
+                    <span className="pocket-all-meta">{[r.time ? (fa ? toFaDigits(r.time) : r.time) : "", r.style].filter(Boolean).join(" · ")}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="pocket-muted">{fa ? "از امروز به بعد نوبتی ثبت نشده است." : "No upcoming appointments."}</p>
+        )
+      ) : null}
+    </div>
   );
 }

@@ -163,7 +163,7 @@ try {
     assert.ok(hrefs.every((h) => /^(tel:|sms:|https:\/\/)/.test(h)));
     await page.getByTestId("booking-actions").getByText("10x6").waitFor();
     await page.getByRole("button", { name: "پیامک‌های آماده (مثل پنل سایت)" }).click();
-    assert.equal(await page.locator("[data-sms]").count(), 6);
+    assert.equal(await page.locator("[data-sms]").count(), 14); // 1.15.1: all 14 site booking templates
     await shot(page, "owner-day-actions");
     await page.getByRole("tab", { name: /صندوق/ }).click();
     await page.getByTestId("cash-server-summary").waitFor();
@@ -172,7 +172,7 @@ try {
     await page.getByTestId("cash-server-status").getByText(/صندوق سایت دریافت شد/).waitFor();
     await page.getByText("ردیف دستی").waitFor();
     assert.equal(await page.getByText("کرایه آزمایشی").count(), 1, "no duplicate after two downloads");
-    assert.equal(await page.locator(".pocket-card li, ul > li.pocket-card").count() >= 3, true);
+    assert.equal(await page.locator(".pocket-card li, ul > li.pocket-card, li.pocket-tx").count() >= 3, true);
     await shot(page, "owner-cash");
     await page.getByRole("tab", { name: /هنرجو|کارآموز/ }).click();
     // 1.14.3: trainees are already applied by the unified site load; the panel button re-runs that same load.

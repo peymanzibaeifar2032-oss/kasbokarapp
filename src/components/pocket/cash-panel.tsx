@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CloudDownload, Trash2, Wallet } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CloudDownload, Landmark, ListOrdered, Trash2 } from "lucide-react";
 import { toFaDigits } from "@/lib/calendar/jalali";
 import { listCashEntries, newCashId, readServerCashSummary, saveCashEntries, summarizeCash, type CashEntry, type CashEntryKind, type ServerCashSummary } from "@/lib/pocket/cash-box";
 import { JALALI_MONTHS } from "@/lib/calendar/jalali";
@@ -64,6 +64,12 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
     toast.success(locale === "en" ? "Saved in cash box." : "در صندوق ذخیره شد.");
   }
 
+  function focusForm() {
+    const el = document.querySelector<HTMLInputElement>("#pocket-cash-form input");
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    el?.focus();
+  }
+
   async function remove(id: string) {
     if (!window.confirm(locale === "en" ? "Delete this entry?" : "این ردیف از صندوق حذف شود؟")) return;
     await persist(rows.filter((row) => row.id !== id));
@@ -71,9 +77,12 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
 
   return (
     <section className="grid gap-4">
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <Wallet size={18} aria-hidden color="var(--pk-accent)" />
-        <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 900 }}>{packText(pack, locale, "cashLabelFa", "cashLabelEn")}</h2>
+      <div className="pocket-cash-hero">
+        <div>
+          <h2>{packText(pack, locale, "cashLabelFa", "cashLabelEn")}</h2>
+          <p className="pocket-cash-hero-sub">{locale === "en" ? "Your money at a glance" : "خلاصهٔ پول شما در یک نگاه"}</p>
+        </div>
+        <span className="pocket-cash-hero-art" aria-hidden><CashRegisterArt /></span>
       </div>
       <p className="pocket-muted" style={{ margin: 0 }}>
         {locale === "en"
@@ -120,12 +129,26 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
         </div>
       ) : null}
       <p style={{ margin: 0, fontWeight: 800 }}>{locale === "en" ? "Whole box on this phone" : "کل صندوق روی گوشی"}{hasServer ? (locale === "en" ? " (site + manual)" : " (سایت + دستی)") : ""}</p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: "0.5rem" }}>
-        <div className="pocket-stat is-cash"><p>{locale === "en" ? "Income" : "واریز"}</p><p>{tomanText(summary.income, locale)}</p></div>
-        <div className="pocket-stat is-cash"><p>{locale === "en" ? "Expense" : "هزینه"}</p><p>{tomanText(summary.expense, locale)}</p></div>
-        <div className="pocket-stat is-cash"><p>{locale === "en" ? "Balance" : "مانده"}</p><p>{tomanText(summary.balance, locale)}</p></div>
+      <div className="pocket-metric-grid">
+        <div className="pocket-metric is-income"><p>{locale === "en" ? "Income" : "واریز"}</p><p>{tomanText(summary.income, locale) || (locale === "en" ? "0" : "۰")}</p></div>
+        <div className="pocket-metric is-expense"><p>{locale === "en" ? "Expense" : "هزینه"}</p><p>{tomanText(summary.expense, locale) || (locale === "en" ? "0" : "۰")}</p></div>
+        <div className="pocket-metric is-balance"><p>{locale === "en" ? "Balance" : "مانده"}</p><p>{tomanText(summary.balance, locale) || (locale === "en" ? "0" : "۰")}</p></div>
       </div>
-      <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); void addEntry(); }}>
+      <div className="pocket-quick" role="group" aria-label={locale === "en" ? "Quick actions" : "دسترسی سریع"}>
+        <button type="button" className="pocket-quick-tile" onClick={() => { setKind("income"); focusForm(); }}>
+          <span className="pocket-quick-icon"><ArrowDownLeft size={18} aria-hidden /></span>{locale === "en" ? "Add income" : "ثبت واریز"}
+        </button>
+        <button type="button" className="pocket-quick-tile" onClick={() => { setKind("expense"); focusForm(); }}>
+          <span className="pocket-quick-icon is-out"><ArrowUpRight size={18} aria-hidden /></span>{locale === "en" ? "Add expense" : "ثبت هزینه"}
+        </button>
+        <button type="button" className="pocket-quick-tile" onClick={() => { setFilter("all"); document.getElementById("pocket-cash-list")?.scrollIntoView({ behavior: "smooth" }); }}>
+          <span className="pocket-quick-icon"><ListOrdered size={18} aria-hidden /></span>{locale === "en" ? "Transactions" : "تراکنش‌ها"}
+        </button>
+        <button type="button" className="pocket-quick-tile" disabled={!server} onClick={() => document.querySelector('[data-testid="cash-server-summary"]')?.scrollIntoView({ behavior: "smooth" })}>
+          <span className="pocket-quick-icon"><Landmark size={18} aria-hidden /></span>{locale === "en" ? "Site ledger" : "دفتر سایت"}
+        </button>
+      </div>
+      <form className="grid gap-2 pocket-form-card pocket-card" id="pocket-cash-form" onSubmit={(e) => { e.preventDefault(); void addEntry(); }}>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <button type="button" className={`pocket-btn ${kind === "income" ? "pocket-btn-primary" : "pocket-btn-ghost"}`} style={{ flex: 1 }} onClick={() => setKind("income")}>{locale === "en" ? "Income" : "واریز"}</button>
           <button type="button" className={`pocket-btn ${kind === "expense" ? "pocket-btn-primary" : "pocket-btn-ghost"}`} style={{ flex: 1 }} onClick={() => setKind("expense")}>{locale === "en" ? "Expense" : "هزینه"}</button>
@@ -145,16 +168,18 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
         </div>
       ) : null}
       {!ready ? <p className="pocket-muted">{locale === "en" ? "Loading…" : "در حال خواندن…"}</p> : null}
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: "0.55rem" }}>
+      <h3 className="pocket-list-title" id="pocket-cash-list">{locale === "en" ? "Recent transactions" : "تراکنش‌های اخیر"}</h3>
+      {ready && !visible.length ? <p className="pocket-muted">{locale === "en" ? "No entries yet." : "هنوز ردیفی ثبت نشده است."}</p> : null}
+      <ul className="pocket-tx-list">
         {visible.map((row) => (
-          <li key={row.id} className="pocket-card">
+          <li key={row.id} className={`pocket-tx ${row.kind === "income" ? "is-in" : "is-out"}`}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem" }}>
               <div>
                 <p style={{ margin: 0, fontWeight: 900 }}>{row.title}</p>
                 <p className="pocket-muted" style={{ margin: "0.35rem 0 0" }}>
                   {(locale === "en" ? (row.kind === "income" ? "Income" : "Expense") : row.kind === "income" ? "واریز" : "هزینه")}
                   {" · "}
-                  <span className="pocket-price">{tomanText(row.amountToman, locale)}</span>
+                  <span className="pocket-price pocket-tx-amount">{row.kind === "income" ? "+" : "−"}{tomanText(row.amountToman, locale)}</span>
                   {" · "}
                   {locale === "en" ? row.day : toFaDigits(row.day)}
                 </p>
@@ -176,5 +201,23 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
         ))}
       </ul>
     </section>
+  );
+}
+
+/** Small offline SVG illustration (no external assets). */
+function CashRegisterArt() {
+  return (
+    <svg viewBox="0 0 64 56" width="64" height="56" role="presentation">
+      <rect x="10" y="4" width="26" height="14" rx="3" fill="#ffffff" stroke="#0f8a66" strokeWidth="2" />
+      <rect x="15" y="9" width="16" height="4" rx="1.5" fill="#bdeedb" />
+      <rect x="6" y="20" width="52" height="22" rx="5" fill="#13a37a" />
+      <g fill="#e9fbf3">
+        <rect x="12" y="25" width="6" height="4" rx="1" /><rect x="21" y="25" width="6" height="4" rx="1" /><rect x="30" y="25" width="6" height="4" rx="1" />
+        <rect x="12" y="32" width="6" height="4" rx="1" /><rect x="21" y="32" width="6" height="4" rx="1" /><rect x="30" y="32" width="6" height="4" rx="1" />
+      </g>
+      <rect x="41" y="25" width="12" height="11" rx="2" fill="#0f8a66" />
+      <rect x="2" y="44" width="60" height="9" rx="3" fill="#0f8a66" />
+      <circle cx="32" cy="48.5" r="2" fill="#bdeedb" />
+    </svg>
   );
 }

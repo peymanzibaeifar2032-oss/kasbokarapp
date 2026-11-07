@@ -3,11 +3,15 @@ import { canRequestServerSync } from "@/lib/pocket/professions";
 import { downloadPocketSnapshot } from "@/lib/pocket/sync";
 import { currentBackup, commitBackup, mergeById } from "@/lib/pocket/backup";
 import { isLicenseLockedError } from "@/lib/pocket/license-gate";
+import { TRAINEE_SMS, traineeSmsText, type TraineeSmsKind } from "@/lib/pocket/sms-templates";
+import { plainSmsLink, usablePhone } from "@/lib/pocket/booking-links";
+import { toTelLink, toWhatsAppLink } from "@/lib/format";
+import { SmsComposer } from "./sms-composer";
 import { listPocketBookings } from "@/lib/pocket-book";
 import { readPocketSettings } from "@/lib/pocket/settings";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CloudDownload, GraduationCap, Minus, Plus, Trash2 } from "lucide-react";
+import { CloudDownload, GraduationCap, MessageSquare, Minus, Phone, Plus, Trash2, UserPlus } from "lucide-react";
 import { toFaDigits } from "@/lib/calendar/jalali";
 import type { PocketLocale, ProfessionPack } from "@/lib/pocket/professions";
 import { packText } from "@/lib/pocket/professions";
@@ -265,11 +269,9 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
         </div>
       ) : null}
 
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <GraduationCap size={18} aria-hidden color="var(--pk-accent)" />
-        <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 900 }}>
-          {packText(pack, locale, "traineesLabelFa", "traineesLabelEn")}
-        </h2>
+      <div className="pocket-section-hero is-trainee">
+        <span className="pocket-section-icon" aria-hidden><GraduationCap size={22} /></span>
+        <h2>{packText(pack, locale, "traineesLabelFa", "traineesLabelEn")}</h2>
       </div>
       <p className="pocket-muted" style={{ margin: 0 }}>
         {locale === "en"
@@ -277,22 +279,29 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
           : "مشخصات، جلسات، پیشرفت و پرداخت‌ها به‌صورت آفلاین روی همین گوشی می‌مانند."}
       </p>
       <div className="pocket-stat-grid">
-        <div className="pocket-stat is-trainee">
+        <div className="pocket-stat is-trainee is-fee">
           <p>{locale === "en" ? "Fees" : "شهریه"}</p>
           <p>{tomanText(totals.fee, locale)}</p>
         </div>
-        <div className="pocket-stat is-trainee">
+        <div className="pocket-stat is-trainee is-paid">
           <p>{locale === "en" ? "Paid" : "پرداخت‌شده"}</p>
           <p>{tomanText(totals.paid, locale)}</p>
         </div>
-        <div className="pocket-stat is-trainee">
+        <div className="pocket-stat is-trainee is-left">
           <p>{locale === "en" ? "Remaining" : "مانده"}</p>
           <p>{tomanText(totals.remaining, locale)}</p>
         </div>
       </div>
 
+      <button type="button" className="pocket-btn pocket-cta is-trainee" onClick={() => {
+        const el = document.getElementById("pocket-trainee-name") as HTMLInputElement | null;
+        el?.scrollIntoView({ block: "center", behavior: "smooth" });
+        el?.focus();
+      }}>
+        <UserPlus size={20} aria-hidden /> {locale === "en" ? "Add a trainee" : "افزودن هنرجوی جدید"}
+      </button>
       <form
-        className="pocket-card grid gap-2"
+        className="pocket-card pocket-form-card grid gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           void addPerson();
@@ -302,7 +311,9 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
           {locale === "en" ? "New trainee" : "هنرجوی جدید"}
         </p>
         <input
+          id="pocket-trainee-name"
           className="pocket-field"
+          aria-label={locale === "en" ? "Name" : "نام"}
           placeholder={locale === "en" ? "Name" : "نام"}
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -373,6 +384,7 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
               {person.notes ? (
                 <p style={{ margin: "0.35rem 0 0", fontSize: "0.9rem" }}>{person.notes}</p>
               ) : null}
+              <TraineeContact person={person} />
               <div
                 style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem", marginTop: "0.75rem" }}
               >
@@ -417,5 +429,29 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
         })}
       </ul>
     </section>
+  );
+}
+
+function TraineeContact({ person }: { person: Trainee }) {
+  const [open, setOpen] = useState(false);
+  const phone = usablePhone(person.phone);
+  if (!phone) return null;
+  const tel = toTelLink(phone);
+  const sms = plainSmsLink(phone);
+  const wa = toWhatsAppLink(phone);
+  return (
+    <div className="pocket-actions" style={{ marginTop: "0.6rem" }}>
+      <div className="pocket-action-row">
+        {tel ? <a className="pocket-btn pocket-btn-call" href={tel} data-action="call"><Phone size={16} aria-hidden /> تماس</a> : null}
+        {sms ? <a className="pocket-btn pocket-btn-sms" href={sms} data-action="sms"><MessageSquare size={16} aria-hidden /> پیامک</a> : null}
+        {wa ? <a className="pocket-btn pocket-btn-wa" href={wa} data-action="whatsapp" target="_blank" rel="noopener noreferrer">واتساپ</a> : null}
+        <button type="button" className="pocket-btn pocket-btn-ghost" aria-expanded={open} data-testid="trainee-sms-toggle" onClick={() => setOpen((v) => !v)}>
+          <MessageSquare size={16} aria-hidden /> {open ? "بستن پیامک‌ها" : "پیامک‌های هنرجو (مثل سایت)"}
+        </button>
+      </div>
+      {open ? (
+        <SmsComposer phones={[phone]} choices={TRAINEE_SMS} build={(kind) => traineeSmsText(person, kind as TraineeSmsKind)} testId="trainee-sms" />
+      ) : null}
+    </div>
   );
 }
