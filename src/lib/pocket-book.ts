@@ -1,3 +1,8 @@
+import type { BookingField } from "./pocket/professions.ts";
+import { assertCanMutate } from "./pocket/license-gate.ts";
+
+export type PocketCustomField = { id: string; label: string; value: string; kind: "text" };
+
 export type PocketBooking = {
   id: string;
   day: string;
@@ -10,8 +15,30 @@ export type PocketBooking = {
   priceToman?: number;
   sizeCm?: string;
   photo?: string;
+  professionId?: string;
+  details?: Record<string, string>;
+  fieldSchema?: BookingField[];
+  customFields?: PocketCustomField[];
   serverId: string | null;
   pinned: boolean;
+  server?: PocketServerDetails;
+};
+
+/** Extra read-only facts from the owner's real site export (tattoo_requests / bookings). */
+export type PocketServerDetails = {
+  phone2: string;
+  instagram: string;
+  sizeCm: string;
+  requestType: string;
+  idea: string;
+  priceMinToman: number;
+  priceMaxToman: number;
+  depositToman: number;
+  paidToman: number;
+  sessionCount: number;
+  sessionMinutes: number;
+  bookingId: string;
+  slotStart: string;
 };
 
 export type PocketIncoming = {
@@ -22,17 +49,20 @@ export type PocketIncoming = {
   phone: string;
   style: string;
   placement: string;
+  server?: PocketServerDetails;
 };
 
 const DB_NAME = "tattoo-pocket";
 const STORE = "bookings";
 
-function openDb() {
+export function openPocketDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
+      for (const name of [STORE, "people", "payments", "metadata"]) {
+        if (!db.objectStoreNames.contains(name)) db.createObjectStore(name, { keyPath: "id" });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -48,7 +78,7 @@ function txDone(tx: IDBTransaction) {
 }
 
 export async function listPocketBookings() {
-  const db = await openDb();
+  const db = await openPocketDb();
   const tx = db.transaction(STORE, "readonly");
   const request = tx.objectStore(STORE).getAll();
   const rows = await new Promise<PocketBooking[]>((resolve, reject) => {
@@ -61,7 +91,8 @@ export async function listPocketBookings() {
 }
 
 export async function savePocketBookings(rows: PocketBooking[]) {
-  const db = await openDb();
+  assertCanMutate();
+  const db = await openPocketDb();
   const tx = db.transaction(STORE, "readwrite");
   const store = tx.objectStore(STORE);
   store.clear();
@@ -85,8 +116,13 @@ export function applyDownload(local: PocketBooking[], incoming: PocketIncoming[]
   for (const item of incoming) {
     const key = `server:${item.serverId}`;
     const existing = local.find((row) => row.serverId === item.serverId);
-    if (existing?.pinned) continue;
+    if (existing?.pinned) {
+      // Local edits win; only refresh the read-only site facts used by the action buttons.
+      if (item.server) next.set(key, { ...existing, server: item.server });
+      continue;
+    }
     next.set(key, {
+      ...existing,
       id: existing?.id || `srv-${item.serverId}`,
       serverId: item.serverId,
       day: item.day,
@@ -96,9 +132,10 @@ export function applyDownload(local: PocketBooking[], incoming: PocketIncoming[]
       style: item.style,
       placement: item.placement,
       note: existing?.note || "",
-      priceToman: existing?.priceToman || 0,
-      sizeCm: existing?.sizeCm || "",
+      sizeCm: existing?.sizeCm || item.server?.sizeCm || "",
+      priceToman: existing?.priceToman || item.server?.priceMinToman || 0,
       photo: existing?.photo || "",
+      ...(item.server ? { server: item.server } : {}),
       pinned: false,
     });
   }

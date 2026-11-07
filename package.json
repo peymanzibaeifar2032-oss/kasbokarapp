@@ -21,7 +21,10 @@
     "format": "prettier --write .",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
-    "start": "node .output/server/index.mjs"
+    "start": "node .output/server/index.mjs",
+    "build:pocket": "node scripts/build-pocket-apk-assets.mjs",
+    "test:pocket-sync": "node --experimental-strip-types --test src/lib/pocket/sync-response.test.ts src/lib/pocket-book.test.ts",
+    "test:pocket-features": "node --import ./scripts/ts-alias-loader.mjs --experimental-strip-types --test src/lib/pocket/sms-templates.test.ts src/lib/pocket/booking-payments.test.ts src/lib/pocket/referral-club.test.ts src/lib/pocket/backup.test.ts src/lib/pocket/documents.test.ts src/lib/pocket/professions.test.ts src/lib/server/pocket-trainees-export.test.ts src/lib/pocket/owner-features.test.ts src/lib/pocket/access-status.test.ts src/lib/pocket/sync-1143.test.ts src/lib/pocket/license.test.ts src/lib/pocket/license-gate.test.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
@@ -96,6 +99,7 @@
     "eslint-plugin-prettier": "^5.2.6",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
+    "fake-indexeddb": "^6.2.7",
     "globals": "^15.15.0",
     "lightningcss": "^1.28.0",
     "nitro": "3.0.260610-beta",
