@@ -1,6 +1,7 @@
 import { exportPocketTrainees } from "./pocket-trainees-export";
 import { exportPocketFinance } from "./pocket-finance-export";
 import { exportPocketBookings } from "./pocket-bookings-export";
+import { exportPocketReferrals } from "./pocket-referrals-export";
 import { z } from "zod";
 import { DEFAULT_HOURS, KERMANSHAH_CENTER } from "@/lib/data/catalog";
 import { getSql } from "@/lib/db";
@@ -3716,6 +3717,16 @@ async function performStudioPocketExport(userId: string, options: { full?: boole
     console.error("[pocket-export] finance", error);
     financeError = "خطا در خواندن صندوق سایت";
   }
+  // Referral club: same requireAdmin gate as the site's club panel; read-only SELECTs, never the referred friends.
+  let referralClub: Awaited<ReturnType<typeof exportPocketReferrals>> | null = null;
+  let referralError: string | undefined;
+  try {
+    await requireAdmin(userId);
+    referralClub = await exportPocketReferrals(sql);
+  } catch (error) {
+    console.error("[pocket-export] referrals", error);
+    referralError = "خطا در خواندن باشگاه مشتریان سایت";
+  }
   // Identity flags come only from the verified session + server-side role checks, never from the payload.
   const email = normalizeOwnerEmail(await studioEmailOf(sql, userId));
   let appStats: unknown = null;
@@ -3736,6 +3747,8 @@ async function performStudioPocketExport(userId: string, options: { full?: boole
     finance,
     ...(financeError ? { financeError } : {}),
     appStats,
+    referralClub,
+    ...(referralError ? { referralError } : {}),
     bookings,
   };
 }
