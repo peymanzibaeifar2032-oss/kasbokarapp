@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/studio/class")({
@@ -17,6 +17,12 @@ type LessonGroup = { id: string; title: string; order: number; lessons: LessonCa
 type Catalog = { groups: LessonGroup[]; lessons: LessonCard[] };
 type LessonImage = { id: string; path: string; caption: string; order: number };
 type Lesson = { id: string; moduleId: string; title: string; content: string; images: LessonImage[] };
+function splitLesson(content: string) {
+  const marker = "\n---تمرین---\n";
+  const cut = content.indexOf(marker);
+  if (cut < 0) return { study: content, practice: "" };
+  return { study: content.slice(0, cut).trim(), practice: content.slice(cut + marker.length).trim() };
+}
 type Question = { id: string; lessonId: string | null; questionText: string; answerText: string | null; status: string };
 
 const TOKEN_KEY = "tattoo-class-token";
@@ -148,6 +154,7 @@ function Library({
   const [questions, setQuestions] = useState<Question[]>([]);
   const [error, setError] = useState("");
   const [zoom, setZoom] = useState("");
+  const [part, setPart] = useState<"study" | "practice">("study");
 
   async function load(path: string, init?: RequestInit) {
     const response = await fetch(path, {
@@ -192,6 +199,7 @@ function Library({
   async function openLesson(id: string) {
     setError("");
     setView("lesson");
+    setPart("study");
     window.scrollTo(0, 0);
     const data = await load(`/api/tattoo/lesson/${id}`);
     setLesson(data.lesson);
@@ -313,16 +321,7 @@ function Library({
       ) : null}
 
       {view === "lesson" && lesson ? (
-        <article className="mt-6">
-          <LessonNav />
-          <h2 className="mt-3 text-3xl font-black leading-tight">{lesson.title}</h2>
-          <p className="mt-5 whitespace-pre-wrap text-lg leading-10">{lesson.content}</p>
-          {lesson.images.map((image) => (
-            <LessonFigure key={image.id} image={image} token={token} onZoom={setZoom} />
-          ))}
-          <AskBox token={token} lessonId={lesson.id} onDone={() => void openQuestions()} />
-          <LessonNav stick />
-        </article>
+        <LessonBody lesson={lesson} token={token} card={card} part={part} setPart={setPart} onZoom={setZoom} onQuestions={() => void openQuestions()} nav={<LessonNav />} navStick={<LessonNav stick />} />
       ) : null}
 
       {view === "questions" ? (
@@ -345,6 +344,51 @@ function Library({
         </button>
       ) : null}
     </div>
+  );
+}
+
+function LessonBody({
+  lesson,
+  token,
+  card,
+  part,
+  setPart,
+  onZoom,
+  onQuestions,
+  nav,
+  navStick,
+}: {
+  lesson: Lesson;
+  token: string;
+  card: string;
+  part: "study" | "practice";
+  setPart: (part: "study" | "practice") => void;
+  onZoom: (src: string) => void;
+  onQuestions: () => void;
+  nav: ReactNode;
+  navStick: ReactNode;
+}) {
+  const pieces = splitLesson(lesson.content);
+  const showingPractice = part === "practice" && pieces.practice;
+  const text = showingPractice ? pieces.practice : pieces.study;
+  const images = lesson.images.filter((image) => (image.caption || "").startsWith("تمرین") === Boolean(showingPractice));
+  return (
+    <article className="mt-6">
+      {nav}
+      <h2 className="mt-3 text-3xl font-black leading-tight">{lesson.title}</h2>
+      {pieces.practice ? (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className={`h-11 rounded-full text-sm font-bold ${part === "study" ? "bg-[#1c3d52] text-white" : "border"}`} onClick={() => setPart("study")}>متن درس</button>
+          <button type="button" className={`h-11 rounded-full text-sm font-bold ${part === "practice" ? "bg-[#1c3d52] text-white" : "border"}`} onClick={() => setPart("practice")}>تمرین این مهارت</button>
+        </div>
+      ) : null}
+      <p className="mt-5 whitespace-pre-wrap text-lg leading-10">{text}</p>
+      {images.map((image) => (
+        <LessonFigure key={image.id} image={image} token={token} onZoom={onZoom} />
+      ))}
+      <AskBox token={token} lessonId={lesson.id} onDone={onQuestions} />
+      {navStick}
+    </article>
   );
 }
 
