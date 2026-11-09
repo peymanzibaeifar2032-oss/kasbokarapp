@@ -258,20 +258,34 @@ function Library({
               <article key={item.id} className={`rounded-3xl border p-5 ${card}`}>
                 <p className="text-xs font-bold text-[#9a7340]">بخش {index + 1}</p>
                 <h2 className="mt-1 text-xl font-black">{item.title}</h2>
+                {item.description ? <p className="mt-1 text-sm leading-7 opacity-70">{item.description}</p> : null}
                 <div className="mt-3 grid gap-2">
-                  {box.groups.map((group) => (
-                    <details key={group.id} className="rounded-2xl border border-current/10 px-3 py-2">
-                      <summary className="cursor-pointer py-2 text-base font-black">{group.title}</summary>
-                      <div className="grid gap-2 pb-2">
-                        {group.lessons.map((lesson, lessonIndex) => (
-                          <button key={lesson.id} type="button" className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right" onClick={() => { setModuleId(item.id); void openLesson(lesson.id); }}>
-                            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lessonIndex + 1}</span>
-                            <span className="font-bold">{lesson.title}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </details>
-                  ))}
+                  {box.groups.map((group) => {
+                    if (group.lessons.length === 1) {
+                      const only = group.lessons[0];
+                      return (
+                        <button key={group.id} type="button" className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right" onClick={() => { setModuleId(item.id); void openLesson(only.id); }}>
+                          <span className="font-bold">{group.title}</span>
+                        </button>
+                      );
+                    }
+                    return (
+                      <details key={group.id} className="rounded-2xl border border-current/10 px-3 py-2">
+                        <summary className="flex cursor-pointer items-center justify-between gap-3 py-2 text-base font-black">
+                          <span>{group.title}</span>
+                          <span className="text-xs font-bold opacity-60">{group.lessons.length} درس</span>
+                        </summary>
+                        <div className="grid gap-2 pb-2">
+                          {group.lessons.map((lesson, lessonIndex) => (
+                            <button key={lesson.id} type="button" className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right" onClick={() => { setModuleId(item.id); void openLesson(lesson.id); }}>
+                              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lessonIndex + 1}</span>
+                              <span className="font-bold">{lesson.title}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </details>
+                    );
+                  })}
                   {loose.map((lesson) => (
                     <button key={lesson.id} type="button" className="rounded-2xl px-1 py-2 text-right font-bold" onClick={() => { setModuleId(item.id); void openLesson(lesson.id); }}>
                       {lesson.title}
