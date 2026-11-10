@@ -8,17 +8,29 @@ import { PART2 } from "./lessons/part2.ts";
 import { PART3 } from "./lessons/part3.ts";
 import { PART4 } from "./lessons/part4.ts";
 import { PART5 } from "./lessons/part5.ts";
-import type { CurriculumLesson } from "./types.ts";
+import type { CurriculumLesson, ImageSlot } from "./types.ts";
+import { EXTRA_IMAGES, SLOT_OVERRIDES } from "./images-meta.generated.ts";
 
 export { CHAPTERS, PARTS, GLOSSARY, SOURCES, PUBLISHED_CHAPTERS, HELD_LESSONS, READINGS, READING_FOR_LESSON };
 export type * from "./types.ts";
 
 const chapterOrder = new Map(CHAPTERS.map((c) => [c.id, c.order]));
 
+/** Slot images with the images agent's alt/caption, plus its extra images (a second part right after its slot, others at the end). */
+function withImages(lesson: CurriculumLesson): CurriculumLesson {
+  const images: ImageSlot[] = lesson.images.map((i) => ({ ...i, ...(SLOT_OVERRIDES[i.id] ?? {}) }));
+  for (const extra of EXTRA_IMAGES[lesson.id] ?? []) {
+    const at = extra.after ? images.findIndex((i) => i.id === extra.after) : -1;
+    if (at >= 0) images.splice(at + 1, 0, extra.image);
+    else images.push(extra.image);
+  }
+  return { ...lesson, images };
+}
+
 /** All 39 lessons in curriculum order. */
-export const LESSONS: CurriculumLesson[] = [...PART1, ...PART2, ...PART3, ...PART4, ...PART5].sort(
-  (a, b) => (chapterOrder.get(a.chapter) ?? 0) - (chapterOrder.get(b.chapter) ?? 0) || a.order - b.order,
-);
+export const LESSONS: CurriculumLesson[] = [...PART1, ...PART2, ...PART3, ...PART4, ...PART5]
+  .map(withImages)
+  .sort((a, b) => (chapterOrder.get(a.chapter) ?? 0) - (chapterOrder.get(b.chapter) ?? 0) || a.order - b.order);
 
 export function isPublished(
   lesson: Pick<CurriculumLesson, "chapter" | "id">,
