@@ -64,6 +64,7 @@ import { Route as ApiPaymentsCallbackRouteImport } from './routes/api/payments/c
 import { Route as ApiPaymentsWebhookRouteImport } from './routes/api/payments/webhook'
 import { Route as ApiTattooSplatRouteImport } from './routes/api/tattoo/$'
 import { Route as ApiTilesSplatRouteImport } from './routes/api/tiles/$'
+import { Route as StudioTeachPrintRouteImport } from './routes/studio.teach.print'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -340,6 +341,11 @@ const ApiTilesSplatRoute = ApiTilesSplatRouteImport.update({
   path: '/api/tiles/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StudioTeachPrintRoute = StudioTeachPrintRouteImport.update({
+  id: '/print',
+  path: '/print',
+  getParentRoute: () => StudioTeachRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -391,12 +397,13 @@ export interface FileRoutesByFullPath {
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
-  '/studio/teach': typeof StudioTeachRoute
+  '/studio/teach': typeof StudioTeachRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/api/tattoo/$': typeof ApiTattooSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
+  '/studio/teach/print': typeof StudioTeachPrintRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -448,12 +455,13 @@ export interface FileRoutesByTo {
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
-  '/studio/teach': typeof StudioTeachRoute
+  '/studio/teach': typeof StudioTeachRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/api/tattoo/$': typeof ApiTattooSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
+  '/studio/teach/print': typeof StudioTeachPrintRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -506,12 +514,13 @@ export interface FileRoutesById {
   '/studio/pocket': typeof StudioPocketRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
-  '/studio/teach': typeof StudioTeachRoute
+  '/studio/teach': typeof StudioTeachRouteWithChildren
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/payments/callback': typeof ApiPaymentsCallbackRoute
   '/api/payments/webhook': typeof ApiPaymentsWebhookRoute
   '/api/tattoo/$': typeof ApiTattooSplatRoute
   '/api/tiles/$': typeof ApiTilesSplatRoute
+  '/studio/teach/print': typeof StudioTeachPrintRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -571,6 +580,7 @@ export interface FileRouteTypes {
     | '/api/payments/webhook'
     | '/api/tattoo/$'
     | '/api/tiles/$'
+    | '/studio/teach/print'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -628,6 +638,7 @@ export interface FileRouteTypes {
     | '/api/payments/webhook'
     | '/api/tattoo/$'
     | '/api/tiles/$'
+    | '/studio/teach/print'
   id:
     | '__root__'
     | '/'
@@ -685,6 +696,7 @@ export interface FileRouteTypes {
     | '/api/payments/webhook'
     | '/api/tattoo/$'
     | '/api/tiles/$'
+    | '/studio/teach/print'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1117,6 +1129,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTilesSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/studio/teach/print': {
+      id: '/studio/teach/print'
+      path: '/print'
+      fullPath: '/studio/teach/print'
+      preLoaderRoute: typeof StudioTeachPrintRouteImport
+      parentRoute: typeof StudioTeachRoute
+    }
   }
 }
 
@@ -1130,6 +1149,18 @@ const KharidVamMehrRouteChildren: KharidVamMehrRouteChildren = {
 
 const KharidVamMehrRouteWithChildren = KharidVamMehrRoute._addFileChildren(
   KharidVamMehrRouteChildren,
+)
+
+interface StudioTeachRouteChildren {
+  StudioTeachPrintRoute: typeof StudioTeachPrintRoute
+}
+
+const StudioTeachRouteChildren: StudioTeachRouteChildren = {
+  StudioTeachPrintRoute: StudioTeachPrintRoute,
+}
+
+const StudioTeachRouteWithChildren = StudioTeachRoute._addFileChildren(
+  StudioTeachRouteChildren,
 )
 
 interface StudioRouteChildren {
@@ -1146,7 +1177,7 @@ interface StudioRouteChildren {
   StudioPocketRoute: typeof StudioPocketRoute
   StudioRequestRoute: typeof StudioRequestRoute
   StudioStatusRoute: typeof StudioStatusRoute
-  StudioTeachRoute: typeof StudioTeachRoute
+  StudioTeachRoute: typeof StudioTeachRouteWithChildren
 }
 
 const StudioRouteChildren: StudioRouteChildren = {
@@ -1163,7 +1194,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioPocketRoute: StudioPocketRoute,
   StudioRequestRoute: StudioRequestRoute,
   StudioStatusRoute: StudioStatusRoute,
-  StudioTeachRoute: StudioTeachRoute,
+  StudioTeachRoute: StudioTeachRouteWithChildren,
 }
 
 const StudioRouteWithChildren =

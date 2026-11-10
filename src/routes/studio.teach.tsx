@@ -220,7 +220,9 @@ function LessonCard({ item, groups, busy, run, onEdit }: { item: LessonRow; grou
         </select>
       ) : null}
       <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" className="h-10 rounded-xl border px-3 text-sm" onClick={onEdit}>ویرایش</button>
+        <a className="inline-flex h-10 items-center rounded-xl border px-3 text-sm font-bold" href={`/studio/teach/print?lesson=${item.id}`} target="_blank" rel="noreferrer">
+          دانلود PDF
+        </a>
         <button type="button" className="h-10 rounded-xl border px-3 text-sm" disabled={busy} onClick={() => run(() => callSchool("save-lesson", { ...item, isPublished: !item.isPublished }).then(() => undefined))}>{item.isPublished ? "پنهان کن" : "نشان بده به کارآموز"}</button>
         <button type="button" className="h-10 rounded-xl border px-3 text-sm text-red-800" disabled={busy} onClick={() => run(() => callSchool("delete-lesson", { id: item.id }).then(() => undefined))}>حذف</button>
       </div>
