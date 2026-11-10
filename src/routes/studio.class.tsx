@@ -26,7 +26,7 @@ function splitLesson(content: string) {
 }
 type CurImage = LessonView["images"][number] & { path: string };
 type CurLesson = Omit<LessonView, "images"> & { images: CurImage[] };
-type Curriculum = { parts: TocPart[]; archivedOldLessonIds: string[] };
+type Curriculum = { parts: TocPart[]; archivedOldLessonIds: string[]; glossaryReading?: { id: string; title: string } };
 type Question = { id: string; lessonId: string | null; questionText: string; answerText: string | null; status: string };
 
 const TOKEN_KEY = "tattoo-class-token";
@@ -282,7 +282,7 @@ function Library({
       {error ? <p className="mt-4 text-sm leading-7 text-red-700">{error}</p> : null}
 
       {view === "home" && curriculum ? (
-        <CurriculumToc curriculum={curriculum} card={card} onOpen={(id) => void openCurLesson(id)} />
+        <CurriculumToc curriculum={curriculum} card={card} token={token} onOpen={(id) => void openCurLesson(id)} />
       ) : null}
 
       {view === "home" ? (
@@ -519,7 +519,7 @@ function AskBox({ token, lessonId, onDone }: { token: string; lessonId: string; 
   );
 }
 
-function CurriculumToc({ curriculum, card, onOpen }: { curriculum: Curriculum; card: string; onOpen: (id: string) => void }) {
+function CurriculumToc({ curriculum, card, token, onOpen }: { curriculum: Curriculum; card: string; token: string; onOpen: (id: string) => void }) {
   const live = curriculum.parts.reduce((n, p) => n + p.chapters.reduce((m, c) => m + c.lessons.filter((l) => l.published).length, 0), 0);
   const total = curriculum.parts.reduce((n, p) => n + p.chapters.reduce((m, c) => m + c.lessons.length, 0), 0);
   return (
@@ -554,6 +554,7 @@ function CurriculumToc({ curriculum, card, onOpen }: { curriculum: Curriculum; c
           </div>
         </article>
       ))}
+      {curriculum.glossaryReading && live > 0 ? <ReadingBox reading={curriculum.glossaryReading} token={token} card={card} /> : null}
     </section>
   );
 }
@@ -649,7 +650,9 @@ function CurriculumLessonBody({
               </div>
             </section>
           ) : null}
-          {lesson.reading ? <ReadingBox reading={lesson.reading} token={token} card={card} /> : null}
+          {lesson.readings.map((reading) => (
+            <ReadingBox key={reading.id} reading={reading} token={token} card={card} />
+          ))}
           <section className="mt-6">
             <h3 className="font-black">منابع</h3>
             <ol className="mt-2 list-decimal pr-5 text-sm leading-7 opacity-80">
