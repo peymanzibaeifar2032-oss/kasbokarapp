@@ -1,0 +1,54 @@
+# منابع
+
+- **OSHA (U.S. Department of Labor)** — Bloodborne Pathogens and Needlestick Prevention — <https://www.osha.gov/bloodborne-pathogens>
+- **OSHA** — Standard 29 CFR 1910.1030 — Bloodborne pathogens — <https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.1030>
+- **CDC** — A Rational Approach to Disinfection and Sterilization (Spaulding classification), Guideline for Disinfection and Sterilization in Healthcare Facilities 2008 — <https://www.cdc.gov/infection-control/hcp/disinfection-sterilization/rational-approach.html>
+- **CDC** — Sterilizing Practices — monitoring with mechanical, chemical and biological indicators — <https://www.cdc.gov/infection-control/hcp/disinfection-sterilization/sterilizing-practices.html>
+- **CDC** — Steam Sterilization — <https://www.cdc.gov/infection-control/hcp/disinfection-sterilization/steam-sterilization.html>
+- **CDC** — Clinical Safety: Hand Hygiene for Healthcare Workers — <https://www.cdc.gov/clean-hands/hcp/clinical-safety/index.html>
+- **World Health Organization** — WHO Guidelines on Hand Hygiene in Health Care (2009) — <https://www.who.int/publications/i/item/9789241597906>
+- **World Health Organization** — Hepatitis B — fact sheet — <https://www.who.int/news-room/fact-sheets/detail/hepatitis-b>
+- **CEN / BSI** — EN 17169:2020 Tattooing — Safe and hygienic practice — <https://knowledge.bsigroup.com/products/tattooing-safe-and-hygienic-practice>
+- **U.S. FDA** — Tattoos, Temporary Tattoos & Permanent Makeup — <https://www.fda.gov/cosmetics/cosmetic-products/tattoos-temporary-tattoos-permanent-makeup>
+- **U.S. FDA** — Think Before You Ink: Tattoo Safety — <https://www.fda.gov/consumers/consumer-updates/think-you-ink-tattoo-safety>
+- **European Chemicals Agency (ECHA)** — Tattoo inks and permanent make-up — <https://echa.europa.eu/hot-topics/tattoo-inks>
+- **EUR-Lex** — Commission Regulation (EU) 2020/2081 — REACH Annex XVII entry 75 (substances in tattoo inks) — <https://eur-lex.europa.eu/eli/reg/2020/2081/oj/eng>
+- **American Academy of Dermatology** — Caring for tattooed skin — <https://www.aad.org/public/everyday-care/skin-care-basics/tattoos/caring-for-tattooed-skin>
+- **American Academy of Dermatology** — Tattoos: 7 unexpected skin reactions and what to do about them — <https://www.aad.org/public/everyday-care/skin-care-basics/tattoos/tattoo-skin-reactions>
+- **American Academy of Dermatology** — Tattoo removal: Lasers outshine other methods — <https://www.aad.org/public/cosmetic/hair-removal/laser-tattoo-removal>
+- **American Academy of Dermatology** — Do tattoos cause skin cancer? — <https://www.aad.org/public/diseases/skin-cancer/do-tattoos-cause-skin-cancer>
+- **Mayo Clinic** — Tattoos: Understand risks and precautions — <https://www.mayoclinic.org/healthy-lifestyle/adult-health/in-depth/tattoos-and-piercings/art-20045067>
+- **StatPearls / NCBI Bookshelf** — Anatomy, Skin (Integument), Epidermis — <https://www.ncbi.nlm.nih.gov/books/NBK470464/>
+- **StatPearls / NCBI Bookshelf** — Anatomy, Skin (Integument) — <https://www.ncbi.nlm.nih.gov/books/NBK441980/>
+- **StatPearls / NCBI Bookshelf** — Physiology, Wound Healing — <https://www.ncbi.nlm.nih.gov/books/NBK535406/>
+- **StatPearls / NCBI Bookshelf** — Vasovagal Episode — <https://www.ncbi.nlm.nih.gov/books/NBK470277/>
+- **Karger — Curr Probl Dermatol 2015;48:76-87 (Tattooed Skin and Health)** — Kluger N. Contraindications for tattooing — <https://pubmed.ncbi.nlm.nih.gov/25833628/>
+- **WIPO** — Understanding Copyright and Related Rights — <https://www.wipo.int/publications/en/details.jsp?id=4081>
+- **Melbourne Tattoo Supplies** — Tattoo Needle Configuration Guide: Gauges, Tapers and Types Explained — <https://melbournetattoosupplies.com/pages/tattoo-needle-configuration-guide-gauges-tapers-and-types-explained>
+- **Lineage Needle Co** — Tattoo Needle Size Chart & Configuration Guide — <https://lineageneedles.com/pages/tattoo-needle-size-guide>
+- **Wikipedia** — Sailor Jerry (Norman Collins) — از پایه‌گذاران سبک سنتی آمریکایی — <https://en.wikipedia.org/wiki/Sailor_Jerry>
+- **Wikipedia** — Don Ed Hardy — اثرگذار بر شکل‌گیری سبک‌های مدرن و پیوند سنت ژاپنی و آمریکایی — <https://en.wikipedia.org/wiki/Don_Ed_Hardy>
+- **Wikipedia** — Horiyoshi III — استاد تاتوی سنتی ژاپنی تمام‌بدن (هوریمونو) — <https://en.wikipedia.org/wiki/Horiyoshi_III>
+- **Wikipedia** — Leo Zulueta — شناخته‌شده به «پدر تریبال مدرن» — <https://en.wikipedia.org/wiki/Leo_Zulueta>
+- **Wikipedia** — Jack Rudy — از پایه‌گذاران سیاه و خاکستری و خط تک‌سوزن — <https://en.wikipedia.org/wiki/Jack_Rudy>
+- **Wikipedia** — Mister Cartoon (Mark Machado) — تاتو و گرافیتی لس‌آنجلس — <https://en.wikipedia.org/wiki/Mister_Cartoon>
+- **Wikipedia** — Dr. Woo (Brian Woo) — فاین‌لاین تک‌سوزن و میکرورئالیسم — <https://en.wikipedia.org/wiki/Dr._Woo>
+- **Wikipedia** — Paul Booth — سیاه و خاکستری با فضای سوررئال تاریک — <https://en.wikipedia.org/wiki/Paul_Booth_(tattoo_artist)>
+- **Wikipedia** — H. R. Giger — نقاش؛ الهام‌بخش زیبایی‌شناسی بایومکانیکال — <https://en.wikipedia.org/wiki/H._R._Giger>
+- **Wikipedia** — Irezumi — تاتوی سنتی ژاپنی — <https://en.wikipedia.org/wiki/Irezumi>
+- **Wikipedia** — Yantra tattooing (ساک یانت) — <https://en.wikipedia.org/wiki/Yantra_tattooing>
+- **استودیو پیمان زیبائی‌فر** — روش و قانون کارگاهی همین استودیو (تجربهٔ استاد؛ منبع بیرونی ندارد)
+- **KQED** — Hori Smoku Sailor Jerry — <https://www.kqed.org/arts/31163/hori_smoku_sailor_jerry>
+- **Tattoo Society Magazine** — Horiyoshi III — <https://tattoosocietymagazine.com/web/horiyoshi-iii/>
+- **NPR Code Switch (2018)** — Black And Gray … And Brown: A Tattoo Style's Chicano Roots — <https://www.npr.org/sections/codeswitch/2018/04/15/602169159/black-and-gray-and-brown-a-tattoo-styles-chicano-roots>
+- **Good Time Charlie (official site)** — About — <https://www.goodtimecharlie.net/pages/about>
+- **Los Angeles Times (2002)** — More than skin deep (Mister Cartoon) — <https://www.latimes.com/archives/la-xpm-2002-oct-17-wk-alt17-story.html>
+- **Dr. Woo (official site)** — Bio — <https://drwoo.com/bio>
+- **Tattoo Life (2018)** — Mark Mahoney: from the Pike to Beverly Hills — <https://www.tattoolife.com/mark-mahoney-from-the-pike-to-beverly-hills/>
+- **LA Weekly (2017)** — Meet the local tattoo artist making headlines (Nikko Hurtado) — <https://www.laweekly.com/meet-the-local-tattoo-artist-making-headlines-for-dwayne-johnsons-new-ink/>
+- **Ann Arbor Observer (2009)** — Leo Zulueta and Jared Leathers — <https://annarborobserver.com/leo-zulueta-and-jared-leathers/>
+- **The Creative Independent (2019)** — Artist Thomas Hooper on juggling creative outlets — <https://thecreativeindependent.com/people/artist-thomas-hooper-on-juggling-creative-outlets/>
+- **The Guardian / Observer (2022)** — Meet the world's best tattoo artists — <https://www.theguardian.com/fashion/2022/nov/06/my-parents-werent-impressed-at-first-but-now-i-do-my-mum-meet-the-worlds-best-tattoo-artists>
+- **MCA Denver** — Amanda Wachob: Tattoo This — <https://mcadenver.org/exhibitions/amanda-wachob>
+- **Art on Skin Magazine** — Style Feature: Trash Polka — <https://www.aosmag.com/style-feature-trash-polka/>
+- **Complex (2011)** — The Complex Guide To Tattoo Lettering — <https://www.complex.com/style/a/nick-schonberger/the-complex-guide-to-tattoo-lettering>

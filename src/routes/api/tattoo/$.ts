@@ -14,6 +14,15 @@ import {
 } from "@/lib/tattoo-learn/store.server";
 import { auth, authConfigured } from "@/lib/auth/server";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
+import { createHash } from "node:crypto";
+import {
+  LESSONS,
+  PUBLISHED_CHAPTERS,
+  isPublished,
+  lessonView,
+  replacedOldLessonIds,
+  tableOfContents,
+} from "@/lib/tattoo-curriculum/index.ts";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -54,6 +63,42 @@ async function imageResponse(imageId: string) {
   });
 }
 
+/** v2 curriculum: content ships with the code; the DB is not touched. */
+function curriculumLesson(id: string) {
+  const view = lessonView(id);
+  if (!view) return null;
+  return {
+    ...view,
+    images: view.images.map((image) => ({ ...image, path: `/api/tattoo/curriculum-image/${image.id}` })),
+  };
+}
+
+async function curriculumImage(slotId: string) {
+  const lesson = LESSONS.find((item) => item.images.some((image) => image.id === slotId));
+  if (!lesson || !isPublished(lesson)) return json({ error: "تصویر پیدا نشد." }, 404);
+  const { CURRICULUM_IMAGES } = await import("@/lib/tattoo-curriculum/images.generated.ts");
+  const data = CURRICULUM_IMAGES[slotId];
+  if (!data) return json({ error: "تصویر پیدا نشد." }, 404);
+  return new Response(Buffer.from(data, "base64"), {
+    headers: { "Content-Type": "image/webp", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" },
+  });
+}
+
+/** Public, content-free release check: which lessons are live and a hash of each one's text. */
+function curriculumStatus() {
+  return {
+    version: "curriculum-v2",
+    publishedChapters: PUBLISHED_CHAPTERS,
+    lessons: LESSONS.map((lesson) => ({
+      id: lesson.id,
+      chapter: lesson.chapter,
+      published: isPublished(lesson),
+      images: lesson.images.length,
+      hash: createHash("sha256").update(JSON.stringify(lesson)).digest("hex").slice(0, 16),
+    })),
+  };
+}
+
 async function dispatch(request: Request) {
   try {
     const [head, arg] = parts(request);
@@ -61,6 +106,18 @@ async function dispatch(request: Request) {
       const allowed = (await student(request)) || (await ownerCookie(request));
       if (!allowed) return json({ error: "دسترسی تصویر نیست." }, 401);
       return imageResponse(arg);
+    }
+    if (head === "curriculum-status" && request.method === "GET") return json(curriculumStatus());
+    if (head?.startsWith("curriculum") && request.method === "GET") {
+      const allowed = (await student(request)) || (await ownerCookie(request));
+      if (!allowed) return json({ error: "اول کد فعال‌سازی را بزن." }, 401);
+      if (head === "curriculum") return json({ parts: tableOfContents(), archivedOldLessonIds: replacedOldLessonIds() });
+      if (head === "curriculum-lesson" && arg) {
+        const lesson = curriculumLesson(arg);
+        if (!lesson) return json({ error: "این درس هنوز منتشر نشده." }, 404);
+        return json({ lesson });
+      }
+      if (head === "curriculum-image" && arg) return curriculumImage(arg);
     }
     if (head === "activate" && request.method === "POST") {
       if (!allowRate(`tattoo-learn-activate:${clientKey(request)}`, 12, 60 * 60 * 1000)) {
@@ -91,7 +148,15 @@ async function dispatch(request: Request) {
         lessonId: z.string().trim().min(4).max(80).nullable().optional(),
         questionText: z.string().trim().min(2).max(4000),
       }).parse(await request.json());
-      const saved = await askQuestion(access.id, access.device_id, body.lessonId || null, body.questionText);
+      let lessonId = body.lessonId || null;
+      let questionText = body.questionText;
+      if (lessonId?.startsWith("cur-")) {
+        const lesson = LESSONS.find((item) => item.id === lessonId);
+        if (!lesson || !isPublished(lesson)) return json({ error: "این درس پیدا نشد." }, 404);
+        questionText = `[${lesson.id} — ${lesson.title}]\n${questionText}`;
+        lessonId = null;
+      }
+      const saved = await askQuestion(access.id, access.device_id, lessonId, questionText);
       if ("error" in saved) return json({ error: saved.error }, saved.status);
       return json(saved);
     }

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import type { LessonView, TocPart } from "@/lib/tattoo-curriculum/index.ts";
 
 export const Route = createFileRoute("/studio/class")({
   component: ClassRoom,
@@ -23,6 +24,9 @@ function splitLesson(content: string) {
   if (cut < 0) return { study: content, practice: "" };
   return { study: content.slice(0, cut).trim(), practice: content.slice(cut + marker.length).trim() };
 }
+type CurImage = LessonView["images"][number] & { path: string };
+type CurLesson = Omit<LessonView, "images"> & { images: CurImage[] };
+type Curriculum = { parts: TocPart[]; archivedOldLessonIds: string[] };
 type Question = { id: string; lessonId: string | null; questionText: string; answerText: string | null; status: string };
 
 const TOKEN_KEY = "tattoo-class-token";
@@ -146,7 +150,9 @@ function Library({
   onDark: () => void;
   onExpired: () => void;
 }) {
-  const [view, setView] = useState<"home" | "module" | "lesson" | "questions">("home");
+  const [view, setView] = useState<"home" | "module" | "lesson" | "questions" | "cur">("home");
+  const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
+  const [curLesson, setCurLesson] = useState<CurLesson | null>(null);
   const [modules, setModules] = useState<ModuleCard[]>([]);
   const [moduleId, setModuleId] = useState("");
   const [catalog, setCatalog] = useState<Record<string, Catalog>>({});
@@ -169,6 +175,25 @@ function Library({
     } catch (cause) {
       if (cause instanceof Error && cause.message.includes("معتبر نیست")) onExpired();
       throw cause;
+    }
+  }
+
+  useEffect(() => {
+    load("/api/tattoo/curriculum")
+      .then((data) => setCurriculum({ parts: data.parts || [], archivedOldLessonIds: data.archivedOldLessonIds || [] }))
+      .catch(() => setCurriculum(null));
+  }, [token]);
+
+  async function openCurLesson(id: string) {
+    setError("");
+    setView("cur");
+    setPart("study");
+    window.scrollTo(0, 0);
+    try {
+      const data = await load(`/api/tattoo/curriculum-lesson/${id}`);
+      setCurLesson(data.lesson);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "خوانده نشد.");
     }
   }
 
@@ -256,11 +281,22 @@ function Library({
       </nav>
       {error ? <p className="mt-4 text-sm leading-7 text-red-700">{error}</p> : null}
 
+      {view === "home" && curriculum ? (
+        <CurriculumToc curriculum={curriculum} card={card} onOpen={(id) => void openCurLesson(id)} />
+      ) : null}
+
       {view === "home" ? (
         <section className="mt-6 grid gap-3">
+          {curriculum ? <h2 className="mt-4 text-xl font-black">درس‌های قبلی</h2> : null}
+          {curriculum ? <p className="text-sm leading-7 opacity-70">این درس‌ها تا جایگزینی کامل با درس‌نامهٔ نو در دسترس‌اند.</p> : null}
           {!modules.length ? <p className="leading-8 opacity-70">هنوز درسی منتشر نشده. به محض انتشار در پنل، همین‌جا می‌آید.</p> : null}
           {modules.map((item, index) => {
-            const box = catalog[item.id] || { groups: [], lessons: [] };
+            const raw = catalog[item.id] || { groups: [], lessons: [] };
+            const gone = new Set(curriculum?.archivedOldLessonIds || []);
+            const box = {
+              groups: raw.groups.map((group) => ({ ...group, lessons: group.lessons.filter((row) => !gone.has(row.id)) })).filter((group) => group.lessons.length > 0),
+              lessons: raw.lessons.filter((row) => !gone.has(row.id)),
+            };
             const loose = box.lessons.filter((lesson) => !box.groups.some((group) => group.lessons.some((row) => row.id === lesson.id)));
             return (
               <article key={item.id} className={`rounded-3xl border p-5 ${card}`}>
@@ -304,7 +340,33 @@ function Library({
               </article>
             );
           })}
+          {curriculum && curriculum.archivedOldLessonIds.length ? (
+            <details className={`rounded-3xl border p-4 ${card}`}>
+              <summary className="cursor-pointer font-black">بایگانی: درس‌های قبلی که جایگزین شده‌اند</summary>
+              <div className="mt-2 grid gap-1">
+                {modules.flatMap((item) => (catalog[item.id]?.lessons || []).filter((row) => curriculum.archivedOldLessonIds.includes(row.id)).map((row) => (
+                  <button key={row.id} type="button" className="rounded-xl px-1 py-2 text-right text-sm opacity-80" onClick={() => { setModuleId(item.id); void openLesson(row.id); }}>
+                    {row.title}
+                  </button>
+                )))}
+              </div>
+            </details>
+          ) : null}
         </section>
+      ) : null}
+
+      {view === "cur" && curLesson ? (
+        <CurriculumLessonBody
+          lesson={curLesson}
+          token={token}
+          card={card}
+          part={part}
+          setPart={setPart}
+          onZoom={setZoom}
+          onQuestions={() => void openQuestions()}
+          onOpen={(id) => void openCurLesson(id)}
+          sequence={(curriculum?.parts || []).flatMap((p) => p.chapters.flatMap((c) => c.lessons.filter((l) => l.published).map((l) => l.id)))}
+        />
       ) : null}
 
       {view === "module" ? (
@@ -454,5 +516,196 @@ function AskBox({ token, lessonId, onDone }: { token: string; lessonId: string; 
         {busy ? "در حال ارسال…" : "فرستادن سؤال"}
       </button>
     </section>
+  );
+}
+
+function CurriculumToc({ curriculum, card, onOpen }: { curriculum: Curriculum; card: string; onOpen: (id: string) => void }) {
+  const live = curriculum.parts.reduce((n, p) => n + p.chapters.reduce((m, c) => m + c.lessons.filter((l) => l.published).length, 0), 0);
+  const total = curriculum.parts.reduce((n, p) => n + p.chapters.reduce((m, c) => m + c.lessons.length, 0), 0);
+  return (
+    <section className="mt-6 grid gap-3" aria-label="درس‌نامهٔ نو">
+      <div>
+        <h2 className="text-xl font-black">درس‌نامهٔ نو: از مبتدی تا پیشرفته</h2>
+        <p className="mt-1 text-sm leading-7 opacity-70">{live.toLocaleString("fa-IR")} درس از {total.toLocaleString("fa-IR")} درس منتشر شده؛ بقیه به ترتیب اضافه می‌شوند.</p>
+      </div>
+      {curriculum.parts.map((part) => (
+        <article key={part.id} className={`rounded-3xl border p-5 ${card}`}>
+          <p className="text-xs font-bold text-[#9a7340]">سطح: {part.level}</p>
+          <h3 className="mt-1 text-lg font-black">{part.title}</h3>
+          <p className="mt-1 text-sm leading-7 opacity-70">{part.description}</p>
+          <div className="mt-3 grid gap-2">
+            {part.chapters.map((chapter) => (
+              <details key={chapter.id} className="rounded-2xl border border-current/10 px-3 py-2" open={chapter.lessons.some((l) => l.published)}>
+                <summary className="flex cursor-pointer items-center justify-between gap-3 py-2 text-base font-black">
+                  <span>{chapter.title}</span>
+                  <span className="text-xs font-bold opacity-60">{chapter.lessons.length.toLocaleString("fa-IR")} درس</span>
+                </summary>
+                <div className="grid gap-1 pb-2">
+                  {chapter.lessons.map((lesson) => (
+                    <button key={lesson.id} type="button" disabled={!lesson.published} className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right disabled:opacity-45" onClick={() => onOpen(lesson.id)}>
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lesson.number.toLocaleString("fa-IR")}</span>
+                      <span className="font-bold">{lesson.title}</span>
+                      {!lesson.published ? <span className="mr-auto shrink-0 text-xs opacity-70">به‌زودی</span> : null}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function CurriculumLessonBody({
+  lesson,
+  token,
+  card,
+  part,
+  setPart,
+  onZoom,
+  onQuestions,
+  onOpen,
+  sequence,
+}: {
+  lesson: CurLesson;
+  token: string;
+  card: string;
+  part: "study" | "practice";
+  setPart: (part: "study" | "practice") => void;
+  onZoom: (src: string) => void;
+  onQuestions: () => void;
+  onOpen: (id: string) => void;
+  sequence: string[];
+}) {
+  const at = sequence.indexOf(lesson.id);
+  const prev = at > 0 ? sequence[at - 1] : null;
+  const next = at >= 0 && at < sequence.length - 1 ? sequence[at + 1] : null;
+  const nav = (stick: boolean) => (
+    <div className={`${stick ? "sticky bottom-3 z-10" : ""} mt-4 grid grid-cols-2 gap-2 rounded-2xl border p-2 ${card}`}>
+      <button type="button" disabled={!prev} className="h-12 rounded-xl border text-sm font-bold disabled:opacity-35" onClick={() => prev && onOpen(prev)}>درس قبل</button>
+      <button type="button" disabled={!next} className="h-12 rounded-xl bg-[#1c3d52] text-sm font-bold text-white disabled:opacity-35" onClick={() => next && onOpen(next)}>درس بعد</button>
+    </div>
+  );
+  const box = "mt-6 rounded-3xl border p-4";
+  return (
+    <article className="mt-6" data-lesson={lesson.id}>
+      {nav(false)}
+      <p className="mt-4 text-xs font-bold text-[#9a7340]">{lesson.partTitle} · {lesson.chapterTitle} · درس {lesson.number.toLocaleString("fa-IR")} · سطح {lesson.level}</p>
+      <h2 className="mt-2 text-3xl font-black leading-tight">{lesson.title}</h2>
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button type="button" className={`h-11 rounded-full text-sm font-bold ${part === "study" ? "bg-[#1c3d52] text-white" : "border"}`} onClick={() => setPart("study")}>متن درس</button>
+        <button type="button" className={`h-11 rounded-full text-sm font-bold ${part === "practice" ? "bg-[#1c3d52] text-white" : "border"}`} onClick={() => setPart("practice")}>تمرین</button>
+      </div>
+      {part === "study" ? (
+        <>
+          <p className="mt-5 text-lg font-bold leading-9">{lesson.summary}</p>
+          <section className={`${box} ${card}`}>
+            <h3 className="font-black">در این درس یاد می‌گیری</h3>
+            <ul className="mt-2 list-disc pr-5 leading-8">{lesson.objectives.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>
+          {lesson.sections.map((section, index) => (
+            <section key={section.heading} className="mt-6">
+              <h3 className="text-xl font-black">{section.heading}</h3>
+              {(section.paragraphs || []).map((text) => <p key={text} className="mt-3 text-lg leading-9">{text}</p>)}
+              {section.bullets?.length ? <ul className="mt-3 list-disc pr-5 text-lg leading-9">{section.bullets.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+              {lesson.images[index] ? <CurFigure image={lesson.images[index]} token={token} onZoom={onZoom} /> : null}
+            </section>
+          ))}
+          {lesson.images.slice(lesson.sections.length).map((image) => <CurFigure key={image.id} image={image} token={token} onZoom={onZoom} />)}
+          {lesson.warnings.length ? (
+            <section className="mt-6 rounded-3xl border border-red-700/40 bg-red-700/5 p-4">
+              <h3 className="font-black text-red-800">هشدار</h3>
+              <ul className="mt-2 list-disc pr-5 leading-8">{lesson.warnings.map((item) => <li key={item}>{item}</li>)}</ul>
+            </section>
+          ) : null}
+          <section className={`${box} border-[#9a7340]/40`}>
+            <h3 className="font-black">نکته‌های کلیدی</h3>
+            <ul className="mt-2 list-disc pr-5 leading-8">{lesson.keyPoints.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>
+          {lesson.glossary.length ? (
+            <section className={`${box} ${card}`}>
+              <h3 className="font-black">واژه‌نامه</h3>
+              <dl className="mt-2 grid gap-2">
+                {lesson.glossary.map((term) => (
+                  <div key={term.id}>
+                    <dt className="font-bold">{term.fa} <span className="text-xs opacity-60" dir="ltr">({term.en})</span></dt>
+                    <dd className="text-sm leading-7 opacity-80">{term.definition}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ) : null}
+          {lesson.related.length ? (
+            <section className="mt-6">
+              <h3 className="font-black">درس‌های مرتبط</h3>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {lesson.related.map((item) => (
+                  <button key={item.id} type="button" disabled={!item.published} className="rounded-full border px-3 py-1 text-sm disabled:opacity-45" onClick={() => onOpen(item.id)}>
+                    {item.number.toLocaleString("fa-IR")}. {item.title}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          <section className="mt-6">
+            <h3 className="font-black">منابع</h3>
+            <ol className="mt-2 list-decimal pr-5 text-sm leading-7 opacity-80">
+              {lesson.sources.map((source) => (
+                <li key={source.id}>
+                  {source.url ? <a href={source.url} target="_blank" rel="noreferrer" className="underline" dir="ltr">{source.title}</a> : <span>{source.title}</span>}
+                  <span> — {source.publisher}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </>
+      ) : (
+        <section className={`${box} ${card}`}>
+          <h3 className="text-xl font-black">{lesson.practice.goal}</h3>
+          <p className="mt-2 text-sm opacity-70">ابزار: {lesson.practice.material}</p>
+          <ol className="mt-3 list-decimal pr-5 text-lg leading-9">{lesson.practice.steps.map((item) => <li key={item}>{item}</li>)}</ol>
+          <h4 className="mt-4 font-black">معیار قبولی</h4>
+          <ul className="mt-2 list-disc pr-5 leading-8">{lesson.practice.passCriteria.map((item) => <li key={item}>{item}</li>)}</ul>
+          <p className="mt-4 rounded-2xl bg-[#9a7340]/10 p-3 text-sm leading-7">کارآموز روی پوست مشتری تاتو نمی‌زند؛ همهٔ تمرین‌ها روی کاغذ، پوست مصنوعی یا میوه انجام می‌شود.</p>
+        </section>
+      )}
+      <AskBox token={token} lessonId={lesson.id} onDone={onQuestions} />
+      {nav(true)}
+    </article>
+  );
+}
+
+function CurFigure({ image, token, onZoom }: { image: CurImage; token: string; onZoom: (src: string) => void }) {
+  const [src, setSrc] = useState("");
+  useEffect(() => {
+    let url = "";
+    let gone = false;
+    fetch(image.path, { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => (response.ok ? response.blob() : null))
+      .then((blob) => {
+        if (!blob || gone) return;
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      })
+      .catch(() => setSrc(""));
+    return () => {
+      gone = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [image.path, token]);
+  return (
+    <figure className="mt-5">
+      {src ? (
+        <button type="button" className="block w-full" onClick={() => onZoom(src)}>
+          <img src={src} alt={image.alt} className="w-full rounded-3xl border border-black/5 bg-white object-contain" />
+        </button>
+      ) : (
+        <div className="grid aspect-[4/3] place-items-center rounded-3xl border border-dashed text-sm opacity-60">در حال بارگذاری تصویر…</div>
+      )}
+      <figcaption className="mt-2 text-sm leading-7 opacity-75">{image.caption}</figcaption>
+      <p className="text-xs leading-6 opacity-50">{image.credit}</p>
+    </figure>
   );
 }
