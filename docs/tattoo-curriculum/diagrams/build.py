@@ -14,21 +14,22 @@ CSS = """
 body{width:720px;font-family:Vazirmatn,sans-serif;direction:rtl;background:#fff;color:#1c3d52}
 .wrap{padding:32px 30px 28px}
 .hd{display:flex;align-items:center;gap:16px}
-.badge{flex:none;width:58px;height:58px;border-radius:29px;background:#e84393;color:#fff;font-weight:900;font-size:28px;display:grid;place-items:center}
-h1{font-size:36px;font-weight:900;line-height:1.3}
-.sub{font-size:24px;color:#6b7785;margin-top:6px;line-height:1.5}
+.badge{flex:none;width:64px;height:64px;border-radius:32px;background:#e84393;color:#fff;font-weight:900;font-size:32px;display:grid;place-items:center}
+h1{font-size:42px;font-weight:900;line-height:1.3}
+.sub{font-size:29px;color:#6b7785;margin-top:6px;line-height:1.5}
 .grid{display:grid;gap:14px;margin-top:22px}
 .card{border-radius:22px;padding:16px 20px;border:3px solid #e6e1d8;background:#fff}
-.card h3{font-size:28px;font-weight:900;line-height:1.35}
-.card p,.card li{font-size:24px;line-height:1.6}
+.card h3{font-size:33px;font-weight:900;line-height:1.35}
+.card p,.card li{font-size:29px;line-height:1.6}
 .card ul{padding-right:26px;margin-top:6px}
-.tag{display:inline-block;border-radius:999px;padding:2px 16px;font-size:24px;font-weight:800;color:#fff}
+.tag{display:inline-block;border-radius:999px;padding:2px 16px;font-size:29px;font-weight:800;color:#fff}
 .step{display:flex;gap:14px;align-items:flex-start}
-.num{flex:none;width:48px;height:48px;border-radius:24px;color:#fff;font-weight:900;font-size:26px;display:grid;place-items:center}
+.num{flex:none;width:54px;height:54px;border-radius:27px;color:#fff;font-weight:900;font-size:30px;display:grid;place-items:center}
 .arrow{text-align:center;font-size:30px;color:#9a7340;line-height:1}
-.foot{margin-top:18px;font-size:24px;color:#6b7785;line-height:1.5}
+.foot{margin-top:18px;font-size:28px;color:#6b7785;line-height:1.5}
 .two{grid-template-columns:1fr 1fr}
 .three{grid-template-columns:1fr 1fr 1fr}
+.two .card li{font-size:28px}
 svg{direction:ltr}
 svg text{font-family:Vazirmatn,sans-serif}
 """
@@ -58,9 +59,10 @@ def cards(items, cols=1):
     return f'<div class="grid{cls}">' + "".join(out) + "</div>"
 
 def svg(w, h, inner):
-    return f'<div style="margin-top:20px"><svg viewBox="0 0 {w} {h}" width="660" xmlns="http://www.w3.org/2000/svg">{inner}</svg></div>'
+    return f'<div style="margin-top:20px"><svg viewBox="0 0 {w} {h}" width="660" overflow="visible" xmlns="http://www.w3.org/2000/svg">{inner}</svg></div>'
 
 def T(x, y, s, size=26, fill=C["ink"], weight=700, anchor="middle"):
+    size = max(27, round(size * 1.15))
     a = {"middle": "middle", "end": "start", "start": "end"}[anchor]  # RTL text: "start" is the right edge
     return f'<text x="{x}" y="{y}" font-size="{size}" fill="{fill}" font-weight="{weight}" text-anchor="{a}" direction="rtl">{e(s)}</text>'
 
@@ -229,7 +231,7 @@ def _scale():
     s.append('<ellipse cx="300" cy="440" rx="180" ry="30" fill="#00000055"/>')
     s.append('<circle cx="330" cy="320" r="120" fill="url(#g)"/>')
     s.append(f'<circle cx="600" cy="190" r="26" fill="{C["yellow"]}"/>' + T(600, 250, "نور", 24, C["gold"], 800))
-    s.append(T(420, 245, "روشن", 24, C["ink"], 800) + T(200, 330, "سایهٔ خود", 24, C["ink"], 800) + T(130, 470, "سایهٔ افتاده", 24, C["ink"], 800))
+    s.append(T(420, 245, "روشن", 24, C["ink"], 800) + T(120, 300, "سایهٔ خود", 24, C["ink"], 800) + T(130, 470, "سایهٔ افتاده", 24, C["ink"], 800))
     return svg(660, 500, "".join(s))
 D["d17-value-scale"] = lambda: page(15, "پنج ارزش رنگی", "نوار ارزش از سفید تا مشکی و کرهٔ سایه‌دار", _scale())
 
@@ -310,17 +312,17 @@ D["d24-stretch-angle"] = lambda: page(23, "کشش پوست و زاویهٔ سو�
 
 def _blow():
     s = []
-    for x0, lab, bad in [(340, "خط سالم", False), (10, "بلوآوت", True)]:
-        s.append(f'<rect x="{x0}" y="10" width="310" height="110" rx="18" fill="{C["skin1"]}"/>')
-        if bad: s.append(f'<path d="M{x0+40} 65 H{x0+270}" stroke="#4a6fa5" stroke-opacity=".45" stroke-width="40" stroke-linecap="round"/>')
-        s.append(f'<path d="M{x0+40} 65 H{x0+270}" stroke="#1b1b1b" stroke-width="10" stroke-linecap="round"/>')
-        s.append(f'<rect x="{x0}" y="150" width="310" height="70" fill="{C["skin1"]}"/><rect x="{x0}" y="220" width="310" height="150" fill="{C["skin2"]}"/><rect x="{x0}" y="370" width="310" height="120" fill="{C["fat"]}"/>')
+    for x0, lab, bad in [(275, "خط سالم", False), (10, "بلوآوت", True)]:
+        s.append(f'<rect x="{x0}" y="10" width="250" height="110" rx="18" fill="{C["skin1"]}"/>')
+        if bad: s.append(f'<path d="M{x0+40} 65 H{x0+210}" stroke="#4a6fa5" stroke-opacity=".45" stroke-width="40" stroke-linecap="round"/>')
+        s.append(f'<path d="M{x0+40} 65 H{x0+210}" stroke="#1b1b1b" stroke-width="10" stroke-linecap="round"/>')
+        s.append(f'<rect x="{x0}" y="150" width="250" height="70" fill="{C["skin1"]}"/><rect x="{x0}" y="220" width="250" height="150" fill="{C["skin2"]}"/><rect x="{x0}" y="370" width="250" height="120" fill="{C["fat"]}"/>')
         if bad:
-            s.append("".join(f'<circle cx="{x0+155+dx}" cy="{400+dy}" r="7" fill="#1b2a44"/>' for dx, dy in [(-60, 10), (-30, 40), (0, 20), (30, 55), (60, 15), (-10, 70), (45, 80), (-50, 75)]))
-            s.append(f'<ellipse cx="{x0+155}" cy="425" rx="100" ry="55" fill="#4a6fa5" fill-opacity=".3"/>')
+            s.append("".join(f'<circle cx="{x0+125+dx}" cy="{400+dy}" r="7" fill="#1b2a44"/>' for dx, dy in [(-60, 10), (-30, 40), (0, 20), (30, 55), (60, 15), (-10, 70), (45, 80), (-50, 75)]))
+            s.append(f'<ellipse cx="{x0+125}" cy="425" rx="90" ry="55" fill="#4a6fa5" fill-opacity=".3"/>')
         else:
-            s.append("".join(f'<circle cx="{x0+155+dx}" cy="{280+dy}" r="7" fill="#1b2a44"/>' for dx, dy in [(-15, 0), (10, 15), (0, -20), (20, -5), (-20, 20)]))
-        s.append(T(x0 + 155, 530, lab, 28, C["red"] if bad else C["green"], 900))
+            s.append("".join(f'<circle cx="{x0+125+dx}" cy="{280+dy}" r="7" fill="#1b2a44"/>' for dx, dy in [(-15, 0), (10, 15), (0, -20), (20, -5), (-20, 20)]))
+        s.append(T(x0 + 125, 530, lab, 28, C["red"] if bad else C["green"], 900))
     s.append(T(650, 190, "روپوست", 24, C["ink"], 700, "end") + T(650, 300, "میان‌پوست", 24, C["ink"], 700, "end") + T(650, 440, "چربی", 24, C["ink"], 700, "end"))
     return svg(660, 550, "".join(s))
 D["d25-blowout"] = lambda: page(24, "خط سالم و بلوآوت", "بالا: نمای سطح · پایین: مقطع پوست", _blow(),
@@ -328,9 +330,9 @@ D["d25-blowout"] = lambda: page(24, "خط سالم و بلوآوت", "بالا: 
 
 def _lines():
     s = []
-    rows = [("پیوسته و یک‌عبوره", C["green"], '<path d="M30 0 H400" stroke="#1b1b1b" stroke-width="9" stroke-linecap="round"/>'),
-            ("لرزان", C["red"], '<path d="M30 0 q20 -10 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="#1b1b1b" stroke-width="9" fill="none"/>'),
-            ("دوخطی (عبور دوباره)", C["red"], '<path d="M30 -5 H400" stroke="#1b1b1b" stroke-width="8"/><path d="M30 6 H400" stroke="#1b1b1b" stroke-width="8"/>')]
+    rows = [("پیوسته و یک‌عبوره", C["green"], '<path d="M30 0 H330" stroke="#1b1b1b" stroke-width="9" stroke-linecap="round"/>'),
+            ("لرزان", C["red"], '<path d="M30 0 q20 -10 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0" stroke="#1b1b1b" stroke-width="9" fill="none"/>'),
+            ("دوخطی (عبور دوباره)", C["red"], '<path d="M30 -5 H330" stroke="#1b1b1b" stroke-width="8"/><path d="M30 6 H330" stroke="#1b1b1b" stroke-width="8"/>')]
     for i, (lab, col, p) in enumerate(rows):
         y = 60 + i * 110
         s.append(f'<g transform="translate(0,{y})">{p}</g>' + T(640, y + 10, lab, 26, col, 900, "end"))
@@ -477,6 +479,18 @@ def _aging():
     return svg(660, 320, "".join(s))
 D["d40-aging"] = lambda: page(39, "تاتو در گذر سال‌ها", "نمایش نمادین و تقریبی", _aging(),
     "خط‌ها کمی پهن‌تر و ارزش‌ها نزدیک‌تر می‌شوند؛ آفتاب مهم‌ترین عامل محو شدن است.")
+
+def _layers():
+    s = [f'<rect x="10" y="40" width="640" height="90" fill="{C["skin1"]}"/><rect x="10" y="130" width="640" height="200" fill="{C["skin2"]}"/><rect x="10" y="330" width="640" height="150" fill="{C["fat"]}"/>']
+    s.append(T(640, 95, "روپوست", 26, C["ink"], 900, "end") + T(640, 240, "میان‌پوست", 26, C["ink"], 900, "end") + T(640, 410, "زیرپوست (چربی)", 26, C["ink"], 900, "end"))
+    for x, depth, lab, col, res in [(440, 95, "سطحی", C["yellow"], "با پوسته می‌ریزد"), (280, 230, "درست", C["green"], "ماندگار"), (120, 400, "عمیق", C["red"], "پخش و بلوآوت")]:
+        s.append(f'<rect x="{x-60}" y="0" width="120" height="34" rx="17" fill="{col}"/>' + T(x, 26, lab, 24, "#fff", 900))
+        s.append(f'<path d="M{x} 34 V{depth}" stroke="#555" stroke-width="10"/>')
+        s.append("".join(f'<circle cx="{x+dx}" cy="{depth+dy}" r="7" fill="#1b2a44"/>' for dx, dy in [(-18, 5), (14, 10), (0, 22), (-10, -8), (20, -6)]))
+        s.append(T(x, 530, res, 24, col, 900))
+    return svg(660, 550, "".join(s))
+D["d02-skin-layers"] = lambda: page(3, "سه عمق سوزن در پوست", "رنگ فقط در میان‌پوست ماندگار است", _layers(),
+    "شماتیک؛ ضخامت لایه‌ها به مقیاس نیست و در هر جای بدن فرق دارد.")
 
 # Fallbacks for diagrams the images agent already delivered (used only if theirs is missing).
 D["d01-path"] = lambda: page(1, "مسیر کارآموزی", "هر پله پیش‌شرط پلهٔ بعد است",

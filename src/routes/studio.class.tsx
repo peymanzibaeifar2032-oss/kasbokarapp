@@ -545,7 +545,7 @@ function CurriculumToc({ curriculum, card, onOpen }: { curriculum: Curriculum; c
                     <button key={lesson.id} type="button" disabled={!lesson.published} className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right disabled:opacity-45" onClick={() => onOpen(lesson.id)}>
                       <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lesson.number.toLocaleString("fa-IR")}</span>
                       <span className="font-bold">{lesson.title}</span>
-                      {!lesson.published ? <span className="mr-auto shrink-0 text-xs opacity-70">به‌زودی</span> : null}
+                      {!lesson.published ? <span className="mr-auto shrink-0 text-xs opacity-70">{lesson.held ? "در دست بازبینی" : "به‌زودی"}</span> : null}
                     </button>
                   ))}
                 </div>
@@ -649,6 +649,7 @@ function CurriculumLessonBody({
               </div>
             </section>
           ) : null}
+          {lesson.reading ? <ReadingBox reading={lesson.reading} token={token} card={card} /> : null}
           <section className="mt-6">
             <h3 className="font-black">منابع</h3>
             <ol className="mt-2 list-decimal pr-5 text-sm leading-7 opacity-80">
@@ -708,4 +709,106 @@ function CurFigure({ image, token, onZoom }: { image: CurImage; token: string; o
       <p className="text-xs leading-6 opacity-50">{image.credit}</p>
     </figure>
   );
+}
+
+function ReadingBox({ reading, token, card }: { reading: { id: string; title: string }; token: string; card: string }) {
+  const [text, setText] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  async function open() {
+    if (text) return;
+    setState("loading");
+    try {
+      const response = await fetch(`/api/tattoo/curriculum-reading/${reading.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await readJson(response);
+      setText(data.markdown || "");
+      setState("idle");
+    } catch {
+      setState("error");
+    }
+  }
+  return (
+    <details className={`mt-6 rounded-3xl border p-4 ${card}`} onToggle={(event) => (event.currentTarget as HTMLDetailsElement).open && void open()}>
+      <summary className="cursor-pointer font-black">مطالعهٔ تکمیلی: {reading.title}</summary>
+      <p className="mt-2 text-xs leading-6 opacity-60">متن کامل‌تر فصل، ویراسته و با منبع. روش و قوانین استودیو همان است که در متن درس آمده.</p>
+      {state === "loading" ? <p className="mt-3 text-sm opacity-70">در حال بارگذاری…</p> : null}
+      {state === "error" ? <p className="mt-3 text-sm text-red-700">خوانده نشد.</p> : null}
+      {text ? <Markdown text={text} /> : null}
+    </details>
+  );
+}
+
+/** Small, safe Markdown renderer for the edited chapters: headings, paragraphs, lists, tables, quotes, bold, links. */
+function Markdown({ text }: { text: string }) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const out: ReactNode[] = [];
+  let i = 0;
+  const inline = (value: string, key: string): ReactNode[] => {
+    const parts: ReactNode[] = [];
+    const re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:[^)\s]+)\)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let n = 0;
+    while ((m = re.exec(value))) {
+      if (m.index > last) parts.push(value.slice(last, m.index));
+      if (m[1]) parts.push(<strong key={`${key}-b${n++}`}>{m[1]}</strong>);
+      else parts.push(<a key={`${key}-a${n++}`} href={m[3]} target="_blank" rel="noreferrer" className="underline">{m[2]}</a>);
+      last = re.lastIndex;
+    }
+    if (last < value.length) parts.push(value.slice(last));
+    return parts;
+  };
+  while (i < lines.length) {
+    const line = lines[i];
+    const key = `l${i}`;
+    if (!line.trim()) { i += 1; continue; }
+    const h = /^(#{1,4})\s+(.*)$/.exec(line);
+    if (h) {
+      const size = h[1].length <= 2 ? "text-xl" : h[1].length === 3 ? "text-lg" : "text-base";
+      out.push(<p key={key} className={`mt-5 font-black ${size}`}>{inline(h[2], key)}</p>);
+      i += 1;
+      continue;
+    }
+    if (line.startsWith("|")) {
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].startsWith("|")) {
+        const cells = lines[i].split("|").slice(1, -1).map((c) => c.trim());
+        if (!cells.every((c) => /^:?-{2,}:?$/.test(c))) rows.push(cells);
+        i += 1;
+      }
+      out.push(
+        <div key={key} className="mt-3 overflow-x-auto">
+          <table className="w-full border-collapse text-sm leading-7">
+            <tbody>
+              {rows.map((row, r) => (
+                <tr key={r} className="border-b border-current/10 align-top">
+                  {row.map((cell, c) => (r === 0 ? <th key={c} className="p-2 text-right font-black">{inline(cell, `${key}-${r}-${c}`)}</th> : <td key={c} className="p-2">{inline(cell, `${key}-${r}-${c}`)}</td>))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
+    if (/^\s*([-*]|\d+[.)]|[۰-۹]+[.)])\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*([-*]|\d+[.)]|[۰-۹]+[.)])\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*([-*]|\d+[.)]|[۰-۹]+[.)])\s+/, ""));
+        i += 1;
+      }
+      out.push(<ul key={key} className="mt-3 list-disc pr-5 leading-8">{items.map((item, n) => <li key={n}>{inline(item, `${key}-${n}`)}</li>)}</ul>);
+      continue;
+    }
+    if (line.startsWith(">")) {
+      const quote: string[] = [];
+      while (i < lines.length && lines[i].startsWith(">")) { quote.push(lines[i].replace(/^>\s?/, "")); i += 1; }
+      out.push(<blockquote key={key} className="mt-3 rounded-2xl bg-[#9a7340]/10 p-3 text-sm leading-7">{inline(quote.join(" "), key)}</blockquote>);
+      continue;
+    }
+    if (/^-{3,}$/.test(line.trim())) { out.push(<hr key={key} className="mt-4 opacity-20" />); i += 1; continue; }
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() && !/^(#|\||>|\s*([-*]|\d+[.)]|[۰-۹]+[.)])\s)/.test(lines[i])) { para.push(lines[i]); i += 1; }
+    out.push(<p key={key} className="mt-3 leading-8">{inline(para.join(" "), key)}</p>);
+  }
+  return <div className="mt-2">{out}</div>;
 }
