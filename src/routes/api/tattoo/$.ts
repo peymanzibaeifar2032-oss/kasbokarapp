@@ -21,6 +21,8 @@ import {
   isPublished,
   lessonView,
   readingIsLive,
+  GLOSSARY_READING,
+  READINGS,
   replacedOldLessonIds,
   tableOfContents,
 } from "@/lib/tattoo-curriculum/index.ts";
@@ -112,7 +114,7 @@ async function dispatch(request: Request) {
     if (head?.startsWith("curriculum") && request.method === "GET") {
       const allowed = (await student(request)) || (await ownerCookie(request));
       if (!allowed) return json({ error: "اول کد فعال‌سازی را بزن." }, 401);
-      if (head === "curriculum") return json({ parts: tableOfContents(), archivedOldLessonIds: replacedOldLessonIds() });
+      if (head === "curriculum") return json({ parts: tableOfContents(), archivedOldLessonIds: replacedOldLessonIds(), glossaryReading: { id: GLOSSARY_READING, title: READINGS[GLOSSARY_READING] } });
       if (head === "curriculum-lesson" && arg) {
         const lesson = curriculumLesson(arg);
         if (!lesson) return json({ error: "این درس هنوز منتشر نشده." }, 404);

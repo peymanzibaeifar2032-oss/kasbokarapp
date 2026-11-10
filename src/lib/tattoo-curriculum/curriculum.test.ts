@@ -46,7 +46,7 @@ describe("tattoo curriculum v2", () => {
   it("every mapped reading exists and is editor-approved text", async () => {
     const { READING_FOR_LESSON, READINGS } = await import("./index.ts");
     const { READING_TEXT } = await import("./readings.generated.ts");
-    for (const name of Object.values(READING_FOR_LESSON)) {
+    for (const name of Object.values(READING_FOR_LESSON).flat()) {
       assert.ok(READINGS[name], name);
       assert.ok(READING_TEXT[name]?.length > 1000, `${name} text`);
       assert.ok(!READING_TEXT[name].includes("نیاز به تأیید"), `${name} has unverified marker`);
