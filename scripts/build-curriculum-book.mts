@@ -40,7 +40,7 @@ for (const ch of CHAPTERS) {
       const img = l.images[i];
       if (img) md.push(`![${img.alt}](../tattoo-curriculum/images/${img.id}.webp)`, "", `*${img.caption}*${img.kind === "photo-needed" ? " — جای عکس واقعی استودیو" : ""}`, "");
     });
-    for (const img of l.images.slice(l.sections.length)) md.push(`![${img.alt}](../tattoo-curriculum/images/${img.id}.webp)`, "", `*${img.caption}*`, "");
+    for (const img of l.images.slice(l.sections.length)) md.push(`![${img.alt}](../tattoo-curriculum/images/${img.id}.webp)`, "", `*${img.caption}*${img.kind === "photo" ? ` — ${img.credit}` : ""}`, "");
     if (l.warnings.length) md.push("> **هشدار**", ">", ...l.warnings.map((w) => `> - ${w}`), "");
     md.push("**نکته‌های کلیدی:**", "", ...l.keyPoints.map((k) => `- ${k}`), "");
     md.push("### تمرین", "", `**هدف:** ${l.practice.goal}`, "", `**ابزار:** ${l.practice.material}`, "", ...l.practice.steps.map((s, i) => `${fa(i + 1)}. ${s}`), "",
@@ -54,5 +54,5 @@ for (const ch of CHAPTERS) {
 writeFileSync(`${out}/glossary.md`, ["# واژه‌نامه", "", "| واژه | انگلیسی | تعریف |", "|---|---|---|", ...GLOSSARY.map((g) => `| ${g.fa} | ${g.en} | ${g.definition} |`), ""].join("\n"));
 writeFileSync(`${out}/sources.md`, ["# منابع", "", ...SOURCES.map((s) => `- **${s.publisher}** — ${s.title}${s.url ? ` — <${s.url}>` : ""}`), ""].join("\n"));
 writeFileSync(`${out}/image-credits.md`, ["# اعتبار تصویرها", "", "| اسلات | درس | نوع | اعتبار | مجوز |", "|---|---|---|---|---|",
-  ...LESSONS.flatMap((l) => l.images.map((i) => `| ${i.id} | ${l.id} | ${i.kind === "svg" ? "نمودار" : "جای عکس استودیو"} | ${i.credit} | ${i.license} |`)), ""].join("\n"));
+  ...LESSONS.flatMap((l) => l.images.map((i) => `| ${i.id} | ${l.id} | ${i.kind === "svg" ? "نمودار" : i.kind === "photo" ? "عکس" : "جای عکس استودیو"} | ${i.credit}${i.sourceUrl ? ` ([منبع](${i.sourceUrl}))` : ""} | ${i.license} |`)), ""].join("\n"));
 console.log("book written:", CHAPTERS.length, "chapters,", LESSONS.length, "lessons");

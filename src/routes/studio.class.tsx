@@ -706,7 +706,17 @@ function CurFigure({ image, token, onZoom }: { image: CurImage; token: string; o
         <div className="grid aspect-[4/3] place-items-center rounded-3xl border border-dashed text-sm opacity-60">در حال بارگذاری تصویر…</div>
       )}
       <figcaption className="mt-2 text-sm leading-7 opacity-75">{image.caption}</figcaption>
-      <p className="text-xs leading-6 opacity-50">{image.credit}</p>
+      <p className="text-xs leading-6 opacity-50">
+        {image.credit}
+        {image.sourceUrl ? (
+          <>
+            {" — "}
+            <a href={image.sourceUrl} target="_blank" rel="noreferrer" className="underline">
+              صفحهٔ اصلی عکس
+            </a>
+          </>
+        ) : null}
+      </p>
     </figure>
   );
 }

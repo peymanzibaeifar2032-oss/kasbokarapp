@@ -14,7 +14,7 @@ export type ImageSlot = {
   /** Stable slot id, e.g. "cur-03-a". */
   id: string;
   /** svg: built in docs/tattoo-curriculum/diagrams; photo-needed: the studio must supply its own photo. */
-  kind: "svg" | "photo-needed";
+  kind: "svg" | "photo-needed" | "photo";
   /** Diagram file name (without extension) for kind "svg". */
   diagram?: string;
   /** What the picture must show, precise enough for an illustrator or photographer. */
@@ -23,6 +23,8 @@ export type ImageSlot = {
   caption: string;
   credit: string;
   license: string;
+  /** Original page of a licensed (CC) photo. */
+  sourceUrl?: string;
 };
 
 export type Practice = {
