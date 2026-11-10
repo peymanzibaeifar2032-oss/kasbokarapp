@@ -20,6 +20,7 @@ import {
   PUBLISHED_CHAPTERS,
   isPublished,
   lessonView,
+  readingIsLive,
   replacedOldLessonIds,
   tableOfContents,
 } from "@/lib/tattoo-curriculum/index.ts";
@@ -118,6 +119,11 @@ async function dispatch(request: Request) {
         return json({ lesson });
       }
       if (head === "curriculum-image" && arg) return curriculumImage(arg);
+      if (head === "curriculum-reading" && arg) {
+        const { READING_TEXT } = await import("@/lib/tattoo-curriculum/readings.generated.ts");
+        if (!readingIsLive(arg) || !READING_TEXT[arg]) return json({ error: "این متن هنوز منتشر نشده." }, 404);
+        return json({ id: arg, markdown: READING_TEXT[arg] });
+      }
     }
     if (head === "activate" && request.method === "POST") {
       if (!allowRate(`tattoo-learn-activate:${clientKey(request)}`, 12, 60 * 60 * 1000)) {

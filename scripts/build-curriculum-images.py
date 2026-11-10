@@ -13,9 +13,13 @@ slots = json.loads(subprocess.check_output(["node", "--experimental-strip-types"
     "import('./src/lib/tattoo-curriculum/index.ts').then(m=>console.log(JSON.stringify(m.LESSONS.flatMap(l=>l.images.map(i=>({lesson:l.id,...i}))))))"], cwd=ROOT))
 agent = {}
 mf = COLLAB / "_manifest.json"
-if mf.exists():
+status = (COLLAB / "STATUS.md").read_text() if (COLLAB / "STATUS.md").exists() else ""
+released_all = bool(re.search(r"^RELEASED\b", status, re.M))
+v2 = set(re.findall(r"^DONE-v2 \| (cur-\d\d)\b", status, re.M))
+# The images agent's v1 labels were too small on phones (HOLD); only DONE-v2 / RELEASED packages are used.
+if mf.exists() and (released_all or v2):
     for row in json.loads(mf.read_text()):
-        if row.get("slot") and row.get("web") and (COLLAB / row["web"]).exists():
+        if row.get("slot") and row.get("web") and (COLLAB / row["web"]).exists() and (released_all or row.get("lesson") in v2):
             lic = row.get("license", "")
             if row.get("type") in ("diagram", "placeholder") and ("own work" in lic or "PLACEHOLDER" in lic.upper() or row.get("type") == "placeholder"):
                 agent[row["slot"]] = row

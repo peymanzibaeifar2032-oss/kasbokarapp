@@ -164,7 +164,7 @@ export const PART3: CurriculumLesson[] = [
     },
     glossary: ["stencil"],
     related: ["cur-18", "cur-20", "cur-25"],
-    sources: ["studio", "wipo-copyright"],
+    sources: ["ra-betts", "studio", "wipo-copyright"],
     images: [
       svg("cur-17-a", "d19-lettering", "یک کلمهٔ فارسی در سه اندازه با حلقه‌ای که نشان می‌دهد چشمهٔ حروف در اندازهٔ کوچک پر می‌شود.", "اثر اندازه بر خوانایی نوشتهٔ فارسی پس از گذر زمان", "در اندازهٔ کوچک، فضای داخل حروف با گذر زمان پر می‌شود."),
     ],

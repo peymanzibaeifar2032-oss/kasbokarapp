@@ -35,6 +35,23 @@ describe("tattoo curriculum v2", () => {
     assert.ok(lessonView("cur-01", ["c01"]));
     assert.deepEqual(replacedOldLessonIds(["c01"]), LESSONS.filter((l) => l.chapter === "c01").flatMap((l) => l.replaces));
   });
+  it("held lessons stay off even in a live chapter", async () => {
+    const { HELD_LESSONS, isPublished } = await import("./index.ts");
+    for (const id of Object.keys(HELD_LESSONS)) {
+      const l = LESSONS.find((x) => x.id === id)!;
+      assert.equal(isPublished(l, [l.chapter]), false);
+      assert.equal(lessonView(id, [l.chapter]), null);
+    }
+  });
+  it("every mapped reading exists and is editor-approved text", async () => {
+    const { READING_FOR_LESSON, READINGS } = await import("./index.ts");
+    const { READING_TEXT } = await import("./readings.generated.ts");
+    for (const name of Object.values(READING_FOR_LESSON)) {
+      assert.ok(READINGS[name], name);
+      assert.ok(READING_TEXT[name]?.length > 1000, `${name} text`);
+      assert.ok(!READING_TEXT[name].includes("نیاز به تأیید"), `${name} has unverified marker`);
+    }
+  });
   it("ships an image for every slot", async () => {
     const { CURRICULUM_IMAGES } = await import("./images.generated.ts");
     for (const l of LESSONS) for (const img of l.images) assert.ok(CURRICULUM_IMAGES[img.id]?.length > 1000, `${img.id} image`);

@@ -85,6 +85,23 @@
   - درس ۳۸: قیمت، بیعانه، پروندهٔ مشتری و نگهداری تجهیزات
   - درس ۳۹: مقررات، مسئولیت حرفه‌ای و تاتو در گذر سال‌ها
 
+## مطالعهٔ تکمیلی (فصل‌های ویراسته)
+
+- [اخلاق حرفه‌ای و کارآموزی](readings/01-ethics-apprenticeship.md)
+- [تمرین روی پوست مصنوعی و مسیر پیشرفت](readings/11-practice-skin.md)
+- [آناتومی پوست، ماندگاری رنگ و ترمیم](readings/02-skin-anatomy-healing.md)
+- [کنترل عفونت و عوامل بیماری‌زای خونی](readings/03-infection-control-bbp.md)
+- [استریل، ضدعفونی و ایستگاه کار](readings/04-sterilization-workstation.md)
+- [دستگاه، منبع تغذیه و ولتاژ](readings/05-machines-power-voltage.md)
+- [ترکیب و ایمنی رنگ و مقررات اروپا](readings/07-ink-safety-reach.md)
+- [اصول طراحی و جای طرح روی بدن](readings/09-design-placement.md)
+- [استنسیل](readings/08-stencil.md)
+- [مشاوره، رضایت آگاهانه و موارد احتیاط](readings/12-consultation-consent-contraindications.md)
+- [خط، سایه، رنگ و سیاه و خاکستری](readings/10-lining-shading-color-blackgrey.md)
+- [مراقبت، روند بهبود و عوارض](readings/13-aftercare-complications.md)
+- [سبک‌های تاتو](readings/15-styles.md)
+- [نمونه‌کار، پرونده و کسب‌وکار](readings/16-business-portfolio.md)
+
 - [واژه‌نامه](glossary.md)
 - [منابع](sources.md)
 - [اعتبار تصویرها](image-credits.md)

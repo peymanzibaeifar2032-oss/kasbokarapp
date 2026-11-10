@@ -1,11 +1,13 @@
 // Builds the Markdown book manuscript (docs/apprentice-book/) from the curriculum source. Run:
 // node --experimental-strip-types scripts/build-curriculum-book.mts
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { CHAPTERS, GLOSSARY, LESSONS, PARTS, SOURCES, lessonNumber } from "../src/lib/tattoo-curriculum/index.ts";
+import { CHAPTERS, GLOSSARY, LESSONS, PARTS, READINGS, SOURCES, lessonNumber } from "../src/lib/tattoo-curriculum/index.ts";
+import { READING_TEXT } from "../src/lib/tattoo-curriculum/readings.generated.ts";
 
 const out = "docs/apprentice-book";
 rmSync(out, { recursive: true, force: true });
-mkdirSync(out, { recursive: true });
+mkdirSync(`${out}/readings`, { recursive: true });
+for (const [k, v] of Object.entries(READING_TEXT)) writeFileSync(`${out}/readings/${k}.md`, v);
 const fa = (n: number) => n.toLocaleString("fa-IR");
 const src = new Map(SOURCES.map((s) => [s.id, s]));
 const gl = new Map(GLOSSARY.map((g) => [g.id, g]));
@@ -21,6 +23,7 @@ for (const part of PARTS) {
   }
   toc.push("");
 }
+toc.push("## مطالعهٔ تکمیلی (فصل‌های ویراسته)", "", ...Object.keys(READING_TEXT).map((k) => `- [${READINGS[k]}](readings/${k}.md)`), "");
 toc.push("- [واژه‌نامه](glossary.md)", "- [منابع](sources.md)", "- [اعتبار تصویرها](image-credits.md)", "");
 writeFileSync(`${out}/README.md`, toc.join("\n"));
 
