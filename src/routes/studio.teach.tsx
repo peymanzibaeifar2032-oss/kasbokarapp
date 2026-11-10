@@ -197,18 +197,63 @@ function LessonDesk({ snap, busy, run }: { snap: Snap; busy: boolean; run: (work
         <div key={group.id} className="grid gap-2">
           <p className="text-sm font-black">{group.title}</p>
           {lessons.filter((item) => item.groupId === group.id).map((item) => (
-            <LessonCard key={item.id} item={item} groups={groups} busy={busy} run={run} onEdit={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }} />
+            <LessonCard key={item.id} item={item} images={snap.images.filter((image) => image.lessonId === item.id)} groups={groups} busy={busy} run={run} onEdit={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }} />
           ))}
         </div>
       ))}
       {loose.map((item) => (
-        <LessonCard key={item.id} item={item} groups={groups} busy={busy} run={run} onEdit={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }} />
+        <LessonCard key={item.id} item={item} images={snap.images.filter((image) => image.lessonId === item.id)} groups={groups} busy={busy} run={run} onEdit={() => { setEditing(item.id); setTitle(item.title); setContent(item.content); }} />
       ))}
     </section>
   );
 }
 
-function LessonCard({ item, groups, busy, run, onEdit }: { item: LessonRow; groups: GroupRow[]; busy: boolean; run: (work: () => Promise<void>) => Promise<void>; onEdit: () => void }) {
+function escHtml(value: string) {
+  return value
+    .replace(/&/g, "\u0026amp;")
+    .replace(/</g, "\u0026lt;")
+    .replace(/>/g, "\u0026gt;")
+    .replace(/"/g, "\u0026quot;");
+}
+
+function lessonPdf(item: LessonRow, images: ImageRow[]) {
+  const shots = [...images].sort((a, b) => a.order - b.order || a.id.localeCompare(b.id));
+  const figures = shots
+    .map((image) => {
+      const src = image.path.startsWith("http") ? image.path : location.origin + image.path;
+      const caption = image.caption ? `<figcaption>${escHtml(image.caption)}</figcaption>` : "";
+      return `<figure><img src="${escHtml(src)}" alt="${escHtml(image.caption || item.title)}">${caption}</figure>`;
+    })
+    .join("");
+  const html = `<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><title>${escHtml(item.title)}</title>
+<style>
+  body{font-family:Tahoma,sans-serif;color:#1c3d52;margin:24px;line-height:2}
+  h1{font-size:28px;margin:8px 0}
+  .place{color:#5c6b73;font-size:14px}
+  article{white-space:pre-wrap;font-size:16px}
+  img{width:100%;border:1px solid #ddd;border-radius:12px;margin-top:16px}
+  figcaption{color:#5c6b73;font-size:14px;margin-top:6px}
+  figure{break-inside:avoid}
+  @media print { .bar{display:none} body{margin:12px} }
+</style></head><body>
+<p class="bar"><button onclick="print()" style="font:inherit;padding:12px 18px;border:0;border-radius:12px;background:#1c3d52;color:#fff">ذخیره یا چاپ PDF</button></p>
+<p class="place">استودیو پیمان زیبائی‌فر</p>
+<h1>${escHtml(item.title)}</h1>
+<article>${escHtml(item.content)}</article>
+${figures}
+<script>addEventListener("load",function(){setTimeout(function(){print()},400)})<\/script>
+</body></html>`;
+  const tab = window.open("", "_blank");
+  if (!tab) {
+    window.alert("مرورگر صفحهٔ PDF را بست. اجازهٔ باز شدن صفحه را بده و دوباره بزن.");
+    return;
+  }
+  tab.document.open();
+  tab.document.write(html);
+  tab.document.close();
+}
+
+function LessonCard({ item, images, groups, busy, run, onEdit }: { item: LessonRow; images: ImageRow[]; groups: GroupRow[]; busy: boolean; run: (work: () => Promise<void>) => Promise<void>; onEdit: () => void }) {
   return (
     <article className="rounded-2xl border border-border p-3">
       <p className="font-bold">{item.title}</p>
@@ -220,9 +265,8 @@ function LessonCard({ item, groups, busy, run, onEdit }: { item: LessonRow; grou
         </select>
       ) : null}
       <div className="mt-2 flex flex-wrap gap-2">
-        <a className="inline-flex h-10 items-center rounded-xl border px-3 text-sm font-bold" href={`/studio/teach/print?lesson=${item.id}`} target="_blank" rel="noreferrer">
-          دانلود PDF
-        </a>
+        <button type="button" className="h-10 rounded-xl border px-3 text-sm" onClick={onEdit}>ویرایش</button>
+        <button type="button" className="h-10 rounded-xl border px-3 text-sm font-bold" onClick={() => lessonPdf(item, images)}>دانلود PDF</button>
         <button type="button" className="h-10 rounded-xl border px-3 text-sm" disabled={busy} onClick={() => run(() => callSchool("save-lesson", { ...item, isPublished: !item.isPublished }).then(() => undefined))}>{item.isPublished ? "پنهان کن" : "نشان بده به کارآموز"}</button>
         <button type="button" className="h-10 rounded-xl border px-3 text-sm text-red-800" disabled={busy} onClick={() => run(() => callSchool("delete-lesson", { id: item.id }).then(() => undefined))}>حذف</button>
       </div>
