@@ -40,6 +40,20 @@ export const SOURCES: Source[] = [
   { id: "ref-irezumi", kind: "industry", publisher: "Wikipedia", title: "Irezumi — تاتوی سنتی ژاپنی", url: "https://en.wikipedia.org/wiki/Irezumi" },
   { id: "ref-yantra", kind: "industry", publisher: "Wikipedia", title: "Yantra tattooing (ساک یانت)", url: "https://en.wikipedia.org/wiki/Yantra_tattooing" },
   { id: "studio", kind: "studio", publisher: "استودیو پیمان زیبائی‌فر", title: "روش و قانون کارگاهی همین استودیو (تجربهٔ استاد؛ منبع بیرونی ندارد)", url: "" },
+  { id: "ra-kqed-sailor", kind: "artist", publisher: "KQED", title: "Hori Smoku Sailor Jerry", url: "https://www.kqed.org/arts/31163/hori_smoku_sailor_jerry" },
+  { id: "ra-horiyoshi", kind: "artist", publisher: "Tattoo Society Magazine", title: "Horiyoshi III", url: "https://tattoosocietymagazine.com/web/horiyoshi-iii/" },
+  { id: "ra-npr-blackgrey", kind: "artist", publisher: "NPR Code Switch (2018)", title: "Black And Gray … And Brown: A Tattoo Style's Chicano Roots", url: "https://www.npr.org/sections/codeswitch/2018/04/15/602169159/black-and-gray-and-brown-a-tattoo-styles-chicano-roots" },
+  { id: "ra-goodtimecharlie", kind: "artist", publisher: "Good Time Charlie (official site)", title: "About", url: "https://www.goodtimecharlie.net/pages/about" },
+  { id: "ra-latimes-cartoon", kind: "artist", publisher: "Los Angeles Times (2002)", title: "More than skin deep (Mister Cartoon)", url: "https://www.latimes.com/archives/la-xpm-2002-oct-17-wk-alt17-story.html" },
+  { id: "ra-drwoo", kind: "artist", publisher: "Dr. Woo (official site)", title: "Bio", url: "https://drwoo.com/bio" },
+  { id: "ra-mahoney", kind: "artist", publisher: "Tattoo Life (2018)", title: "Mark Mahoney: from the Pike to Beverly Hills", url: "https://www.tattoolife.com/mark-mahoney-from-the-pike-to-beverly-hills/" },
+  { id: "ra-hurtado", kind: "artist", publisher: "LA Weekly (2017)", title: "Meet the local tattoo artist making headlines (Nikko Hurtado)", url: "https://www.laweekly.com/meet-the-local-tattoo-artist-making-headlines-for-dwayne-johnsons-new-ink/" },
+  { id: "ra-zulueta", kind: "artist", publisher: "Ann Arbor Observer (2009)", title: "Leo Zulueta and Jared Leathers", url: "https://annarborobserver.com/leo-zulueta-and-jared-leathers/" },
+  { id: "ra-hooper", kind: "artist", publisher: "The Creative Independent (2019)", title: "Artist Thomas Hooper on juggling creative outlets", url: "https://thecreativeindependent.com/people/artist-thomas-hooper-on-juggling-creative-outlets/" },
+  { id: "ra-grace-neutral", kind: "artist", publisher: "The Guardian / Observer (2022)", title: "Meet the world's best tattoo artists", url: "https://www.theguardian.com/fashion/2022/nov/06/my-parents-werent-impressed-at-first-but-now-i-do-my-mum-meet-the-worlds-best-tattoo-artists" },
+  { id: "ra-wachob", kind: "artist", publisher: "MCA Denver", title: "Amanda Wachob: Tattoo This", url: "https://mcadenver.org/exhibitions/amanda-wachob" },
+  { id: "ra-trashpolka", kind: "artist", publisher: "Art on Skin Magazine", title: "Style Feature: Trash Polka", url: "https://www.aosmag.com/style-feature-trash-polka/" },
+  { id: "ra-betts", kind: "artist", publisher: "Complex (2011)", title: "The Complex Guide To Tattoo Lettering", url: "https://www.complex.com/style/a/nick-schonberger/the-complex-guide-to-tattoo-lettering" },
 ];
 
 export const SOURCE_BY_ID = new Map(SOURCES.map((source) => [source.id, source]));
