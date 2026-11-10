@@ -285,74 +285,8 @@ function Library({
         <CurriculumToc curriculum={curriculum} card={card} token={token} onOpen={(id) => void openCurLesson(id)} />
       ) : null}
 
-      {view === "home" ? (
-        <section className="mt-6 grid gap-3">
-          {curriculum ? <h2 className="mt-4 text-xl font-black">درس‌های قبلی</h2> : null}
-          {curriculum ? <p className="text-sm leading-7 opacity-70">این درس‌ها تا جایگزینی کامل با درس‌نامهٔ نو در دسترس‌اند.</p> : null}
-          {!modules.length ? <p className="leading-8 opacity-70">هنوز درسی منتشر نشده. به محض انتشار در پنل، همین‌جا می‌آید.</p> : null}
-          {modules.map((item, index) => {
-            const raw = catalog[item.id] || { groups: [], lessons: [] };
-            const gone = new Set(curriculum?.archivedOldLessonIds || []);
-            const box = {
-              groups: raw.groups.map((group) => ({ ...group, lessons: group.lessons.filter((row) => !gone.has(row.id)) })).filter((group) => group.lessons.length > 0),
-              lessons: raw.lessons.filter((row) => !gone.has(row.id)),
-            };
-            const loose = box.lessons.filter((lesson) => !box.groups.some((group) => group.lessons.some((row) => row.id === lesson.id)));
-            return (
-              <article key={item.id} className={`rounded-3xl border p-5 ${card}`}>
-                <p className="text-xs font-bold text-[#9a7340]">بخش {index + 1}</p>
-                <h2 className="mt-1 text-xl font-black">{item.title}</h2>
-                {item.description ? <p className="mt-1 text-sm leading-7 opacity-70">{item.description}</p> : null}
-                <div className="mt-3 grid gap-2">
-                  {box.groups.map((group) => {
-                    if (group.lessons.length === 1) {
-                      const only = group.lessons[0];
-                      return (
-                        <button key={group.id} type="button" className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right" onClick={() => { setModuleId(item.id); void openLesson(only.id); }}>
-                          <span className="font-bold">{group.title}</span>
-                        </button>
-                      );
-                    }
-                    return (
-                      <details key={group.id} className="rounded-2xl border border-current/10 px-3 py-2">
-                        <summary className="flex cursor-pointer items-center justify-between gap-3 py-2 text-base font-black">
-                          <span>{group.title}</span>
-                          <span className="text-xs font-bold opacity-60">{group.lessons.length} درس</span>
-                        </summary>
-                        <div className="grid gap-2 pb-2">
-                          {group.lessons.map((lesson, lessonIndex) => (
-                            <button key={lesson.id} type="button" className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right" onClick={() => { setModuleId(item.id); void openLesson(lesson.id); }}>
-                              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lessonIndex + 1}</span>
-                              <span className="font-bold">{lesson.title}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </details>
-                    );
-                  })}
-                  {loose.map((lesson) => (
-                    <button key={lesson.id} type="button" className="rounded-2xl px-1 py-2 text-right font-bold" onClick={() => { setModuleId(item.id); void openLesson(lesson.id); }}>
-                      {lesson.title}
-                    </button>
-                  ))}
-                  {!box.groups.length && !loose.length ? <p className="text-sm opacity-70">هنوز درس منتشرشده ندارد.</p> : null}
-                </div>
-              </article>
-            );
-          })}
-          {curriculum && curriculum.archivedOldLessonIds.length ? (
-            <details className={`rounded-3xl border p-4 ${card}`}>
-              <summary className="cursor-pointer font-black">بایگانی: درس‌های قبلی که جایگزین شده‌اند</summary>
-              <div className="mt-2 grid gap-1">
-                {modules.flatMap((item) => (catalog[item.id]?.lessons || []).filter((row) => curriculum.archivedOldLessonIds.includes(row.id)).map((row) => (
-                  <button key={row.id} type="button" className="rounded-xl px-1 py-2 text-right text-sm opacity-80" onClick={() => { setModuleId(item.id); void openLesson(row.id); }}>
-                    {row.title}
-                  </button>
-                )))}
-              </div>
-            </details>
-          ) : null}
-        </section>
+      {view === "home" && !curriculum ? (
+        <p className="mt-6 leading-8 opacity-70">درس‌نامه هنوز بارگذاری نشده.</p>
       ) : null}
 
       {view === "cur" && curLesson ? (
