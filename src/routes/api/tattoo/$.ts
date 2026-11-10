@@ -17,6 +17,8 @@ import { isStudioOwnerEmail } from "@/lib/studio-owner";
 import { createHash } from "node:crypto";
 import {
   LESSONS,
+  PARTS,
+  CHAPTERS,
   PUBLISHED_CHAPTERS,
   isPublished,
   lessonView,
@@ -26,6 +28,7 @@ import {
   replacedOldLessonIds,
   tableOfContents,
 } from "@/lib/tattoo-curriculum/index.ts";
+import { lessonPlainText } from "@/lib/tattoo-curriculum/plain.ts";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -102,6 +105,54 @@ function curriculumStatus() {
   };
 }
 
+/** The installed app only reads /modules, /lessons and /lesson. Serve the book there. */
+function codeModules() {
+  return PARTS.map((part) => ({
+    id: `cur-mod-${part.id}`,
+    title: part.title,
+    description: part.description,
+    order: part.order,
+  }));
+}
+
+function codeCatalog(moduleId: string) {
+  const partId = moduleId.slice("cur-mod-".length);
+  const lessons = LESSONS.filter((lesson) => lesson.part === partId && isPublished(lesson)).map((lesson) => ({
+    id: lesson.id,
+    title: lesson.title,
+    order: lesson.order,
+    groupId: `cur-grp-${lesson.chapter}`,
+  }));
+  const groups = CHAPTERS.filter((chapter) => chapter.part === partId)
+    .map((chapter) => ({
+      id: `cur-grp-${chapter.id}`,
+      title: chapter.title,
+      order: chapter.order,
+      lessons: lessons.filter((lesson) => lesson.groupId === `cur-grp-${chapter.id}`),
+    }))
+    .filter((group) => group.lessons.length > 0);
+  return { groups, lessons };
+}
+
+function codeLesson(id: string) {
+  const lesson = LESSONS.find((item) => item.id === id);
+  if (!lesson || !isPublished(lesson)) return null;
+  return {
+    id: lesson.id,
+    moduleId: `cur-mod-${lesson.part}`,
+    title: lesson.title,
+    content: lessonPlainText(lesson),
+    order: lesson.order,
+    images: lesson.images.map((image, index) => ({
+      id: image.id,
+      lessonId: lesson.id,
+      path: `/api/tattoo/curriculum-image/${image.id}`,
+      caption: image.caption || image.alt,
+      order: index + 1,
+    })),
+  };
+}
+
 async function dispatch(request: Request) {
   try {
     const [head, arg] = parts(request);
@@ -141,12 +192,25 @@ async function dispatch(request: Request) {
     }
     const access = await student(request);
     if (!access) return json({ error: "اول کد فعال‌سازی را بزن." }, 401);
-    if (head === "modules" && request.method === "GET") return json({ modules: await listPublicModules() });
-    if (head === "lessons" && arg && request.method === "GET") return json(await listPublicLessons(arg));
+    if (head === "modules" && request.method === "GET") {
+      const modules = await listPublicModules();
+      const book = modules.filter((item) => item.id.startsWith("cur-mod-"));
+      if (book.length) return json({ modules: book });
+      if (!modules.length) return json({ modules: codeModules() });
+      return json({ modules });
+    }
+    if (head === "lessons" && arg && request.method === "GET") {
+      const catalog = await listPublicLessons(arg);
+      if (catalog.lessons.length || !arg.startsWith("cur-mod-")) return json(catalog);
+      return json(codeCatalog(arg));
+    }
     if (head === "lesson" && arg && request.method === "GET") {
       const lesson = await publicLesson(arg);
-      if (!lesson) return json({ error: "این درس منتشر نشده." }, 404);
-      return json({ lesson });
+      if (lesson) return json({ lesson });
+      const seeded = (await listPublicModules()).some((item) => item.id.startsWith("cur-mod-"));
+      const fallback = !seeded ? codeLesson(arg) : null;
+      if (fallback) return json({ lesson: fallback });
+      return json({ error: "این درس منتشر نشده." }, 404);
     }
     if (head === "question" && request.method === "POST") {
       if (!allowRate(`tattoo-learn-question:${access.id}`, 20, 60 * 60 * 1000)) {
@@ -161,10 +225,13 @@ async function dispatch(request: Request) {
       if (lessonId?.startsWith("cur-")) {
         const lesson = LESSONS.find((item) => item.id === lessonId);
         if (!lesson || !isPublished(lesson)) return json({ error: "این درس پیدا نشد." }, 404);
-        questionText = `[${lesson.id} — ${lesson.title}]\n${questionText}`;
-        lessonId = null;
       }
-      const saved = await askQuestion(access.id, access.device_id, lessonId, questionText);
+      let saved = await askQuestion(access.id, access.device_id, lessonId, questionText);
+      if ("error" in saved && saved.status === 404 && lessonId?.startsWith("cur-")) {
+        const lesson = LESSONS.find((item) => item.id === lessonId);
+        questionText = `[${lesson?.id} — ${lesson?.title}]\n${body.questionText}`;
+        saved = await askQuestion(access.id, access.device_id, null, questionText);
+      }
       if ("error" in saved) return json({ error: saved.error }, saved.status);
       return json(saved);
     }
