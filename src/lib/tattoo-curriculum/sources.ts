@@ -21,6 +21,7 @@ export const SOURCES: Source[] = [
   { id: "aad-cancer", kind: "medical", publisher: "American Academy of Dermatology", title: "Do tattoos cause skin cancer?", url: "https://www.aad.org/public/diseases/skin-cancer/do-tattoos-cause-skin-cancer" },
   { id: "mayo-tattoo", kind: "medical", publisher: "Mayo Clinic", title: "Tattoos: Understand risks and precautions", url: "https://www.mayoclinic.org/healthy-lifestyle/adult-health/in-depth/tattoos-and-piercings/art-20045067" },
   { id: "statpearls-epidermis", kind: "medical", publisher: "StatPearls / NCBI Bookshelf", title: "Anatomy, Skin (Integument), Epidermis", url: "https://www.ncbi.nlm.nih.gov/books/NBK470464/" },
+  { id: "statpearls-pih", kind: "medical", publisher: "StatPearls / NCBI Bookshelf", title: "Postinflammatory Hyperpigmentation", url: "https://pubmed.ncbi.nlm.nih.gov/32644576/" },
   { id: "statpearls-skin", kind: "medical", publisher: "StatPearls / NCBI Bookshelf", title: "Anatomy, Skin (Integument)", url: "https://www.ncbi.nlm.nih.gov/books/NBK441980/" },
   { id: "statpearls-wound", kind: "medical", publisher: "StatPearls / NCBI Bookshelf", title: "Physiology, Wound Healing", url: "https://www.ncbi.nlm.nih.gov/books/NBK535406/" },
   { id: "statpearls-vasovagal", kind: "medical", publisher: "StatPearls / NCBI Bookshelf", title: "Vasovagal Episode", url: "https://www.ncbi.nlm.nih.gov/books/NBK470277/" },
