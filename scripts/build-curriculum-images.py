@@ -37,6 +37,7 @@ if mf.exists() and (released_all or v2):
                 extras.append({**row, "_id": row["name"], "_after": None})
 # Caption fixes after our own review of the images agent's captions.
 CAPTION_FIX = {
+    "d23-faint": "نشانهٔ غش را جدی بگیر: توقف، خواباندن، پاها بالا. معیارهای اورژانس طبق NHS است؛ ردیف «حساسیت شدید» قاعدهٔ کلاس است، نه NHS.",
     "cur-09-p3-pen-photo": "دستگاه قلمی با کیسهٔ محافظ یک‌بارمصرف و نوار کشی دور گریپ برای گرفتن راحت‌تر، در دست دستکش‌دار.",
     "cur-14-x1-ink-longevity": "ترتیب کیفی بر پایهٔ تجربهٔ رایج هنرمندان، نه دادهٔ اندازه‌گیری‌شده؛ آفتاب بعضی رنگدانه‌های زرد و قرمز را تجزیه می‌کند.",
 }
