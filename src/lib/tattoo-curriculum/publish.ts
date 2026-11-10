@@ -4,7 +4,7 @@
  * Nothing in the database changes: the old lessons stay in tattoo_lessons untouched; the class page
  * only moves an old lesson into the "archive" once the new lesson that replaces it is live.
  */
-export const PUBLISHED_CHAPTERS: readonly string[] = ["c01", "c02", "c03"];
+export const PUBLISHED_CHAPTERS: readonly string[] = ["c01", "c02", "c03", "c04", "c05", "c06"];
 
 /**
  * Lessons kept off the site even when their chapter is live, with the reason. Their old lessons stay

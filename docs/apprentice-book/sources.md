@@ -20,6 +20,9 @@
 - **Mayo Clinic** — Tattoos: Understand risks and precautions — <https://www.mayoclinic.org/healthy-lifestyle/adult-health/in-depth/tattoos-and-piercings/art-20045067>
 - **StatPearls / NCBI Bookshelf** — Anatomy, Skin (Integument), Epidermis — <https://www.ncbi.nlm.nih.gov/books/NBK470464/>
 - **StatPearls / NCBI Bookshelf** — Postinflammatory Hyperpigmentation — <https://pubmed.ncbi.nlm.nih.gov/32644576/>
+- **Photochem Photobiol 2004 (PubMed 15362942)** — Photodecomposition of Pigment Yellow 74, a pigment used in tattoo inks — <https://pubmed.ncbi.nlm.nih.gov/15362942/>
+- **J Dtsch Dermatol Ges 2007 (Engel E. et al., PubMed 17610608)** — Photochemical cleavage of a tattoo pigment by UVB radiation or natural sunlight — <https://pubmed.ncbi.nlm.nih.gov/17610608/>
+- **J Eur Acad Dermatol Venereol 2011 (Lehner K. et al., PubMed 21349116)** — The decrease of pigment concentration in red tattooed skin years after tattooing — <https://pubmed.ncbi.nlm.nih.gov/21349116/>
 - **StatPearls / NCBI Bookshelf** — Anatomy, Skin (Integument) — <https://www.ncbi.nlm.nih.gov/books/NBK441980/>
 - **StatPearls / NCBI Bookshelf** — Physiology, Wound Healing — <https://www.ncbi.nlm.nih.gov/books/NBK535406/>
 - **StatPearls / NCBI Bookshelf** — Vasovagal Episode — <https://www.ncbi.nlm.nih.gov/books/NBK470277/>
