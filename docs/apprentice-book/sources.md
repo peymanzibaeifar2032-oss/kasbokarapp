@@ -19,6 +19,7 @@
 - **American Academy of Dermatology** — Do tattoos cause skin cancer? — <https://www.aad.org/public/diseases/skin-cancer/do-tattoos-cause-skin-cancer>
 - **Mayo Clinic** — Tattoos: Understand risks and precautions — <https://www.mayoclinic.org/healthy-lifestyle/adult-health/in-depth/tattoos-and-piercings/art-20045067>
 - **StatPearls / NCBI Bookshelf** — Anatomy, Skin (Integument), Epidermis — <https://www.ncbi.nlm.nih.gov/books/NBK470464/>
+- **StatPearls / NCBI Bookshelf** — Postinflammatory Hyperpigmentation — <https://pubmed.ncbi.nlm.nih.gov/32644576/>
 - **StatPearls / NCBI Bookshelf** — Anatomy, Skin (Integument) — <https://www.ncbi.nlm.nih.gov/books/NBK441980/>
 - **StatPearls / NCBI Bookshelf** — Physiology, Wound Healing — <https://www.ncbi.nlm.nih.gov/books/NBK535406/>
 - **StatPearls / NCBI Bookshelf** — Vasovagal Episode — <https://www.ncbi.nlm.nih.gov/books/NBK470277/>
