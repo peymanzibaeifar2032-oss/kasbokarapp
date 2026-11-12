@@ -202,7 +202,7 @@ export async function savePocketFile(
     return;
   }
   if (window.location.hostname === "appassets.androidplatform.net")
-    throw new Error("برای ذخیره فایل نسخه جدید اپ را نصب کنید.");
+    throw new Error("ذخیرهٔ فایل آماده نیست. برنامه را یک بار ببندید و دوباره باز کنید.");
   const url = URL.createObjectURL(new Blob([bytes.slice().buffer as ArrayBuffer], { type: mime }));
   const link = document.createElement("a");
   link.href = url;

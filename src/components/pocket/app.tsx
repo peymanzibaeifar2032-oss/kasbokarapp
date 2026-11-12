@@ -57,16 +57,20 @@ import { bookingTotals, newPaymentId, parsePaymentToman, recordBookingPayment } 
 import type { PocketAppStats, PocketServerAccount } from "@/lib/pocket/sync-response";
 import { canRequestServerSync } from "@/lib/pocket/professions";
 import { friendlyError } from "@/lib/save";
-import { downloadPocketSnapshot, openPocketLogin, verifyPocketAccess } from "@/lib/pocket/sync";
+import { OFFLINE_MESSAGE, deviceOffline, downloadPocketSnapshot, openPocketLogin, verifyPocketAccess } from "@/lib/pocket/sync";
+import { WEEK_EN_SUN, formatGregorian, gregorianMonthGrid, gregorianOfKey, shiftGregorianMonth } from "@/lib/pocket/gregorian";
 
 import { pocketAccessMessage, type PocketAccessState } from "@/lib/pocket/access-status";
 
 const WEEK = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"] as const;
 const WEEK_SHORT = ["ش", "ی", "د", "س", "چ", "پ", "ج"] as const;
 const WEEK_EN = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"] as const;
+const JALALI_MONTHS_EN = ["Farvardin", "Ordibehesht", "Khordad", "Tir", "Mordad", "Shahrivar", "Mehr", "Aban", "Azar", "Dey", "Bahman", "Esfand"] as const;
 
 type Draft = {
   id: string;
+  /** Id reserved for a NEW booking on its first save attempt (dedupes retries / double taps). */
+  newId?: string;
   name: string;
   phone: string;
   style: string;
@@ -202,6 +206,8 @@ export function PocketApp() {
   const todayJ = gregorianToJalali(clock.y, clock.m, clock.d);
   const todayKey = dayKey(todayJ.jy, todayJ.jm, todayJ.jd);
   const [month, setMonth] = useState({ jy: todayJ.jy, jm: todayJ.jm });
+  // English UI shows a Gregorian month; bookings still use the Jalali day key.
+  const [gMonth, setGMonth] = useState({ gy: clock.y, gm: clock.m });
   const [selected, setSelected] = useState(todayKey);
   const [rows, setRows] = useState<PocketBooking[]>([]);
   const [ready, setReady] = useState(false);
@@ -273,6 +279,8 @@ export function PocketApp() {
       todayJ={todayJ}
       month={month}
       setMonth={setMonth}
+      gMonth={gMonth}
+      setGMonth={setGMonth}
       selected={selected}
       setSelected={setSelected}
       rows={rows}
@@ -353,6 +361,8 @@ function PocketShell(props: {
   todayJ: { jy: number; jm: number; jd: number };
   month: { jy: number; jm: number };
   setMonth: Dispatch<SetStateAction<{ jy: number; jm: number }>>;
+  gMonth: { gy: number; gm: number };
+  setGMonth: Dispatch<SetStateAction<{ gy: number; gm: number }>>;
   selected: string;
   setSelected: (key: string) => void;
   rows: PocketBooking[];
@@ -380,6 +390,8 @@ function PocketShell(props: {
     todayJ,
     month,
     setMonth,
+    gMonth,
+    setGMonth,
     selected,
     setSelected,
     rows,
@@ -424,7 +436,12 @@ function PocketShell(props: {
 
   const [accessState, setAccessState] = useState<PocketAccessState>("checking");
   const accessRequest = useRef(0);
-  const refreshAccount = useCallback(async () => {
+  const lastAccessCheck = useRef(0);
+  const refreshAccount = useCallback(async (force = true) => {
+    // focus + visibilitychange + resume fire together on Android: one server probe, not three.
+    const now = Date.now();
+    if (!force && now - lastAccessCheck.current < 4000) return;
+    lastAccessCheck.current = now;
     const request = ++accessRequest.current;
     setAccess(null); // Fail closed even while re-checking a previously authorized account.
     setAccessState("checking");
@@ -437,17 +454,29 @@ function PocketShell(props: {
   useEffect(() => {
     if (!showServerDownload) { setAccess(null); return; }
     void refreshAccount();
-    const resume = () => { if (document.visibilityState !== "hidden") void refreshAccount(); };
+    const resume = () => { if (document.visibilityState !== "hidden") void refreshAccount(false); };
     window.addEventListener("focus", resume);
+    window.addEventListener("online", resume);
     window.addEventListener("pocket-account-refresh", resume);
     document.addEventListener("visibilitychange", resume);
     return () => {
       ++accessRequest.current;
+      window.removeEventListener("online", resume);
       window.removeEventListener("focus", resume);
       window.removeEventListener("pocket-account-refresh", resume);
       document.removeEventListener("visibilitychange", resume);
     };
   }, [showServerDownload, refreshAccount]);
+
+  // A site session the server confirmed as the owner needs no activation code: request the
+  // owner's self license automatically (once per app session). The server re-checks the session.
+  const ownerAutoTried = useRef(false);
+  useEffect(() => {
+    if (!ownerVerified || !license.enforced || !license.checked || license.busy) return;
+    if (license.state.status === "valid" || ownerAutoTried.current) return;
+    ownerAutoTried.current = true;
+    void license.ownerSelf(true);
+  }, [ownerVerified, license]);
 
   useEffect(() => {
     if (tab === "stats" && !canViewStats) setTab("calendar");
@@ -458,7 +487,26 @@ function PocketShell(props: {
     setRows(next);
   }
 
-  const cells = useMemo(() => jalaliMonthGrid(month.jy, month.jm), [month.jy, month.jm]);
+  function storageError(error: unknown) {
+    return isLicenseLockedError(error)
+      ? error.message
+      : locale === "en"
+        ? "Not saved; phone storage is unavailable. Nothing was changed."
+        : "ذخیره نشد؛ حافظهٔ گوشی در دسترس نیست. هیچ تغییری اعمال نشد.";
+  }
+
+  const english = locale === "en";
+  const cells = useMemo(
+    () => (english ? gregorianMonthGrid(gMonth.gy, gMonth.gm) : jalaliMonthGrid(month.jy, month.jm)),
+    [english, gMonth.gy, gMonth.gm, month.jy, month.jm],
+  );
+  /** Show the month that contains a Jalali day key in both calendars. */
+  function showMonthOf(key: string) {
+    const [jy, jm] = key.split("-").map(Number);
+    if (jy && jm && jy < 1700) setMonth({ jy, jm });
+    const g = gregorianOfKey(key);
+    if (g) setGMonth({ gy: g.gy, gm: g.gm });
+  }
   const counts = useMemo(() => {
     const map = new Map<string, number>();
     for (const row of rows) map.set(row.day, (map.get(row.day) || 0) + 1);
@@ -467,6 +515,7 @@ function PocketShell(props: {
   const selectedParts = selected.split("-").map(Number);
   const selectedJd = selectedParts[2] || 1;
   const selectedCell = cells.find((cell) => jalaliKey(cell) === selected);
+  const selectedGregorian = selectedCell ? { gy: selectedCell.gy, gm: selectedCell.gm, gd: selectedCell.gd } : gregorianOfKey(selected);
   const weekday =
     locale === "en" ? WEEK_EN[selectedCell?.satIndex ?? 0] : WEEK[selectedCell?.satIndex ?? 0];
   const dayRows = rows.filter((row) => row.day === selected);
@@ -479,29 +528,34 @@ function PocketShell(props: {
         setMovingId(null);
         return;
       }
-      void persist(
-        rows.map((row) => (row.id === movingId ? { ...row, day: key, pinned: true } : row)),
-      );
-      setSelected(key);
       setMovingId(null);
-      const [jy, jm] = key.split("-").map(Number);
-      if (jy && jm && jy < 1700) setMonth({ jy, jm });
-      toast.success(locale === "en" ? "Moved." : "نوبت به این روز منتقل شد.");
+      persist(rows.map((row) => (row.id === movingId ? { ...row, day: key, pinned: true } : row)))
+        .then(() => {
+          setSelected(key);
+          showMonthOf(key);
+          toast.success(locale === "en" ? "Moved." : "نوبت به این روز منتقل شد.");
+        })
+        .catch((error) => toast.error(storageError(error)));
       return;
     }
     setSelected(key);
     setDraft(null);
   }
 
+  const saving = useRef(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   async function saveDraft() {
-    if (!draft) return;
+    if (!draft || saving.current) return; // a double tap must not store the same booking twice
     const name = draft.name.trim();
     if (name.length < 2) {
       toast.error(locale === "en" ? "Write the name." : `اسم ${pack.customerLabelFa} را بنویس.`);
       return;
     }
+    // A new booking gets its id once per open form, so a retry after a failed save updates instead of duplicating.
+    const rowId = draft.id || draft.newId || newPocketId();
+    if (!draft.id && !draft.newId) setDraft((current) => (current ? { ...current, newId: rowId } : current));
     const nextRow: PocketBooking = {
-      id: draft.id || newPocketId(),
+      id: rowId,
       day: selected,
       name,
       phone: draft.phone.trim(),
@@ -521,9 +575,10 @@ function PocketShell(props: {
       serverId: rows.find((row) => row.id === draft.id)?.serverId ?? null,
       pinned: true,
     };
-    const next = draft.id
-      ? rows.map((row) => (row.id === draft.id ? nextRow : row))
-      : [...rows, nextRow];
+    const exists = rows.some((row) => row.id === rowId);
+    const next = exists ? rows.map((row) => (row.id === rowId ? nextRow : row)) : [...rows, nextRow];
+    saving.current = true;
+    setSavingDraft(true);
     try {
       await persist(next);
       if (templateEnabled)
@@ -531,7 +586,10 @@ function PocketShell(props: {
       setDraft(null);
       toast.success(locale === "en" ? "Saved." : "نوبت ذخیره شد.");
     } catch (error) {
-      toast.error(isLicenseLockedError(error) ? error.message : "ذخیره انجام نشد؛ فضای حافظه و دسترسی مرورگر را بررسی کنید. فرم حفظ شد.");
+      toast.error(isLicenseLockedError(error) ? error.message : locale === "en" ? "Not saved; check phone storage. The form is kept." : "ذخیره انجام نشد؛ فضای حافظه و دسترسی مرورگر را بررسی کنید. فرم حفظ شد.");
+    } finally {
+      saving.current = false;
+      setSavingDraft(false);
     }
   }
 
@@ -542,10 +600,18 @@ function PocketShell(props: {
       )
     )
       return;
-    void persist(rows.filter((row) => row.id !== id));
+    persist(rows.filter((row) => row.id !== id)).catch((error) => toast.error(storageError(error)));
   }
 
+  const downloadBusy = useRef(false);
   async function download() {
+    // One download at a time (calendar, cash and trainee buttons all trigger it).
+    if (downloadBusy.current) return;
+    if (deviceOffline()) {
+      setBanner(OFFLINE_MESSAGE);
+      toast.error(OFFLINE_MESSAGE);
+      return;
+    }
     // Merging server data changes local data: needs a valid license (checked before any network call).
     try {
       assertCanMutate();
@@ -555,11 +621,13 @@ function PocketShell(props: {
       toast.error(message);
       return;
     }
+    downloadBusy.current = true;
     const request = ++accessRequest.current;
     setAccess(null);
     setAccessState("checking");
     setDownloading(true);
     setBanner("");
+    setCashStatus(""); // the cash tab must never show the previous load's result as if it were this one
     try {
       const snapshot = await downloadPocketSnapshot();
       if (request === accessRequest.current) {
@@ -603,11 +671,13 @@ function PocketShell(props: {
         }
       }
 
-      // 2) Bookings + trainees in one atomic local transaction.
-      const next = applyDownload(rows, incoming);
+      // 2) Bookings + trainees in one atomic local transaction. Merge into what is stored NOW (an edit made
+      // while the download was running must not be overwritten by the list captured at tap time).
+      const localNow = await listPocketBookings();
+      const next = applyDownload(localNow, incoming);
       let traineeNote = "";
       if (snapshot.training) {
-        const before = await currentBackup(rows, settings);
+        const before = await currentBackup(localNow, settings);
         await commitBackup(
           {
             ...before,
@@ -641,17 +711,21 @@ function PocketShell(props: {
       setBanner(message);
       toast.error(message);
     } finally {
+      downloadBusy.current = false;
       setDownloading(false);
     }
   }
 
-  const gregorian = selectedCell
-    ? `${selectedCell.gd} / ${selectedCell.gm} / ${selectedCell.gy}`
-    : "";
-  const monthLabel =
-    locale === "en"
-      ? `${month.jm}/${month.jy}`
-      : `${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`;
+  const gregorian = english
+    ? selectedCell
+      ? `${JALALI_MONTHS_EN[selectedCell.jm - 1]} ${selectedCell.jd}, ${selectedCell.jy} (Solar Hijri)`
+      : ""
+    : selectedCell
+      ? `${selectedCell.gd} / ${selectedCell.gm} / ${selectedCell.gy}`
+      : "";
+  const monthLabel = english
+    ? formatGregorian({ gy: gMonth.gy, gm: gMonth.gm, gd: 1 }, { month: "long", year: "numeric" })
+    : `${JALALI_MONTHS[month.jm - 1]} ${toFaDigits(month.jy)}`;
 
   return (
     <main className="pocket-app" data-section={tab} dir={dir}>
@@ -751,8 +825,8 @@ function PocketShell(props: {
           </nav>
         </header>
 
-        {tab !== "backup" ? <PocketLicenseCard license={license} compact onOpenBackup={() => setTab("backup")} /> : null}
-        {tab === "backup" ? <PocketLicenseCard license={license} /> : null}
+        {tab !== "backup" ? <PocketLicenseCard license={license} compact ownerVerified={ownerVerified} onOpenBackup={() => setTab("backup")} /> : null}
+        {tab === "backup" ? <PocketLicenseCard license={license} ownerVerified={ownerVerified} /> : null}
         {ready && tab === "backup" ? <ReferralClubPanel revision={clubRevision} onChanged={() => setClubRevision((v) => v + 1)} /> : null}
         {ready && tab === "backup" ? (
           <PocketBackupPanel
@@ -825,7 +899,7 @@ function PocketShell(props: {
               <div className={locale === "en" ? "text-right" : "text-left"}>
                 <p className="pocket-weekday">{weekday}</p>
                 <p className="pocket-date-badge">
-                  {locale === "en" ? selectedJd : toFaDigits(selectedJd)}
+                  {english ? selectedGregorian?.gd ?? "" : toFaDigits(selectedJd)}
                 </p>
               </div>
             </div>
@@ -834,7 +908,11 @@ function PocketShell(props: {
               <button
                 type="button"
                 className="pocket-btn pocket-btn-ghost"
-                onClick={() => setMonth((item) => shiftJalaliMonth(item.jy, item.jm, -1))}
+                onClick={() =>
+                  english
+                    ? setGMonth((item) => shiftGregorianMonth(item.gy, item.gm, -1))
+                    : setMonth((item) => shiftJalaliMonth(item.jy, item.jm, -1))
+                }
               >
                 {locale === "en" ? <ChevronLeft size={18} aria-hidden /> : <ChevronRight size={18} aria-hidden />}
                 {locale === "en" ? "Prev" : "ماه قبل"}
@@ -844,6 +922,7 @@ function PocketShell(props: {
                 className="pocket-btn pocket-btn-ghost"
                 onClick={() => {
                   setMonth({ jy: todayJ.jy, jm: todayJ.jm });
+                  showMonthOf(todayKey);
                   setSelected(todayKey);
                 }}
               >
@@ -852,7 +931,11 @@ function PocketShell(props: {
               <button
                 type="button"
                 className="pocket-btn pocket-btn-ghost"
-                onClick={() => setMonth((item) => shiftJalaliMonth(item.jy, item.jm, 1))}
+                onClick={() =>
+                  english
+                    ? setGMonth((item) => shiftGregorianMonth(item.gy, item.gm, 1))
+                    : setMonth((item) => shiftJalaliMonth(item.jy, item.jm, 1))
+                }
               >
                 {locale === "en" ? "Next" : "ماه بعد"}
                 {locale === "en" ? <ChevronRight size={18} aria-hidden /> : <ChevronLeft size={18} aria-hidden />}
@@ -860,11 +943,11 @@ function PocketShell(props: {
             </div>
 
             <div className="pocket-weekrow grid grid-cols-7 px-2 text-center">
-              {(locale === "en" ? WEEK_EN : WEEK_SHORT).map((name, index) => (
+              {(english ? WEEK_EN_SUN : WEEK_SHORT).map((name, index) => (
                 <p
                   key={name}
                   className="py-2 text-sm font-bold"
-                  style={index === 6 ? { color: "var(--pk-friday)" } : { color: "var(--pk-muted)" }}
+                  style={index === (english ? 5 : 6) ? { color: "var(--pk-friday)" } : { color: "var(--pk-muted)" }}
                 >
                   {name}
                 </p>
@@ -885,7 +968,7 @@ function PocketShell(props: {
                     aria-current={key === todayKey ? "date" : undefined}
                     onClick={() => cell.inMonth && openDay(key)}
                   >
-                    {cell.inMonth ? (locale === "en" ? cell.jd : toFaDigits(cell.jd)) : ""}
+                    {cell.inMonth ? (english ? cell.gd : toFaDigits(cell.jd)) : ""}
                     {count > 0 && cell.inMonth ? <span className={`dot n${Math.min(count, 3)}`} aria-label={`${count}`} /> : null}
                   </button>
                 );
@@ -897,16 +980,18 @@ function PocketShell(props: {
             <section className="pocket-panel pocket-day-panel">
               <div className="flex items-center justify-between gap-3">
                 <h2 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 900 }}>
-                  {weekday} {locale === "en" ? selectedJd : toFaDigits(selectedJd)}{" "}
-                  {locale === "en"
-                    ? selectedParts[1] || month.jm
-                    : JALALI_MONTHS[(selectedParts[1] || month.jm) - 1]}
+                  {english
+                    ? selectedGregorian
+                      ? formatGregorian(selectedGregorian, { weekday: "short", month: "short", day: "numeric" })
+                      : weekday
+                    : `${weekday} ${toFaDigits(selectedJd)} ${JALALI_MONTHS[(selectedParts[1] || month.jm) - 1]}`}
                 </h2>
                 {showServerDownload ? (
                   <button
                     type="button"
                     className="pocket-btn pocket-btn-primary"
                     disabled={downloading}
+                    aria-busy={downloading}
                     onClick={() => void download()}
                   >
                     {downloading
@@ -940,7 +1025,7 @@ function PocketShell(props: {
                   </button>
                   <button type="button" className="pocket-btn pocket-btn-ghost"
                     data-testid="check-account" disabled={accessState === "checking"}
-                    onClick={() => void refreshAccount()}>
+                    onClick={() => void refreshAccount(true)}>
                     {locale === "en" ? "Check account" : "بررسی حساب"}
                   </button>
                   <p role="status" data-testid="account-status" className="pocket-muted">
@@ -1070,8 +1155,7 @@ function PocketShell(props: {
                 ))}
               </ul>
               <AllAppointments rows={rows} todayKey={todayKey} locale={locale} onPick={(day) => {
-                const [jy, jm] = day.split("-").map(Number);
-                if (jy && jm) setMonth({ jy, jm });
+                showMonthOf(day);
                 setSelected(day);
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }} />
@@ -1228,6 +1312,8 @@ function PocketShell(props: {
                       type="submit"
                       className="pocket-btn pocket-btn-primary"
                       style={{ flex: 1 }}
+                      disabled={savingDraft}
+                      aria-busy={savingDraft}
                     >
                       {locale === "en" ? "Save" : "ذخیره"}
                     </button>
@@ -1309,7 +1395,7 @@ function AllAppointments({ rows, todayKey, locale, onPick }: { rows: PocketBooki
               return (
                 <li key={r.id}>
                   <button type="button" onClick={() => onPick(r.day)}>
-                    <span className="pocket-all-date">{fa ? `${toFaDigits(d || 0)} ${JALALI_MONTHS[(m || 1) - 1]}` : r.day}</span>
+                    <span className="pocket-all-date">{fa ? `${toFaDigits(d || 0)} ${JALALI_MONTHS[(m || 1) - 1]}` : (() => { const g = gregorianOfKey(r.day); return g ? formatGregorian(g, { month: "short", day: "numeric", year: "numeric" }) : r.day; })()}</span>
                     <span className="pocket-all-name">{r.name}</span>
                     <span className="pocket-all-meta">{[r.time ? (fa ? toFaDigits(r.time) : r.time) : "", r.style].filter(Boolean).join(" · ")}</span>
                   </button>

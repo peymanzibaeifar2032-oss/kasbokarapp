@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Download, Upload, FileText } from "lucide-react";
-import type { PocketBooking } from "@/lib/pocket-book";
-import type { PocketSettings } from "@/lib/pocket/settings";
+import { listPocketBookings, type PocketBooking } from "@/lib/pocket-book";
+import { writePocketSettings, type PocketSettings } from "@/lib/pocket/settings";
 import type { ProfessionPack } from "@/lib/pocket/professions";
 import {
   MAX_BACKUP_BYTES,
@@ -27,6 +27,7 @@ export function PocketBackupPanel({
 }) {
   const [pending, setPending] = useState<PocketBackup | null>(null);
   const [replace, setReplace] = useState(false);
+  const [restoreSettings, setRestoreSettings] = useState(false);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const en = settings.locale === "en";
@@ -61,7 +62,7 @@ export function PocketBackupPanel({
           className="pocket-btn pocket-btn-ghost"
           onClick={() =>
             void run(async () => {
-              const data = await currentBackup(rows, settings);
+              const data = await currentBackup(await listPocketBookings(), settings);
               const json = JSON.stringify(data, null, 2);
               parsePocketBackup(json);
               await savePocketFile(
@@ -119,6 +120,7 @@ export function PocketBackupPanel({
             const data = parsePocketBackup(await file.text());
             setPending(data);
             setReplace(false);
+            setRestoreSettings(false);
           });
         }}
       />
@@ -139,6 +141,12 @@ export function PocketBackupPanel({
             داده‌های فعلی حذف نمی‌شوند. موارد جدید اضافه می‌شوند؛ در حالت عادی موارد هم‌شناسهٔ گوشی
             حفظ می‌شوند. تنظیم زبان و شغل تغییر نمی‌کند.
           </p>
+          {pending.settings ? (
+            <label>
+              <input type="checkbox" checked={restoreSettings} onChange={(e) => setRestoreSettings(e.target.checked)} data-testid="import-settings" />{" "}
+              {en ? "Also restore language and profession from the file" : "زبان و شغل هم از فایل بازگردانده شود"}
+            </label>
+          ) : null}
           <label>
             <input
               type="checkbox"
@@ -154,12 +162,27 @@ export function PocketBackupPanel({
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  const before = await currentBackup(rows, settings);
+                  if (
+                    replace &&
+                    !window.confirm(
+                      en
+                        ? "Items with the same id on this phone will be overwritten by the file. Continue?"
+                        : "موارد هم‌شناسهٔ روی گوشی با محتوای فایل جایگزین می‌شوند. ادامه می‌دهید؟",
+                    )
+                  )
+                    return;
+                  // Merge into what is stored right now (not a list captured when the tab opened).
+                  const before = await currentBackup(await listPocketBookings(), settings);
                   const next = mergeBackup(before, pending, replace);
                   await commitBackup(next, before);
                   onImported(next.bookings);
+                  const restore = restoreSettings && pending.settings;
                   setPending(null);
                   toast.success("نوبت‌ها، هنرجوها و صندوق با موفقیت وارد شدند.");
+                  if (restore) {
+                    writePocketSettings({ ...restore, onboarded: true });
+                    window.setTimeout(() => window.location.reload(), 600);
+                  }
                 })
               }
             >

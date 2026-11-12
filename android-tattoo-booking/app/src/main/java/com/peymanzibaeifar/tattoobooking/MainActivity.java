@@ -58,6 +58,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
 
 public class MainActivity extends Activity {
     private static final String PROD_HOME = "https://kasbokarapp.com/studio/pocket";
@@ -85,6 +93,9 @@ public class MainActivity extends Activity {
     private boolean pocketExportInProgress;
     private String pendingPdfName;
     private String pendingPdfHtml;
+    /** Main-frame URL of the document currently loading/shown; read by bridge calls (JS thread). */
+    private volatile String currentPageUrl = "";
+    private boolean recoveringRenderer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,7 +132,8 @@ public class MainActivity extends Activity {
         settings.setDatabaseEnabled(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setAllowFileAccess(true);
+        // Offline assets come from the virtual https origin; file:// access is never needed.
+        settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
@@ -141,7 +153,7 @@ public class MainActivity extends Activity {
         }
         String ua = settings.getUserAgentString();
         if (ua != null) {
-            settings.setUserAgentString(ua + " TattooApp/1.14.1");
+            settings.setUserAgentString(ua + " TattooApp/" + BuildConfig.VERSION_NAME);
         }
 
         webView.addJavascriptInterface(new AppBridge(), "AndroidApp");
@@ -155,10 +167,11 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                Uri uri = Uri.parse(url);
-                // Existing login/report bridge must never remain exposed on third-party pages.
-                if (isTrustedBridgeOrigin(uri)) view.addJavascriptInterface(new AppBridge(), "AndroidApp");
-                else view.removeJavascriptInterface("AndroidApp");
+                // add/removeJavascriptInterface only take effect on the NEXT load, so toggling them here
+                // left the bridge on a third-party page and missing on the next trusted page (false
+                // "install the new version" prompts). The bridge stays installed; every method checks
+                // the current main-frame origin instead.
+                currentPageUrl = url == null ? "" : url;
                 super.onPageStarted(view, url, favicon);
             }
 
@@ -180,7 +193,8 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 CookieManager.getInstance().flush();
-                Log.i(TAG, "page finished: " + url);
+                currentPageUrl = url == null ? "" : url;
+                if (BuildConfig.DEBUG) Log.i(TAG, "page finished: " + safeForLog(url));
                 if (pocketLoginInProgress && isProductionOrigin(Uri.parse(url))
                         && "/studio/pocket".equals(Uri.parse(url).getPath())) {
                     finishPocketLogin();
@@ -195,7 +209,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                Log.e(TAG, "webview error " + errorCode + " " + description + " @ " + failingUrl);
+                Log.e(TAG, "webview error " + errorCode + " @ " + safeForLog(failingUrl));
                 super.onReceivedError(view, errorCode, description, failingUrl);
             }
 
@@ -203,14 +217,9 @@ public class MainActivity extends Activity {
             public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
                 boolean crashed = detail != null && detail.didCrash();
                 Log.e(TAG, "render process gone crashed=" + crashed);
-                if (view != null) {
-                    try {
-                        view.loadUrl(HOME);
-                    } catch (Exception e) {
-                        Log.e(TAG, "reload after render gone failed", e);
-                    }
-                }
-                // Prevent process-wide FATAL when Chromium renderer dies (common on slow emulators).
+                // A WebView whose renderer is gone can never be used again (loadUrl on it crashes).
+                // Restart the activity once with a fresh WebView; local data lives in IndexedDB and is kept.
+                recoverFromRendererLoss(view);
                 return true;
             }
         });
@@ -238,8 +247,11 @@ public class MainActivity extends Activity {
             }
             @Override
             public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                Log.i(TAG, consoleMessage.messageLevel() + ":" + consoleMessage.message()
-                        + " @" + consoleMessage.sourceId() + ":" + consoleMessage.lineNumber());
+                // Page console may contain customer data or tokens: only errors, truncated, never in release logs.
+                if (BuildConfig.DEBUG && consoleMessage.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                    String msg = consoleMessage.message() == null ? "" : consoleMessage.message();
+                    Log.w(TAG, "js error: " + (msg.length() > 160 ? msg.substring(0, 160) : msg));
+                }
                 return true;
             }
             @Override
@@ -265,7 +277,8 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPermissionRequest(PermissionRequest request) {
-                request.grant(request.getResources());
+                // The app holds no camera/microphone permission; never grant page media access.
+                request.deny();
             }
 
             @Override
@@ -293,7 +306,7 @@ public class MainActivity extends Activity {
 
         if (savedInstanceState == null) {
             String startUrl = openUrlFromIntent(getIntent());
-            Log.i(TAG, "loadUrl " + startUrl + " debug=" + BuildConfig.DEBUG);
+            if (BuildConfig.DEBUG) Log.i(TAG, "loadUrl " + safeForLog(startUrl));
             webView.loadUrl(startUrl);
         } else {
             webView.restoreState(savedInstanceState);
@@ -334,7 +347,9 @@ public class MainActivity extends Activity {
             }
         }
         if (intent != null && intent.getStringExtra("open") != null) {
-            return intent.getStringExtra("open");
+            // Other apps can start this exported activity: only open our own site, never an arbitrary URL.
+            Uri open = Uri.parse(intent.getStringExtra("open"));
+            if (isProductionOrigin(open)) return open.toString();
         }
         return HOME;
     }
@@ -362,7 +377,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (isOfflinePage()) webView.evaluateJavascript(
+        if (webView != null && isOfflinePage()) webView.evaluateJavascript(
                 "window.dispatchEvent(new Event('pocket-account-refresh'));", null);
     }
 
@@ -382,11 +397,53 @@ public class MainActivity extends Activity {
                 && uri.getPath().startsWith("/assets/pocket/"));
     }
 
+    /** True when the main frame currently shows the offline Pocket bundle or our production site. */
+    private boolean bridgeAllowed() {
+        try { return isTrustedBridgeOrigin(Uri.parse(currentPageUrl)); } catch (Exception e) { return false; }
+    }
+
+    private boolean loginBridgeAllowed() {
+        try { return isProductionOrigin(Uri.parse(currentPageUrl)); } catch (Exception e) { return false; }
+    }
+
+    private static String safeForLog(String url) {
+        if (url == null) return "";
+        int cut = url.indexOf('?');
+        if (cut < 0) cut = url.indexOf('#');
+        return cut < 0 ? url : url.substring(0, cut);
+    }
+
+    private void recoverFromRendererLoss(WebView dead) {
+        if (recoveringRenderer) return;
+        recoveringRenderer = true;
+        try {
+            if (dead != null) {
+                if (dead.getParent() instanceof android.view.ViewGroup) ((android.view.ViewGroup) dead.getParent()).removeView(dead);
+                dead.destroy();
+            }
+        } catch (Exception ignored) { }
+        webView = null;
+        Intent restart = new Intent(this, MainActivity.class);
+        restart.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        try { startActivity(restart); } catch (Exception ignored) { }
+        finish();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (webView != null) {
+            try {
+                webView.stopLoading();
+                if (webView.getParent() instanceof android.view.ViewGroup) ((android.view.ViewGroup) webView.getParent()).removeView(webView);
+                webView.destroy();
+            } catch (Exception ignored) { }
+            webView = null;
+        }
+        super.onDestroy();
+    }
+
     private boolean keepInApp(Uri uri) {
         String scheme = uri.getScheme() == null ? "" : uri.getScheme();
-        if ("file".equals(scheme)) {
-            return true;
-        }
         if ("appassets.androidplatform.net".equals(uri.getHost())) {
             return true;
         }
@@ -583,6 +640,7 @@ public class MainActivity extends Activity {
     public class AppBridge {
         @JavascriptInterface
         public void savePocketFile(String requestId, String filename, String mime, String base64) {
+            if (!bridgeAllowed()) return;
             runOnUiThread(() -> beginPocketFile(requestId, filename, mime, base64));
         }
 
@@ -671,16 +729,18 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean noticesReady() {
-            return true;
+            return bridgeAllowed();
         }
 
         @JavascriptInterface
         public void showNotice(String title, String body) {
+            if (!bridgeAllowed()) return;
             runOnUiThread(() -> postNotice(title, body));
         }
 
         @JavascriptInterface
         public void scheduleNotice(String id, String title, String body, double whenMs) {
+            if (!bridgeAllowed()) return;
             runOnUiThread(() -> schedulePrepNotice(id, title, body, (long) whenMs));
         }
 
@@ -691,22 +751,24 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void openExternal(String url) {
-            if (url == null || url.isEmpty()) return;
-            runOnUiThread(() -> openOutside(url));
+            if (url == null || url.isEmpty() || !bridgeAllowed()) return;
+            // Same rules as page links: only tel/sms/mailto/https leave the app; never intent:/file:/content:.
+            runOnUiThread(() -> openExternalSafely(Uri.parse(url)));
         }
 
         @JavascriptInterface
         public void saveReport(String filename, String html) {
+            if (!bridgeAllowed()) return;
             runOnUiThread(() -> beginSaveReport(filename, html));
         }
 
         @JavascriptInterface
         public void saveLogin(String email, String password) {
-            if (email == null || password == null || password.length() < 8) return;
+            if (email == null || password == null || password.length() < 8 || !loginBridgeAllowed()) return;
             SharedPreferences prefs = logins();
             try {
                 JSONObject map = new JSONObject(prefs.getString("map", "{}"));
-                putLoginKeys(map, email, password);
+                putLoginKeys(map, email, sealSecret(password));
                 prefs.edit()
                         .putString("map", map.toString())
                         .putString("last", email.trim().toLowerCase())
@@ -717,10 +779,10 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String savedLogin(String email) {
-            if (email == null) return "";
+            if (email == null || !loginBridgeAllowed()) return "";
             try {
                 JSONObject map = new JSONObject(logins().getString("map", "{}"));
-                return lookupLogin(map, email);
+                return openSecret(lookupLogin(map, email));
             } catch (Exception ignored) {
                 return "";
             }
@@ -728,12 +790,13 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public String lastLogin() {
+            if (!loginBridgeAllowed()) return "";
             try {
                 SharedPreferences prefs = logins();
                 String email = prefs.getString("last", "");
                 if (email == null || email.isEmpty()) return "";
                 JSONObject map = new JSONObject(prefs.getString("map", "{}"));
-                String password = lookupLogin(map, email);
+                String password = openSecret(lookupLogin(map, email));
                 if (password.isEmpty()) return "";
                 JSONObject out = new JSONObject();
                 out.put("email", email);
@@ -747,6 +810,66 @@ public class MainActivity extends Activity {
 
     private SharedPreferences logins() {
         return getSharedPreferences("tattoo_device_logins", MODE_PRIVATE);
+    }
+
+    private static final String LOGIN_KEY_ALIAS = "pocket-device-login-v1";
+    private static final String SEALED = "v1:";
+
+    /** AES-GCM key held in the Android Keystore (never exported, never part of backups). */
+    private SecretKey loginKey() throws Exception {
+        KeyStore store = KeyStore.getInstance("AndroidKeyStore");
+        store.load(null);
+        java.security.Key existing = store.getKey(LOGIN_KEY_ALIAS, null);
+        if (existing instanceof SecretKey) return (SecretKey) existing;
+        KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        generator.init(new KeyGenParameterSpec.Builder(LOGIN_KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .build());
+        return generator.generateKey();
+    }
+
+    /** Saved website passwords are stored encrypted; plaintext is never written to preferences. */
+    private String sealSecret(String plain) throws Exception {
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, loginKey());
+        byte[] iv = cipher.getIV();
+        byte[] sealed = cipher.doFinal(plain.getBytes(StandardCharsets.UTF_8));
+        return SEALED + Base64.encodeToString(iv, Base64.NO_WRAP) + ":" + Base64.encodeToString(sealed, Base64.NO_WRAP);
+    }
+
+    /** Opens a sealed value. Legacy plaintext entries (<=1.15.3) are re-sealed on first use. */
+    private String openSecret(String stored) {
+        if (stored == null || stored.isEmpty()) return "";
+        if (!stored.startsWith(SEALED)) {
+            migrateLegacyLogins();
+            return stored;
+        }
+        try {
+            String[] parts = stored.substring(SEALED.length()).split(":", 2);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, loginKey(), new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
+            return new String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return ""; // e.g. restored on another phone: the keystore key is not there, user signs in again.
+        }
+    }
+
+    private void migrateLegacyLogins() {
+        try {
+            SharedPreferences prefs = logins();
+            JSONObject map = new JSONObject(prefs.getString("map", "{}"));
+            JSONObject next = new JSONObject();
+            java.util.Iterator<String> keys = map.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                String value = map.optString(key, "");
+                if (value.isEmpty()) continue;
+                next.put(key, value.startsWith(SEALED) ? value : sealSecret(value));
+            }
+            prefs.edit().putString("map", next.toString()).apply();
+        } catch (Exception ignored) { }
     }
 
     private void putLoginKeys(JSONObject map, String email, String password) throws Exception {
@@ -902,28 +1025,39 @@ public class MainActivity extends Activity {
             return;
         }
         savingPdf = true;
-        try {
-            File dir = new File(getCacheDir(), "reports");
-            if (!dir.exists() && !dir.mkdirs()) throw new IOException("cache");
-            File out = new File(dir, "report.pdf");
-            writeTextPdf(htmlToText(html), out);
-            Uri uri = copyToDownloads(out, safePdfName(filename));
-            Toast.makeText(this, "لیست در پوشه دانلود گوشی ذخیره شد", Toast.LENGTH_LONG).show();
-            if (uri != null && !"file".equals(uri.getScheme())) {
-                Intent viewIntent = new Intent(Intent.ACTION_VIEW);
-                viewIntent.setDataAndType(uri, "application/pdf");
-                viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                try {
-                    startActivity(Intent.createChooser(viewIntent, "باز کردن PDF"));
-                } catch (Exception ignored) {
-                    /* file is already in Downloads */
+        // Text layout + MediaStore copy can take seconds for long lists: never on the UI thread (ANR).
+        new Thread(() -> {
+            Uri saved = null;
+            boolean ok = false;
+            try {
+                File dir = new File(getCacheDir(), "reports");
+                if (!dir.exists() && !dir.mkdirs()) throw new IOException("cache");
+                File out = new File(dir, "report.pdf");
+                writeTextPdf(htmlToText(html), out);
+                saved = copyToDownloads(out, safePdfName(filename));
+                ok = true;
+            } catch (Exception ignored) { }
+            final boolean done = ok;
+            final Uri uri = saved;
+            runOnUiThread(() -> {
+                savingPdf = false;
+                if (!done) {
+                    Toast.makeText(this, "ذخیره PDF نشد", Toast.LENGTH_LONG).show();
+                    return;
                 }
-            }
-        } catch (Exception e) {
-            Toast.makeText(this, "ذخیره PDF نشد", Toast.LENGTH_LONG).show();
-        } finally {
-            savingPdf = false;
-        }
+                Toast.makeText(this, "لیست در پوشه دانلود گوشی ذخیره شد", Toast.LENGTH_LONG).show();
+                if (uri != null && !"file".equals(uri.getScheme())) {
+                    Intent viewIntent = new Intent(Intent.ACTION_VIEW);
+                    viewIntent.setDataAndType(uri, "application/pdf");
+                    viewIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    try {
+                        startActivity(Intent.createChooser(viewIntent, "باز کردن PDF"));
+                    } catch (Exception ignored) {
+                        /* file is already in Downloads */
+                    }
+                }
+            });
+        }, "report-pdf").start();
     }
 
     private static String htmlToText(String html) {

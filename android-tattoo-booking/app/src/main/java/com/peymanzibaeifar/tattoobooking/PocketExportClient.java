@@ -35,7 +35,14 @@ public final class PocketExportClient {
     }
 
     public static Result send(String cookie, Action action) throws Exception {
-        return post(ENDPOINT, cookie, action.body);
+        // Both actions are read-only, so one retry after a dropped/slow connection is safe on weak mobile data.
+        try {
+            return post(ENDPOINT, cookie, action.body);
+        } catch (java.net.SocketTimeoutException | java.net.UnknownHostException
+                 | javax.net.ssl.SSLException | java.net.SocketException first) {
+            Thread.sleep(1500);
+            return post(ENDPOINT, cookie, action.body);
+        }
     }
 
     /** Owner's self license: session-guarded server action, payload is only the validated device id. */

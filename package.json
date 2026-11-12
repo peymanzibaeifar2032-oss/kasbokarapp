@@ -24,7 +24,7 @@
     "start": "node .output/server/index.mjs",
     "build:pocket": "node scripts/build-pocket-apk-assets.mjs",
     "test:pocket-sync": "node --experimental-strip-types --test src/lib/pocket/sync-response.test.ts src/lib/pocket-book.test.ts",
-    "test:pocket-features": "node --import ./scripts/ts-alias-loader.mjs --experimental-strip-types --test src/lib/pocket/sms-templates.test.ts src/lib/pocket/booking-payments.test.ts src/lib/pocket/referral-club.test.ts src/lib/pocket/backup.test.ts src/lib/pocket/documents.test.ts src/lib/pocket/professions.test.ts src/lib/server/pocket-trainees-export.test.ts src/lib/pocket/owner-features.test.ts src/lib/pocket/access-status.test.ts src/lib/pocket/sync-1143.test.ts src/lib/pocket/license.test.ts src/lib/pocket/license-gate.test.ts"
+    "test:pocket-features": "node --import ./scripts/ts-alias-loader.mjs --experimental-strip-types --test src/lib/pocket/sms-templates.test.ts src/lib/pocket/booking-payments.test.ts src/lib/pocket/referral-club.test.ts src/lib/pocket/backup.test.ts src/lib/pocket/documents.test.ts src/lib/pocket/professions.test.ts src/lib/server/pocket-trainees-export.test.ts src/lib/pocket/owner-features.test.ts src/lib/pocket/access-status.test.ts src/lib/pocket/sync-1143.test.ts src/lib/pocket/license.test.ts src/lib/pocket/license-gate.test.ts src/lib/pocket/gregorian.test.ts src/lib/pocket/storage-safety.test.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

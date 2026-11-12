@@ -1,5 +1,6 @@
 import { assertCanMutate } from "./license-gate.ts";
 import { openPocketDb } from "../pocket-book.ts";
+import { replaceStoreRows } from "./idb-safe.ts";
 
 export type Trainee = {
   id: string;
@@ -96,18 +97,25 @@ export async function listTrainees() {
   });
   await txDone(tx);
   db.close();
-  return rows.sort((a, b) => a.name.localeCompare(b.name, "fa"));
+  return rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "fa"));
 }
 
 export async function saveTrainees(rows: Trainee[]) {
   assertCanMutate();
   const db = await openDb();
-  const tx = db.transaction(PEOPLE, "readwrite");
-  const store = tx.objectStore(PEOPLE);
-  store.clear();
-  for (const row of rows) store.put(row);
-  await txDone(tx);
-  db.close();
+  try {
+    const tx = db.transaction(PEOPLE, "readwrite");
+    const done = txDone(tx);
+    try {
+      replaceStoreRows(tx, PEOPLE, rows);
+    } catch (error) {
+      done.catch(() => undefined);
+      throw error;
+    }
+    await done;
+  } finally {
+    db.close();
+  }
 }
 
 export async function listTraineePayments() {
@@ -120,18 +128,25 @@ export async function listTraineePayments() {
   });
   await txDone(tx);
   db.close();
-  return rows.sort((a, b) => b.paidOn.localeCompare(a.paidOn));
+  return rows.sort((a, b) => String(b.paidOn || "").localeCompare(String(a.paidOn || "")));
 }
 
 export async function saveTraineePayments(rows: TraineePayment[]) {
   assertCanMutate();
   const db = await openDb();
-  const tx = db.transaction(PAYMENTS, "readwrite");
-  const store = tx.objectStore(PAYMENTS);
-  store.clear();
-  for (const row of rows) store.put(row);
-  await txDone(tx);
-  db.close();
+  try {
+    const tx = db.transaction(PAYMENTS, "readwrite");
+    const done = txDone(tx);
+    try {
+      replaceStoreRows(tx, PAYMENTS, rows);
+    } catch (error) {
+      done.catch(() => undefined);
+      throw error;
+    }
+    await done;
+  } finally {
+    db.close();
+  }
 }
 
 export function newTraineeId() {

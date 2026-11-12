@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { isLicenseLockedError } from "@/lib/pocket/license-gate";
 import { toast } from "sonner";
 import { ArrowDownLeft, ArrowUpRight, CloudDownload, Landmark, ListOrdered, Trash2 } from "lucide-react";
 import { toFaDigits } from "@/lib/calendar/jalali";
@@ -37,6 +38,18 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
   }, [locale]);
 
   const summary = useMemo(() => summarizeCash(rows), [rows]);
+  // Rows typed on this phone vs rows copied from the site panel are summed separately (never mixed silently).
+  const manualSummary = useMemo(() => summarizeCash(rows.filter((row) => !row.serverId)), [rows]);
+  const siteRowsSummary = useMemo(() => summarizeCash(rows.filter((row) => row.serverId)), [rows]);
+  const [busy, setBusy] = useState(false);
+  const draftId = useRef(newCashId());
+  function failMessage(error: unknown) {
+    return isLicenseLockedError(error)
+      ? error.message
+      : locale === "en"
+        ? "Not saved; phone storage is unavailable. Nothing changed."
+        : "ذخیره نشد؛ حافظهٔ گوشی در دسترس نیست. هیچ تغییری اعمال نشد.";
+  }
   const hasServer = rows.some((row) => row.serverId);
   const visible = rows.filter((row) => (filter === "all" ? true : filter === "server" ? row.serverId : !row.serverId));
   const serverKeys = useMemo(
@@ -49,13 +62,23 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
     const toman = parsePaymentToman(amount) ?? 0;
     if (cleanTitle.length < 2) return toast.error(locale === "en" ? "Write a title." : "عنوان را بنویس.");
     if (toman <= 0) return toast.error(locale === "en" ? "Enter an amount." : "مبلغ را بنویس.");
-    // Append only this row (never rewrite the whole box from a possibly stale list).
-    await appendCashEntry({ id: newCashId(), day: todayKey, kind, title: cleanTitle, amountToman: toman, note: note.trim(), createdAt: new Date().toISOString() });
-    setRows(await listCashEntries());
-    setTitle("");
-    setAmount("");
-    setNote("");
-    toast.success(locale === "en" ? "Saved in cash box." : "در صندوق ذخیره شد.");
+    if (busy) return;
+    setBusy(true);
+    try {
+      // Append only this row (never rewrite the whole box from a possibly stale list). The id is fixed per
+      // form, so a double tap or a retry after a slow save cannot add the same entry twice.
+      await appendCashEntry({ id: draftId.current, day: todayKey, kind, title: cleanTitle, amountToman: toman, note: note.trim(), createdAt: new Date().toISOString() });
+      draftId.current = newCashId();
+      setRows(await listCashEntries());
+      setTitle("");
+      setAmount("");
+      setNote("");
+      toast.success(locale === "en" ? "Saved in cash box." : "در صندوق ذخیره شد.");
+    } catch (error) {
+      toast.error(failMessage(error));
+    } finally {
+      setBusy(false);
+    }
   }
 
   function focusForm() {
@@ -66,8 +89,12 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
 
   async function remove(id: string) {
     if (!window.confirm(locale === "en" ? "Delete this entry?" : "این ردیف از صندوق حذف شود؟")) return;
-    await deleteCashEntry(id);
-    setRows(await listCashEntries());
+    try {
+      await deleteCashEntry(id);
+      setRows(await listCashEntries());
+    } catch (error) {
+      toast.error(failMessage(error));
+    }
   }
 
   return (
@@ -87,7 +114,7 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
       {onSyncAll ? (
         <button type="button" className="pocket-btn pocket-btn-primary" data-testid="cash-sync-all" disabled={syncBusy} onClick={() => void onSyncAll()}>
           <CloudDownload size={18} aria-hidden />
-          {syncBusy ? "در حال بارگذاری…" : "بارگذاری صندوق و نوبت‌ها از سایت"}
+          {syncBusy ? (locale === "en" ? "Loading…" : "در حال بارگذاری…") : locale === "en" ? "Load cash box and appointments from the site" : "بارگذاری صندوق و نوبت‌ها از سایت"}
         </button>
       ) : null}
       {serverStatus ? <p className="pocket-banner" data-testid="cash-server-status">{serverStatus}</p> : null}
@@ -129,6 +156,22 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
         <div className="pocket-metric is-expense"><p>{locale === "en" ? "Expense" : "هزینه"}</p><p>{tomanText(summary.expense, locale) || (locale === "en" ? "0" : "۰")}</p></div>
         <div className="pocket-metric is-balance"><p>{locale === "en" ? "Balance" : "مانده"}</p><p>{tomanText(summary.balance, locale) || (locale === "en" ? "0" : "۰")}</p></div>
       </div>
+      {hasServer ? (
+        <div className="pocket-cash-split" data-testid="cash-split">
+          <p className="pocket-muted" data-testid="cash-manual-summary">
+            {locale === "en" ? "This phone only (manual): " : "فقط این گوشی (دستی): "}
+            {locale === "en" ? "in " : "واریز "}{tomanText(manualSummary.income, locale)}{" · "}
+            {locale === "en" ? "out " : "هزینه "}{tomanText(manualSummary.expense, locale)}{" · "}
+            {locale === "en" ? "balance " : "مانده "}{tomanText(manualSummary.balance, locale)}
+          </p>
+          <p className="pocket-muted" data-testid="cash-site-rows-summary">
+            {locale === "en" ? "Copied from site: " : "کپی‌شده از سایت: "}
+            {locale === "en" ? "in " : "واریز "}{tomanText(siteRowsSummary.income, locale)}{" · "}
+            {locale === "en" ? "out " : "هزینه "}{tomanText(siteRowsSummary.expense, locale)}{" · "}
+            {locale === "en" ? "balance " : "مانده "}{tomanText(siteRowsSummary.balance, locale)}
+          </p>
+        </div>
+      ) : null}
       <div className="pocket-quick" role="group" aria-label={locale === "en" ? "Quick actions" : "دسترسی سریع"}>
         <button type="button" className="pocket-quick-tile" onClick={() => { setKind("income"); focusForm(); }}>
           <span className="pocket-quick-icon"><ArrowDownLeft size={18} aria-hidden /></span>{locale === "en" ? "Add income" : "ثبت واریز"}
@@ -151,7 +194,7 @@ export function PocketCashPanel({ locale, pack, todayKey, serverStatus, onSyncAl
         <input className="pocket-field" placeholder={locale === "en" ? "Title" : "عنوان"} value={title} onChange={(e) => setTitle(e.target.value)} />
         <input className="pocket-field" placeholder={locale === "en" ? "Amount (toman)" : "مبلغ به تومان"} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))} />
         <textarea className="pocket-area" placeholder={locale === "en" ? "Note" : "یادداشت"} value={note} onChange={(e) => setNote(e.target.value)} />
-        <button type="submit" className="pocket-btn pocket-btn-primary">{locale === "en" ? "Save" : "ذخیره"}</button>
+        <button type="submit" className="pocket-btn pocket-btn-primary" disabled={busy}>{busy ? (locale === "en" ? "Saving…" : "در حال ذخیره…") : locale === "en" ? "Save" : "ذخیره"}</button>
       </form>
       {hasServer ? (
         <div style={{ display: "flex", gap: "0.4rem" }} role="group">

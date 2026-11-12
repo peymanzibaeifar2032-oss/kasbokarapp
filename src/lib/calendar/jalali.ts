@@ -84,7 +84,8 @@ export function jalaliMonthLength(jy: number, jm: number) {
   if (jm <= 11) return 30;
   const g = jalaliToGregorian(jy + 1, 1, 1);
   const n = jalaliToGregorian(jy, 12, 30);
-  const leap = Date.UTC(g.gy, g.gm - 1, g.gd) - Date.UTC(n.gy, n.gm - 1, n.gd) > 86400000;
+  // In a leap year 30 Esfand is exactly the day before 1 Farvardin; otherwise it rolls over onto 1 Farvardin.
+  const leap = Date.UTC(g.gy, g.gm - 1, g.gd) - Date.UTC(n.gy, n.gm - 1, n.gd) >= 86400000;
   return leap ? 30 : 29;
 }
 
