@@ -51,7 +51,7 @@ export async function saveAction<T = unknown>(type: string, payload: unknown = {
   }
   const data = await readBody(res);
   if (!res.ok) {
-    throw new Error(friendlyError(data));
+    throw Object.assign(new Error(friendlyError(data)), { status: res.status });
   }
   return data as T;
 }
