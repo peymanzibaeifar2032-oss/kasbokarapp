@@ -1,5 +1,6 @@
 import type { BookingField } from "./pocket/professions.ts";
 import { assertCanMutate } from "./pocket/license-gate.ts";
+import { replaceStoreRows } from "./pocket/idb-safe.ts";
 
 export type PocketCustomField = { id: string; label: string; value: string; kind: "text" };
 
@@ -87,18 +88,32 @@ export async function listPocketBookings() {
   });
   await txDone(tx);
   db.close();
-  return rows.sort((a, b) => a.day.localeCompare(b.day) || a.time.localeCompare(b.time) || a.name.localeCompare(b.name, "fa"));
+  // Rows restored from old backups may miss optional text fields: sorting must never crash the calendar.
+  return rows.sort(
+    (a, b) =>
+      String(a.day || "").localeCompare(String(b.day || "")) ||
+      String(a.time || "").localeCompare(String(b.time || "")) ||
+      String(a.name || "").localeCompare(String(b.name || ""), "fa"),
+  );
 }
+
 
 export async function savePocketBookings(rows: PocketBooking[]) {
   assertCanMutate();
   const db = await openPocketDb();
-  const tx = db.transaction(STORE, "readwrite");
-  const store = tx.objectStore(STORE);
-  store.clear();
-  for (const row of rows) store.put(row);
-  await txDone(tx);
-  db.close();
+  try {
+    const tx = db.transaction(STORE, "readwrite");
+    const done = txDone(tx);
+    try {
+      replaceStoreRows(tx, STORE, rows);
+    } catch (error) {
+      done.catch(() => undefined);
+      throw error;
+    }
+    await done;
+  } finally {
+    db.close();
+  }
 }
 
 export function applyDownload(local: PocketBooking[], incoming: PocketIncoming[]) {

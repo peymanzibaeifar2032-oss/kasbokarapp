@@ -124,9 +124,13 @@ try {
   );
   await page.getByRole("dialog", { name: "تأیید وارد کردن فایل" }).waitFor();
   await page.getByRole("checkbox", { name: /جایگزینی موارد هم‌شناسه/ }).check();
+  // 1.16.0: replacing same-id items asks for an explicit confirmation first.
+  let replaceConfirm = "";
+  page.once("dialog", (dialog) => { replaceConfirm = dialog.message(); void dialog.accept(); });
   await page.getByRole("button", { name: "تأیید و وارد کردن", exact: true }).click();
   await page.getByRole("tab", { name: "کارآموزها", exact: true }).click();
   await page.getByText(/جلسه ۷\/۱۲/).waitFor();
+  assert.match(replaceConfirm, /جایگزین/);
   await screenshot("trainee-after-import-mobile");
   await page.getByRole("tab", { name: "تقویم", exact: true }).click();
   await page.getByText("فیلتر روغن واردشده", { exact: false }).waitFor();

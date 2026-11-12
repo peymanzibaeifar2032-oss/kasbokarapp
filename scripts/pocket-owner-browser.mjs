@@ -172,6 +172,8 @@ try {
     await page.getByTestId("cash-server-status").getByText(/صندوق سایت دریافت شد/).waitFor();
     await page.getByText("ردیف دستی").waitFor();
     assert.equal(await page.getByText("کرایه آزمایشی").count(), 1, "no duplicate after two downloads");
+    // The cash panel re-reads its rows after a site load; wait for that read instead of sampling mid-remount.
+    await page.waitForFunction(() => document.querySelectorAll(".pocket-card li, ul > li.pocket-card, li.pocket-tx").length >= 3, null, { timeout: 10000 });
     assert.equal(await page.locator(".pocket-card li, ul > li.pocket-card, li.pocket-tx").count() >= 3, true);
     await shot(page, "owner-cash");
     await page.getByRole("tab", { name: /هنرجو|کارآموز/ }).click();

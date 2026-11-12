@@ -1,4 +1,5 @@
 import { assertCanMutate } from "./license-gate.ts";
+import { replaceStoreRows } from "./idb-safe.ts";
 export type CashEntryKind = "income" | "expense";
 
 export type CashEntry = {
@@ -169,12 +170,19 @@ export async function readServerCashSummary(): Promise<ServerCashSummary | null>
 export async function saveCashEntries(rows: CashEntry[]) {
   assertCanMutate();
   const db = await openDb();
-  const tx = db.transaction(STORE, "readwrite");
-  const store = tx.objectStore(STORE);
-  store.clear();
-  for (const row of rows) store.put(row);
-  await txDone(tx);
-  db.close();
+  try {
+    const tx = db.transaction(STORE, "readwrite");
+    const done = txDone(tx);
+    try {
+      replaceStoreRows(tx, STORE, rows);
+    } catch (error) {
+      done.catch(() => undefined);
+      throw error;
+    }
+    await done;
+  } finally {
+    db.close();
+  }
 }
 
 export function newCashId() {

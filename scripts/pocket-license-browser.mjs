@@ -70,6 +70,8 @@ try {
   assert.equal(await page.getByText("مشتری نمونهٔ قفل", { exact: true }).count(), 0);
   step("no license → activation card shown, add booking blocked with reason");
   // Bad code: rejected locally without a network call.
+  // 1.16.0: other tabs show a slim notice; the code form lives in the Backup tab («فعال‌سازی» opens it).
+  await page.getByTestId("license-open").click();
   await page.locator("#pocket-license-code").fill("bad");
   await page.getByRole("button", { name: "فعال‌سازی", exact: true }).click();
   await page.getByText(/کد ۲۰ حرفی/).first().waitFor();

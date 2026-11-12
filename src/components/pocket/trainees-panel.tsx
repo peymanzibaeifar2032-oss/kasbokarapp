@@ -9,7 +9,7 @@ import { toTelLink, toWhatsAppLink } from "@/lib/format";
 import { SmsComposer } from "./sms-composer";
 import { listPocketBookings } from "@/lib/pocket-book";
 import { readPocketSettings } from "@/lib/pocket/settings";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CloudDownload, GraduationCap, MessageSquare, Minus, Phone, Plus, Trash2, UserPlus } from "lucide-react";
 import { toFaDigits } from "@/lib/calendar/jalali";
@@ -70,9 +70,33 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
 
   const totals = useMemo(() => {
     const paid = people.reduce((sum, person) => sum + traineePaidAmount(person, payments), 0);
-    const fee = people.reduce((sum, row) => sum + row.feeTotalToman, 0);
-    return { paid, fee, remaining: fee - paid };
+    const fee = people.reduce((sum, row) => sum + (Number(row.feeTotalToman) || 0), 0);
+    // Debt = what each trainee still owes; one trainee's overpayment never hides another one's debt.
+    const remaining = people.reduce(
+      (sum, person) => sum + Math.max(0, (Number(person.feeTotalToman) || 0) - traineePaidAmount(person, payments)),
+      0,
+    );
+    return { paid, fee, remaining };
   }, [people, payments]);
+  const busyRef = useRef(false);
+  /** Runs one write at a time and reports blocked/failed storage instead of failing silently. */
+  async function guarded(task: () => Promise<unknown>) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      await task();
+    } catch (error) {
+      toast.error(
+        isLicenseLockedError(error)
+          ? error.message
+          : locale === "en"
+            ? "Not saved; phone storage is unavailable."
+            : "ذخیره نشد؛ حافظهٔ گوشی در دسترس نیست.",
+      );
+    } finally {
+      busyRef.current = false;
+    }
+  }
 
   // Save first: a blocked (unlicensed) or failed write must never show as if it had been stored.
   async function persistPeople(next: Trainee[]) {
@@ -304,7 +328,7 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
         className="pocket-card pocket-form-card grid gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          void addPerson();
+          void guarded(addPerson);
         }}
       >
         <p style={{ margin: 0, fontWeight: 800 }}>
@@ -391,7 +415,7 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
                 <button
                   type="button"
                   className="pocket-btn pocket-btn-ghost"
-                  onClick={() => void bumpSessions(person.id, 1)}
+                  onClick={() => void guarded(() => bumpSessions(person.id, 1))}
                 >
                   <Plus size={16} />
                   {locale === "en" ? "Session" : "جلسه"}
@@ -399,7 +423,7 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
                 <button
                   type="button"
                   className="pocket-btn pocket-btn-ghost"
-                  onClick={() => void bumpSessions(person.id, -1)}
+                  onClick={() => void guarded(() => bumpSessions(person.id, -1))}
                 >
                   <Minus size={16} />
                 </button>
@@ -411,7 +435,7 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
                       locale === "en" ? "Payment amount (toman)" : "مبلغ واریزی به تومان",
                       "",
                     );
-                    if (amount != null) void addPayment(person.id, amount);
+                    if (amount != null) void guarded(() => addPayment(person.id, amount));
                   }}
                 >
                   {locale === "en" ? "Payment" : "واریزی"}
@@ -419,7 +443,7 @@ export function PocketTraineesPanel({ locale, pack, todayKey, ownerVerified = fa
                 <button
                   type="button"
                   className="pocket-btn pocket-btn-danger"
-                  onClick={() => void removePerson(person.id)}
+                  onClick={() => void guarded(() => removePerson(person.id))}
                 >
                   <Trash2 size={16} />
                 </button>

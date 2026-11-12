@@ -169,12 +169,39 @@ const faDate = (sec: number) => new Intl.DateTimeFormat("fa-IR-u-ca-persian", { 
 const faDateTime = (sec: number) => new Intl.DateTimeFormat("fa-IR-u-ca-persian", { month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" }).format(new Date(sec * 1000));
 
 /** Activation card. Shown at the top when locked, and in the Backup tab always. Never asks for or shows secrets other than the code the user types. */
-export function PocketLicenseCard({ license, compact = false, onOpenBackup }: { license: PocketLicenseController; compact?: boolean; onOpenBackup?: () => void }) {
+export function PocketLicenseCard({ license, compact = false, onOpenBackup, ownerVerified = false }: { license: PocketLicenseController; compact?: boolean; onOpenBackup?: () => void; ownerVerified?: boolean }) {
   const [code, setCode] = useState("");
   if (!license.enforced) return null;
   const { state, busy } = license;
   const valid = state.status === "valid";
-  if (compact && valid) return null;
+  if (compact && (valid || !license.checked)) return null;
+  if (compact) {
+    // Slim notice on the other tabs (not the whole activation form on every page). The full card lives in «پشتیبان».
+    return (
+      <section className="pocket-license is-locked pocket-license-slim" data-testid="license-card" data-status={state.status} aria-live="polite">
+        <div className="pocket-license-head">
+          <ShieldAlert size={18} aria-hidden />
+          <h2>{ownerVerified || busy ? "فعال‌سازی خودکار صاحب برنامه…" : "برنامه هنوز فعال نشده است"}</h2>
+        </div>
+        <p className="pocket-muted" data-testid="license-reason">{state.reason} دیدن نوبت‌ها و خروجی JSON/PDF کار می‌کند.</p>
+        {!ownerVerified ? (
+          <p className="pocket-muted" data-testid="license-owner-help">صاحب برنامه کد لازم ندارد: «ورود صاحب برنامه» را بزنید و در سایت وارد شوید؛ مجوز خودکار فعال می‌شود.</p>
+        ) : null}
+        <div className="pocket-license-actions">
+          {onOpenBackup ? (
+            <button type="button" className="pocket-btn pocket-btn-primary" onClick={onOpenBackup} data-testid="license-open">
+              <KeyRound size={16} aria-hidden /> فعال‌سازی
+            </button>
+          ) : null}
+          {!ownerVerified ? (
+            <button type="button" className="pocket-btn" disabled={busy} onClick={() => void license.ownerSelf()} data-testid="license-owner">
+              <LogIn size={16} aria-hidden /> ورود صاحب برنامه
+            </button>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
   return (
     <section className={`pocket-license ${valid ? "is-valid" : "is-locked"}`} data-testid="license-card" data-status={license.checked ? state.status : "checking"} aria-live="polite">
       <div className="pocket-license-head">
@@ -191,7 +218,10 @@ export function PocketLicenseCard({ license, compact = false, onOpenBackup }: { 
           <p className="pocket-muted">
             هیچ اطلاعاتی پاک نمی‌شود. دیدن نوبت‌ها، تماس، پیامک و واتس‌اپ، و خروجی JSON و PDF همیشه کار می‌کند؛ فقط ثبت و ویرایش تازه تا فعال‌سازی بسته است.
           </p>
-          <form
+          {ownerVerified ? (
+            <p className="pocket-muted" data-testid="license-owner-verified">حساب صاحب برنامه در سایت تأیید شده است؛ کد لازم نیست. مجوز خودکار درخواست می‌شود؛ اگر فعال نشد «ورود صاحب برنامه» را بزنید.</p>
+          ) : null}
+          {!ownerVerified ? <form
             className="pocket-license-form"
             onSubmit={(e) => { e.preventDefault(); void license.activate(code).then((ok) => ok && setCode("")); }}
           >
@@ -203,7 +233,7 @@ export function PocketLicenseCard({ license, compact = false, onOpenBackup }: { 
             <button type="submit" className="pocket-btn pocket-btn-primary" disabled={busy}>
               <KeyRound size={18} aria-hidden /> {busy ? "در حال بررسی…" : "فعال‌سازی"}
             </button>
-          </form>
+          </form> : null}
           <p className="pocket-muted" data-testid="license-owner-help">
             صاحب برنامه کد لازم ندارد: «ورود صاحب برنامه» را بزنید، در سایت با ایمیل صاحب برنامه وارد شوید و به اپ برگردید؛ مجوز یک‌ساله (تا ۵ گوشی) خودش فعال می‌شود؛ برای تمدید، هر وقت لازم شد دوباره همین کار را بکنید.
           </p>

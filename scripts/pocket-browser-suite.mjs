@@ -17,6 +17,6 @@ const run = (script, extra = {}) => {
   execFileSync(process.execPath, [script], { stdio: "inherit", env: { ...process.env, POCKET_ROOT: "dist/pocket-offline-test", POCKET_TEST_LICENSE: JSON.stringify({ secret, token }), ...extra } });
 };
 const only = process.argv.slice(2);
-for (const script of ["scripts/pocket-owner-browser.mjs", "scripts/pocket-features-browser.mjs", "scripts/pocket-visual-1144.mjs", "scripts/pocket-license-browser.mjs", "scripts/pocket-sms-browser.mjs", "scripts/pocket-locked-browser.mjs", "scripts/pocket-owner-enroll-browser.mjs"]) {
+for (const script of ["scripts/pocket-owner-browser.mjs", "scripts/pocket-features-browser.mjs", "scripts/pocket-visual-1144.mjs", "scripts/pocket-license-browser.mjs", "scripts/pocket-sms-browser.mjs", "scripts/pocket-locked-browser.mjs", "scripts/pocket-owner-enroll-browser.mjs", "scripts/pocket-calendar-locale-browser.mjs"]) {
   if (!only.length || only.some((o) => script.includes(o))) run(script, script.includes("owner-enroll") ? { POCKET_TEST_LICENSE: "", POCKET_TEST_SELF: JSON.stringify({ secret: selfInstall.secret, token: selfToken }), POCKET_TEST_SELF_OTHER: JSON.stringify({ token: otherToken }) } : script.includes("license-browser") ? { POCKET_TEST_ISSUER_NOTE: "1", POCKET_TEST_EXPIRED: JSON.stringify({ secret, token: issuer.issue({ lid: "lic_browser_test", dev: device, iat: s - 40 * 86400, nbf: s - 41 * 86400, exp: s - 86400, olu: s - 86400 }) }) } : {});
 }

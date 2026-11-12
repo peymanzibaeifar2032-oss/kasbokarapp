@@ -418,3 +418,8 @@ li.pocket-card { border-inline-start: 4px solid var(--pk-accent); }
 .pocket-pay-error{margin:0;color:#c62828;font-weight:800}
 .pocket-pay-over{color:#8a4a0c}
 .pocket-club{display:grid;gap:.5rem}.pocket-club-member{width:100%;min-height:44px;display:grid;gap:.1rem;text-align:start;background:none;border:0;color:inherit;padding:0}
+.pocket-license-slim { padding: 0.7rem 0.85rem; gap: 0.45rem; }
+.pocket-license-slim .pocket-license-head h2 { font-size: 0.95rem; }
+.pocket-license-slim .pocket-license-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.pocket-cash-split { display: grid; gap: 0.2rem; padding: 0.6rem 0.8rem; border-radius: 0.9rem; background: #f8fafc; border: 1px dashed #cbd5e1; }
+.pocket-cash-split p { margin: 0; font-size: 0.82rem; }
