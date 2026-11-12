@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { LessonView, TocPart } from "@/lib/tattoo-curriculum/index.ts";
+import { LessonPdfButton } from "@/components/studio/lesson-pdf-button";
+import { curriculumPdfBlocks, plainPdfBlocks } from "@/lib/lesson-pdf";
 
 export const Route = createFileRoute("/studio/class")({
   component: ClassRoom,
@@ -370,6 +372,7 @@ function LessonBody({
   const images = lesson.images.filter((image) => (image.caption || "").startsWith("تمرین") === Boolean(showingPractice));
   return (
     <article className="mt-6">
+      <LessonPdfButton title={lesson.title} token={token} blocks={plainPdfBlocks(lesson.content)} images={lesson.images.map((image) => ({ path: image.path, caption: image.caption }))} />
       {nav}
       <h2 className="mt-3 text-3xl font-black leading-tight">{lesson.title}</h2>
       {pieces.practice ? (
@@ -526,6 +529,12 @@ function CurriculumLessonBody({
   const box = "mt-6 rounded-3xl border p-4";
   return (
     <article className="mt-6" data-lesson={lesson.id}>
+      <LessonPdfButton
+        title={lesson.title}
+        token={token}
+        blocks={curriculumPdfBlocks(lesson)}
+        images={lesson.images.map((image) => ({ path: image.path, caption: image.caption }))}
+      />
       {nav(false)}
       <p className="mt-4 text-xs font-bold text-[#9a7340]">{lesson.partTitle} · {lesson.chapterTitle} · درس {lesson.number.toLocaleString("fa-IR")} · سطح {lesson.level}</p>
       <h2 className="mt-2 text-3xl font-black leading-tight">{lesson.title}</h2>
