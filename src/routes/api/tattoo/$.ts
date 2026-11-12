@@ -29,6 +29,7 @@ import {
   tableOfContents,
 } from "@/lib/tattoo-curriculum/index.ts";
 import { lessonPlainText } from "@/lib/tattoo-curriculum/plain.ts";
+import { DEPTH_SKIN_ID, depthSkinClassView, depthSkinImage, depthSkinPlain, withDepthSkinCatalog, withDepthSkinToc } from "@/lib/tattoo-curriculum/depth-skin.ts";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -80,6 +81,12 @@ function curriculumLesson(id: string) {
 }
 
 async function curriculumImage(slotId: string) {
+  const extra = depthSkinImage(slotId);
+  if (extra) {
+    return new Response(Buffer.from(extra, "base64"), {
+      headers: { "Content-Type": "image/webp", "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff" },
+    });
+  }
   const lesson = LESSONS.find((item) => item.images.some((image) => image.id === slotId));
   if (!lesson || !isPublished(lesson)) return json({ error: "تصویر پیدا نشد." }, 404);
   const { CURRICULUM_IMAGES } = await import("@/lib/tattoo-curriculum/images.generated.ts");
@@ -165,8 +172,12 @@ async function dispatch(request: Request) {
     if (head?.startsWith("curriculum") && request.method === "GET") {
       const allowed = (await student(request)) || (await ownerCookie(request));
       if (!allowed) return json({ error: "اول کد فعال‌سازی را بزن." }, 401);
-      if (head === "curriculum") return json({ parts: tableOfContents(), archivedOldLessonIds: replacedOldLessonIds(), glossaryReading: { id: GLOSSARY_READING, title: READINGS[GLOSSARY_READING] } });
+      if (head === "curriculum") return json({ parts: withDepthSkinToc(tableOfContents()), archivedOldLessonIds: replacedOldLessonIds(), glossaryReading: { id: GLOSSARY_READING, title: READINGS[GLOSSARY_READING] } });
       if (head === "curriculum-lesson" && arg) {
+        if (arg === DEPTH_SKIN_ID) {
+          const stored = await publicLesson(arg).catch(() => null);
+          return json({ lesson: depthSkinClassView(stored?.content, stored?.images || []) });
+        }
         const lesson = curriculumLesson(arg);
         if (!lesson) return json({ error: "این درس هنوز منتشر نشده." }, 404);
         return json({ lesson });
@@ -201,12 +212,13 @@ async function dispatch(request: Request) {
     }
     if (head === "lessons" && arg && request.method === "GET") {
       const catalog = await listPublicLessons(arg);
-      if (catalog.lessons.length || !arg.startsWith("cur-mod-")) return json(catalog);
-      return json(codeCatalog(arg));
+      const base = catalog.lessons.length || !arg.startsWith("cur-mod-") ? catalog : codeCatalog(arg);
+      return json(arg === "cur-mod-p4" ? withDepthSkinCatalog(base) : base);
     }
     if (head === "lesson" && arg && request.method === "GET") {
       const lesson = await publicLesson(arg);
-      if (lesson) return json({ lesson });
+      if (lesson) return json({ lesson: lesson.images.length || arg !== DEPTH_SKIN_ID ? lesson : depthSkinPlain(lesson.content) });
+      if (arg === DEPTH_SKIN_ID) return json({ lesson: depthSkinPlain() });
       const seeded = (await listPublicModules()).some((item) => item.id.startsWith("cur-mod-"));
       const fallback = !seeded ? codeLesson(arg) : null;
       if (fallback) return json({ lesson: fallback });
@@ -222,7 +234,7 @@ async function dispatch(request: Request) {
       }).parse(await request.json());
       let lessonId = body.lessonId || null;
       let questionText = body.questionText;
-      if (lessonId?.startsWith("cur-")) {
+      if (lessonId?.startsWith("cur-") && lessonId !== DEPTH_SKIN_ID) {
         const lesson = LESSONS.find((item) => item.id === lessonId);
         if (!lesson || !isPublished(lesson)) return json({ error: "این درس پیدا نشد." }, 404);
       }
