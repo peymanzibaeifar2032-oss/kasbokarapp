@@ -20,7 +20,13 @@ type AccessRow = { id: string; deviceId: string; activatedAt: string; lastSeen: 
 type QuestionRow = { id: string; questionText: string; answerText: string | null; status: string; createdAt: string; deviceId: string; lessonId: string | null; lessonTitle: string | null };
 type Snap = { modules: ModuleRow[]; groups?: GroupRow[]; lessons: LessonRow[]; images: ImageRow[]; codes: CodeRow[]; access: AccessRow[]; questions: QuestionRow[]; ownerCode?: string };
 
-const sections = ["ماژول", "درس", "تصویر", "کد", "دسترسی", "سؤال", "پیش‌نمایش"] as const;
+const sections = ["ماژول", "درس", "تصویر", "کد", "دسترسی", "سؤال", "آمار کارآموزها", "پیش‌نمایش"] as const;
+
+type ActivityCode = { codeId: string; code: string; note: string; opens: number; completes: number; lessons: number; lastAt: string | null };
+type ActivityLesson = { lessonId: string; title: string; opens: number; readers: number; completes: number };
+type Activity = { codes: ActivityCode[]; lessons: ActivityLesson[]; totals: { events: number; codes: number; since: string | null } };
+
+const faNum = (value: number) => value.toLocaleString("fa-IR");
 
 async function callSchool(op: string, body?: unknown) {
   const response = await fetch(`/api/tattoo-school?op=${op}`, {
@@ -92,6 +98,9 @@ function TeachPage() {
           <a href="/api/tattoo-apk" className="mt-2 block text-sm font-bold text-[#1C3D52] underline">
             دانلود اپ ۱.۵.۰
           </a>
+          <a href="https://kasbokarapp.netlify.app/downloads/tattoo-class-1.6.0.apk" className="mt-2 block text-sm font-bold text-[#7B61FF] underline">
+            دانلود اپ ۱.۶.۰ (طرح رنگی، پیشرفت، PDF) — پیش از نصب، نسخهٔ ۱.۵.۰ را پاک کن
+          </a>
           {snap?.ownerCode ? (
             <label className="mt-3 block">
               <span className="text-sm font-bold">کد ورود خودت، مثل کارآموز</span>
@@ -121,6 +130,7 @@ function TeachPage() {
         {snap && section === "کد" ? <CodeDesk snap={snap} busy={busy} run={run} flash={setNotice} /> : null}
         {snap && section === "دسترسی" ? <AccessDesk snap={snap} busy={busy} run={run} /> : null}
         {snap && section === "سؤال" ? <QuestionDesk snap={snap} busy={busy} run={run} /> : null}
+        {snap && section === "آمار کارآموزها" ? <ActivityDesk /> : null}
         {snap && section === "پیش‌نمایش" ? <PreviewDesk snap={snap} /> : null}
       </div>
     </Shell>
@@ -391,6 +401,63 @@ function PreviewDesk({ snap }: { snap: Snap }) {
           ))}
         </article>
       ) : <p className="text-sm text-muted">درسی نیست.</p>}
+    </section>
+  );
+}
+
+function ActivityDesk() {
+  const [data, setData] = useState<Activity | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    callSchool("activity")
+      .then((value) => setData(value as Activity))
+      .catch((cause) => setError(cause instanceof Error ? cause.message : "خوانده نشد."));
+  }, []);
+  if (error) return <p className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</p>;
+  if (!data) return <p className="text-sm text-muted">در حال خواندن آمار…</p>;
+  const topCode = Math.max(1, ...data.codes.map((row) => row.completes * 3 + row.opens));
+  const topLesson = Math.max(1, ...data.lessons.map((row) => row.readers));
+  return (
+    <section className="grid gap-4">
+      <p className="text-sm leading-7 text-muted">
+        فقط برای مدیر. از اپ کلاس ۱.۶.۰ به بعد، باز کردن و تمام کردن هر درس با کد ورود همان کارآموز ثبت می‌شود.
+        {" "}{faNum(data.totals.codes)} کد فعال · {faNum(data.totals.events)} رویداد
+      </p>
+      <div className="rounded-3xl border border-[#7B61FF]/25 bg-white p-4">
+        <h2 className="text-lg font-black">فعال‌ترین کارآموزها</h2>
+        {!data.codes.length ? <p className="mt-2 text-sm text-muted">هنوز فعالیتی ثبت نشده.</p> : null}
+        <ol className="mt-2 grid gap-3">
+          {data.codes.map((row) => (
+            <li key={row.codeId} className="grid gap-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-bold">{row.note || "بدون نام"} <span className="text-xs font-normal text-muted" dir="ltr">{row.code}</span></span>
+                <span className="text-xs text-muted">{faNum(row.lessons)} درس · {faNum(row.opens)} بار باز · {faNum(row.completes)} تمام‌شده</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[#EEF0FF]">
+                <div className="h-full rounded-full bg-gradient-to-l from-[#7B61FF] to-[#22A06B]" style={{ width: `${Math.round(((row.completes * 3 + row.opens) / topCode) * 100)}%` }} />
+              </div>
+              {row.lastAt ? <span className="text-xs text-muted">آخرین فعالیت: {new Date(row.lastAt).toLocaleString("fa-IR", { timeZone: "Asia/Tehran" })}</span> : null}
+            </li>
+          ))}
+        </ol>
+      </div>
+      <div className="rounded-3xl border border-[#F08A24]/30 bg-white p-4">
+        <h2 className="text-lg font-black">پرخواننده‌ترین درس‌ها</h2>
+        {!data.lessons.length ? <p className="mt-2 text-sm text-muted">هنوز درسی خوانده نشده.</p> : null}
+        <ol className="mt-2 grid gap-3">
+          {data.lessons.map((row) => (
+            <li key={row.lessonId} className="grid gap-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-bold">{row.title}</span>
+                <span className="text-xs text-muted">{faNum(row.readers)} کارآموز · {faNum(row.opens)} بار باز · {faNum(row.completes)} تمام‌شده</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-[#FFF2E5]">
+                <div className="h-full rounded-full bg-gradient-to-l from-[#F08A24] to-[#F45B8C]" style={{ width: `${Math.round((row.readers / topLesson) * 100)}%` }} />
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
     </section>
   );
 }

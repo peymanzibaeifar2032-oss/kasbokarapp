@@ -6,13 +6,16 @@ import {
   activateLearnCode,
   askQuestion,
   bearerToken,
+  completedLessons,
   lessonImage,
   listPublicLessons,
   listPublicModules,
   listVisibleLessonCards,
   myQuestions,
   publicLesson,
+  recordLessonEvent,
 } from "@/lib/tattoo-learn/store.server";
+import { ACTIVITY_KINDS } from "@/lib/tattoo-learn/activity";
 import { auth, authConfigured } from "@/lib/auth/server";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
 import { createHash } from "node:crypto";
@@ -170,6 +173,15 @@ async function classIndex() {
   return { visible, index: buildClassIndex(mergePanelLessons(withDepthSkinToc(tableOfContents()), visible), visible) };
 }
 
+/** Activity is only stored for lessons an apprentice can actually open. */
+async function lessonIsVisible(lessonId: string) {
+  if (lessonId === DEPTH_SKIN_ID) return true;
+  const visible = await listVisibleLessonCards().catch(() => []);
+  if (visible.some((row) => row.id === lessonId)) return true;
+  const lesson = LESSONS.find((item) => item.id === lessonId);
+  return Boolean(lesson && isPublished(lesson));
+}
+
 async function dispatch(request: Request) {
   try {
     const [head, arg] = parts(request);
@@ -280,6 +292,20 @@ async function dispatch(request: Request) {
       }
       if ("error" in saved) return json({ error: saved.error }, saved.status);
       return json(saved);
+    }
+    if (head === "activity" && request.method === "POST") {
+      if (!allowRate(`tattoo-learn-activity:${access.id}`, 600, 60 * 60 * 1000)) {
+        return json({ error: "کمی بعد دوباره." }, 429);
+      }
+      const body = z.object({
+        lessonId: z.string().trim().min(4).max(80),
+        kind: z.enum(ACTIVITY_KINDS),
+      }).parse(await request.json());
+      if (!(await lessonIsVisible(body.lessonId))) return json({ error: "این درس پیدا نشد." }, 404);
+      return json(await recordLessonEvent(access, body.lessonId, body.kind));
+    }
+    if (head === "progress" && request.method === "GET") {
+      return json({ completed: await completedLessons(access.code_id) });
     }
     if (head === "my-questions" && request.method === "GET") {
       return json({ questions: await myQuestions(access.id) });

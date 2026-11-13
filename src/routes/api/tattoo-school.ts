@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ZodError, z } from "zod";
 import { auth, authConfigured } from "@/lib/auth/server";
 import { isStudioOwnerEmail } from "@/lib/studio-owner";
+import { LESSONS } from "@/lib/tattoo-curriculum/index.ts";
 import {
+  activityStats,
   answerQuestion,
   deleteLesson,
   deleteLessonImage,
@@ -39,8 +41,14 @@ async function handle(request: Request) {
     if (site && site !== "same-origin" && site !== "none") return json({ error: "این درخواست مجاز نیست." }, 403);
     if (!(await owner(request))) return json({ error: "فقط از پنل مدیر." }, 401);
     const op = new URL(request.url).searchParams.get("op");
-    const body = op === "snapshot" ? {} : await request.json().catch(() => ({}));
+    const body = op === "snapshot" || op === "activity" ? {} : await request.json().catch(() => ({}));
     if (op === "snapshot") return json(await schoolSnapshot());
+    if (op === "activity") {
+      const stats = await activityStats();
+      // Book lessons that live only in code have no row in tattoo_lessons; name them from the book.
+      const lessons = stats.lessons.map((row) => ({ ...row, title: row.title || LESSONS.find((item) => item.id === row.lessonId)?.title || row.lessonId }));
+      return json({ ...stats, lessons });
+    }
     if (op === "save-module") {
       const data = z.object({
         id: z.string().trim().min(4).max(80).optional(),
