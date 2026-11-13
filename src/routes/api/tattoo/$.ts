@@ -31,6 +31,7 @@ import {
 } from "@/lib/tattoo-curriculum/index.ts";
 import { lessonPlainText } from "@/lib/tattoo-curriculum/plain.ts";
 import { mergePanelLessons } from "@/lib/tattoo-curriculum/panel-lessons.ts";
+import { buildClassIndex, indexCatalog, indexModules } from "@/lib/tattoo-curriculum/class-index.ts";
 import { DEPTH_SKIN_ID, depthSkinClassView, depthSkinImage, depthSkinPlain, withDepthSkinCatalog, withDepthSkinToc } from "@/lib/tattoo-curriculum/depth-skin.ts";
 
 function json(data: unknown, status = 200) {
@@ -162,6 +163,13 @@ function codeLesson(id: string) {
   };
 }
 
+/** The one class index (book + studio/teach lessons), numbered, counted and with new lessons marked. */
+async function classIndex() {
+  // Lessons written in studio/teach live only in the class tables; list them with the book so they are not hidden.
+  const visible = await listVisibleLessonCards().catch(() => []);
+  return { visible, index: buildClassIndex(mergePanelLessons(withDepthSkinToc(tableOfContents()), visible), visible) };
+}
+
 async function dispatch(request: Request) {
   try {
     const [head, arg] = parts(request);
@@ -175,10 +183,16 @@ async function dispatch(request: Request) {
       const allowed = (await student(request)) || (await ownerCookie(request));
       if (!allowed) return json({ error: "اول کد فعال‌سازی را بزن." }, 401);
       if (head === "curriculum") {
-        // Lessons written in studio/teach live only in the class tables; list them with the book so they are not hidden.
-        const visible = await listVisibleLessonCards().catch(() => []);
-        const parts = mergePanelLessons(withDepthSkinToc(tableOfContents()), visible);
-        return json({ parts, archivedOldLessonIds: replacedOldLessonIds(), glossaryReading: { id: GLOSSARY_READING, title: READINGS[GLOSSARY_READING] } });
+        const { index } = await classIndex();
+        return json({
+          parts: index.parts,
+          recent: index.recent,
+          lessonCount: index.lessonCount,
+          chapterCount: index.chapterCount,
+          newDays: index.newDays,
+          archivedOldLessonIds: replacedOldLessonIds(),
+          glossaryReading: { id: GLOSSARY_READING, title: READINGS[GLOSSARY_READING] },
+        });
       }
       if (head === "curriculum-lesson" && arg) {
         if (arg === DEPTH_SKIN_ID) {
@@ -214,16 +228,24 @@ async function dispatch(request: Request) {
       const modules = await listPublicModules();
       const book = modules.filter((item) => item.id.startsWith("cur-mod-"));
       if (book.length) {
-        // A module made in studio/teach outside the book still shows once it has a lesson apprentices may see.
-        const visible = new Set((await listVisibleLessonCards()).map((row) => row.moduleId));
-        const extra = modules.filter((item) => !item.id.startsWith("cur-mod-") && visible.has(item.id));
-        return json({ modules: [...book, ...extra] });
+        // Same index as the web class page. The installed app only shows a card's title and description, so the
+        // description carries the chapter list, every lesson title and number, and which lessons are new.
+        const { index } = await classIndex();
+        const active = new Set(modules.map((item) => item.id));
+        return json({ modules: indexModules(index, modules).filter((item) => active.has(item.id)) });
       }
       if (!modules.length) return json({ modules: codeModules() });
       return json({ modules });
     }
     if (head === "lessons" && arg && request.method === "GET") {
       const catalog = await listPublicLessons(arg);
+      if (catalog.lessons.length) {
+        // Chapters and lessons in index order with numbered titles; only lessons the class tables publish.
+        const { index, visible } = await classIndex();
+        const allowed = new Set([...visible.map((row) => row.id), DEPTH_SKIN_ID]);
+        const shaped = indexCatalog(index, arg, allowed);
+        if (shaped?.lessons.length) return json(shaped);
+      }
       const base = catalog.lessons.length || !arg.startsWith("cur-mod-") ? catalog : codeCatalog(arg);
       return json(arg === "cur-mod-p4" ? withDepthSkinCatalog(base) : base);
     }

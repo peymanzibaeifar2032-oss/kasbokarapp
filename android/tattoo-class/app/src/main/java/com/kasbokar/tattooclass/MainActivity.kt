@@ -29,6 +29,7 @@ class MainActivity : Activity() {
     private val stack = ArrayDeque<String>()
     private val openGroups = mutableSetOf<String>()
     private var lessonOrder = listOf<LessonCard>()
+    private var lessonSeq = mapOf<String, Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,7 +87,7 @@ class MainActivity : Activity() {
 
     private fun gate(page: LinearLayout) {
         page.addView(space(28))
-        page.addView(gold("نسخه ۱.۵.۰"))
+        page.addView(gold("نسخه ۱.۶.۰"))
         page.addView(title("کلاس آموزش تاتو", 32f))
         page.addView(body("این کلاس فقط برای کسی است که پرداخت کرده و کد ورود گرفته. بدون کد، درسی نشان داده نمی‌شود."))
         val input = EditText(this).apply {
@@ -127,17 +128,130 @@ class MainActivity : Activity() {
 
     private fun home(page: LinearLayout) {
         header(page, "فهرست")
-        val host = column()
+        val host = column().apply { setPadding(0, 0, 0, 0) }
         page.addView(host)
         val progress = ProgressBar(this)
         host.addView(progress, LinearLayout.LayoutParams(dp(48), dp(48)).apply { gravity = Gravity.CENTER_HORIZONTAL })
+        work(
+            { Api(token).index() },
+            { index ->
+                host.removeAllViews()
+                if (index.parts.isEmpty()) {
+                    host.addView(body("هنوز درسی منتشر نشده. به محض انتشار در پنل، همین‌جا می‌آید."))
+                    return@work
+                }
+                lessonOrder = index.order.map { LessonCard(it.id, it.title) }
+                lessonSeq = index.order.associate { it.id to it.seq }
+                indexView(host, index)
+            },
+            { message ->
+                if (message.contains("معتبر نیست")) {
+                    logout()
+                    return@work
+                }
+                // An older server without the index: fall back to the section cards.
+                legacyHome(host)
+            },
+        )
+    }
+
+    /** The whole index on one screen: new lessons first, then every part with its chapters and lesson titles. */
+    private fun indexView(host: LinearLayout, index: ClassIndex) {
+        host.addView(gold("${fa(index.parts.size)} بخش · ${fa(index.chapterCount)} فصل · ${fa(index.lessonCount)} درس · از مبتدی تا پیشرفته"))
+        if (index.recent.isNotEmpty()) {
+            val box = column()
+            box.background = fill(if (night()) 0xFF3A2414.toInt() else 0xFFFFF4E6.toInt()).apply { setStroke(dp(2), 0x66D9480F) }
+            box.setPadding(dp(16), dp(14), dp(16), dp(14))
+            val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            head.addView(title("درس‌های تازه", 20f))
+            head.addView(space(8), LinearLayout.LayoutParams(dp(8), 1))
+            head.addView(badge())
+            box.addView(head)
+            index.recent.forEach { item -> box.addView(lessonRow(item.seq, item.title, item.where, true, true) { show("lesson:${item.id}") }) }
+            host.addView(box, match().apply { topMargin = dp(12) })
+        }
+        index.parts.forEach { part ->
+            val card = column()
+            card.background = cardBg()
+            card.setPadding(dp(16), dp(16), dp(16), dp(12))
+            val facts = listOfNotNull(
+                part.level.takeIf { it.isNotBlank() }?.let { "سطح: $it" },
+                "${fa(part.chapters.size)} فصل · ${fa(part.chapters.sumOf { it.lessons.size })} درس",
+                if (part.newCount > 0) "${fa(part.newCount)} درس جدید" else null,
+            )
+            card.addView(gold(facts.joinToString(" · ")))
+            card.addView(title(part.title, 21f))
+            if (part.description.isNotBlank()) card.addView(body(part.description).apply { textSize = 14f; alpha = 0.75f })
+            part.chapters.forEach { chapter ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                row.addView(title(chapter.title, 17f), LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                if (chapter.newCount > 0) row.addView(badge())
+                row.addView(gold("  ${fa(chapter.lessons.size)} درس"))
+                card.addView(row, match().apply { topMargin = dp(14) })
+                chapter.lessons.forEach { lesson ->
+                    card.addView(lessonRow(lesson.seq, lesson.title, lesson.note, lesson.isNew, lesson.published) { show("lesson:${lesson.id}") })
+                }
+            }
+            host.addView(card, match().apply { topMargin = dp(12) })
+        }
+    }
+
+    private fun lessonRow(seq: Int, heading: String, detail: String, isNew: Boolean, enabled: Boolean, onClick: () -> Unit): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutDirection = View.LAYOUT_DIRECTION_RTL
+            setPadding(0, dp(8), 0, dp(8))
+            alpha = if (enabled) 1f else 0.45f
+        }
+        val number = TextView(this).apply {
+            text = fa(seq)
+            textSize = 13f
+            gravity = Gravity.CENTER
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(if (isNew) 0xFFD9480F.toInt() else 0xFF1C3D52.toInt()) }
+        }
+        row.addView(number, LinearLayout.LayoutParams(dp(34), dp(34)))
+        row.addView(space(10), LinearLayout.LayoutParams(dp(10), 1))
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(TextView(this).apply {
+            text = heading
+            textSize = 16f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(ink())
+        })
+        if (detail.isNotBlank()) texts.addView(TextView(this).apply { text = detail; textSize = 12f; setTextColor(ink()); alpha = 0.7f })
+        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        if (isNew) row.addView(badge())
+        if (enabled) {
+            row.isClickable = true
+            row.setOnClickListener { onClick() }
+        }
+        return row.also { it.layoutParams = match() }
+    }
+
+    private fun badge() = TextView(this).apply {
+        text = "جدید"
+        textSize = 11f
+        setTypeface(typeface, Typeface.BOLD)
+        setTextColor(0xFFFFFFFF.toInt())
+        background = fill(0xFFD9480F.toInt())
+        setPadding(dp(8), dp(2), dp(8), dp(2))
+    }
+
+    private fun fa(value: Int): String = value.toString().map { if (it in '0'..'9') "۰۱۲۳۴۵۶۷۸۹"[it - '0'] else it }.joinToString("")
+
+    private fun legacyHome(host: LinearLayout) {
+        host.removeAllViews()
+        host.addView(ProgressBar(this))
         work(
             { Api(token).modules() },
             { modules ->
                 host.removeAllViews()
                 if (modules.isEmpty()) host.addView(body("هنوز درسی منتشر نشده. به محض انتشار در پنل، همین‌جا می‌آید."))
-                modules.forEachIndexed { index, item ->
-                    host.addView(cardButton("بخش ${index + 1}", item.title, item.description.ifBlank { "درس‌های این بخش" }) {
+                modules.forEach { item ->
+                    host.addView(cardButton("", item.title, item.description.ifBlank { "درس‌های این بخش" }) {
                         moduleId = item.id
                         moduleTitle = item.title
                         show("module")
@@ -166,14 +280,14 @@ class MainActivity : Activity() {
                 groups.forEach { group ->
                     val opened = group.title.isBlank() || openGroups.contains(group.title)
                     if (group.title.isNotBlank()) {
-                        host.addView(cardButton(if (opened) "بستن" else "باز کردن", group.title, "${group.lessons.size} درس") {
+                        host.addView(cardButton(if (opened) "بستن" else "باز کردن", group.title, "${fa(group.lessons.size)} درس") {
                             if (opened) openGroups.remove(group.title) else openGroups.add(group.title)
                             render("module")
                         })
                     }
                     if (opened) {
                         group.lessons.forEachIndexed { index, item ->
-                            host.addView(cardButton("${index + 1}", item.title, "") { show("lesson:${item.id}") })
+                            host.addView(cardButton(fa(index + 1), item.title, "") { show("lesson:${item.id}") })
                         }
                     }
                 }
@@ -197,6 +311,7 @@ class MainActivity : Activity() {
                 host.removeAllViews()
                 val index = lessonOrder.indexOfFirst { it.id == id }
                 host.addView(lessonMoves(index))
+                lessonSeq[id]?.let { host.addView(gold("درس ${fa(it)} از ${fa(lessonSeq.size)}")) }
                 host.addView(title(item.title, 28f))
                 host.addView(body(item.content))
                 item.images.forEach { image -> host.addView(picture(image)) }
