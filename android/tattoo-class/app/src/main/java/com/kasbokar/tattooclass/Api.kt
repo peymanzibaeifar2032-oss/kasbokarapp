@@ -14,6 +14,17 @@ data class LessonImage(val path: String, val caption: String)
 data class Lesson(val id: String, val title: String, val content: String, val images: List<LessonImage>)
 data class Question(val id: String, val text: String, val answer: String, val answered: Boolean)
 
+/** The class index exactly as the server orders it: parts > chapters > numbered lessons, new ones marked. */
+data class IndexLesson(val id: String, val seq: Int, val title: String, val isNew: Boolean, val published: Boolean, val note: String)
+data class IndexChapter(val title: String, val newCount: Int, val lessons: List<IndexLesson>)
+data class IndexPart(val title: String, val level: String, val description: String, val newCount: Int, val chapters: List<IndexChapter>)
+data class RecentLesson(val id: String, val seq: Int, val title: String, val where: String)
+data class ClassIndex(val parts: List<IndexPart>, val recent: List<RecentLesson>) {
+    val chapterCount get() = parts.sumOf { it.chapters.size }
+    val lessonCount get() = parts.sumOf { part -> part.chapters.sumOf { it.lessons.size } }
+    val order get() = parts.flatMap { part -> part.chapters.flatMap { chapter -> chapter.lessons.filter { it.published } } }
+}
+
 class Api(private val token: String?) {
     fun activate(code: String, deviceId: String): String {
         val json = request("POST", "/api/tattoo/activate", JSONObject().put("code", code).put("deviceId", deviceId), auth = false)
@@ -28,6 +39,33 @@ class Api(private val token: String?) {
             val item = list.getJSONObject(index)
             ModuleCard(item.optString("id"), item.optString("title"), item.optString("description"))
         }
+    }
+
+    fun index(): ClassIndex {
+        val json = request("GET", "/api/tattoo/curriculum", null)
+        var seq = 0
+        val parts = objects(json.optJSONArray("parts")).map { part ->
+            val chapters = objects(part.optJSONArray("chapters")).map { chapter ->
+                val lessons = objects(chapter.optJSONArray("lessons")).map { lesson ->
+                    seq = lesson.optInt("seq", 0).takeIf { it > 0 } ?: (seq + 1)
+                    val published = lesson.optBoolean("published", true)
+                    val note = if (published) "" else if (lesson.optBoolean("held")) "در دست بازبینی" else "به‌زودی"
+                    IndexLesson(lesson.optString("id"), seq, lesson.optString("title"), lesson.optBoolean("isNew"), published, note)
+                }
+                IndexChapter(chapter.optString("title"), lessons.count { it.isNew }, lessons)
+            }.filter { it.lessons.isNotEmpty() }
+            IndexPart(part.optString("title"), part.optString("level"), part.optString("description"), chapters.sumOf { it.newCount }, chapters)
+        }.filter { it.chapters.isNotEmpty() }
+        val recent = objects(json.optJSONArray("recent")).map { item ->
+            val where = listOf(item.optString("partTitle"), item.optString("chapterTitle")).filter { it.isNotBlank() }.joinToString(" · ")
+            RecentLesson(item.optString("id"), item.optInt("seq"), item.optString("title"), where)
+        }
+        return ClassIndex(parts, recent)
+    }
+
+    private fun objects(list: org.json.JSONArray?): List<JSONObject> {
+        if (list == null) return emptyList()
+        return List(list.length()) { list.getJSONObject(it) }
     }
 
     fun catalog(moduleId: String): List<LessonGroup> {

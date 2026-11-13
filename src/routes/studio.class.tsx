@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { LessonView, TocPart } from "@/lib/tattoo-curriculum/index.ts";
+import type { LessonView } from "@/lib/tattoo-curriculum/index.ts";
+import { fa, type IndexPart, type RecentLesson } from "@/lib/tattoo-curriculum/class-index.ts";
 import { LessonPdfButton } from "@/components/studio/lesson-pdf-button";
 import { curriculumPdfBlocks, plainPdfBlocks } from "@/lib/lesson-pdf";
 
@@ -28,7 +29,14 @@ function splitLesson(content: string) {
 }
 type CurImage = LessonView["images"][number] & { path: string };
 type CurLesson = Omit<LessonView, "images"> & { images: CurImage[] };
-type Curriculum = { parts: TocPart[]; archivedOldLessonIds: string[]; glossaryReading?: { id: string; title: string } };
+type Curriculum = {
+  parts: IndexPart[];
+  recent: RecentLesson[];
+  lessonCount: number;
+  chapterCount: number;
+  archivedOldLessonIds: string[];
+  glossaryReading?: { id: string; title: string };
+};
 type Question = { id: string; lessonId: string | null; questionText: string; answerText: string | null; status: string };
 
 const TOKEN_KEY = "tattoo-class-token";
@@ -182,7 +190,7 @@ function Library({
 
   useEffect(() => {
     load("/api/tattoo/curriculum")
-      .then((data) => setCurriculum({ parts: data.parts || [], archivedOldLessonIds: data.archivedOldLessonIds || [] }))
+      .then((data) => setCurriculum(normalizeIndex(data)))
       .catch(() => setCurriculum(null));
   }, [token]);
 
@@ -253,6 +261,8 @@ function Library({
     return [...box.groups.flatMap((group) => group.lessons), ...box.lessons.filter((lesson) => !seen.has(lesson.id))];
   });
   const tocOrder = (curriculum?.parts || []).flatMap((p) => p.chapters.flatMap((c) => c.lessons.filter((l) => l.published).map((l) => l.id)));
+  const seqMap = new Map((curriculum?.parts || []).flatMap((p) => p.chapters.flatMap((c) => c.lessons.map((l) => [l.id, l.seq] as const))));
+  const seqOf = (id: string, fallback: number) => seqMap.get(id) ?? fallback;
   const panelIds = new Set((curriculum?.parts || []).flatMap((p) => p.chapters.flatMap((c) => c.lessons.filter((l) => l.source === "panel").map((l) => l.id))));
   // Lessons written in studio/teach open from the class tables; book lessons open from the curriculum.
   function openAny(id: string) {
@@ -316,6 +326,7 @@ function Library({
           onQuestions={() => void openQuestions()}
           onOpen={openAny}
           sequence={tocOrder}
+          seqOf={seqOf}
         />
       ) : null}
 
@@ -470,37 +481,90 @@ function AskBox({ token, lessonId, onDone }: { token: string; lessonId: string; 
   );
 }
 
+/** Older servers sent the book list without numbers or counts; number and count it here the same way. */
+function normalizeIndex(data: { parts?: IndexPart[]; recent?: RecentLesson[]; glossaryReading?: { id: string; title: string }; archivedOldLessonIds?: string[] }): Curriculum {
+  let seq = 0;
+  const parts = (data.parts || []).map((part) => {
+    const chapters = (part.chapters || []).filter((chapter) => chapter.lessons.length).map((chapter) => {
+      const lessons = chapter.lessons.map((lesson) => {
+        seq = lesson.seq || seq + 1;
+        return { ...lesson, seq, isNew: Boolean(lesson.isNew) };
+      });
+      return { ...chapter, lessons, lessonCount: lessons.length, newCount: lessons.filter((lesson) => lesson.isNew).length };
+    });
+    return { ...part, chapters, chapterCount: chapters.length, lessonCount: chapters.reduce((n, c) => n + c.lessonCount, 0), newCount: chapters.reduce((n, c) => n + c.newCount, 0) };
+  }).filter((part) => part.chapters.length);
+  return {
+    parts,
+    recent: data.recent || [],
+    lessonCount: parts.reduce((n, p) => n + p.lessonCount, 0),
+    chapterCount: parts.reduce((n, p) => n + p.chapterCount, 0),
+    archivedOldLessonIds: data.archivedOldLessonIds || [],
+    glossaryReading: data.glossaryReading,
+  };
+}
+
+function NewBadge() {
+  return <span className="shrink-0 rounded-full bg-[#d9480f] px-2 py-0.5 text-[11px] font-black text-white">جدید</span>;
+}
+
 function CurriculumToc({ curriculum, card, token, onOpen }: { curriculum: Curriculum; card: string; token: string; onOpen: (id: string) => void }) {
   const live = curriculum.parts.reduce((n, p) => n + p.chapters.reduce((m, c) => m + c.lessons.filter((l) => l.published).length, 0), 0);
-  const total = curriculum.parts.reduce((n, p) => n + p.chapters.reduce((m, c) => m + c.lessons.length, 0), 0);
   return (
-    <section className="mt-6 grid gap-3" aria-label="درس‌نامهٔ نو">
+    <section className="mt-6 grid gap-4" aria-label="فهرست درس‌ها">
       <div>
-        <h2 className="text-xl font-black">درس‌نامهٔ نو: از مبتدی تا پیشرفته</h2>
-        <p className="mt-1 text-sm leading-7 opacity-70">{live.toLocaleString("fa-IR")} درس از {total.toLocaleString("fa-IR")} درس منتشر شده؛ بقیه به ترتیب اضافه می‌شوند.</p>
+        <h2 className="text-xl font-black">فهرست درس‌ها: از مبتدی تا پیشرفته</h2>
+        <p className="mt-1 text-sm leading-7 opacity-70">
+          {fa(curriculum.parts.length)} بخش · {fa(curriculum.chapterCount)} فصل · {fa(curriculum.lessonCount)} درس
+          {live < curriculum.lessonCount ? ` · ${fa(live)} درس منتشر شده` : ""}
+        </p>
       </div>
+      {curriculum.recent.length ? (
+        <section className="rounded-3xl border-2 border-[#d9480f]/40 bg-[#fff4e6] p-4 text-[#1c3d52]" aria-label="درس‌های تازه">
+          <h3 className="flex items-center gap-2 text-lg font-black">درس‌های تازه <NewBadge /></h3>
+          <div className="mt-2 grid gap-1">
+            {curriculum.recent.map((item) => (
+              <button key={item.id} type="button" className="flex items-start gap-3 rounded-2xl px-1 py-2 text-right" onClick={() => onOpen(item.id)}>
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#d9480f] text-xs font-black text-white">{fa(item.seq)}</span>
+                <span>
+                  <span className="block font-bold">{item.title}</span>
+                  <span className="block text-xs opacity-70">{item.partTitle} · {item.chapterTitle}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {curriculum.parts.map((part) => (
         <article key={part.id} className={`rounded-3xl border p-5 ${card}`}>
-          {part.level ? <p className="text-xs font-bold text-[#9a7340]">سطح: {part.level}</p> : null}
+          <p className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#9a7340]">
+            {part.level ? <span>سطح: {part.level}</span> : null}
+            <span>{fa(part.chapterCount)} فصل · {fa(part.lessonCount)} درس</span>
+            {part.newCount ? <span className="text-[#d9480f]">{fa(part.newCount)} درس جدید</span> : null}
+          </p>
           <h3 className="mt-1 text-lg font-black">{part.title}</h3>
-          <p className="mt-1 text-sm leading-7 opacity-70">{part.description}</p>
+          {part.description ? <p className="mt-1 text-sm leading-7 opacity-70">{part.description}</p> : null}
           <div className="mt-3 grid gap-2">
             {part.chapters.map((chapter) => (
-              <details key={chapter.id} className="rounded-2xl border border-current/10 px-3 py-2" open={chapter.lessons.some((l) => l.published)}>
-                <summary className="flex cursor-pointer items-center justify-between gap-3 py-2 text-base font-black">
+              <section key={chapter.id} className="rounded-2xl border border-current/10 px-3 py-2">
+                <h4 className="flex items-center justify-between gap-3 py-2 text-base font-black">
                   <span>{chapter.title}</span>
-                  <span className="text-xs font-bold opacity-60">{chapter.lessons.length.toLocaleString("fa-IR")} درس</span>
-                </summary>
+                  <span className="flex shrink-0 items-center gap-2 text-xs font-bold opacity-80">
+                    {chapter.newCount ? <NewBadge /> : null}
+                    <span className="opacity-70">{fa(chapter.lessonCount)} درس</span>
+                  </span>
+                </h4>
                 <div className="grid gap-1 pb-2">
                   {chapter.lessons.map((lesson) => (
                     <button key={lesson.id} type="button" disabled={!lesson.published} className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right disabled:opacity-45" onClick={() => onOpen(lesson.id)}>
-                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lesson.source === "panel" ? "•" : lesson.number.toLocaleString("fa-IR")}</span>
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{fa(lesson.seq)}</span>
                       <span className="font-bold">{lesson.title}</span>
+                      {lesson.isNew ? <span className="mr-auto"><NewBadge /></span> : null}
                       {!lesson.published ? <span className="mr-auto shrink-0 text-xs opacity-70">{lesson.held ? "در دست بازبینی" : "به‌زودی"}</span> : null}
                     </button>
                   ))}
                 </div>
-              </details>
+              </section>
             ))}
           </div>
         </article>
@@ -520,6 +584,7 @@ function CurriculumLessonBody({
   onQuestions,
   onOpen,
   sequence,
+  seqOf,
 }: {
   lesson: CurLesson;
   token: string;
@@ -530,6 +595,7 @@ function CurriculumLessonBody({
   onQuestions: () => void;
   onOpen: (id: string) => void;
   sequence: string[];
+  seqOf: (id: string, fallback: number) => number;
 }) {
   const at = sequence.indexOf(lesson.id);
   const prev = at > 0 ? sequence[at - 1] : null;
@@ -550,7 +616,7 @@ function CurriculumLessonBody({
         images={lesson.images.map((image) => ({ path: image.path, caption: image.caption }))}
       />
       {nav(false)}
-      <p className="mt-4 text-xs font-bold text-[#9a7340]">{lesson.partTitle} · {lesson.chapterTitle} · درس {lesson.number.toLocaleString("fa-IR")} · سطح {lesson.level}</p>
+      <p className="mt-4 text-xs font-bold text-[#9a7340]">{lesson.partTitle} · {lesson.chapterTitle} · درس {fa(seqOf(lesson.id, lesson.number))} · سطح {lesson.level}</p>
       <h2 className="mt-2 text-3xl font-black leading-tight">{lesson.title}</h2>
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button type="button" className={`h-11 rounded-full text-sm font-bold ${part === "study" ? "bg-[#1c3d52] text-white" : "border"}`} onClick={() => setPart("study")}>متن درس</button>
@@ -601,7 +667,7 @@ function CurriculumLessonBody({
               <div className="mt-2 flex flex-wrap gap-2">
                 {lesson.related.map((item) => (
                   <button key={item.id} type="button" disabled={!item.published} className="rounded-full border px-3 py-1 text-sm disabled:opacity-45" onClick={() => onOpen(item.id)}>
-                    {item.number.toLocaleString("fa-IR")}. {item.title}
+                    {fa(seqOf(item.id, item.number))}. {item.title}
                   </button>
                 ))}
               </div>

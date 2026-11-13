@@ -12,12 +12,14 @@ export type VisibleLessonRow = {
   groupId: string | null;
   groupTitle: string | null;
   groupOrder: number | null;
+  /** When the lesson row was added; lessons added one by one recently are marked «جدید». */
+  createdAt?: string | Date | null;
 };
 
 /** Same rule as the class app's /lessons and /lesson: published lesson in an active module. No lesson text. */
 export const VISIBLE_LESSON_CARDS_SQL = `select l.id, l.title, l."order", l.module_id as "moduleId",
         m.title as "moduleTitle", m.description as "moduleDescription", m."order" as "moduleOrder",
-        g.id as "groupId", g.title as "groupTitle", g."order" as "groupOrder"
+        g.id as "groupId", g.title as "groupTitle", g."order" as "groupOrder", l.created_at as "createdAt"
    from tattoo_lessons l
    join tattoo_modules m on m.id = l.module_id
    left join tattoo_lesson_groups g on g.id = l.group_id and g.module_id = l.module_id
