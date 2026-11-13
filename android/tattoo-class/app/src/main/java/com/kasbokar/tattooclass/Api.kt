@@ -15,7 +15,17 @@ data class Lesson(val id: String, val title: String, val content: String, val im
 data class Question(val id: String, val text: String, val answer: String, val answered: Boolean)
 
 /** The class index exactly as the server orders it: parts > chapters > numbered lessons, new ones marked. */
-data class IndexLesson(val id: String, val seq: Int, val title: String, val isNew: Boolean, val published: Boolean, val note: String)
+data class IndexLesson(
+    val id: String,
+    val seq: Int,
+    val title: String,
+    val isNew: Boolean,
+    val published: Boolean,
+    val note: String,
+    val level: String = "",
+    val partTitle: String = "",
+    val chapterTitle: String = "",
+)
 data class IndexChapter(val title: String, val newCount: Int, val lessons: List<IndexLesson>)
 data class IndexPart(val title: String, val level: String, val description: String, val newCount: Int, val chapters: List<IndexChapter>)
 data class RecentLesson(val id: String, val seq: Int, val title: String, val where: String)
@@ -50,7 +60,8 @@ class Api(private val token: String?) {
                     seq = lesson.optInt("seq", 0).takeIf { it > 0 } ?: (seq + 1)
                     val published = lesson.optBoolean("published", true)
                     val note = if (published) "" else if (lesson.optBoolean("held")) "در دست بازبینی" else "به‌زودی"
-                    IndexLesson(lesson.optString("id"), seq, lesson.optString("title"), lesson.optBoolean("isNew"), published, note)
+                    val level = lesson.optString("level").ifBlank { part.optString("level") }
+                    IndexLesson(lesson.optString("id"), seq, lesson.optString("title"), lesson.optBoolean("isNew"), published, note, level, part.optString("title"), chapter.optString("title"))
                 }
                 IndexChapter(chapter.optString("title"), lessons.count { it.isNew }, lessons)
             }.filter { it.lessons.isNotEmpty() }
@@ -97,6 +108,23 @@ class Api(private val token: String?) {
             LessonImage(image.optString("path"), image.optString("caption"))
         }
         return Lesson(item.optString("id"), item.optString("title"), item.optString("content"), images)
+    }
+
+    /** Lessons this activation code finished on any device. Older servers without the route return nothing. */
+    fun progress(): Set<String> {
+        val json = try {
+            request("GET", "/api/tattoo/progress", null)
+        } catch (error: ApiException) {
+            if (error.code == 404) return emptySet()
+            throw error
+        }
+        val list = json.optJSONArray("completed") ?: return emptySet()
+        return List(list.length()) { list.optString(it) }.filter { it.isNotBlank() }.toSet()
+    }
+
+    /** One lesson open or completion, so the owner can see which lessons are read. Best effort. */
+    fun activity(lessonId: String, kind: String) {
+        request("POST", "/api/tattoo/activity", JSONObject().put("lessonId", lessonId).put("kind", kind))
     }
 
     fun questions(): List<Question> {

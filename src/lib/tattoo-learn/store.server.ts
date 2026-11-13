@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { getSql, type Sql } from "@/lib/db";
 import { VISIBLE_LESSON_CARDS_SQL, type VisibleLessonRow } from "@/lib/tattoo-curriculum/panel-lessons";
 import { canAddDevice, formatCode, normalizeCode, randomActivationCode } from "@/lib/tattoo-learn/codes";
+import { OPEN_GAP_MINUTES, rankCodes, rankLessons, type ActivityKind, type CodeActivityRow, type LessonActivityRow } from "@/lib/tattoo-learn/activity";
 
 export type LearnModule = {
   id: string;
@@ -490,4 +491,72 @@ export async function ownerPreview(lessonId: string) {
     [lessonId],
   );
   return { ...lesson, images };
+}
+
+/** One lesson open/complete from the class app. Repeats are folded: a code finishes a lesson once, opens count per gap. */
+export async function recordLessonEvent(
+  access: { id: string; code_id: string; device_id: string },
+  lessonId: string,
+  kind: ActivityKind,
+) {
+  const db = await sql();
+  if (kind === "complete") {
+    const rows = await db.query<{ id: string }>(
+      `insert into tattoo_lesson_events (id, access_id, code_id, device_id, lesson_id, kind)
+       select $1, $2, $3, $4, $5, 'complete'
+        where not exists (select 1 from tattoo_lesson_events where code_id = $3 and lesson_id = $5 and kind = 'complete')
+       returning id`,
+      [id(), access.id, access.code_id, access.device_id.slice(0, 80), lessonId],
+    );
+    return { recorded: Boolean(rows[0]) };
+  }
+  const rows = await db.query<{ id: string }>(
+    `insert into tattoo_lesson_events (id, access_id, code_id, device_id, lesson_id, kind)
+     select $1, $2, $3, $4, $5, 'open'
+      where not exists (
+        select 1 from tattoo_lesson_events
+         where access_id = $2 and lesson_id = $5 and kind = 'open'
+           and created_at > now() - ($6::int * interval '1 minute'))
+     returning id`,
+    [id(), access.id, access.code_id, access.device_id.slice(0, 80), lessonId, OPEN_GAP_MINUTES],
+  );
+  return { recorded: Boolean(rows[0]) };
+}
+
+/** Lessons this activation code has finished, on any of its devices. */
+export async function completedLessons(codeId: string) {
+  const db = await sql();
+  const rows = await db.query<{ lesson_id: string }>(
+    `select distinct lesson_id from tattoo_lesson_events where code_id = $1 and kind = 'complete'`,
+    [codeId],
+  );
+  return rows.map((row) => row.lesson_id);
+}
+
+/** Owner-only totals: which codes were most active and which lessons were read most. No lesson text, no tokens. */
+export async function activityStats() {
+  const db = await sql();
+  const codes = await db.query<CodeActivityRow>(
+    `select c.id as "codeId", c.code, c.note,
+            count(*) filter (where e.kind = 'open')::int as opens,
+            count(*) filter (where e.kind = 'complete')::int as completes,
+            count(distinct e.lesson_id)::int as lessons,
+            max(e.created_at) as "lastAt"
+       from tattoo_lesson_events e
+       join tattoo_activation_codes c on c.id = e.code_id
+      group by c.id, c.code, c.note`,
+  );
+  const lessons = await db.query<LessonActivityRow>(
+    `select e.lesson_id as "lessonId", max(l.title) as title,
+            count(*) filter (where e.kind = 'open')::int as opens,
+            count(distinct e.code_id) filter (where e.kind = 'open')::int as readers,
+            count(*) filter (where e.kind = 'complete')::int as completes
+       from tattoo_lesson_events e
+       left join tattoo_lessons l on l.id = e.lesson_id
+      group by e.lesson_id`,
+  );
+  const totals = await db.query<{ events: number; codes: number; since: string | null }>(
+    `select count(*)::int as events, count(distinct code_id)::int as codes, min(created_at) as since from tattoo_lesson_events`,
+  );
+  return { codes: rankCodes(codes), lessons: rankLessons(lessons), totals: totals[0] ?? { events: 0, codes: 0, since: null } };
 }

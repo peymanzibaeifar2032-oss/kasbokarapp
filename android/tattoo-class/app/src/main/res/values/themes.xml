@@ -1,7 +1,9 @@
 <resources>
     <style name="Theme.TattooClass" parent="@android:style/Theme.DeviceDefault.Light.NoActionBar">
-        <item name="android:statusBarColor">#1C3D52</item>
-        <item name="android:navigationBarColor">#F4EFE6</item>
-        <item name="android:windowBackground">#F4EFE6</item>
+        <item name="android:statusBarColor">#F6F5FF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">#F6F5FF</item>
+        <item name="android:windowBackground">#F6F5FF</item>
+        <item name="android:colorAccent">#7B61FF</item>
     </style>
 </resources>
