@@ -228,8 +228,13 @@ function Library({
     setView("lesson");
     setPart("study");
     window.scrollTo(0, 0);
-    const data = await load(`/api/tattoo/lesson/${id}`);
-    setLesson(data.lesson);
+    setLesson(null);
+    try {
+      const data = await load(`/api/tattoo/lesson/${id}`);
+      setLesson(data.lesson);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "خوانده نشد.");
+    }
   }
 
   async function openQuestions() {
@@ -247,17 +252,26 @@ function Library({
     const seen = new Set(box.groups.flatMap((group) => group.lessons.map((lesson) => lesson.id)));
     return [...box.groups.flatMap((group) => group.lessons), ...box.lessons.filter((lesson) => !seen.has(lesson.id))];
   });
+  const tocOrder = (curriculum?.parts || []).flatMap((p) => p.chapters.flatMap((c) => c.lessons.filter((l) => l.published).map((l) => l.id)));
+  const panelIds = new Set((curriculum?.parts || []).flatMap((p) => p.chapters.flatMap((c) => c.lessons.filter((l) => l.source === "panel").map((l) => l.id))));
+  // Lessons written in studio/teach open from the class tables; book lessons open from the curriculum.
+  function openAny(id: string) {
+    if (panelIds.has(id)) void openLesson(id);
+    else void openCurLesson(id);
+  }
+  const tocPlace = lesson ? tocOrder.indexOf(lesson.id) : -1;
   const place = sequence.findIndex((item) => item.id === lesson?.id);
-  const previousLesson = place > 0 ? sequence[place - 1] : null;
-  const nextLesson = place >= 0 && place < sequence.length - 1 ? sequence[place + 1] : null;
+  const previousLesson = tocPlace >= 0 ? (tocPlace > 0 ? { id: tocOrder[tocPlace - 1] } : null) : place > 0 ? sequence[place - 1] : null;
+  const nextLesson = tocPlace >= 0 ? (tocPlace < tocOrder.length - 1 ? { id: tocOrder[tocPlace + 1] } : null) : place >= 0 && place < sequence.length - 1 ? sequence[place + 1] : null;
+  const goLesson = (id: string) => (tocPlace >= 0 ? openAny(id) : void openLesson(id));
 
   function LessonNav({ stick = false }: { stick?: boolean }) {
     return (
       <div className={`${stick ? "sticky bottom-3 z-10" : ""} mt-4 grid grid-cols-2 gap-2 rounded-2xl border p-2 ${card}`}>
-        <button type="button" disabled={!previousLesson} className="h-12 rounded-xl border text-sm font-bold disabled:opacity-35" onClick={() => previousLesson && void openLesson(previousLesson.id)}>
+        <button type="button" disabled={!previousLesson} className="h-12 rounded-xl border text-sm font-bold disabled:opacity-35" onClick={() => previousLesson && goLesson(previousLesson.id)}>
           درس قبل
         </button>
-        <button type="button" disabled={!nextLesson} className="h-12 rounded-xl bg-[#1c3d52] text-sm font-bold text-white disabled:opacity-35" onClick={() => nextLesson && void openLesson(nextLesson.id)}>
+        <button type="button" disabled={!nextLesson} className="h-12 rounded-xl bg-[#1c3d52] text-sm font-bold text-white disabled:opacity-35" onClick={() => nextLesson && goLesson(nextLesson.id)}>
           درس بعد
         </button>
       </div>
@@ -284,7 +298,7 @@ function Library({
       {error ? <p className="mt-4 text-sm leading-7 text-red-700">{error}</p> : null}
 
       {view === "home" && curriculum ? (
-        <CurriculumToc curriculum={curriculum} card={card} token={token} onOpen={(id) => void openCurLesson(id)} />
+        <CurriculumToc curriculum={curriculum} card={card} token={token} onOpen={openAny} />
       ) : null}
 
       {view === "home" && !curriculum ? (
@@ -300,8 +314,8 @@ function Library({
           setPart={setPart}
           onZoom={setZoom}
           onQuestions={() => void openQuestions()}
-          onOpen={(id) => void openCurLesson(id)}
-          sequence={(curriculum?.parts || []).flatMap((p) => p.chapters.flatMap((c) => c.lessons.filter((l) => l.published).map((l) => l.id)))}
+          onOpen={openAny}
+          sequence={tocOrder}
         />
       ) : null}
 
@@ -467,7 +481,7 @@ function CurriculumToc({ curriculum, card, token, onOpen }: { curriculum: Curric
       </div>
       {curriculum.parts.map((part) => (
         <article key={part.id} className={`rounded-3xl border p-5 ${card}`}>
-          <p className="text-xs font-bold text-[#9a7340]">سطح: {part.level}</p>
+          {part.level ? <p className="text-xs font-bold text-[#9a7340]">سطح: {part.level}</p> : null}
           <h3 className="mt-1 text-lg font-black">{part.title}</h3>
           <p className="mt-1 text-sm leading-7 opacity-70">{part.description}</p>
           <div className="mt-3 grid gap-2">
@@ -480,7 +494,7 @@ function CurriculumToc({ curriculum, card, token, onOpen }: { curriculum: Curric
                 <div className="grid gap-1 pb-2">
                   {chapter.lessons.map((lesson) => (
                     <button key={lesson.id} type="button" disabled={!lesson.published} className="flex items-center gap-3 rounded-2xl px-1 py-2 text-right disabled:opacity-45" onClick={() => onOpen(lesson.id)}>
-                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lesson.number.toLocaleString("fa-IR")}</span>
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#1c3d52] text-xs font-black text-white">{lesson.source === "panel" ? "•" : lesson.number.toLocaleString("fa-IR")}</span>
                       <span className="font-bold">{lesson.title}</span>
                       {!lesson.published ? <span className="mr-auto shrink-0 text-xs opacity-70">{lesson.held ? "در دست بازبینی" : "به‌زودی"}</span> : null}
                     </button>
