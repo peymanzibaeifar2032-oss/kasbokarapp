@@ -55,7 +55,8 @@ export function replacedOldLessonIds(published: readonly string[] = PUBLISHED_CH
   return LESSONS.filter((l) => isPublished(l, published)).flatMap((l) => l.replaces);
 }
 
-export type TocLesson = { id: string; number: number; title: string; level: string; published: boolean; held: boolean };
+/** source "panel": written in studio/teach and stored only in the class tables, not in this book. */
+export type TocLesson = { id: string; number: number; title: string; level: string; published: boolean; held: boolean; source?: "panel" };
 export type TocChapter = { id: string; title: string; lessons: TocLesson[] };
 export type TocPart = { id: string; title: string; level: string; description: string; chapters: TocChapter[] };
 

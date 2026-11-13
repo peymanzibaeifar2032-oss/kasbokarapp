@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { getSql, type Sql } from "@/lib/db";
+import { VISIBLE_LESSON_CARDS_SQL, type VisibleLessonRow } from "@/lib/tattoo-curriculum/panel-lessons";
 import { canAddDevice, formatCode, normalizeCode, randomActivationCode } from "@/lib/tattoo-learn/codes";
 
 export type LearnModule = {
@@ -205,6 +206,12 @@ export async function listPublicLessons(moduleId: string) {
       .filter((group) => group.lessons.length > 0),
     lessons,
   };
+}
+
+/** Every lesson an apprentice may see (published, in an active module), with its module and group, no text. */
+export async function listVisibleLessonCards() {
+  const db = await sql();
+  return db.query<VisibleLessonRow>(VISIBLE_LESSON_CARDS_SQL);
 }
 
 export async function publicLesson(lessonId: string) {

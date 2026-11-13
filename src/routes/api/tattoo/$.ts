@@ -9,6 +9,7 @@ import {
   lessonImage,
   listPublicLessons,
   listPublicModules,
+  listVisibleLessonCards,
   myQuestions,
   publicLesson,
 } from "@/lib/tattoo-learn/store.server";
@@ -29,6 +30,7 @@ import {
   tableOfContents,
 } from "@/lib/tattoo-curriculum/index.ts";
 import { lessonPlainText } from "@/lib/tattoo-curriculum/plain.ts";
+import { mergePanelLessons } from "@/lib/tattoo-curriculum/panel-lessons.ts";
 import { DEPTH_SKIN_ID, depthSkinClassView, depthSkinImage, depthSkinPlain, withDepthSkinCatalog, withDepthSkinToc } from "@/lib/tattoo-curriculum/depth-skin.ts";
 
 function json(data: unknown, status = 200) {
@@ -172,7 +174,12 @@ async function dispatch(request: Request) {
     if (head?.startsWith("curriculum") && request.method === "GET") {
       const allowed = (await student(request)) || (await ownerCookie(request));
       if (!allowed) return json({ error: "اول کد فعال‌سازی را بزن." }, 401);
-      if (head === "curriculum") return json({ parts: withDepthSkinToc(tableOfContents()), archivedOldLessonIds: replacedOldLessonIds(), glossaryReading: { id: GLOSSARY_READING, title: READINGS[GLOSSARY_READING] } });
+      if (head === "curriculum") {
+        // Lessons written in studio/teach live only in the class tables; list them with the book so they are not hidden.
+        const visible = await listVisibleLessonCards().catch(() => []);
+        const parts = mergePanelLessons(withDepthSkinToc(tableOfContents()), visible);
+        return json({ parts, archivedOldLessonIds: replacedOldLessonIds(), glossaryReading: { id: GLOSSARY_READING, title: READINGS[GLOSSARY_READING] } });
+      }
       if (head === "curriculum-lesson" && arg) {
         if (arg === DEPTH_SKIN_ID) {
           const stored = await publicLesson(arg).catch(() => null);
@@ -206,7 +213,12 @@ async function dispatch(request: Request) {
     if (head === "modules" && request.method === "GET") {
       const modules = await listPublicModules();
       const book = modules.filter((item) => item.id.startsWith("cur-mod-"));
-      if (book.length) return json({ modules: book });
+      if (book.length) {
+        // A module made in studio/teach outside the book still shows once it has a lesson apprentices may see.
+        const visible = new Set((await listVisibleLessonCards()).map((row) => row.moduleId));
+        const extra = modules.filter((item) => !item.id.startsWith("cur-mod-") && visible.has(item.id));
+        return json({ modules: [...book, ...extra] });
+      }
       if (!modules.length) return json({ modules: codeModules() });
       return json({ modules });
     }
