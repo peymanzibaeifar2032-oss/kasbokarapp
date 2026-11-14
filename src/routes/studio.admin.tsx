@@ -363,9 +363,7 @@ function StudioAdminPage() {
     let cancelled = false;
     void (async () => {
       try {
-        await saveAction<Profile>("profile");
-        if (cancelled) return;
-        await refresh();
+        await Promise.all([saveAction<Profile>("profile"), refresh()]);
       } catch (err) {
         if (!cancelled) setError(friendlyError(err));
       }
@@ -2444,51 +2442,51 @@ function MonthJobsPanel({
   async function load() {
     setLoading(true);
     setError("");
+    let rows: TattooRequest[] = [];
     try {
       const week = tehranWeekBounds(weekOffset);
       const yesterdayKey = shiftTehranDayKey(tehranDayKey(), -1);
       const [yy, ym, yd] = yesterdayKey.split("-").map(Number);
       const yEnd = shiftTehranDayKey(yesterdayKey, 1);
       const [ey, em, ed] = yEnd.split("-").map(Number);
-      const rows = await saveAction<TattooRequest[]>(
-        "studioMonthJobs",
+      const range =
         search.trim().length >= 2
           ? { q: search.trim(), mine: true }
           : span === "yesterday"
-          ? { start: tehranLocalToIso(yy, ym, yd, 0, 0), end: tehranLocalToIso(ey, em, ed, 0, 0), mine: true }
-          : span === "week"
-            ? { start: week.start, end: week.end, mine: true }
-            : { jy: month.jy, jm: month.jm, mine: true },
-      );
-      setJobs(rows);
-      try {
-        const today = tehranDayKey();
-        const startKey = shiftTehranDayKey(today, -5);
-        const [sy, sm, sd] = startKey.split("-").map(Number);
-        const [ty, tm, td] = today.split("-").map(Number);
-        const recent = await saveAction<TattooRequest[]>("studioMonthJobs", {
+            ? { start: tehranLocalToIso(yy, ym, yd, 0, 0), end: tehranLocalToIso(ey, em, ed, 0, 0), mine: true }
+            : span === "week"
+              ? { start: week.start, end: week.end, mine: true }
+              : { jy: month.jy, jm: month.jm, mine: true };
+      const today = tehranDayKey();
+      const startKey = shiftTehranDayKey(today, -5);
+      const [sy, sm, sd] = startKey.split("-").map(Number);
+      const [ty, tm, td] = today.split("-").map(Number);
+      const [loaded, recent, fills] = await Promise.all([
+        saveAction<TattooRequest[]>("studioMonthJobs", range),
+        saveAction<TattooRequest[]>("studioMonthJobs", {
           start: tehranLocalToIso(sy, sm, sd, 0, 0),
           end: tehranLocalToIso(ty, tm, td, 0, 0),
           mine: true,
-        });
-        setCareJobs(recent);
-      } catch {
-        setCareJobs([]);
-      }
-      const phones = rows.flatMap((job) => [job.customerPhone, job.customerPhone2 || ""]);
-      const names = rows.map((job) => job.customerName);
-      const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones, names });
-      setBriefs(nextBriefs);
-      try {
-        const fills = await saveAction<StudioFillIn[]>("listStudioFillIns");
-        setWaiting(fills.filter((row) => row.status === "waiting"));
-      } catch {
-        setWaiting([]);
-      }
+        }).catch(() => [] as TattooRequest[]),
+        saveAction<StudioFillIn[]>("listStudioFillIns").catch(() => [] as StudioFillIn[]),
+      ]);
+      rows = loaded;
+      setJobs(rows);
+      setCareJobs(recent);
+      setWaiting(fills.filter((row) => row.status === "waiting"));
     } catch (err) {
       setError(friendlyError(err));
     } finally {
       setLoading(false);
+    }
+    try {
+      const phones = rows.flatMap((job) => [job.customerPhone, job.customerPhone2 || ""]);
+      const names = rows.map((job) => job.customerName);
+      if (!phones.length && !names.length) return;
+      const nextBriefs = await saveAction<Record<string, CustomerFileBrief>>("studioCustomerFileBriefs", { phones, names });
+      setBriefs(nextBriefs);
+    } catch {
+      /* نشان بدقولی می‌تواند کمی دیرتر بیاید؛ فهرست نوبت معطل آن نمی‌ماند */
     }
   }
 

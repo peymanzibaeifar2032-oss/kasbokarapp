@@ -265,10 +265,10 @@ export const BOOKING_SELECT = `
   r.name as resource_name,
   tr.id as tattoo_request_id, tr.style as tattoo_style, tr.idea as tattoo_idea,
   tr.placement as tattoo_placement, tr.size_cm as tattoo_size_cm,
-  tr.reference_images as tattoo_reference_images, tr.body_images as tattoo_body_images,
   tr.price_min_toman as tattoo_price_min_toman, tr.price_max_toman as tattoo_price_max_toman,
   tr.session_count as tattoo_session_count, tr.session_minutes as tattoo_session_minutes,
-  tr.deposit_toman as tattoo_deposit_toman
+  tr.deposit_toman as tattoo_deposit_toman,
+  '[]'::jsonb as tattoo_reference_images, '[]'::jsonb as tattoo_body_images
 `;
 
 export const ACTIVE_OCCUPANCY_SQL = `

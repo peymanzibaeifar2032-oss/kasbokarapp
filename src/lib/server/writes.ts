@@ -624,10 +624,14 @@ function isSessionFollowUp(message: string | null | undefined) {
 
 const sessionFollowUpSql = `(coalesce(artist_message,'') = 'جلسه دوم' or coalesce(artist_message,'') ~ '^جلسه [0-9]+ از [0-9]+$')`;
 
+let sessionColumnsReady = false;
+
 async function ensureSessionColumns(sql: Awaited<ReturnType<typeof getSql>>) {
+  if (sessionColumnsReady) return;
   await sql.query(`alter table tattoo_requests add column if not exists session_parent_id text`);
   await sql.query(`alter table tattoo_requests add column if not exists session_index int`);
   await sql.query(`alter table tattoo_requests add column if not exists session_status text not null default 'planned'`);
+  sessionColumnsReady = true;
 }
 
 const tattooRequestListSelect = tattooRequestSelect
@@ -2546,8 +2550,12 @@ async function performStudioYearContacts(userId: string, raw: unknown) {
   return [...grouped.values()].sort((a, b) => b.paidToman - a.paidToman || b.sessions - a.sessions || a.name.localeCompare(b.name, "fa"));
 }
 
+let inflammationReady = false;
+
 async function ensureInflammationColumn(sql: Awaited<ReturnType<typeof getSql>>) {
+  if (inflammationReady) return;
   await sql.query(`alter table studio_customer_files add column if not exists inflammation text not null default ''`);
+  inflammationReady = true;
 }
 
 function emptyCustomerFile() {
@@ -3020,15 +3028,32 @@ async function rememberUnreliableCustomers(sql: Awaited<ReturnType<typeof getSql
         limit 300`,
       [userId],
     );
-    for (const person of [...visits, ...waiting]) {
-      await markCustomerUnreliable(sql, userId, person.customer_phone, person.customer_phone_2, person.customer_name, false);
-    }
+    const keys = [...new Set(
+      [...visits, ...waiting]
+        .map((person) => personContactKey(person.customer_phone, person.customer_phone_2, person.customer_name))
+        .filter(Boolean),
+    )];
+    if (!keys.length) return;
+    await ensureInflammationColumn(sql);
+    await sql.query(
+      `insert into studio_customer_files (id, user_id, contact_key, arrival)
+       select id, $1, contact_key, $2
+         from unnest($3::text[], $4::text[]) as incoming(id, contact_key)
+       on conflict (user_id, contact_key) do update set
+         arrival = case when studio_customer_files.arrival = '' then excluded.arrival else studio_customer_files.arrival end,
+         updated_at = now()`,
+      [userId, UNRELIABLE_ARRIVAL, keys.map(() => crypto.randomUUID()), keys],
+    );
   } catch {
     rememberedUnreliable.delete(userId);
   }
 }
 
+let paidReconciled = false;
+
 async function reconcilePaidFromPayments(sql: Awaited<ReturnType<typeof getSql>>) {
+  if (paidReconciled) return;
+  paidReconciled = true;
   try {
     await sql.query(
       `update tattoo_requests t
@@ -3044,7 +3069,7 @@ async function reconcilePaidFromPayments(sql: Awaited<ReturnType<typeof getSql>>
           and s.total > coalesce(t.paid_toman, 0)`,
     );
   } catch {
-    // The payment table is optional until the first extra deposit.
+    paidReconciled = false;
   }
 }
 
