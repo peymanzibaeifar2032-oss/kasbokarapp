@@ -160,3 +160,105 @@
 .biz-cover-legal {
   background: linear-gradient(145deg, #1c3d52, #152a38);
 }
+
+/*
+ * Studio admin panel theme (studio/admin, studio/teach, studio/licenses). Presentational only: scoped to
+ * `.studio-admin`, so public booking pages, the class and the Pocket calendar keep their own look.
+ * Light and colourful like the Pocket booking calendar and the class app: violet/blue primary, teal, orange and
+ * pink accents, white cards with soft shadows, and a gradient accent stripe.
+ */
+.studio-admin {
+  --color-bg: #f6f7fc;
+  --color-surface: #ffffff;
+  --color-fg: #1b2440;
+  --color-muted: #616d87;
+  --color-primary: #5b4ddb;
+  --color-primary-fg: #ffffff;
+  --color-accent: #0f9d8a;
+  --color-accent-fg: #ffffff;
+  --color-border: #e3e6f2;
+  --admin-grad: linear-gradient(135deg, #7b61ff 0%, #4f7cff 55%, #2bb5d8 100%);
+  --admin-stripe: linear-gradient(90deg, #7b61ff, #4f7cff, #22a06b, #f08a24, #f45b8c);
+  --admin-shadow: 0 1px 2px rgba(27, 36, 64, 0.04), 0 6px 18px -8px rgba(48, 58, 120, 0.18);
+  background:
+    radial-gradient(900px 340px at 100% -60px, #ece8ff 0, transparent 70%),
+    radial-gradient(700px 300px at -10% 40px, #e2f3ff 0, transparent 70%),
+    #f6f7fc;
+}
+.studio-admin .admin-stripe {
+  height: 4px;
+  background: var(--admin-stripe);
+}
+.studio-admin .admin-grad {
+  background-image: var(--admin-grad);
+  color: #fff;
+}
+/* Old navy fills and text become the violet-blue gradient and violet ink. */
+.studio-admin .bg-\[\#1C3D52\],
+.studio-admin .bg-primary {
+  background-color: #5b4ddb;
+  background-image: var(--admin-grad);
+}
+.studio-admin .text-\[\#1C3D52\] {
+  color: #3f33b8;
+}
+.studio-admin .border-\[\#1C3D52\] {
+  border-color: #8c7dff;
+}
+.studio-admin .bg-\[\#1C3D52\]\/8 {
+  background-color: rgba(91, 77, 219, 0.08);
+}
+.studio-admin .bg-\[\#F4EFE6\],
+.studio-admin .bg-\[\#f7f4ef\] {
+  background-color: #f3f4fb;
+}
+/* Plain cards (no fill of their own) become white with a soft shadow. */
+.studio-admin :is(article, section, div, li).border.border-border:not([class*="bg-"]),
+.studio-admin :is(article, section, div, li).border:not([class*="border-"]):not([class*="bg-"]).rounded-2xl,
+.studio-admin :is(article, div).border:not([class*="border-"]):not([class*="bg-"]).rounded-3xl {
+  background-color: #fff;
+  box-shadow: var(--admin-shadow);
+}
+.studio-admin .bg-surface.border,
+.studio-admin .bg-white.border {
+  box-shadow: var(--admin-shadow);
+}
+/* Fields: white, rounded, violet focus ring. */
+.studio-admin :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="range"], [type="color"]), select, textarea):not([class*="bg-"]) {
+  background-color: #fff;
+}
+.studio-admin :is(input, select, textarea):focus-visible {
+  outline: 2px solid #8c7dff;
+  outline-offset: 1px;
+  border-color: #8c7dff;
+}
+.studio-admin input[type="file"] {
+  max-width: 100%;
+  font-size: 0.85rem;
+}
+.studio-admin input[type="file"]::file-selector-button {
+  margin-inline-end: 0.75rem;
+  border: 0;
+  border-radius: 0.75rem;
+  padding: 0.6rem 1rem;
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background-image: var(--admin-grad);
+}
+/* Outline buttons with no fill of their own: white chips that tint on hover. */
+.studio-admin button.border:not([class*="bg-"]) {
+  background-color: #fff;
+  border-color: #dfe2f0;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.studio-admin button.border:not([class*="bg-"]):hover:not(:disabled) {
+  background-color: #f2f0ff;
+  border-color: #c7bfff;
+}
+.studio-admin button:disabled {
+  opacity: 0.6;
+}
+.studio-admin .admin-tile {
+  box-shadow: var(--admin-shadow);
+}

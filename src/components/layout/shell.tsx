@@ -61,13 +61,19 @@ const SITE_MENU = [
   { to: "/studio/club", label: "باشگاه" },
 ] as const;
 
-export function Shell({ children }: { children: ReactNode }) {
+/**
+ * `variant="admin"` is the studio admin look (studio/admin, studio/teach, studio/licenses): same links and
+ * behaviour, light colourful theme scoped by `.studio-admin` in styles.css. Public pages keep the default.
+ */
+export function Shell({ children, variant = "site" }: { children: ReactNode; variant?: "site" | "admin" }) {
   const { user } = useCurrentUserState();
   const owner = isStudioOwnerEmail(user?.primaryEmail);
   const [menuOpen, setMenuOpen] = useState(false);
+  const admin = variant === "admin";
   return (
-    <div className="min-h-dvh bg-bg text-fg">
-      <header className="sticky top-0 z-40 border-b border-border bg-bg">
+    <div className={admin ? "studio-admin min-h-dvh text-fg" : "min-h-dvh bg-bg text-fg"}>
+      <header className={admin ? "sticky top-0 z-40 border-b border-border bg-white/90 backdrop-blur" : "sticky top-0 z-40 border-b border-border bg-bg"}>
+        {admin ? <div className="admin-stripe" aria-hidden /> : null}
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2">
           <button
             type="button"
@@ -81,8 +87,8 @@ export function Shell({ children }: { children: ReactNode }) {
             <span className="h-0.5 w-4 rounded-full bg-current" />
           </button>
           <Link to="/studio" className="flex shrink-0 items-center gap-2">
-            <img src="/apps/tattoo-app-icon.png" alt="" className="size-9 rounded-lg" />
-            <strong className="text-sm font-semibold">رزرو وقت تاتو</strong>
+            <img src="/apps/tattoo-app-icon.png" alt="" className={admin ? "size-9 rounded-xl shadow-sm ring-2 ring-[#ece8ff]" : "size-9 rounded-lg"} />
+            <strong className="text-sm font-semibold">{admin ? "پنل مدیریت" : "رزرو وقت تاتو"}</strong>
           </Link>
           <nav className="flex min-w-0 flex-1 items-center justify-end gap-1 overflow-x-auto">
             <Link to="/studio/request" className={headerLink}>
@@ -138,7 +144,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </div>
       ) : null}
       <main className="mx-auto w-full min-w-0 max-w-6xl overflow-x-hidden px-4 pb-28 pt-6">{children}</main>
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
+      <nav className={admin ? "fixed inset-x-0 bottom-0 z-50 border-t border-border bg-white/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-6px_20px_-12px_rgba(48,58,120,0.35)] backdrop-blur lg:hidden" : "fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden"}>
         <div className="grid grid-cols-5">
           <Link to="/studio" className={tabClass}>
             <Mark name="studio" className="size-5" />

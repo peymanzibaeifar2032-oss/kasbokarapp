@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ZodError, z } from "zod";
 import { auth, authConfigured } from "@/lib/auth/server";
-import { isStudioOwnerEmail } from "@/lib/studio-owner";
+import { teachGate } from "@/lib/tattoo-learn/owner-gate";
 import { LESSONS } from "@/lib/tattoo-curriculum/index.ts";
+import { lessonsFromIndex } from "@/lib/tattoo-learn/apprentice-stats";
+import { loadClassIndex } from "@/lib/tattoo-learn/class-index.server";
 import {
   activityStats,
+  apprenticeReport,
   answerQuestion,
   deleteLesson,
   deleteLessonImage,
@@ -27,10 +30,10 @@ function json(data: unknown, status = 200) {
   });
 }
 
-async function owner(request: Request) {
-  if (!authConfigured) return false;
+async function sessionEmail(request: Request) {
+  if (!authConfigured) return null;
   const session = await auth.api.getSession({ headers: request.headers }).catch(() => null);
-  return isStudioOwnerEmail(session?.user?.email);
+  return session?.user?.email ?? null;
 }
 
 const imageData = z.string().regex(/^data:image\/(?:jpeg|png|webp);base64,[a-z0-9+/=\s]+$/i).max(1_400_000);
@@ -38,16 +41,23 @@ const imageData = z.string().regex(/^data:image\/(?:jpeg|png|webp);base64,[a-z0-
 async function handle(request: Request) {
   try {
     const site = request.headers.get("sec-fetch-site");
-    if (site && site !== "same-origin" && site !== "none") return json({ error: "این درخواست مجاز نیست." }, 403);
-    if (!(await owner(request))) return json({ error: "فقط از پنل مدیر." }, 401);
+    const early = teachGate({ secFetchSite: site, sessionEmail: "" });
+    if (early?.status === 403) return json({ error: early.error }, 403);
+    const denied = teachGate({ secFetchSite: site, sessionEmail: await sessionEmail(request) });
+    if (denied) return json({ error: denied.error }, denied.status);
     const op = new URL(request.url).searchParams.get("op");
-    const body = op === "snapshot" || op === "activity" ? {} : await request.json().catch(() => ({}));
+    const body = op === "snapshot" || op === "activity" || op === "apprentices" ? {} : await request.json().catch(() => ({}));
     if (op === "snapshot") return json(await schoolSnapshot());
     if (op === "activity") {
       const stats = await activityStats();
       // Book lessons that live only in code have no row in tattoo_lessons; name them from the book.
       const lessons = stats.lessons.map((row) => ({ ...row, title: row.title || LESSONS.find((item) => item.id === row.lessonId)?.title || row.lessonId }));
       return json({ ...stats, lessons });
+    }
+    if (op === "apprentices") {
+      const { index } = await loadClassIndex();
+      const report = await apprenticeReport(lessonsFromIndex(index), (lessonId) => LESSONS.find((item) => item.id === lessonId)?.title);
+      return json(report);
     }
     if (op === "save-module") {
       const data = z.object({
