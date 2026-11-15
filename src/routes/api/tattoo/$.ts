@@ -30,12 +30,11 @@ import {
   GLOSSARY_READING,
   READINGS,
   replacedOldLessonIds,
-  tableOfContents,
 } from "@/lib/tattoo-curriculum/index.ts";
 import { lessonPlainText } from "@/lib/tattoo-curriculum/plain.ts";
-import { mergePanelLessons } from "@/lib/tattoo-curriculum/panel-lessons.ts";
-import { buildClassIndex, indexCatalog, indexModules } from "@/lib/tattoo-curriculum/class-index.ts";
-import { DEPTH_SKIN_ID, depthSkinClassView, depthSkinImage, depthSkinPlain, withDepthSkinCatalog, withDepthSkinToc } from "@/lib/tattoo-curriculum/depth-skin.ts";
+import { loadClassIndex } from "@/lib/tattoo-learn/class-index.server";
+import { indexCatalog, indexModules } from "@/lib/tattoo-curriculum/class-index.ts";
+import { DEPTH_SKIN_ID, depthSkinClassView, depthSkinImage, depthSkinPlain, withDepthSkinCatalog } from "@/lib/tattoo-curriculum/depth-skin.ts";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -167,11 +166,7 @@ function codeLesson(id: string) {
 }
 
 /** The one class index (book + studio/teach lessons), numbered, counted and with new lessons marked. */
-async function classIndex() {
-  // Lessons written in studio/teach live only in the class tables; list them with the book so they are not hidden.
-  const visible = await listVisibleLessonCards().catch(() => []);
-  return { visible, index: buildClassIndex(mergePanelLessons(withDepthSkinToc(tableOfContents()), visible), visible) };
-}
+const classIndex = loadClassIndex;
 
 /** Activity is only stored for lessons an apprentice can actually open. */
 async function lessonIsVisible(lessonId: string) {

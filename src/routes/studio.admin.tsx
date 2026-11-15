@@ -260,6 +260,23 @@ function CopyLine({ line, ltr }: { line: string; ltr?: boolean }) {
   return <p className="break-words">{line}</p>;
 }
 
+/** Each section keeps one colour everywhere in the panel (tab, menu tile), like the Pocket calendar. */
+const tabTint: Record<string, string> = {
+  goals: "#7b61ff",
+  calendar: "#4f7cff",
+  jobs: "#0f9d8a",
+  requests: "#f08a24",
+  money: "#22a06b",
+  contacts: "#2bb5d8",
+  fill: "#f45b8c",
+  consent: "#8b5cf6",
+  club: "#e0a100",
+  apprentices: "#7b61ff",
+  messages: "#4f7cff",
+  artists: "#0f9d8a",
+  prep: "#f45b8c",
+};
+
 const tabMark: Record<string, MarkName> = {
   goals: "goals",
   calendar: "today",
@@ -418,14 +435,14 @@ function StudioAdminPage() {
 
   if (!owner && !accessReady)
     return (
-      <Shell>
+      <Shell variant="admin">
         <p className="text-sm text-muted">در حال بررسی دسترسی…</p>
       </Shell>
     );
 
   if (!staff)
     return (
-      <Shell>
+      <Shell variant="admin">
         <h1 className="text-2xl font-bold">مدیریت تاتو</h1>
         <p className="mt-3 max-w-xl text-sm leading-7 text-muted">
           این صفحه فقط با ایمیل مدیر استودیو، یا ایمیلی که به‌عنوان همکار صندلی ثبت شده، باز می‌شود.
@@ -437,33 +454,36 @@ function StudioAdminPage() {
     );
 
   return (
-    <Shell>
-      <div className="flex items-end justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <img src="/apps/tattoo-app-icon.png" alt="" className="size-12 rounded-2xl border border-[#1C3D52]/10" />
-          <div>
-            <p className="text-sm font-semibold text-[#1C3D52]">{ownPanel ? "پنل شخصی" : "استودیو"}</p>
-            <h1 className="text-2xl font-bold">{owner ? "میز کار" : panelName || "همکار"}</h1>
+    <Shell variant="admin">
+      <div className="admin-tile relative overflow-hidden rounded-3xl border border-border bg-white p-4">
+        <div className="admin-stripe absolute inset-x-0 top-0" aria-hidden />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <img src="/apps/tattoo-app-icon.png" alt="" className="size-12 shrink-0 rounded-2xl shadow-sm ring-2 ring-[#ece8ff]" />
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[#7b61ff]">{ownPanel ? "پنل شخصی" : "استودیو"}</p>
+              <h1 className="text-2xl font-black">{owner ? "میز کار" : panelName || "همکار"}</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {owner ? (
+              <a href="/studio/teach" className="inline-flex h-9 items-center rounded-full bg-[#f2f0ff] px-3 text-sm font-bold text-[#5b4ddb]">
+                آموزش تاتو
+              </a>
+            ) : null}
+            <Button variant="outline" size="sm" className="rounded-full bg-white" onClick={() => void refresh()}>
+              <RefreshCw className="size-4" /> تازه‌سازی
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {owner ? (
-            <a href="/studio/teach" className="inline-flex h-9 items-center rounded-full bg-[#1C3D52] px-3 text-sm font-bold text-white">
-              آموزش تاتو
-            </a>
-          ) : null}
-          <Button variant="outline" size="sm" onClick={() => void refresh()}>
-            <RefreshCw className="size-4" /> تازه‌سازی
-          </Button>
-        </div>
+        {owner ? (
+          <a href="/studio/teach" className="admin-grad mt-4 flex h-14 items-center justify-center gap-2 rounded-2xl text-base font-black shadow-md">
+            <Mark name="guide" className="size-5" />
+            مدیریت آموزش تاتو
+          </a>
+        ) : null}
       </div>
-
-      {owner ? (
-        <a href="/studio/teach" className="mt-4 flex h-14 items-center justify-center rounded-2xl bg-[#1C3D52] text-base font-black text-white">
-          مدیریت آموزش تاتو
-        </a>
-      ) : null}
-        <div className="flex w-full gap-1 overflow-x-auto rounded-2xl bg-[#1C3D52]/8 p-1">
+        <div className="admin-tile mt-3 flex w-full gap-1 overflow-x-auto rounded-2xl border border-border bg-white p-1">
           {(
             [
               ...(owner ? [["goals", "مدیریت اهداف من"] as const] : []),
@@ -478,11 +498,17 @@ function StudioAdminPage() {
               type="button"
               onClick={() => { setMenuOpen(false); setTab(id); }}
               className={cn(
-                "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold",
-                tab === id ? "bg-[#1C3D52] text-white shadow-sm" : "text-[#1C3D52]",
+                "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold transition-colors",
+                tab === id ? "text-white shadow-sm" : "text-[#3a4466] hover:bg-[#f4f3ff]",
               )}
+              style={tab === id ? { background: `linear-gradient(135deg, ${tabTint[id]}, ${tabTint[id]}cc)` } : undefined}
             >
-              <Mark name={tabMark[id]} className="size-4" />
+              <span
+                className="grid size-6 place-items-center rounded-lg"
+                style={tab === id ? { background: "rgba(255,255,255,.22)" } : { background: `${tabTint[id]}1f`, color: tabTint[id] }}
+              >
+                <Mark name={tabMark[id]} className="size-4" />
+              </span>
               {label}
             </button>
           ))}
@@ -491,7 +517,7 @@ function StudioAdminPage() {
             onClick={() => setMenuOpen(true)}
             className={cn(
               "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold",
-              menuOpen || !["calendar", "jobs", "requests", "money"].includes(tab) ? "bg-white text-[#1C3D52] shadow-sm" : "text-[#1C3D52]",
+              menuOpen || !["calendar", "jobs", "requests", "money"].includes(tab) ? "bg-[#f2f0ff] text-[#5b4ddb] shadow-sm" : "text-[#3a4466]",
             )}
             aria-expanded={menuOpen}
             aria-label="منوی بخش‌ها"
@@ -507,7 +533,8 @@ function StudioAdminPage() {
       {menuOpen ? (
         <div className="fixed inset-0 z-50">
           <button type="button" className="absolute inset-0 bg-black/40" aria-label="بستن منو" onClick={() => setMenuOpen(false)} />
-          <nav className="absolute inset-y-0 right-0 flex w-[min(100%,20rem)] flex-col gap-4 overflow-y-auto bg-[#f7f4ef] p-4 text-[#1C3D52] shadow-2xl">
+          <nav className="absolute inset-y-0 right-0 flex w-[min(100%,20rem)] flex-col gap-4 overflow-y-auto bg-[#f6f7fc] p-4 text-[#1b2440] shadow-2xl">
+            <div className="admin-stripe -mx-4 -mt-4 mb-1 h-1 rounded-none" aria-hidden />
             <div className="flex items-center justify-between">
               <p className="text-base font-black">بخش‌های پنل</p>
               <button type="button" className="h-11 rounded-xl px-3 text-sm font-bold" onClick={() => setMenuOpen(false)}>
@@ -537,18 +564,24 @@ function StudioAdminPage() {
             ).map(([title, items]) =>
               items.length ? (
                 <div key={title} className="grid gap-1">
-                  <p className="px-2 text-xs font-bold text-[#1C3D52]/60">{title}</p>
+                  <p className="px-2 text-xs font-bold text-[#616d87]">{title}</p>
                   {items.map(([id, label]) => (
                     <button
                       key={id}
                       type="button"
                       onClick={() => setTab(id)}
                       className={cn(
-                        "flex h-12 items-center gap-2 rounded-2xl px-3 text-right text-sm font-bold",
-                        tab === id ? "bg-[#1C3D52] text-white" : "bg-white",
+                        "flex h-12 items-center gap-2 rounded-2xl px-2 text-right text-sm font-bold shadow-sm",
+                        tab === id ? "text-white" : "bg-white",
                       )}
+                      style={tab === id ? { background: `linear-gradient(135deg, ${tabTint[id]}, ${tabTint[id]}cc)` } : undefined}
                     >
-                      <Mark name={tabMark[id]} className="size-4" />
+                      <span
+                        className="grid size-8 place-items-center rounded-xl"
+                        style={tab === id ? { background: "rgba(255,255,255,.22)" } : { background: `${tabTint[id]}1f`, color: tabTint[id] }}
+                      >
+                        <Mark name={tabMark[id]} className="size-4" />
+                      </span>
                       {label}
                     </button>
                   ))}
@@ -556,7 +589,8 @@ function StudioAdminPage() {
               ) : null,
             )}
             {owner ? (
-              <a href="/studio/teach" className="flex h-12 items-center rounded-2xl bg-white px-3 text-sm font-bold">
+              <a href="/studio/teach" className="admin-grad flex h-12 items-center gap-2 rounded-2xl px-3 text-sm font-bold shadow-sm">
+                <Mark name="guide" className="size-4" />
                 آموزش تاتو
               </a>
             ) : null}
@@ -617,7 +651,7 @@ function StudioAdminPage() {
       {!loading && !error && tab === "requests" ? (
         <div className="mt-5">
           <CustomerTempPassword />
-          <div className="flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1">
+          <div className="flex gap-1 overflow-x-auto rounded-2xl border border-border bg-white p-1 shadow-sm">
             {(
               [
                 ["active", "در جریان"],
@@ -633,7 +667,7 @@ function StudioAdminPage() {
                 onClick={() => setFilter(value)}
                 className={cn(
                   "h-10 shrink-0 rounded-xl px-4 text-sm font-bold",
-                  filter === value ? "bg-white text-black shadow-sm" : "text-muted",
+                  filter === value ? "bg-[#fff1e3] text-[#b45f0e] shadow-sm" : "text-muted",
                 )}
               >
                 {label}

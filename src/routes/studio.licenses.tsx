@@ -50,7 +50,7 @@ function LicensesPage() {
   if (!user) return <SignedOutPanel title="مجوزهای اپ" next="/studio/licenses" loading={isPending} error={sessionError} onRetry={retry} />;
 
   return (
-    <Shell>
+    <Shell variant="admin">
       <div className="mx-auto max-w-3xl space-y-6" dir="rtl">
         <header className="flex items-center justify-between gap-3">
           <div>

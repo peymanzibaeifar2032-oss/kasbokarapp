@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { getSql, type Sql } from "@/lib/db";
 import { VISIBLE_LESSON_CARDS_SQL, type VisibleLessonRow } from "@/lib/tattoo-curriculum/panel-lessons";
 import { canAddDevice, formatCode, normalizeCode, randomActivationCode } from "@/lib/tattoo-learn/codes";
+import { buildApprenticeReport, type StatsAccessRow, type StatsCodeRow, type StatsEventRow, type StatsLesson, type StatsPart } from "@/lib/tattoo-learn/apprentice-stats";
 import { OPEN_GAP_MINUTES, rankCodes, rankLessons, type ActivityKind, type CodeActivityRow, type LessonActivityRow } from "@/lib/tattoo-learn/activity";
 
 export type LearnModule = {
@@ -559,4 +560,40 @@ export async function activityStats() {
     `select count(*)::int as events, count(distinct code_id)::int as codes, min(created_at) as since from tattoo_lesson_events`,
   );
   return { codes: rankCodes(codes), lessons: rankLessons(lessons), totals: totals[0] ?? { events: 0, codes: 0, since: null } };
+}
+
+/**
+ * Owner-only report of every activation code, with or without activity: devices, lessons opened and finished
+ * (with dates) and progress against the lessons apprentices can see now. Read-only; no tokens, no lesson text.
+ */
+export async function apprenticeReport(visible: { lessons: StatsLesson[]; parts: StatsPart[] }, titlesFallback: (id: string) => string | undefined) {
+  const db = await sql();
+  const codes = await db.query<StatsCodeRow>(
+    `select id, code, note, is_active as "isActive", max_devices as "maxDevices", used_count as "usedCount",
+            expires_at as "expiresAt", created_at as "createdAt"
+       from tattoo_activation_codes order by created_at desc`,
+  );
+  const access = await db.query<StatsAccessRow>(
+    `select code_id as "codeId", device_id as "deviceId", activated_at as "activatedAt", last_seen as "lastSeen",
+            is_blocked as "isBlocked"
+       from tattoo_user_access`,
+  );
+  const events = await db.query<StatsEventRow>(
+    `select code_id as "codeId", lesson_id as "lessonId",
+            count(*) filter (where kind = 'open')::int as opens,
+            min(created_at) filter (where kind = 'open') as "firstOpenAt",
+            max(created_at) filter (where kind = 'open') as "lastOpenAt",
+            min(created_at) filter (where kind = 'complete') as "completedAt"
+       from tattoo_lesson_events
+      group by code_id, lesson_id`,
+  );
+  const known = new Set(visible.lessons.map((lesson) => lesson.id));
+  const missing = [...new Set(events.map((row) => row.lessonId).filter((lessonId) => !known.has(lessonId)))];
+  const titles: Record<string, string> = {};
+  if (missing.length) {
+    const rows = await db.query<{ id: string; title: string }>(`select id, title from tattoo_lessons where id = any($1)`, [missing]);
+    for (const row of rows) titles[row.id] = row.title;
+  }
+  for (const lessonId of missing) titles[lessonId] ??= titlesFallback(lessonId) || lessonId;
+  return buildApprenticeReport({ codes, access, events, lessons: visible.lessons, parts: visible.parts, titles });
 }
