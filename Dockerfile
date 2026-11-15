@@ -23,9 +23,7 @@ RUN rm -rf node_modules/.vite node_modules/.tmp && node scripts/with-app-env.mjs
 FROM node:22-slim AS runner
 WORKDIR /app
 ARG NPM_REGISTRY=https://registry.npmjs.org
-ARG GIT_SHA=unknown
 ENV NPM_CONFIG_REGISTRY=$NPM_REGISTRY
-ENV GIT_SHA=$GIT_SHA
 ENV NODE_ENV=production
 ENV STANDALONE=true
 ENV NITRO_PRESET=node-server
@@ -35,6 +33,8 @@ RUN groupadd --system kasb \
 COPY package.json package-lock.json ./
 RUN sed -i "s#https://registry.npmjs.org#${NPM_REGISTRY}#g" package-lock.json \
   && npm ci --omit=dev && npm cache clean --force
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 COPY --from=build /app/scripts ./scripts
 COPY --from=build /app/migrations ./migrations
 COPY --from=build /app/data ./data

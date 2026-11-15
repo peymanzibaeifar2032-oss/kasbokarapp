@@ -10,6 +10,7 @@ export COMPOSE
 export GIT_SSH_COMMAND='ssh -i /root/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
 cd "$APP_DIR"
 chmod +x deploy/*.sh 2>/dev/null || true
+sh deploy/disk-cleanup.sh || true
 
 LOCK=/var/lock/kasbokar-release.lock
 exec 9>"$LOCK"
@@ -136,7 +137,7 @@ chmod +x deploy/*.sh 2>/dev/null || true
 export GIT_SHA="$NEW_SHA"
 printf 'GIT_SHA=%s\n' "$NEW_SHA" > .deploy-sha
 
-BUILD_FLAGS="--no-cache"
+BUILD_FLAGS=""
 $COMPOSE build $BUILD_FLAGS --build-arg "GIT_SHA=$NEW_SHA" web || fail "build"
 
 BUILT=$(image_sha)

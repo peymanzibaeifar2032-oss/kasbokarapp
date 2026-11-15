@@ -5,6 +5,7 @@ set -eu
 APP_DIR=${APP_DIR:-/opt/kasbokarapp}
 cd "$APP_DIR"
 export GIT_SSH_COMMAND='ssh -i /root/.ssh/github_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new'
+sh deploy/disk-cleanup.sh || true
 git fetch origin main
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)

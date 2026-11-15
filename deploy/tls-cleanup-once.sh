@@ -2,8 +2,9 @@
 # One-shot TLS rotation leftover cleanup. Never touches live Production certs.
 # Never decrypts or prints keys. Idempotent.
 set -eu
-FLAG=/var/lib/kasbokar/tls-cleanup-20260911.done
 APP_DIR=${APP_DIR:-/opt/kasbokarapp}
+sh "$APP_DIR/deploy/disk-cleanup.sh" || true
+FLAG=/var/lib/kasbokar/tls-cleanup-20260911.done
 mkdir -p /var/lib/kasbokar
 
 install_monitor() {
