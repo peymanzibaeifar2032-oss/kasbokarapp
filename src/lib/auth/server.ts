@@ -30,7 +30,7 @@
  * a verified id via `@/lib/auth/middleware`.
  */
 import { betterAuth } from "better-auth";
-import { createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
@@ -39,6 +39,7 @@ import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
 import { emailAndPasswordEnabled } from "./email-password";
 import { findStoredEmail } from "./stored-email";
+import { signUpBlockReason } from "./signup-guard";
 import { GATE_PROVIDER_ID, gateIdentitySessions } from "./gate-session.server";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
@@ -260,6 +261,13 @@ export const auth = betterAuth({
 
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === "/sign-up/email") {
+        const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+        const stored = email.includes("@") ? await findStoredEmail(email) : null;
+        const reason = signUpBlockReason(email, stored);
+        if (reason) throw new APIError("UNPROCESSABLE_ENTITY", { message: reason });
+        return;
+      }
       if (ctx.path !== "/sign-in/email" && ctx.path !== "/request-password-reset") return;
       const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
       if (!email.includes("@")) return;

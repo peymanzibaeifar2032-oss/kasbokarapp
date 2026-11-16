@@ -26,9 +26,9 @@ export const Route = createFileRoute("/login")({
 
 function Login() {
   const { next, error, token, out } = Route.useSearch();
+  const { user } = useCurrentUserState();
   if (out) return <SignOutNow />;
   const dest = next || "/";
-  const { user } = useCurrentUserState();
   if (user && !token) return <GoNext dest={dest} />;
   return <LoginForm dest={dest} bounced={Boolean(error)} resetToken={token} />;
 }
