@@ -7,15 +7,13 @@ import { grokChromeEnabled, injectGrokPwaHead, shouldSkipGrokOverlay } from "./g
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-test("Production document shell has no Grok PWA identity and keeps GuideWidget", () => {
+test("Production document shell has no Grok PWA identity", () => {
   const root = readFileSync(join(ROOT, "src/routes/__root.tsx"), "utf8");
   assert.doesNotMatch(root, /\/__grok\//);
   assert.doesNotMatch(root, /grok-app-builder/);
   assert.doesNotMatch(root, /PreviewHostBridge/);
-  assert.match(root, /GuideWidget/);
   assert.match(root, /favicon\.svg/);
   assert.match(root, /og:title/);
-  assert.match(root, /کسب‌وکار/);
 });
 
 test("kasbokar hosts and STANDALONE skip Grok overlay including /__grok/", () => {

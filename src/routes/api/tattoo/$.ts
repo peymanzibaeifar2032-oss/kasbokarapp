@@ -273,7 +273,7 @@ async function dispatch(request: Request) {
         lessonId: z.string().trim().min(4).max(80).nullable().optional(),
         questionText: z.string().trim().min(2).max(4000),
       }).parse(await request.json());
-      let lessonId = body.lessonId || null;
+      const lessonId = body.lessonId || null;
       let questionText = body.questionText;
       if (lessonId?.startsWith("cur-") && lessonId !== DEPTH_SKIN_ID) {
         const lesson = LESSONS.find((item) => item.id === lessonId);

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment -- plain Node script, not type-checked */
 // @ts-nocheck
 import { createReadStream, existsSync } from "node:fs";
 import { createInterface } from "node:readline";

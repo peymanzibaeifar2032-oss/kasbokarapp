@@ -1,4 +1,4 @@
-import { shiftTehranDayKey, tehranDayKey } from "@/lib/hours";
+import { shiftTehranDayKey, tehranDayKey } from "./hours.ts";
 
 export function makeTattooTrackingCode() {
   return String(100000 + Math.floor(Math.random() * 900000));
