@@ -3,6 +3,7 @@ import { auth, authConfigured } from "@/lib/auth/server";
 import { findStoredEmail } from "@/lib/auth/stored-email";
 import { getSql } from "@/lib/db";
 import { takeAuthMailError } from "@/lib/mail";
+import { allowRate, clientKey } from "@/lib/server/rate-limit";
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -38,6 +39,10 @@ async function handle(request: Request) {
   const body = (await request.json().catch(() => null)) as { email?: unknown } | null;
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   if (!email.includes("@")) return json({ error: "ایمیل را درست بنویس." }, 400);
+  // Each request can send a real email and an owner notification, so cap it per device and per address.
+  const tooMany = "درخواست زیاد بود. چند دقیقه بعد دوباره بزن.";
+  if (!allowRate(`pwreset-ip:${clientKey(request)}`, 5, 15 * 60_000)) return json({ error: tooMany }, 429);
+  if (!allowRate(`pwreset-email:${email.toLowerCase()}`, 3, 60 * 60_000)) return json({ error: tooMany }, 429);
 
   const stored = await findStoredEmail(email);
   if (!stored) {
