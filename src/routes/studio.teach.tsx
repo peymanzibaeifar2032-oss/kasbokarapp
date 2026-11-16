@@ -379,7 +379,7 @@ function lessonPdf(item: LessonRow, images: ImageRow[]) {
 <h1>${escHtml(item.title)}</h1>
 <article>${escHtml(item.content)}</article>
 ${figures}
-<script>addEventListener("load",function(){setTimeout(function(){print()},400)})<\/script>
+<script>addEventListener("load",function(){setTimeout(function(){print()},400)})<\u002fscript>
 </body></html>`;
   const tab = window.open("", "_blank");
   if (!tab) {

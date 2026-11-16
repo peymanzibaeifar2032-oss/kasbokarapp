@@ -1438,6 +1438,7 @@ function TattooAdminCard({
         <ReceiptReview request={request} onChange={onChange} />
       ) : null}
 
+      {/* eslint-disable-next-line no-constant-condition -- old price form kept switched off */}
       {false ? (
         <>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -47,6 +47,7 @@ export function useCurrentUserState(): CurrentUserState {
   }, [session.isPending]);
 
   const raw = session.data?.user;
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
   const user = useMemo(
     () =>
       raw

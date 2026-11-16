@@ -550,7 +550,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
     }
   }
 
-  function useImage(dataUrl: string, next: Tab) {
+  function sendImageTo(dataUrl: string, next: Tab) {
     setSource(dataUrl);
     setExtracts([]);
     setExtractPick(0);
@@ -797,7 +797,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
             <VersionStrip images={extracts} picked={extractPick} onPick={setExtractPick} />
             <Compare left={source} right={extracted} leftLabel="منبع" rightLabel="طرح جداشده" />
             <Picture src={extracted} filename={`estekhraj.${extOf(extracted)}`} onSave={() => run("ذخیره", () => remember("extract", extracted, "استخراج"))} />
-            {extracted ? <HopButtons onSend={(next) => useImage(extracted, next)} /> : null}
+            {extracted ? <HopButtons onSend={(next) => sendImageTo(extracted, next)} /> : null}
           </section>
         ) : null}
 
@@ -895,7 +895,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
               ویرایش نسخه انتخاب‌شده
             </button>
             <Picture src={currentDesign} filename={`tarahi.${extOf(currentDesign)}`} onSave={() => run("ذخیره", () => remember("design", currentDesign, "طراحی"))} />
-            {currentDesign ? <HopButtons onSend={(next) => useImage(currentDesign, next)} /> : null}
+            {currentDesign ? <HopButtons onSend={(next) => sendImageTo(currentDesign, next)} /> : null}
           </section>
         ) : null}
 
@@ -952,7 +952,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
             <VersionStrip images={stencilRaws} picked={stencilPick} onPick={setStencilPick} />
             <Compare left={source} right={stencil} leftLabel="طرح" rightLabel="استنسیل" />
             <Picture src={stencil} filename="stensil.png" onSave={() => run("ذخیره", () => remember("stencil", stencil, "استنسیل"))} />
-            {stencil ? <HopButtons onSend={(next) => useImage(stencil, next)} /> : null}
+            {stencil ? <HopButtons onSend={(next) => sendImageTo(stencil, next)} /> : null}
           </section>
         ) : null}
 
@@ -1064,7 +1064,7 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
             </button>
             <Compare left={source} right={enhanced} leftLabel="قبل" rightLabel="بعد" />
             <Picture src={enhanced} filename="behbod.jpg" onSave={() => run("ذخیره", () => remember("enhance", enhanced, "بهبود"))} />
-            {enhanced ? <HopButtons onSend={(next) => useImage(enhanced, next)} /> : null}
+            {enhanced ? <HopButtons onSend={(next) => sendImageTo(enhanced, next)} /> : null}
             <p className="pt-2 text-sm text-white/45">تنظیم دستی روی همین دستگاه، بدون هوش مصنوعی</p>
             <Slider label="بزرگ‌نمایی" min={1} max={2} step={0.1} value={scale} onChange={setScale} />
             <Slider label="روشنایی" min={-40} max={40} step={1} value={bright} onChange={setBright} />
@@ -1276,16 +1276,16 @@ export function TattooPrepDesk({ embedded = false }: { embedded?: boolean }) {
                       <button type="button" className={gold} onClick={() => downloadDataUrl(asset.dataUrl, `${asset.kind}.${extOf(asset.dataUrl)}`)}>
                         دانلود
                       </button>
-                      <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "extract")}>
+                      <button type="button" className={ghost} onClick={() => sendImageTo(asset.dataUrl, "extract")}>
                         فرستادن به استخراج
                       </button>
-                      <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "stencil")}>
+                      <button type="button" className={ghost} onClick={() => sendImageTo(asset.dataUrl, "stencil")}>
                         فرستادن به استنسیل
                       </button>
-                      <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "print")}>
+                      <button type="button" className={ghost} onClick={() => sendImageTo(asset.dataUrl, "print")}>
                         فرستادن به پرینت
                       </button>
-                      <button type="button" className={ghost} onClick={() => useImage(asset.dataUrl, "enhance")}>
+                      <button type="button" className={ghost} onClick={() => sendImageTo(asset.dataUrl, "enhance")}>
                         فرستادن به بهبود
                       </button>
                       {confirmId === `asset:${asset.id}` ? (

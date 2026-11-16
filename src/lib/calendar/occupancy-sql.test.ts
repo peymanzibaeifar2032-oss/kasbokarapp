@@ -309,12 +309,16 @@ describe("0016 occupancy SQL authority", () => {
 
   it("home occupancy union has matching hold columns", async () => {
     const db = await boot(`insert into businesses (id) values ('b1');`);
-    const holdStart = "2026-09-20T07:30:00+00:00";
-    const holdEnd = "2026-09-20T08:30:00+00:00";
+    // Relative to now: the query below only sees bookings that have not ended yet.
+    const at = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
+    const bookStart = at(24);
+    const bookEnd = at(25);
+    const holdStart = at(26);
+    const holdEnd = at(27);
     await db.query(
       `insert into bookings (id, business_id, slot_start, slot_end, kind, status, resource_id, buffer_before, buffer_after)
        values ('k1','b1',$1,$2,'booking','confirmed',null,0,0)`,
-      [START, END],
+      [bookStart, bookEnd],
     );
     await db.query(
       `insert into booking_holds (id, business_id, slot_start, slot_end, expires_at, resource_id)

@@ -23,6 +23,7 @@ function collapseSpaces(raw: string): string {
 /** Deterministic Persian text fold. Does not delete the original query. */
 export function normalizeFa(raw: string): string {
   return collapseSpaces(
+    // eslint-disable-next-line no-misleading-character-class -- each invisible mark is replaced on its own
     foldLetters(raw).replace(/[\u200c\u200d\u200e\u200f\u202a-\u202e]/g, " "),
   );
 }

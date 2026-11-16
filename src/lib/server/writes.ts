@@ -4659,7 +4659,7 @@ async function performFollowUpStudioJob(userId: string, raw: unknown) {
   const own = samePerson ? clash : null;
   const taken = await dayAlreadyTaken(sql, start.toISOString(), own?.id ?? null, panelClashScope(actor));
   if (taken && !samePerson) throw new Error(`این روز را ${taken.customer_name || "یک مشتری"} گرفته، حتی برای یک ساعت. روز دیگری را انتخاب کن.`);
-  let bookingId = own?.id ?? crypto.randomUUID();
+  const bookingId = own?.id ?? crypto.randomUUID();
   let createdBooking = false;
   if (own) {
     const linked = await sql.query<TattooRequestRow>(
