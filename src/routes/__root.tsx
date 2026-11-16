@@ -1,4 +1,5 @@
 import { Component, useEffect, type ReactNode } from "react";
+import { purgeBrowserPasswords } from "@/lib/device-login";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth/provider";
@@ -18,6 +19,7 @@ class QuietBoundary extends Component<{ children: ReactNode }, { failed: boolean
 
 function CanonicalHost() {
   useEffect(() => {
+    purgeBrowserPasswords();
     if (window.location.hostname !== "www.kasbokarapp.com") return;
     window.location.replace(
       `https://kasbokarapp.com${window.location.pathname}${window.location.search}${window.location.hash}`,

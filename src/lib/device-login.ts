@@ -27,49 +27,44 @@ function bridge(): LoginBridge | null {
   return native?.saveLogin ? native : null;
 }
 
-function readStore(): Record<string, string> {
-  if (typeof localStorage === "undefined") return {};
+/**
+ * Older builds kept typed passwords in plain text in this browser's localStorage,
+ * where any injected script or anyone using the phone's browser could read them.
+ * Passwords now live only in the Android app's native (encrypted) store; plain
+ * browsers rely on their own password manager. Remove any copy left behind.
+ */
+export function purgeBrowserPasswords() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || "{}") as unknown;
-    if (!parsed || typeof parsed !== "object") return {};
-    const out: Record<string, string> = {};
-    for (const [key, value] of Object.entries(parsed)) {
-      if (typeof value === "string" && value.length >= 8) out[key] = value;
-    }
-    return out;
+    if (typeof localStorage !== "undefined") localStorage.removeItem(STORE_KEY);
   } catch {
-    return {};
+    /* storage blocked */
   }
 }
 
-/** Keep a successful email login on this phone only. Never sent to the server. */
+/** Keep a successful email login in the Android app's native store only. Never sent to the server. */
 export function rememberDeviceLogin(email: string, password: string) {
+  purgeBrowserPasswords();
   if (password.length < 8) return;
-  const keys = keysFor(email);
-  if (!keys.size) return;
+  if (!keysFor(email).size) return;
   try {
     bridge()?.saveLogin?.(email, password);
   } catch {
     /* older app builds have no native store */
   }
-  if (typeof localStorage === "undefined") return;
-  const store = readStore();
-  for (const key of keys) store[key] = password;
-  localStorage.setItem(STORE_KEY, JSON.stringify(store));
-  localStorage.setItem(LAST_KEY, email.trim().toLowerCase());
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(LAST_KEY, email.trim().toLowerCase());
+  } catch {
+    /* storage blocked */
+  }
 }
 
 export function savedDevicePassword(email: string) {
+  purgeBrowserPasswords();
   try {
     const native = bridge()?.savedLogin?.(email) || "";
     if (native.length >= 8) return native;
   } catch {
-    /* fall through to this browser's saved copy */
-  }
-  const store = readStore();
-  for (const key of keysFor(email)) {
-    const found = store[key];
-    if (found) return found;
+    /* older app builds have no native store */
   }
   return "";
 }
