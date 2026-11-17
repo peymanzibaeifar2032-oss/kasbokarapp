@@ -1,7 +1,8 @@
-/** Shared rules for TattooHub posts. The feed never filters by the viewer. */
+/** Shared rules for TattooHub. The feed never filters by the viewer. */
 
-export const HUB_VERSION = "1.0.1";
+export const HUB_VERSION = "1.1.0";
 export const MAX_IMAGE_CHARS = 480_000;
+export const MAX_AUDIO_CHARS = 700_000;
 
 export type HubPost = {
   id: string;
@@ -25,6 +26,13 @@ export function cleanImage(value: unknown) {
   return image;
 }
 
+export function cleanAudio(value: unknown) {
+  if (typeof value !== "string" || !value) return "";
+  if (!/^data:audio\/[a-z0-9.+-]+;base64,[a-z0-9+/=\s]+$/i.test(value)) throw new Error("ویس پذیرفته نشد.");
+  if (value.length > MAX_AUDIO_CHARS) throw new Error("ویس طولانی است. کوتاه‌تر ضبط کن.");
+  return value;
+}
+
 export function publish(posts: HubPost[], post: HubPost) {
   return [post, ...posts.filter((item) => item.id !== post.id)];
 }
@@ -32,4 +40,9 @@ export function publish(posts: HubPost[], post: HubPost) {
 /** Every signed-in artist sees the same posts, including ones they did not write. */
 export function visibleToEveryone(posts: HubPost[]) {
   return [...posts].sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/** A new incoming message should ping unless that exact chat is already open. */
+export function shouldNotify(previousId: string, nextId: string, threadOpen: boolean) {
+  return Boolean(nextId) && nextId !== previousId && !threadOpen;
 }
