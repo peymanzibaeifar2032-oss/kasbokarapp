@@ -68,6 +68,7 @@ export function StudioJobForm({
   embedded = false,
   personal = false,
   lockedDay = "",
+  extraBusyKeys = [],
 }: {
   businesses: Business[];
   bookings: Booking[];
@@ -75,6 +76,7 @@ export function StudioJobForm({
   embedded?: boolean;
   personal?: boolean;
   lockedDay?: string;
+  extraBusyKeys?: string[];
 }) {
   const [open, setOpen] = useState(embedded);
   const [businessId, setBusinessId] = useState(() => ownStudioId(businesses, personal));
@@ -106,14 +108,14 @@ export function StudioJobForm({
   const [busy, setBusy] = useState(false);
   const [serverBusy, setServerBusy] = useState<string[]>([]);
   const busyKeys = useMemo(() => {
-    const keys = new Set(serverBusy);
+    const keys = new Set([...serverBusy, ...extraBusyKeys]);
     for (const booking of bookings) {
-      if (booking.businessId === businessId && booking.status !== "cancelled" && booking.status !== "no_show" && booking.kind === "booking") {
+      if (booking.status !== "cancelled" && booking.status !== "no_show" && booking.kind === "booking" && booking.slotStart) {
         keys.add(tehranDayKey(new Date(booking.slotStart)));
       }
     }
     return [...keys];
-  }, [bookings, businessId, serverBusy]);
+  }, [bookings, extraBusyKeys, serverBusy]);
   useEffect(() => {
     if (lockedDay || dayTouched || !serverBusy.length) return;
     setDay(firstOpenCustomerDay(busyKeys, thursdayBusyKeys()));

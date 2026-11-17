@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { JALALI_MONTHS, gregorianToJalali, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
+import { JALALI_MONTHS, gregorianToJalali, jalaliMonthGrid, shiftJalaliMonth, toFaDigits } from "@/lib/calendar/jalali";
 import { formatFaDate, formatFaDateTime, toEnDigits, toSmsLink } from "@/lib/format";
 import { firstOpenCustomerDay, jalaliDayLabel, shiftTehranDayKey, tehranClock, tehranDayKey, tehranLocalToIso, tehranWeekBounds } from "@/lib/hours";
 import { friendlyError, saveAction } from "@/lib/save";
@@ -2556,6 +2556,28 @@ function MonthJobsPanel({
   const dayGroups = groupByDay(listedJobs, bookings);
   const pastWeek = span === "week" && weekOffset < 0;
   const focusedPast = !searching && (pastWeek || span === "yesterday");
+  const viewingToday = !focusedPast && (span === "week" ? weekOffset === 0 : month.jy === todayJ.jy && month.jm === todayJ.jm);
+  const monthDays = span === "month" ? jalaliMonthGrid(month.jy, month.jm).filter((cell) => cell.inMonth).map((cell) => cell.dayKey) : [];
+  const monthStart = monthDays[0] || "";
+  const monthEnd = monthDays[monthDays.length - 1] || "";
+  const leadDays =
+    span === "month" && !searching && !viewingToday && dayGroups[0] && monthStart
+      ? openDaysUntil(monthStart > todayKey ? monthStart : todayKey, dayGroups[0].day)
+      : [];
+  const lastListedDay = dayGroups[dayGroups.length - 1]?.day || "";
+  const trailDays =
+    span === "month" && !searching && lastListedDay && monthEnd
+      ? openDaysUntil(shiftTehranDayKey(lastListedDay, 1), shiftTehranDayKey(monthEnd, 1))
+      : [];
+  const takenDays = [...new Set([
+    ...bookings
+      .filter((booking) => booking.status !== "cancelled" && booking.status !== "no_show" && booking.kind === "booking" && booking.slotStart)
+      .map((booking) => tehranDayKey(new Date(booking.slotStart))),
+    ...jobs.flatMap((job) => {
+      const key = jobDayKey(job, bookings);
+      return key ? [key] : [];
+    }),
+  ])];
   const pastWeekLabel =
     span === "yesterday"
       ? "دیروز"
@@ -2566,8 +2588,6 @@ function MonthJobsPanel({
           : weekOffset === -3
             ? "۳ هفته قبل"
             : weekTitle;
-
-  const viewingToday = !focusedPast && (span === "week" ? weekOffset === 0 : month.jy === todayJ.jy && month.jm === todayJ.jm);
 
   async function refreshAll() {
     await load();
@@ -2676,9 +2696,7 @@ function MonthJobsPanel({
             <MonthJobCard
               key={`past-${job.id}-${job.updatedAt}-${job.paidToman}`}
               job={job}
-              busyKeys={bookings
-                .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
-                .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              busyKeys={takenDays}
               bookings={bookings}
               peers={jobs}
               onChange={() => void refreshAll()}
@@ -2689,7 +2707,13 @@ function MonthJobsPanel({
         </section>
       ) : null}
 
-      <StudioJobForm businesses={businesses} bookings={bookings} onCreated={() => void refreshAll()} personal={personal} />
+      <StudioJobForm
+        businesses={businesses}
+        bookings={bookings}
+        extraBusyKeys={takenDays}
+        onCreated={() => void refreshAll()}
+        personal={personal}
+      />
 
       <Input
         value={jobQuery}
@@ -2744,6 +2768,9 @@ function MonthJobsPanel({
             : "با این اسم یا شماره در این ماه نوبتی نیست. نوبت‌های دیگر همان مشتری حذف نشده‌اند."}
         </p>
       ) : null}
+      {leadDays.map((day) => (
+        <EmptyDayOffer key={`month-lead-${day}`} day={day} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
+      ))}
       {chronological ? null : viewingToday && !dayGroups.some((group) => group.day === todayKey) ? (
         <EmptyDayOffer day={todayKey} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
       ) : null}
@@ -2770,9 +2797,7 @@ function MonthJobsPanel({
             <MonthJobCard
               key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
               job={job}
-              busyKeys={bookings
-                .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
-                .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              busyKeys={takenDays}
               bookings={bookings}
               peers={jobs}
               onChange={() => void refreshAll()}
@@ -2787,6 +2812,9 @@ function MonthJobsPanel({
         </div>
         );
       })}
+      {trailDays.map((day) => (
+        <EmptyDayOffer key={`month-trail-${day}`} day={day} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
+      ))}
       {chronological && viewingToday && !dayGroups.some((group) => group.day >= todayKey) ? (
         <EmptyDayOffer day={todayKey} waiting={waiting} businesses={businesses} bookings={bookings} personal={personal} onBooked={() => void refreshAll()} />
       ) : null}
@@ -2796,9 +2824,7 @@ function MonthJobsPanel({
             <MonthJobCard
               key={`${job.id}-${job.updatedAt}-${job.paidToman}`}
               job={job}
-              busyKeys={bookings
-                .filter((booking) => booking.status !== "cancelled" && booking.kind === "booking")
-                .map((booking) => tehranDayKey(new Date(booking.slotStart)))}
+              busyKeys={takenDays}
               bookings={bookings}
               peers={jobs}
               onChange={() => void refreshAll()}
@@ -2810,6 +2836,16 @@ function MonthJobsPanel({
 
     </div>
   );
+}
+
+function openDaysUntil(from: string, until: string) {
+  const out: string[] = [];
+  let cursor = from;
+  for (let guard = 0; cursor && until && cursor < until && guard < 31; guard += 1) {
+    if (cursor >= tehranDayKey()) out.push(cursor);
+    cursor = shiftTehranDayKey(cursor, 1);
+  }
+  return out;
 }
 
 function daysBetween(from: string, to: string) {
