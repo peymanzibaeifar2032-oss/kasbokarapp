@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ورود تاتوهاب</title>
+</head>
+<body style="font-family:Tahoma,sans-serif;padding:24px">
+<p>در حال اتصال حساب گوگل به تاتوهاب...</p>
+<script>
+async function go() {
+  const res = await fetch("/api/tattoohub", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "mint" }),
+  });
+  if (res.status === 401) {
+    location.replace("/login?next=/tattoohub/enter.html");
+    return;
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!data.token) {
+    document.body.textContent = data.error || "ورود انجام نشد.";
+    return;
+  }
+  location.replace("tattoohub://auth?token=" + encodeURIComponent(data.token));
+}
+go();
+</script>
+</body>
+</html>

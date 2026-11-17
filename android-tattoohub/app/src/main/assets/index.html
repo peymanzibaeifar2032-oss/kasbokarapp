@@ -5,448 +5,319 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>تاتوهاب</title>
 <style>
-:root {
-  --bg: #f6f1ea;
-  --card: #ffffff;
-  --ink: #1c2430;
-  --muted: #667085;
-  --line: #eadfd2;
-  --coral: #ff5a36;
-  --amber: #f5b942;
-  --teal: #12a594;
-  --blue: #3b6cff;
-  --violet: #7c5cff;
-  --green: #1f9d62;
-  --shadow: 0 10px 30px rgba(70, 42, 20, .08);
-}
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: Vazirmatn, "Noto Naskh Arabic", Tahoma, sans-serif; }
-button, input, textarea, select { font: inherit; color: inherit; }
-button { cursor: pointer; }
-#app { min-height: 100%; }
-.stripe { height: 7px; background: linear-gradient(90deg, #ff5a36, #f5b942, #14b8a6, #3b6cff, #7c5cff); }
-.top { position: sticky; top: 0; z-index: 5; background: rgba(246,241,234,.92); backdrop-filter: blur(10px); }
-.bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px 8px; }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 22px; }
-.mark { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; color: white; background: linear-gradient(135deg, #ff5a36, #ff8a3d); box-shadow: var(--shadow); }
-.icon-btn { border: 0; background: white; width: 40px; height: 40px; border-radius: 14px; box-shadow: var(--shadow); }
-.main { padding: 8px 14px 108px; }
-.card { background: var(--card); border-radius: 22px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px; }
-.pad { padding: 14px; }
-.row { display: flex; align-items: center; gap: 10px; }
-.grow { flex: 1; min-width: 0; }
-.muted { color: var(--muted); font-size: 12px; line-height: 1.7; }
-.name { font-weight: 800; }
-.avatar, .story-face { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: white; font-weight: 900; flex: none; }
-.stories { display: flex; gap: 12px; overflow-x: auto; padding: 4px 2px 12px; }
-.story { width: 72px; text-align: center; background: none; border: 0; padding: 0; }
-.story b { display: block; margin-top: 6px; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ring { padding: 3px; border-radius: 50%; background: linear-gradient(135deg, #ff5a36, #f5b942, #7c5cff); }
-.ring .story-face { width: 58px; height: 58px; }
-.art { height: 230px; display: grid; place-items: center; position: relative; }
-.art svg { width: 58%; height: 78%; }
-.art span { position: absolute; bottom: 10px; right: 12px; background: rgba(255,255,255,.88); border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 800; }
-.photo { width: 100%; max-height: 420px; object-fit: cover; display: block; background: #efe7dc; }
-.compare { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; background: #efe7dc; }
-.compare figure { margin: 0; }
-.compare img, .compare .mini { width: 100%; height: 150px; object-fit: cover; display: block; }
-.compare figcaption { text-align: center; font-size: 11px; font-weight: 800; padding: 6px 2px 8px; background: white; }
-.actions { display: flex; gap: 8px; padding: 8px 12px 0; }
-.chip, .act { border: 0; border-radius: 999px; background: #f6f1ea; padding: 8px 12px; font-weight: 800; font-size: 13px; }
-.act.on { background: #ffe7e1; color: #c2410c; }
-.caption { padding: 8px 14px 14px; line-height: 1.8; font-size: 15px; }
-.tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 14px; }
-.tag { background: #eef3ff; color: #27408f; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 800; }
-.tag.teal { background: #e7f8f4; color: #0f766e; }
-.tag.amber { background: #fff4dc; color: #92400e; }
-.nav { position: fixed; left: 12px; right: 12px; bottom: 12px; background: white; border-radius: 24px; box-shadow: 0 12px 40px rgba(40,24,10,.16); display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px; z-index: 6; }
-.nav button { border: 0; background: transparent; border-radius: 18px; padding: 8px 0 6px; font-size: 11px; font-weight: 800; color: var(--muted); }
-.nav button.on { background: #fff1ec; color: var(--coral); }
-.plus { width: 46px; height: 46px; border-radius: 16px; border: 0; color: white; background: linear-gradient(135deg, #ff5a36, #7c5cff); font-size: 28px; line-height: 1; margin: -18px auto 0; display: grid; place-items: center; box-shadow: var(--shadow); }
-.field { display: grid; gap: 6px; margin-bottom: 10px; font-size: 13px; font-weight: 800; }
-.field input, .field textarea, .field select { width: 100%; border: 1px solid var(--line); background: white; border-radius: 14px; padding: 12px; font-weight: 600; }
-.field textarea { min-height: 90px; resize: vertical; }
-.primary { width: 100%; border: 0; border-radius: 16px; padding: 14px; color: white; font-weight: 900; background: linear-gradient(135deg, #ff5a36, #ff8a3d); }
-.ghost { width: 100%; border: 0; background: transparent; color: var(--blue); font-weight: 800; padding: 10px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.filters { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
-.filters button.on { background: var(--ink); color: white; }
-.user-card, .msg { display: flex; gap: 10px; align-items: center; width: 100%; text-align: right; border: 0; background: white; border-radius: 18px; padding: 12px; margin-bottom: 8px; box-shadow: var(--shadow); }
-.bubble { max-width: 80%; padding: 10px 12px; border-radius: 16px; margin: 6px 0; line-height: 1.7; }
-.mine { background: #ffe8e2; margin-right: auto; }
-.theirs { background: white; box-shadow: var(--shadow); }
-.toast { position: fixed; top: 18px; left: 16px; right: 16px; background: #1c2430; color: white; border-radius: 16px; padding: 12px 14px; z-index: 9; text-align: center; font-weight: 800; }
-.sheet { position: fixed; inset: 0; background: rgba(28,36,48,.45); z-index: 8; display: grid; align-items: end; }
-.sheet .card { margin: 0; border-radius: 24px 24px 0 0; padding: 16px; }
-.comment { padding: 8px 0; border-top: 1px solid var(--line); }
-.h1 { font-size: 26px; margin: 6px 0; }
-.note { background: #fff7ed; border-radius: 16px; padding: 10px 12px; color: #9a3412; font-size: 13px; line-height: 1.7; margin-bottom: 10px; }
-.styles { display: flex; flex-wrap: wrap; gap: 6px; }
-.style-pick { border: 1px solid var(--line); background: white; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 800; }
-.style-pick.on { background: #7c5cff; color: white; border-color: #7c5cff; }
+:root { --bg:#f6f1ea; --ink:#1c2430; --muted:#667085; --line:#eadfd2; --coral:#ff5a36; }
+* { box-sizing:border-box; }
+html, body { margin:0; background:var(--bg); color:var(--ink); font-family:Vazirmatn,"Noto Naskh Arabic",Tahoma,sans-serif; }
+button, input, textarea, select { font:inherit; color:inherit; }
+button { cursor:pointer; }
+.stripe { height:7px; background:linear-gradient(90deg,#ff5a36,#f5b942,#14b8a6,#3b6cff,#7c5cff); }
+.top { position:sticky; top:0; z-index:5; background:rgba(246,241,234,.94); }
+.bar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; }
+.brand { display:flex; align-items:center; gap:8px; font-weight:900; font-size:22px; }
+.mark { width:36px; height:36px; border-radius:12px; display:grid; place-items:center; color:#fff; background:linear-gradient(135deg,#ff5a36,#ff8a3d); }
+.main { padding:8px 14px 118px; }
+.card { background:#fff; border-radius:22px; box-shadow:0 10px 30px rgba(70,42,20,.08); overflow:hidden; margin-bottom:14px; }
+.pad { padding:14px; }
+.row { display:flex; align-items:center; gap:10px; }
+.grow { flex:1; min-width:0; }
+.muted { color:var(--muted); font-size:12px; line-height:1.7; }
+.name { font-weight:800; }
+.avatar { width:48px; height:48px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:900; background:#ff5a36; object-fit:cover; flex:none; }
+.photo { width:100%; max-height:440px; object-fit:cover; display:block; background:#efe7dc; }
+.compare { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; background:#efe7dc; }
+.compare figure { margin:0; }
+.compare img { width:100%; height:140px; object-fit:cover; display:block; }
+.compare figcaption { text-align:center; font-size:11px; font-weight:800; padding:6px 2px; background:#fff; }
+.actions { display:flex; gap:8px; padding:8px 12px 0; }
+.act, .chip { border:0; border-radius:999px; background:#f6f1ea; padding:10px 12px; font-weight:800; }
+.act.on, .chip.on { background:#1c2430; color:#fff; }
+.caption { padding:8px 14px 12px; line-height:1.8; }
+.tags { display:flex; flex-wrap:wrap; gap:6px; padding:0 14px 14px; }
+.tag { background:#eef3ff; color:#27408f; border-radius:999px; padding:4px 8px; font-size:11px; font-weight:800; }
+.nav { position:fixed; left:12px; right:12px; bottom:12px; background:#fff; border-radius:24px; display:grid; grid-template-columns:repeat(5,1fr); padding:6px; z-index:6; box-shadow:0 12px 40px rgba(40,24,10,.16); }
+.nav button { border:0; background:transparent; border-radius:18px; padding:8px 0; font-size:11px; font-weight:800; color:var(--muted); }
+.nav button.on { background:#fff1ec; color:var(--coral); }
+.plus { width:48px; height:48px; border:0; border-radius:16px; color:#fff; background:linear-gradient(135deg,#ff5a36,#7c5cff); font-size:30px; margin:-20px auto 0; display:grid; place-items:center; }
+.field { display:grid; gap:6px; margin:10px 0; font-size:13px; font-weight:800; }
+.field input, .field textarea, .field select { width:100%; border:1px solid var(--line); border-radius:14px; padding:12px; background:#fff; }
+.field textarea { min-height:96px; }
+.primary { width:100%; min-height:54px; border:0; border-radius:16px; color:#fff; font-size:18px; font-weight:900; background:linear-gradient(135deg,#ff5a36,#ff8a3d); }
+.pick { display:block; text-align:center; background:#eef3ff; color:#27408f; border-radius:16px; padding:16px; font-weight:900; }
+.preview { width:100%; border-radius:16px; margin-top:8px; max-height:280px; object-fit:cover; }
+.note { background:#fff7ed; color:#9a3412; border-radius:16px; padding:12px; line-height:1.7; }
+.toast { position:fixed; top:16px; left:16px; right:16px; background:#1c2430; color:#fff; border-radius:16px; padding:12px; z-index:9; text-align:center; font-weight:800; }
+.stories { display:flex; gap:10px; overflow:auto; padding-bottom:10px; }
+.story { width:72px; border:0; background:none; text-align:center; }
+.story b { display:block; font-size:11px; margin-top:4px; }
+.ring { padding:3px; border-radius:50%; background:linear-gradient(135deg,#ff5a36,#7c5cff); }
+.h1 { font-size:26px; margin:6px 0; }
+.chat { display:flex; flex-direction:column; height:calc(100dvh - 168px); }
+.log { flex:1; overflow:auto; padding-bottom:8px; }
+.bubble { max-width:78%; padding:10px 12px; border-radius:18px; margin:6px 0; line-height:1.7; }
+.mine { margin-inline-start:auto; background:#ffe1d8; }
+.theirs { margin-inline-end:auto; background:#fff; }
+.composer { display:flex; gap:8px; }
+.composer input { flex:1; border:1px solid var(--line); border-radius:16px; padding:12px; }
+.composer button { border:0; border-radius:16px; background:#ff5a36; color:#fff; font-weight:900; padding:0 16px; }
+.msg { width:100%; display:flex; gap:10px; align-items:center; text-align:right; border:0; background:#fff; border-radius:18px; padding:12px; margin-bottom:8px; }
+.grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; }
 </style>
 </head>
 <body>
-<div id="app"></div>
+<div class="stripe"></div>
+<div class="top"><div class="bar"><div class="brand"><div class="mark">ت</div>تاتوهاب</div><button id="search-btn" style="border:0;background:#fff;border-radius:14px;width:40px;height:40px">جستجو</button></div></div>
+<div id="app" class="main"></div>
+<nav class="nav">
+  <button data-go="feed">خانه</button>
+  <button data-go="explore">اکسپلور</button>
+  <button data-go="create" aria-label="پست جدید"><span class="plus">+</span></button>
+  <button data-go="inbox">پیام</button>
+  <button data-go="profile">من</button>
+</nav>
+<div id="toast" class="toast" hidden></div>
 <script>
-const KEY = "tattoohub-1.0.0";
-const VERSION = "1.0.0";
-const INKS = ["Eternal", "Intenze", "World Famous", "Kuro Sumi", "Solid Ink", "Dynamic", "Starbrite", "Fusion", "Quantum"];
-const NEEDLES = ["Cheyenne", "Kwadron", "Elite", "Da Vinci", "Emalla", "Bishop"];
-const TYPES = ["RL", "RS", "RM", "M1", "Magnum", "CM"];
-const MACHINES = ["Cheyenne", "FK Irons", "Bishop", "Mast", "Critical", "Dragonhawk"];
-const STYLES = ["رئال", "فاین‌لاین", "سنتی", "نئوسنتی", "بلک‌ورک", "تریبال", "حروف", "مینی‌مال", "ژاپنی", "آبرنگ"];
-const TECHNIQUES = ["خط", "سایه نرم", "نقطه‌چین", "پکینگ رنگ", "سفید روی پوست"];
-const ARTS = {
-  rose: ["#ffd9cf", "#8d2d3a", "گل خطی"],
-  line: ["#e7f0ff", "#1d4ed8", "فاین‌لاین"],
-  snake: ["#e7f8ef", "#047857", "سیاه‌قلم"],
-  geo: ["#f3e8ff", "#6d28d9", "هندسی"],
-  sun: ["#fff4d6", "#b45309", "سنتی"],
-  letter: ["#e0f2fe", "#0f4c81", "حروف"],
-  wave: ["#ffe4e6", "#be123c", "ژاپنی"]
-};
-const state = { screen: "feed", postId: "", userId: "", thread: "", story: 0, q: "", filter: "همه", toast: "", create: "post" };
-
-function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { return null; }
+const VERSION = "1.0.1";
+const API = location.hostname.endsWith("kasbokarapp.com") ? "" : "https://kasbokarapp.com";
+const INKS = ["Eternal","Intenze","World Famous","Kuro Sumi","Solid Ink","Dynamic","Starbrite","Fusion"];
+const NEEDLES = ["Cheyenne","Kwadron","Elite","Da Vinci","Emalla","Bishop"];
+const TYPES = ["RL","RS","RM","M1","Magnum","CM"];
+const MACHINES = ["Cheyenne","FK Irons","Bishop","Mast","Critical","Dragonhawk"];
+const STYLES = ["رئال","فاین‌لاین","سنتی","بلک‌ورک","تریبال","حروف","مینی‌مال","ژاپنی"];
+const state = { screen:"feed", data:null, postId:"", withId:"", q:"", filter:"همه", mode:"post", draft:{}, timer:0 };
+function esc(value){return String(value ?? "").replace(/[&<>"]/g,(ch)=>({"&":"\u0026amp;","<":"\u0026lt;",">":"\u0026gt;",'"':"\u0026quot;"}[ch]));}
+function toast(text){const el=document.getElementById("toast"); el.hidden=false; el.textContent=text; setTimeout(()=>{el.hidden=true;},2200);}
+function token(){try{return localStorage.getItem("hub-token")||"";}catch(e){return "";}}
+async function api(body){
+  const headers={"Content-Type":"application/json"};
+  if(token()) headers.Authorization="Bearer "+token();
+  const res=await fetch(API+"/api/tattoohub",{method:"POST",headers,credentials:"include",body:JSON.stringify(body)});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error||"انجام نشد.");
+  return data;
 }
-function save(db) { localStorage.setItem(KEY, JSON.stringify(db)); }
-function uid() { return Math.random().toString(36).slice(2, 10); }
-function db() {
-  const found = load();
-  if (found) return found;
-  const now = Date.now();
-  const users = [
-    ["sara", "سارا کیانی", "تهران", ["فاین‌لاین", "مینی‌مال"], "خط نازک و پوست آرام."],
-    ["arman", "آرمان نادری", "اصفهان", ["رئال"], "پرتره و سایه‌های نقطه‌ای."],
-    ["niloofar", "نیلوفر صالحی", "شیراز", ["سنتی", "نئوسنتی"], "رنگ سنتی که بعد از هیلد زنده بماند."],
-    ["kamran", "کامران یوسفی", "تبریز", ["بلک‌ورک"], "سیاه یکدست، بدون سوختگی."],
-    ["helia", "هلیا مرادی", "مشهد", ["حروف", "مینی‌مال"], "نوشته خوانا، فاصله درست."],
-    ["reza", "رضا قاسمی", "کرج", ["ژاپنی"], "موج و باد، با خط مطمئن."]
-  ].map((row, i) => ({ id: row[0], name: row[1], city: row[2], styles: row[3], bio: row[4], phone: "", email: "", password: "", hue: i }));
-  const posts = [
-    post("p1", "sara", "خط را یک‌بار بکش. برگشت روی همان خط پوست را خسته می‌کند.", "line", "فاین‌لاین", "خط", "World Famous", "Kwadron", "RL", "Cheyenne", now - 3600e3),
-    post("p2", "arman", "برای سایه صورت، RM نرم بهتر از فشار زیاد بود. این نتیجه بعد از شش هفته است.", "snake", "رئال", "نقطه‌چین", "Eternal", "Cheyenne", "RM", "FK Irons", now - 86400e3 * 2),
-    post("p3", "niloofar", "قرمز سنتی اگر عمیق برود پخش می‌شود. این سه تصویر طرح، روز کار و هیلد است.", "sun", "سنتی", "پکینگ رنگ", "Intenze", "Da Vinci", "M1", "Bishop", now - 86400e3 * 5, true),
-    post("p4", "kamran", "بلک‌ورک را در دو پاس کوتاه ببند، نه یک پاس طولانی.", "geo", "بلک‌ورک", "پکینگ رنگ", "Dynamic", "Emalla", "Magnum", "Mast", now - 86400e3),
-    post("p5", "helia", "برای حروف فارسی، ارتفاع خط را یکسان نگه دار و منحنی بدن را صاف نکن.", "letter", "حروف", "خط", "Solid Ink", "Elite", "RL", "Critical", now - 5 * 3600e3),
-    post("p6", "reza", "خط موج اگر با سرعت یکنواخت برود، بعد از هیلد نمی‌شکند.", "wave", "ژاپنی", "خط", "Kuro Sumi", "Bishop", "RL", "Cheyenne", now - 8 * 3600e3)
-  ];
-  const stories = users.slice(0, 4).map((user, i) => ({ id: "s" + i, userId: user.id, text: ["امروز خط تمرین شد", "سوزن تازه RL", "رنگ قرمز را سبک زدم", "قبل از هیلد عکس نگیر"][i], art: ["line", "rose", "sun", "geo"][i], createdAt: now - (i + 1) * 3600e3 }));
-  const messages = [{ id: uid(), from: "sara", to: "guest", text: "اگر سوال ابزار داشتی همین‌جا بپرس.", createdAt: now - 7200e3 }];
-  const fresh = { users, posts, stories, messages, collections: [], session: "" };
-  save(fresh);
-  return fresh;
+function me(){return state.data && state.data.me;}
+function people(){return (state.data && state.data.people) || [];}
+function person(id){return people().find((item)=>item.user_id===id) || {name:"آرتیست", avatar:"", city:""};}
+function face(item, cls){
+  if(item && item.avatar) return `<img class="${cls||"avatar"}" alt="" src="${item.avatar}" />`;
+  return `<div class="${cls||"avatar"}">${esc((item && item.name || "؟").slice(0,1))}</div>`;
 }
-function post(id, userId, caption, art, style, technique, ink, needle, type, machine, createdAt, compare) {
-  return { id, userId, caption, art, style, technique, ink, needle, type, machine, image: "", compare: compare ? { sketch: "letter", fresh: "sun", healed: "rose" } : null, likes: [], comments: [{ id: uid(), userId: "helia", text: "این نکته به کارم آمد.", createdAt }], createdAt };
+function ago(value){
+  const time=new Date(value).getTime();
+  const mins=Math.max(1,Math.round((Date.now()-time)/60000));
+  if(mins<60) return mins+" دقیقه پیش";
+  const hours=Math.round(mins/60);
+  if(hours<24) return hours+" ساعت پیش";
+  return Math.round(hours/24)+" روز پیش";
 }
-function me(data) { return data.users.find((user) => user.id === data.session) || null; }
-function user(data, id) { return data.users.find((item) => item.id === id); }
-function esc(value) {
-  return String(value ?? "").replace(/[&<>"]/g, (ch) => {
-    if (ch === "&") return "\u0026amp;";
-    if (ch === "<") return "\u0026lt;";
-    if (ch === ">") return "\u0026gt;";
-    return "\u0026quot;";
-  });
+function srcOf(value){return value && String(value).startsWith("data:image/") ? value : "";}
+function photo(value, label){
+  const src=srcOf(value);
+  return src ? `<img class="photo" alt="${esc(label||"")}" src="${src}" />` : `<div class="photo" style="display:grid;place-items:center;height:140px">${esc(label||"بدون عکس")}</div>`;
 }
-function ago(time) {
-  const mins = Math.max(1, Math.round((Date.now() - time) / 60000));
-  if (mins < 60) return mins + " دقیقه پیش";
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return hours + " ساعت پیش";
-  return Math.round(hours / 24) + " روز پیش";
+function card(item){
+  const author=person(item.user_id);
+  const compare=item.compare && typeof item.compare==="object" ? item.compare : null;
+  const visual=compare ? `<div class="compare">${[["sketch","طرح اولیه"],["fresh","کار تازه"],["healed","بعد از هیلد"]].map(([key,label])=>`<figure>${photo(compare[key],label)}<figcaption>${label}</figcaption></figure>`).join("")}</div>` : photo(item.image, item.style);
+  const tags=[item.style,item.technique,item.ink,item.needle,item.needle_type,item.machine].filter(Boolean);
+  return `<article class="card" data-post="${esc(item.id)}"><div class="pad row" data-user="${esc(item.user_id)}">${face(author)}<div><div class="name">${esc(item.name||author.name)}</div><div class="muted">${esc(item.city||author.city||"")} · ${ago(item.created_at)}</div></div></div>${visual}<div class="actions"><button class="act ${item.liked?"on":""}" data-like="${esc(item.id)}">پسند ${item.likes||0}</button><button class="act" data-post="${esc(item.id)}">گفتگو ${(item.comments||[]).length}</button><button class="act" data-save="${esc(item.id)}">ذخیره</button></div><div class="caption">${esc(item.caption)}</div><div class="tags">${tags.map((tag)=>`<span class="tag">${esc(tag)}</span>`).join("")}</div></article>`;
 }
-function hue(user) { return ["#ff5a36", "#7c5cff", "#12a594", "#3b6cff", "#f5b942", "#1f9d62"][(user && user.hue) % 6 || 0]; }
-function face(user, cls) { return `<div class="${cls || "avatar"}" style="background:${hue(user)}">${esc((user && user.name || "؟").slice(0, 1))}</div>`; }
-function artBox(kind, label) {
-  const item = ARTS[kind] || ARTS.line;
-  return `<div class="art" style="background:${item[0]}"><svg viewBox="0 0 120 160" fill="none" stroke="${item[1]}" stroke-width="3"><path d="M60 18c18 24 28 40 28 58a28 28 0 1 1-56 0c0-18 10-34 28-58z"/><path d="M60 96v46"/><circle cx="60" cy="78" r="8" fill="${item[1]}" stroke="none"/></svg><span>${esc(label || item[2])}</span></div>`;
+function posts(){return (state.data && state.data.posts) || [];}
+function render(){
+  const root=document.getElementById("app");
+  const screen=state.screen;
+  document.querySelectorAll(".nav button").forEach((button)=>{button.classList.toggle("on", button.dataset.go===screen);});
+  if(!state.data){root.innerHTML=`<div class="card pad">در حال دریافت فید...</div>`; return;}
+  if(screen==="feed") root.innerHTML=feedView();
+  else if(screen==="explore") root.innerHTML=exploreView();
+  else if(screen==="create") root.innerHTML=createView();
+  else if(screen==="post") root.innerHTML=postView();
+  else if(screen==="inbox") root.innerHTML=inboxView();
+  else if(screen==="thread") root.innerHTML=threadView();
+  else if(screen==="profile"||screen==="user") root.innerHTML=profileView(screen==="profile");
+  else if(screen==="edit") root.innerHTML=editView();
+  else if(screen==="search") root.innerHTML=searchView();
+  else if(screen==="about") root.innerHTML=aboutView();
+  else if(screen==="story") root.innerHTML=storyView();
+  bind();
 }
-function media(item, label) {
-  if (item && String(item).startsWith("data:")) return `<img class="photo" alt="" src="${item}" />`;
-  if (item && String(item).startsWith("blob:")) return `<video class="photo" controls playsinline src="${item}"></video>`;
-  return artBox(item || "line", label);
+function feedView(){
+  const stories=(state.data.stories||[]);
+  const seen=[];
+  const row=stories.filter((item)=>{if(seen.includes(item.user_id)) return false; seen.push(item.user_id); return true;});
+  const gate=me()?"":`<div class="note">فید برای مهمان باز است. برای پست، استوری و پیام با گوگل وارد شو.</div><button class="primary" id="login" type="button">ورود با گوگل</button><div style="height:12px"></div>`;
+  return `${gate}<div class="stories">${row.map((item)=>`<button class="story" data-story="${esc(item.id)}"><div class="ring">${face(item)}</div><b>${esc(String(item.name||"").split(" ")[0])}</b></button>`).join("")}</div>${posts().map(card).join("")||`<div class="card pad">هنوز پستی نیست. دکمه نارنجی را بزن و اولین عکس را منتشر کن.</div>`}`;
 }
-function toast(text) { state.toast = text; render(); setTimeout(() => { if (state.toast === text) { state.toast = ""; render(); } }, 2200); }
-function needAccount(data) { if (me(data)) return true; state.screen = "auth"; render(); return false; }
-
-function render() {
-  const data = db();
-  const mine = me(data);
-  const body = screens[state.screen] ? screens[state.screen](data, mine) : screens.feed(data, mine);
-  document.getElementById("app").innerHTML = `<div class="stripe"></div><div class="top"><div class="bar"><div class="brand"><div class="mark">ت</div>تاتوهاب</div><button class="icon-btn" data-go="search" aria-label="جستجو">⌕</button></div></div><div class="main">${body}</div>${nav(mine)}${state.toast ? `<div class="toast">${esc(state.toast)}</div>` : ""}`;
-  document.querySelectorAll("[data-go]").forEach((node) => node.onclick = () => {
-    if (node.dataset.thread) state.thread = node.dataset.thread;
-    state.screen = node.dataset.go;
-    render();
-  });
-  document.querySelectorAll("[data-post]").forEach((node) => node.onclick = () => { state.postId = node.dataset.post; state.screen = "post"; render(); });
-  document.querySelectorAll("[data-user]").forEach((node) => node.onclick = (event) => { event.stopPropagation(); state.userId = node.dataset.user; state.screen = "user"; render(); });
-  document.querySelectorAll("[data-like]").forEach((node) => node.onclick = (event) => { event.stopPropagation(); toggleLike(node.dataset.like); });
-  document.querySelectorAll("[data-save]").forEach((node) => node.onclick = (event) => { event.stopPropagation(); openSave(node.dataset.save); });
-  document.querySelectorAll("[data-thread]").forEach((node) => node.onclick = () => { state.thread = node.dataset.thread; state.screen = "thread"; render(); });
-  document.querySelectorAll("[data-filter]").forEach((node) => node.onclick = () => { state.filter = node.dataset.filter; render(); });
-  document.querySelectorAll("[data-story]").forEach((node) => node.onclick = () => { state.story = Number(node.dataset.story); state.screen = "story"; render(); });
-  const form = document.getElementById("auth-form");
-  if (form) form.onsubmit = submitAuth;
-  const create = document.getElementById("create-form");
-  if (create) create.onsubmit = submitCreate;
-  const comment = document.getElementById("comment-form");
-  if (comment) comment.onsubmit = submitComment;
-  const message = document.getElementById("message-form");
-  if (message) message.onsubmit = submitMessage;
-  const profile = document.getElementById("profile-form");
-  if (profile) profile.onsubmit = submitProfile;
-  const search = document.getElementById("search");
-  if (search) search.oninput = () => { state.q = search.value; paintSearch(); };
-  document.querySelectorAll("[data-mode]").forEach((node) => node.onclick = () => { state.create = node.dataset.mode; render(); });
+function exploreView(){
+  const filters=["همه",...STYLES];
+  const list=posts().filter((item)=>state.filter==="همه"||item.style===state.filter||item.ink===state.filter||item.needle_type===state.filter);
+  return `<div style="display:flex;gap:8px;overflow:auto;padding-bottom:8px">${filters.map((item)=>`<button class="chip ${state.filter===item?"on":""}" data-filter="${esc(item)}">${esc(item)}</button>`).join("")}</div>${list.map(card).join("")||`<div class="card pad">با این فیلتر پستی نیست.</div>`}`;
 }
-function nav(mine) {
-  const items = [["feed", "خانه"], ["explore", "اکسپلور"], ["create", "+"], ["inbox", "پیام"], ["profile", "من"]];
-  return `<nav class="nav">${items.map(([id, label]) => id === "create" ? `<button data-go="create" aria-label="پست جدید"><div class="plus">+</div></button>` : `<button class="${state.screen === id ? "on" : ""}" data-go="${id}">${label}</button>`).join("")}</nav>`;
+function createView(){
+  const mode=state.mode;
+  const options=(list)=>`<option value="">نمی‌نویسم</option>${list.map((item)=>`<option>${item}</option>`).join("")}`;
+  const tools=mode==="story"?"":`<label class="field">سبک<select name="style">${options(STYLES)}</select></label><label class="field">برند رنگ<select name="ink">${options(INKS)}</select></label><label class="field">برند سوزن<select name="needle">${options(NEEDLES)}</select></label><label class="field">نوع سوزن<select name="type">${options(TYPES)}</select></label><label class="field">دستگاه<select name="machine">${options(MACHINES)}</select></label>`;
+  const files=mode==="compare"?`<div class="grid3"><label class="pick">طرح اولیه<input name="sketch" type="file" accept="image/*" hidden></label><label class="pick">کار تازه<input name="fresh" type="file" accept="image/*" hidden></label><label class="pick">بعد از هیلد<input name="healed" type="file" accept="image/*" hidden></label></div><div class="grid3" id="compare-preview"></div>`:`<label class="pick">انتخاب عکس از گالری<input id="gallery" name="file" type="file" accept="image/*" hidden></label><img id="preview" class="preview" alt="پیش‌نمایش" hidden>`;
+  return `<div class="grid3"><button class="chip ${mode==="post"?"on":""}" data-mode="post" type="button">پست</button><button class="chip ${mode==="compare"?"on":""}" data-mode="compare" type="button">قبل / تازه / هیلد</button><button class="chip ${mode==="story"?"on":""}" data-mode="story" type="button">استوری</button></div><form id="create-form" class="card pad"><label class="field">توضیح<textarea name="caption" required placeholder="چه چیزی را امتحان کردی؟"></textarea></label>${files}${tools}<button class="primary" type="submit">${mode==="story"?"گذاشتن استوری":"انتشار پست"}</button></form>`;
 }
-function card(data, item) {
-  const author = user(data, item.userId);
-  const liked = me(data) && item.likes.includes(data.session);
-  const visual = item.compare ? `<div class="compare">${["طرح اولیه", "کار تازه", "بعد از هیلد"].map((label, index) => { const key = ["sketch", "fresh", "healed"][index]; return `<figure>${media(item.compare[key], label)}<figcaption>${label}</figcaption></figure>`; }).join("")}</div>` : media(item.image || item.art, item.style);
-  return `<article class="card" data-post="${item.id}"><div class="pad row">${face(author)}<button class="grow" data-user="${author.id}" style="border:0;background:none;text-align:right;padding:0"><div class="name">${esc(author.name)}</div><div class="muted">${esc(author.city)} · ${ago(item.createdAt)}</div></button></div>${visual}<div class="actions"><button class="act ${liked ? "on" : ""}" data-like="${item.id}">♥ ${item.likes.length}</button><button class="act" data-post="${item.id}">گفتگو ${item.comments.length}</button><button class="act" data-save="${item.id}">ذخیره</button></div><div class="caption">${esc(item.caption)}</div><div class="tags">${[item.style, item.technique, item.ink, item.needle, item.type, item.machine].filter(Boolean).map((tag, index) => `<span class="tag ${index % 2 ? "teal" : ""}">${esc(tag)}</span>`).join("")}</div></article>`;
+function postView(){
+  const item=posts().find((row)=>row.id===state.postId);
+  if(!item) return `<div class="card pad">این پست نیست.</div>`;
+  return `${card(item)}<form id="comment-form" class="card pad"><div class="name">گفتگو</div>${(item.comments||[]).map((comment)=>`<div style="padding:8px 0;border-top:1px solid #eadfd2"><b>${esc(comment.name)}</b><div>${esc(comment.text)}</div></div>`).join("")}<label class="field">نظر تو<input name="text" required></label><button class="primary" type="submit">ثبت نظر</button></form>`;
 }
-const screens = {
-  feed(data) {
-    const stories = data.stories.filter((item) => Date.now() - item.createdAt < 86400e3);
-    const people = [...new Set(stories.map((item) => item.userId))];
-    return `${me(data) ? "" : `<div class="note">فید را مهمان هم می‌بیند. برای پست، استوری و پیام باید وارد شوی.</div><button class="primary" data-go="auth">ورود یا ثبت‌نام</button><div style="height:12px"></div>`}<div class="stories">${people.map((id) => { const person = user(data, id); return `<button class="story" data-story="${stories.findIndex((item) => item.userId === id)}"><div class="ring">${face(person, "story-face")}</div><b>${esc(person.name.split(" ")[0])}</b></button>`; }).join("")}</div>${data.posts.slice().sort((a, b) => b.createdAt - a.createdAt).map((item) => card(data, item)).join("")}`;
-  },
-  explore(data) {
-    const filters = ["همه", ...STYLES];
-    const list = data.posts.filter((item) => state.filter === "همه" || item.style === state.filter || item.technique === state.filter || item.ink === state.filter);
-    return `<div class="filters">${filters.map((item) => `<button class="chip ${state.filter === item ? "on" : ""}" data-filter="${esc(item)}">${esc(item)}</button>`).join("")}</div><div class="muted" style="margin-bottom:8px">فیلتر بر اساس سبک. برند و ابزار را در جستجو پیدا کن.</div>${list.map((item) => card(data, item)).join("") || `<div class="card pad">با این فیلتر پستی نیست.</div>`}`;
-  },
-  search(data) {
-    return `<label class="field">جستجو در پست، آرتیست و برند<input id="search" value="${esc(state.q)}" placeholder="مثلاً Eternal یا اصفهان" /></label><div id="search-results">${searchHtml(data)}</div>`;
-  },
-  create() {
-    const optional = `<details><summary style="font-weight:900;margin:8px 0">ابزار، اگر خواستی بنویسی</summary><label class="field">برند رنگ<select name="ink"><option value="">نمی‌نویسم</option>${INKS.map((item) => `<option>${item}</option>`).join("")}</select></label><label class="field">برند سوزن<select name="needle"><option value="">نمی‌نویسم</option>${NEEDLES.map((item) => `<option>${item}</option>`).join("")}</select></label><label class="field">نوع سوزن<select name="type"><option value="">نمی‌نویسم</option>${TYPES.map((item) => `<option>${item}</option>`).join("")}</select></label><label class="field">دستگاه یا منبع<select name="machine"><option value="">نمی‌نویسم</option>${MACHINES.map((item) => `<option>${item}</option>`).join("")}</select></label></div></details>`;
-    const mode = state.create;
-    return `<div class="grid2" style="margin-bottom:10px"><button class="chip ${mode === "post" ? "on" : ""}" data-mode="post" type="button">پست</button><button class="chip ${mode === "compare" ? "on" : ""}" data-mode="compare" type="button">طرح / تازه / هیلد</button><button class="chip ${mode === "story" ? "on" : ""}" data-mode="story" type="button">استوری</button></div><form id="create-form" class="card pad"><label class="field">${mode === "story" ? "متن استوری" : "توضیح"}<textarea name="caption" required placeholder="چه چیزی را امتحان کردی؟"></textarea></label>${mode === "story" ? "" : `<label class="field">سبک<select name="style"><option value="">انتخاب نکن</option>${STYLES.map((item) => `<option>${item}</option>`).join("")}</select></label><label class="field">تکنیک<select name="technique"><option value="">انتخاب نکن</option>${TECHNIQUES.map((item) => `<option>${item}</option>`).join("")}</select></label>`}${mode === "compare" ? `<label class="field">طرح اولیه<input name="sketch" type="file" accept="image/*" /></label><label class="field">کار تازه<input name="fresh" type="file" accept="image/*" /></label><label class="field">بعد از هیلد<input name="healed" type="file" accept="image/*" /></label>` : `<label class="field">${mode === "story" ? "عکس استوری، اختیاری" : "عکس یا ویدیو"}<input name="file" type="file" accept="${mode === "story" ? "image/*" : "image/*,video/*"}" /></label>`}${mode === "story" ? "" : optional}<button class="primary" type="submit">${mode === "story" ? "گذاشتن استوری ۲۴ ساعته" : "انتشار پست"}</button></form>`;
-  },
-  post(data) {
-    const item = data.posts.find((row) => row.id === state.postId);
-    if (!item) return `<div class="card pad">این پست نیست.</div>`;
-    return `${card(data, item)}<form id="comment-form" class="card pad"><div class="name">گفتگو</div>${item.comments.map((comment) => `<div class="comment"><b>${esc(user(data, comment.userId).name)}</b><div>${esc(comment.text)}</div></div>`).join("")}<label class="field">نظر تو<input name="text" required /></label><button class="primary" type="submit">ثبت نظر</button></form>`;
-  },
-  story(data) {
-    const stories = data.stories.filter((item) => Date.now() - item.createdAt < 86400e3);
-    const item = stories[state.story] || stories[0];
-    if (!item) return `<div class="card pad">استوری بازی نمانده.</div>`;
-    const person = user(data, item.userId);
-    return `<button class="card" data-go="feed" style="border:0;padding:0;width:100%;text-align:right">${artBox(item.art, "")}<div class="pad">${face(person)} <b>${esc(person.name)}</b><p>${esc(item.text)}</p><div class="muted">تا ۲۴ ساعت می‌ماند · بزن و برگرد</div></div></button>`;
-  },
-  inbox(data, mine) {
-    if (!mine) return `<div class="card pad">پیام خصوصی برای مهمان بسته است.<button class="primary" data-go="auth">ورود</button></div>`;
-    const people = data.users.filter((item) => item.id !== mine.id);
-    return people.map((item) => `<button class="msg" data-thread="${item.id}">${face(item)}<span class="grow"><b>${esc(item.name)}</b><span class="muted" style="display:block">${esc(item.city)}</span></span></button>`).join("");
-  },
-  thread(data, mine) {
-    const other = user(data, state.thread);
-    if (!other) return "";
-    const rows = data.messages.filter((item) => (item.from === mine.id && item.to === other.id) || (item.from === other.id && item.to === mine.id));
-    return `<button class="ghost" data-go="inbox">بازگشت به پیام‌ها</button><div class="name">${esc(other.name)}</div>${rows.map((item) => `<div class="bubble ${item.from === mine.id ? "mine" : "theirs"}">${esc(item.text)}</div>`).join("")}<form id="message-form" class="card pad"><label class="field">پیام<input name="text" required /></label><button class="primary">فرستادن</button></form>`;
-  },
-  profile(data, mine) {
-    if (!mine) return `<div class="card pad"><div class="h1">حساب نداری</div><p class="muted">برای پروفایل، پست و ذخیره وارد شو.</p><button class="primary" data-go="auth">ورود یا ثبت‌نام</button></div>`;
-    return profileBlock(data, mine, true);
-  },
-  user(data) { return profileBlock(data, user(data, state.userId), false); },
-  auth() {
-    return `<form id="auth-form" class="card pad"><div class="h1">ورود به تاتوهاب</div><p class="muted">با شماره موبایل یا ایمیل. مهمان می‌تواند فید را ببیند.</p><label class="field">نام، فقط برای ثبت‌نام<input name="name" /></label><label class="field">موبایل یا ایمیل<input name="login" required dir="ltr" /></label><label class="field">رمز<input name="password" type="password" required /></label><label class="field">شهر<input name="city" /></label><button class="primary">ادامه</button><p class="muted">اگر این موبایل یا ایمیل نو باشد، حساب ساخته می‌شود.</p></form>`;
-  },
-  settings(data, mine) {
-    return `<div class="card pad"><div class="h1">درباره تاتوهاب</div><p>فضای تبادل تجربه آرتیست‌ها: ابزار، تکنیک و نتیجه کار.</p><p><b>سازنده:</b> پیمان زیبائی‌فر</p><p><b>نسخه:</b> ${VERSION}</p><p class="muted">پست‌ها و پیام‌های تو روی همین گوشی می‌ماند.</p>${mine ? `<button class="primary" id="logout" type="button">خروج از حساب</button>` : ""}</div>`;
+function inboxView(){
+  if(!me()) return `<div class="card pad"><p>پیام خصوصی بعد از ورود باز می‌شود.</p><button class="primary" id="login" type="button">ورود با گوگل</button></div>`;
+  return people().filter((item)=>item.user_id!==me().user_id).map((item)=>`<button class="msg" data-chat="${esc(item.user_id)}">${face(item)}<span class="grow"><b>${esc(item.name)}</b><span class="muted" style="display:block">${esc(item.city||"گفتگو")}</span></span></button>`).join("")||`<div class="card pad">هنوز هنرجو یا آرتیست دیگری وارد نشده.</div>`;
+}
+function threadView(){
+  const other=person(state.withId);
+  const rows=state.thread||[];
+  return `<div class="chat"><div class="row">${face(other)}<div><div class="name">${esc(other.name)}</div><div class="muted">گفتگوی دو نفره</div></div></div><div class="log" id="log">${rows.map((item)=>`<div class="bubble ${item.from_id===me().user_id?"mine":"theirs"}">${esc(item.body)}</div>`).join("")}</div><form id="message-form" class="composer"><input name="text" placeholder="بنویس..." required><button>بفرست</button></form></div>`;
+}
+function profileView(self){
+  const item=self?me():person(state.withId);
+  if(!item) return `<div class="card pad"><div class="h1">هنوز وارد نشدی</div><button class="primary" id="login" type="button">ورود با گوگل</button></div>`;
+  const list=posts().filter((post)=>post.user_id===(item.user_id));
+  const styles = Array.isArray(item.styles) ? item.styles : [];
+  return `<div class="card pad">${face(item)}<div class="h1">${esc(item.name)}</div><div class="muted">${esc(item.city||"")}</div><p>${esc(item.bio||"")}</p><div class="tags">${styles.map((style)=>`<span class="tag">${esc(style)}</span>`).join("")}</div>${self?`<button class="primary" data-go="edit" type="button">تغییر عکس و مشخصات</button><button class="chip" data-go="about" type="button" style="margin-top:8px">درباره</button>`:""}</div><div class="name">پست‌ها</div>${list.map(card).join("")||`<div class="card pad">هنوز پستی از این حساب در فید نیست.</div>`}`;
+}
+function editView(){
+  const item=me();
+  if(!item) return profileView(true);
+  return `<form id="profile-form" class="card pad">${face(item)}<label class="pick">انتخاب عکس پروفایل از گالری<input id="avatar-file" type="file" accept="image/*" hidden></label><img id="avatar-preview" class="preview" alt="" ${item.avatar?`src="${item.avatar}"`:"hidden"}><label class="field">نام<input name="name" value="${esc(item.name)}" required></label><label class="field">شهر<input name="city" value="${esc(item.city||"")}"></label><label class="field">بیو<textarea name="bio">${esc(item.bio||"")}</textarea></label><button class="primary">ذخیره پروفایل</button></form>`;
+}
+function searchView(){
+  const q=state.q.trim();
+  const foundPosts=!q?[]:posts().filter((item)=>`${item.caption} ${item.style} ${item.ink} ${item.needle} ${item.needle_type} ${item.name}`.includes(q));
+  const foundPeople=!q?[]:people().filter((item)=>`${item.name} ${item.city}`.includes(q));
+  return `<label class="field">جستجو<input id="q" value="${esc(state.q)}" placeholder="نام، شهر یا برند"></label>${foundPeople.map((item)=>`<button class="msg" data-user="${esc(item.user_id)}">${face(item)}<b>${esc(item.name)}</b></button>`).join("")}${foundPosts.map(card).join("")}`;
+}
+function storyView(){
+  const item=state.storyItem;
+  if(!item) return `<div class="card pad">این استوری تمام شده.</div>`;
+  return `<button class="card" data-go="feed" style="border:0;padding:0;width:100%;text-align:right">${item.image?`<img class="photo" alt="" src="${item.image}">`:""}<div class="pad">${face(item)} <b>${esc(item.name||"")}</b><p>${esc(item.body||"")}</p><div class="muted">تا ۲۴ ساعت می‌ماند</div></div></button>`;
+}
+function aboutView(){return `<div class="card pad"><div class="h1">درباره تاتوهاب</div><p>فضای تبادل تجربه تاتوآرتیست‌ها.</p><p><b>سازنده:</b> پیمان زیبائی‌فر</p><p><b>نسخه:</b> ${VERSION}</p></div>`;}
+function bind(){
+  document.querySelectorAll("[data-go]").forEach((node)=>node.onclick=()=>{state.screen=node.dataset.go; render();});
+  document.querySelectorAll("[data-post]").forEach((node)=>node.onclick=(event)=>{event.stopPropagation(); state.postId=node.dataset.post; state.screen="post"; render();});
+  document.querySelectorAll("[data-user]").forEach((node)=>node.onclick=(event)=>{event.stopPropagation(); state.withId=node.dataset.user; state.screen="user"; render();});
+  document.querySelectorAll("[data-like]").forEach((node)=>node.onclick=(event)=>{event.stopPropagation(); act(()=>api({action:"like",postId:node.dataset.like}));});
+  document.querySelectorAll("[data-save]").forEach((node)=>node.onclick=(event)=>{event.stopPropagation(); const name=prompt("نام کلکسیون، مثلاً سوزن‌های خوب"); if(name) act(()=>api({action:"save",name,postId:node.dataset.save}));});
+  document.querySelectorAll("[data-chat]").forEach((node)=>node.onclick=()=>openThread(node.dataset.chat));
+  document.querySelectorAll("[data-filter]").forEach((node)=>node.onclick=()=>{state.filter=node.dataset.filter; render();});
+  document.querySelectorAll("[data-mode]").forEach((node)=>node.onclick=()=>{state.mode=node.dataset.mode; render();});
+  document.querySelectorAll("[data-story]").forEach((node)=>node.onclick=()=>{const item=(state.data.stories||[]).find((row)=>row.id===node.dataset.story); if(item){state.storyItem=item; state.screen="story"; render();}});
+  const login=document.getElementById("login");
+  if(login) login.onclick=startLogin;
+  const create=document.getElementById("create-form");
+  if(create){
+    create.onsubmit=submitCreate;
+    create.querySelectorAll('input[type="file"]').forEach((input)=>input.onchange=()=>previewFile(input));
   }
-};
-function profileBlock(data, person, self) {
-  if (!person) return `<div class="card pad">این حساب نیست.</div>`;
-  const posts = data.posts.filter((item) => item.userId === person.id);
-  const cols = data.collections.filter((item) => item.userId === person.id);
-  return `<div class="card pad">${face(person)}<div class="h1">${esc(person.name)}</div><div class="muted">${esc(person.city || "شهر ثبت نشده")}</div><p>${esc(person.bio || "")}</p><div class="styles">${(person.styles || []).map((item) => `<span class="tag">${esc(item)}</span>`).join("")}</div>${self ? `<button class="ghost" data-go="edit">ویرایش پروفایل</button><button class="ghost" data-go="settings">درباره و نسخه</button><button class="ghost" id="logout" type="button">خروج</button>` : `<button class="primary" data-thread="${person.id}" data-go="thread">پیام خصوصی</button>`}</div><div class="name">پست‌ها</div>${posts.map((item) => card(data, item)).join("") || `<div class="card pad">هنوز پستی نیست.</div>`}${self ? `<div class="name">کلکسیون‌ها</div>${cols.map((item) => `<div class="card pad"><b>${esc(item.name)}</b><div class="muted">${item.postIds.length} پست</div></div>`).join("") || `<div class="card pad">از دکمه ذخیره، کلکسیون بساز. مثلاً سوزن‌های خوب یا رنگ‌های پایدار.</div>`}` : ""}`;
+  const comment=document.getElementById("comment-form");
+  if(comment) comment.onsubmit=async(event)=>{event.preventDefault(); const text=new FormData(event.target).get("text"); await act(()=>api({action:"comment",postId:state.postId,text}));};
+  const message=document.getElementById("message-form");
+  if(message) message.onsubmit=async(event)=>{event.preventDefault(); const text=new FormData(event.target).get("text"); event.target.reset(); const data=await api({action:"send",to:state.withId,text}); state.thread=data.messages||[]; render();};
+  const profile=document.getElementById("profile-form");
+  if(profile){profile.onsubmit=submitProfile; const file=document.getElementById("avatar-file"); if(file) file.onchange=()=>previewFile(file,"avatar-preview");}
+  const q=document.getElementById("q");
+  if(q) q.oninput=()=>{state.q=q.value; const focus=q.selectionStart; render(); const next=document.getElementById("q"); if(next){next.focus(); next.selectionStart=focus;}};
+  const log=document.getElementById("log");
+  if(log) log.scrollTop=log.scrollHeight;
 }
-screens.edit = function (data, mine) {
-  if (!mine) return screens.auth();
-  return `<form id="profile-form" class="card pad"><label class="field">نام<input name="name" value="${esc(mine.name)}" required /></label><label class="field">شهر<input name="city" value="${esc(mine.city)}" /></label><label class="field">بیو کوتاه<textarea name="bio">${esc(mine.bio)}</textarea></label><div class="field">سبک‌های تخصصی<div class="styles" id="style-picks">${STYLES.map((item) => `<button type="button" class="style-pick ${(mine.styles || []).includes(item) ? "on" : ""}" data-style="${esc(item)}">${esc(item)}</button>`).join("")}</div></div><button class="primary">ذخیره پروفایل</button></form>`;
-};
-function paintSearch() {
-  const box = document.getElementById("search-results");
-  if (box) box.innerHTML = searchHtml(db());
-  document.querySelectorAll("#search-results [data-post]").forEach((node) => node.onclick = () => { state.postId = node.dataset.post; state.screen = "post"; render(); });
-  document.querySelectorAll("#search-results [data-user]").forEach((node) => node.onclick = () => { state.userId = node.dataset.user; state.screen = "user"; render(); });
-  document.querySelectorAll("#search-results [data-filter]").forEach((node) => node.onclick = () => { state.filter = node.dataset.filter; state.screen = "explore"; render(); });
-}
-function searchHtml(data) {
-  const q = state.q.trim().toLowerCase();
-  if (q.length < 1) return `<div class="muted">نام آرتیست، شهر، سبک یا برند را بنویس.</div>`;
-  const users = data.users.filter((item) => (item.name + item.city + (item.styles || []).join(" ")).toLowerCase().includes(q));
-  const posts = data.posts.filter((item) => (item.caption + item.style + item.ink + item.needle + item.type + item.machine).toLowerCase().includes(q));
-  const brands = [...INKS, ...NEEDLES, ...MACHINES, ...TYPES].filter((item) => item.toLowerCase().includes(q));
-  return `${users.map((item) => `<button class="msg" data-user="${item.id}">${face(item)}<span><b>${esc(item.name)}</b><span class="muted" style="display:block">${esc(item.city)}</span></span></button>`).join("")}${brands.map((item) => `<button class="chip" data-filter="${esc(item)}">${esc(item)}</button>`).join("")}${posts.map((item) => card(data, item)).join("")}` || `<div class="card pad">چیزی پیدا نشد.</div>`;
-}
-function submitAuth(event) {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  const login = String(form.get("login") || "").trim();
-  const password = String(form.get("password") || "");
-  const data = db();
-  let person = data.users.find((item) => item.phone === login || item.email === login);
-  if (!person) {
-    const name = String(form.get("name") || "").trim();
-    if (name.length < 2) return toast("برای ثبت‌نام نام را بنویس.");
-    person = { id: uid(), name, city: String(form.get("city") || ""), styles: [], bio: "", phone: login.includes("@") ? "" : login, email: login.includes("@") ? login : "", password, hue: data.users.length };
-    data.users.push(person);
-  } else if (person.password && person.password !== password) return toast("رمز درست نیست.");
-  else person.password = person.password || password;
-  data.session = person.id;
-  save(data);
-  state.screen = "feed";
-  toast("خوش آمدی " + person.name);
-}
-function toggleLike(id) {
-  const data = db();
-  if (!needAccount(data)) return;
-  const item = data.posts.find((row) => row.id === id);
-  if (!item) return;
-  item.likes = item.likes.includes(data.session) ? item.likes.filter((row) => row !== data.session) : item.likes.concat(data.session);
-  save(data);
-  render();
-}
-function openSave(id) {
-  const data = db();
-  if (!needAccount(data)) return;
-  const cols = data.collections.filter((item) => item.userId === data.session);
-  const box = document.createElement("div");
-  box.className = "sheet";
-  box.innerHTML = `<div class="card"><div class="name">ذخیره در کلکسیون</div>${cols.map((item) => `<button class="msg" data-col="${item.id}">${esc(item.name)}</button>`).join("")}<label class="field">کلکسیون تازه<input id="new-col" placeholder="سوزن‌های خوب" /></label><button class="primary" id="make-col">ساخت و ذخیره</button><button class="ghost" id="close-col">بستن</button></div>`;
-  document.body.appendChild(box);
-  box.querySelector("#close-col").onclick = () => box.remove();
-  box.querySelectorAll("[data-col]").forEach((node) => node.onclick = () => { pushSave(data, id, node.dataset.col); box.remove(); });
-  box.querySelector("#make-col").onclick = () => {
-    const name = box.querySelector("#new-col").value.trim();
-    if (name.length < 2) return;
-    const col = { id: uid(), userId: data.session, name, postIds: [] };
-    data.collections.push(col);
-    pushSave(data, id, col.id);
-    box.remove();
-  };
-}
-function pushSave(data, postId, colId) {
-  const col = data.collections.find((item) => item.id === colId);
-  if (col && !col.postIds.includes(postId)) col.postIds.push(postId);
-  save(data);
-  toast("در کلکسیون ذخیره شد");
-}
-async function fileData(file) {
-  if (!file) return "";
-  if (file.type.startsWith("video")) return "";
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  const loaded = new Promise((resolve) => { image.onload = () => resolve(true); image.onerror = () => resolve(false); });
-  image.src = url;
-  if (!(await loaded)) return "";
-  const scale = Math.min(1, 900 / Math.max(image.width, image.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(image.width * scale));
-  canvas.height = Math.max(1, Math.round(image.height * scale));
-  canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-  URL.revokeObjectURL(url);
-  return canvas.toDataURL("image/jpeg", 0.72);
-}
-async function submitCreate(event) {
-  event.preventDefault();
-  const data = db();
-  if (!needAccount(data)) return;
-  const form = new FormData(event.target);
-  const caption = String(form.get("caption") || "").trim();
-  if (state.create === "story") {
-    const image = await fileData(form.get("file"));
-    data.stories.unshift({ id: uid(), userId: data.session, text: caption, art: image || "rose", createdAt: Date.now() });
-    save(data);
-    state.screen = "feed";
-    toast("استوری تا ۲۴ ساعت می‌ماند");
+async function previewFile(input, imageId){
+  const file=input.files && input.files[0];
+  if(!file) return;
+  const data=await compress(file);
+  input.dataset.image=data;
+  const image=document.getElementById(imageId||"preview");
+  if(!image && input.name){
+    const box=document.getElementById("compare-preview");
+    if(box){let img=box.querySelector(`[data-for="${input.name}"]`); if(!img){img=document.createElement("img"); img.className="preview"; img.dataset.for=input.name; box.appendChild(img);} img.src=data;}
     return;
   }
-  const item = { id: uid(), userId: data.session, caption, art: "geo", style: form.get("style") || "", technique: form.get("technique") || "", ink: form.get("ink") || "", needle: form.get("needle") || "", type: form.get("type") || "", machine: form.get("machine") || "", image: "", compare: null, likes: [], comments: [], createdAt: Date.now() };
-  if (state.create === "compare") {
-    item.compare = { sketch: await fileData(form.get("sketch")) || "letter", fresh: await fileData(form.get("fresh")) || "sun", healed: await fileData(form.get("healed")) || "rose" };
-  } else {
-    const file = form.get("file");
-    if (file && file.type && file.type.startsWith("video")) item.image = URL.createObjectURL(file);
-    else item.image = await fileData(file);
-  }
-  data.posts.unshift(item);
-  save(data);
-  state.screen = "feed";
-  toast("پست منتشر شد");
+  if(image){image.hidden=false; image.src=data;}
 }
-function submitComment(event) {
+function compress(file){
+  return new Promise((resolve,reject)=>{
+    const image=new Image();
+    const url=URL.createObjectURL(file);
+    image.onload=()=>{
+      const scale=Math.min(1,800/Math.max(image.width,image.height));
+      const canvas=document.createElement("canvas");
+      canvas.width=Math.max(1,Math.round(image.width*scale));
+      canvas.height=Math.max(1,Math.round(image.height*scale));
+      canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg",0.68));
+    };
+    image.onerror=()=>reject(new Error("این عکس باز نشد."));
+    image.src=url;
+  });
+}
+async function submitCreate(event){
   event.preventDefault();
-  const data = db();
-  if (!needAccount(data)) return;
-  const item = data.posts.find((row) => row.id === state.postId);
-  const text = new FormData(event.target).get("text");
-  if (item) item.comments.push({ id: uid(), userId: data.session, text: String(text).trim(), createdAt: Date.now() });
-  save(data);
-  render();
+  if(!me()) return startLogin();
+  const form=event.target;
+  const data=new FormData(form);
+  const caption=String(data.get("caption")||"").trim();
+  const button=form.querySelector("button[type=submit]");
+  button.disabled=true;
+  try{
+    if(state.mode==="story"){
+      const file=form.querySelector('input[name="file"]');
+      await api({action:"story",text:caption,image:file && file.dataset.image || ""});
+      toast("استوری گذاشته شد");
+    } else if(state.mode==="compare"){
+      const read=(name)=>form.querySelector(`[name="${name}"]`)?.dataset.image||"";
+      await api({action:"post",caption,style:data.get("style"),ink:data.get("ink"),needle:data.get("needle"),type:data.get("type"),machine:data.get("machine"),compare:{sketch:read("sketch"),fresh:read("fresh"),healed:read("healed")}});
+      toast("پست برای همه منتشر شد");
+    } else {
+      const file=form.querySelector("#gallery");
+      await api({action:"post",caption,image:file && file.dataset.image || "",style:data.get("style"),ink:data.get("ink"),needle:data.get("needle"),type:data.get("type"),machine:data.get("machine")});
+      toast("پست برای همه منتشر شد");
+    }
+    state.screen="feed";
+    await refresh();
+  }catch(err){toast(err.message); button.disabled=false;}
 }
-function submitMessage(event) {
+async function submitProfile(event){
   event.preventDefault();
-  const data = db();
-  if (!needAccount(data)) return;
-  const text = String(new FormData(event.target).get("text") || "").trim();
-  data.messages.push({ id: uid(), from: data.session, to: state.thread, text, createdAt: Date.now() });
-  save(data);
-  render();
+  const form=event.target;
+  const data=new FormData(form);
+  const file=document.getElementById("avatar-file");
+  await act(async()=>{await api({action:"profile",name:data.get("name"),city:data.get("city"),bio:data.get("bio"),avatar:file && file.dataset.image || me().avatar || ""}); state.screen="profile";});
 }
-function submitProfile(event) {
-  event.preventDefault();
-  const data = db();
-  const mine = me(data);
-  const form = new FormData(event.target);
-  mine.name = String(form.get("name") || mine.name);
-  mine.city = String(form.get("city") || "");
-  mine.bio = String(form.get("bio") || "");
-  mine.styles = [...document.querySelectorAll(".style-pick.on")].map((node) => node.dataset.style);
-  save(data);
-  state.screen = "profile";
-  toast("پروفایل ذخیره شد");
-}
-document.addEventListener("click", (event) => {
-  const pick = event.target.closest(".style-pick");
-  if (pick) pick.classList.toggle("on");
-  if (event.target.id === "logout") {
-    const data = db();
-    data.session = "";
-    save(data);
-    state.screen = "feed";
-    toast("خارج شدی");
-  }
-  const thread = event.target.closest("[data-thread]");
-  if (thread && state.screen === "user") {
-    const data = db();
-    if (!needAccount(data)) return;
-    state.thread = thread.dataset.thread;
-    state.screen = "thread";
-    render();
-  }
-});
-window.hubBack = function () {
-  if (state.screen === "feed") return false;
-  state.screen = state.screen === "thread" ? "inbox" : "feed";
+async function openThread(id){
+  if(!me()) return startLogin();
+  state.withId=id;
+  state.screen="thread";
+  const data=await api({action:"thread",withId:id});
+  state.thread=data.messages||[];
   render();
-  return true;
-};
-render();
+  clearInterval(state.timer);
+  state.timer=setInterval(async()=>{
+    if(state.screen!=="thread") return clearInterval(state.timer);
+    const next=await api({action:"thread",withId:state.withId}).catch(()=>null);
+    if(next){state.thread=next.messages||[]; const log=document.getElementById("log"); if(log){const atBottom=log.scrollTop+log.clientHeight>log.scrollHeight-40; log.innerHTML=state.thread.map((item)=>`<div class="bubble ${item.from_id===me().user_id?"mine":"theirs"}">${esc(item.body)}</div>`).join(""); if(atBottom) log.scrollTop=log.scrollHeight;}}
+  },3000);
+}
+function startLogin(){
+  if(window.AndroidHub && AndroidHub.googleLogin){AndroidHub.googleLogin(); return;}
+  location.href="/login?next=/tattoohub/";
+}
+async function act(work){
+  try{await work(); await refresh();}catch(err){toast(err.message||"انجام نشد.");}
+}
+async function refresh(){
+  try{state.data=await api({action:"feed"});}catch(err){if(!state.data) document.getElementById("app").innerHTML=`<div class="card pad">${esc(err.message)}</div>`;}
+  if(state.screen!=="thread") render();
+}
+window.hubSignedIn=async function(value){localStorage.setItem("hub-token",value); await refresh();};
+document.getElementById("search-btn").onclick=()=>{state.screen="search"; render();};
+if(window.AndroidHub && AndroidHub.token && AndroidHub.token()) localStorage.setItem("hub-token", AndroidHub.token());
+refresh();
 </script>
 </body>
 </html>

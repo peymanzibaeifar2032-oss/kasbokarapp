@@ -43,6 +43,7 @@ import { Route as ApiTattooFileRouteImport } from './routes/api/tattoo-file'
 import { Route as ApiTattooPrepRouteImport } from './routes/api/tattoo-prep'
 import { Route as ApiTattooPublicRouteImport } from './routes/api/tattoo-public'
 import { Route as ApiTattooSchoolRouteImport } from './routes/api/tattoo-school'
+import { Route as ApiTattoohubRouteImport } from './routes/api/tattoohub'
 import { Route as BusinessIdRouteImport } from './routes/business/$id'
 import { Route as KharidVamMehrPanelRouteImport } from './routes/kharid-vam-mehr.panel'
 import { Route as StudioAdminRouteImport } from './routes/studio.admin'
@@ -235,6 +236,11 @@ const ApiTattooSchoolRoute = ApiTattooSchoolRouteImport.update({
   path: '/api/tattoo-school',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTattoohubRoute = ApiTattoohubRouteImport.update({
+  id: '/api/tattoohub',
+  path: '/api/tattoohub',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BusinessIdRoute = BusinessIdRouteImport.update({
   id: '/business/$id',
   path: '/business/$id',
@@ -376,6 +382,7 @@ export interface FileRoutesByFullPath {
   '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/api/tattoo-school': typeof ApiTattooSchoolRoute
+  '/api/tattoohub': typeof ApiTattoohubRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -433,6 +440,7 @@ export interface FileRoutesByTo {
   '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/api/tattoo-school': typeof ApiTattooSchoolRoute
+  '/api/tattoohub': typeof ApiTattoohubRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -491,6 +499,7 @@ export interface FileRoutesById {
   '/api/tattoo-prep': typeof ApiTattooPrepRoute
   '/api/tattoo-public': typeof ApiTattooPublicRoute
   '/api/tattoo-school': typeof ApiTattooSchoolRoute
+  '/api/tattoohub': typeof ApiTattoohubRoute
   '/business/$id': typeof BusinessIdRoute
   '/kharid-vam-mehr/panel': typeof KharidVamMehrPanelRoute
   '/studio/admin': typeof StudioAdminRoute
@@ -550,6 +559,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-prep'
     | '/api/tattoo-public'
     | '/api/tattoo-school'
+    | '/api/tattoohub'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -607,6 +617,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-prep'
     | '/api/tattoo-public'
     | '/api/tattoo-school'
+    | '/api/tattoohub'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -664,6 +675,7 @@ export interface FileRouteTypes {
     | '/api/tattoo-prep'
     | '/api/tattoo-public'
     | '/api/tattoo-school'
+    | '/api/tattoohub'
     | '/business/$id'
     | '/kharid-vam-mehr/panel'
     | '/studio/admin'
@@ -722,6 +734,7 @@ export interface RootRouteChildren {
   ApiTattooPrepRoute: typeof ApiTattooPrepRoute
   ApiTattooPublicRoute: typeof ApiTattooPublicRoute
   ApiTattooSchoolRoute: typeof ApiTattooSchoolRoute
+  ApiTattoohubRoute: typeof ApiTattoohubRoute
   BusinessIdRoute: typeof BusinessIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPaymentsCallbackRoute: typeof ApiPaymentsCallbackRoute
@@ -970,6 +983,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTattooSchoolRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/tattoohub': {
+      id: '/api/tattoohub'
+      path: '/api/tattoohub'
+      fullPath: '/api/tattoohub'
+      preLoaderRoute: typeof ApiTattoohubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/business/$id': {
       id: '/business/$id'
       path: '/business/$id'
@@ -1204,6 +1224,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTattooPrepRoute: ApiTattooPrepRoute,
   ApiTattooPublicRoute: ApiTattooPublicRoute,
   ApiTattooSchoolRoute: ApiTattooSchoolRoute,
+  ApiTattoohubRoute: ApiTattoohubRoute,
   BusinessIdRoute: BusinessIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPaymentsCallbackRoute: ApiPaymentsCallbackRoute,
