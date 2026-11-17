@@ -144,7 +144,14 @@ function post(id, userId, caption, art, style, technique, ink, needle, type, mac
 }
 function me(data) { return data.users.find((user) => user.id === data.session) || null; }
 function user(data, id) { return data.users.find((item) => item.id === id); }
-function esc(value) { return String(value ?? "").replace(/[&<>"]/g, (ch) => ({ "&": "&", "<": "<", ">": ">", '"': """ }[ch])); }
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"]/g, (ch) => {
+    if (ch === "&") return "\u0026amp;";
+    if (ch === "<") return "\u0026lt;";
+    if (ch === ">") return "\u0026gt;";
+    return "\u0026quot;";
+  });
+}
 function ago(time) {
   const mins = Math.max(1, Math.round((Date.now() - time) / 60000));
   if (mins < 60) return mins + " دقیقه پیش";
