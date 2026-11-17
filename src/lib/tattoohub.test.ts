@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { cleanAudio, cleanImage, publish, shouldNotify, visibleToEveryone, type HubPost } from "./tattoohub.ts";
+import { canSeePractice, cleanAudio, cleanImage, publish, rankForYou, shouldNotify, visibleToEveryone, type HubPost } from "./tattoohub.ts";
 
 describe("tattoohub feed", () => {
   it("shows one artist's post to everyone else", () => {
@@ -18,6 +18,20 @@ describe("tattoohub feed", () => {
     assert.throws(() => cleanAudio("data:text/plain;base64,AAAA"), /ویس/);
   });
 
+  it("ranks a followed style match above an older popular post", () => {
+    const now = Date.now();
+    const ranked = rankForYou(
+      [
+        { id: "old", userId: "stranger", caption: "", image: "", createdAt: now - 50 * 3600_000, style: "tribal", likes: 20 },
+        { id: "mine", userId: "friend", caption: "", image: "", createdAt: now, style: "realism", likes: 0 },
+      ],
+      { following: ["friend"], styles: ["realism"] },
+    );
+    assert.equal(ranked[0].id, "mine");
+    assert.equal(canSeePractice({ userId: "student", practice: true, mentorId: "teacher" }, "teacher"), true);
+    assert.equal(canSeePractice({ userId: "student", practice: true, mentorId: "teacher" }, "other"), false);
+  });
+
   it("pings a new message only when that chat is not open", () => {
     assert.equal(shouldNotify("m1", "m2", false), true);
     assert.equal(shouldNotify("m1", "m2", true), false);
@@ -28,12 +42,15 @@ describe("tattoohub feed", () => {
     const route = readFileSync(new URL("./server/tattoohub-api.ts", import.meta.url), "utf8");
     assert.match(route, /from tattoohub_posts/);
     assert.match(route, /read_at/);
+    assert.match(route, /tattoohub_follows/);
     assert.match(route, /tattoohub_typing/);
-    assert.doesNotMatch(route, /p\.user_id = \$/);
+    assert.match(route, /\$4::text = 'all'/);
     const page = readFileSync(new URL("../../public/tattoohub/index.html", import.meta.url), "utf8");
     assert.match(page, /اشتراک‌گذاری/);
     assert.match(page, /در حال نوشتن/);
     assert.match(page, /پیمان زیبائی‌فر/);
-    assert.match(page, /1\.1\.0/);
+    assert.match(page, /1\.2\.0/);
+    assert.match(page, /دنبال‌شده‌ها/);
+    assert.match(page, /هایلایت/);
   });
 });

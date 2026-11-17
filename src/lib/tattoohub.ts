@@ -1,6 +1,6 @@
 /** Shared rules for TattooHub. The feed never filters by the viewer. */
 
-export const HUB_VERSION = "1.1.0";
+export const HUB_VERSION = "1.2.0";
 export const MAX_IMAGE_CHARS = 480_000;
 export const MAX_AUDIO_CHARS = 700_000;
 
@@ -46,3 +46,32 @@ export function visibleToEveryone(posts: HubPost[]) {
 export function shouldNotify(previousId: string, nextId: string, threadOpen: boolean) {
   return Boolean(nextId) && nextId !== previousId && !threadOpen;
 }
+
+export type RankedPost = HubPost & { style?: string; likes?: number; saves?: number };
+
+/** Following and matching styles outrank a merely popular old post. */
+export function rankForYou(
+  posts: RankedPost[],
+  opts: { following: string[]; styles: string[] },
+) {
+  const followed = new Set(opts.following);
+  const styles = new Set(opts.styles);
+  return [...posts].sort((a, b) => score(b) - score(a) || b.createdAt - a.createdAt);
+
+  function score(post: RankedPost) {
+    const ageHours = Math.max(0, (Date.now() - post.createdAt) / 3_600_000);
+    return (
+      Math.max(0, 72 - ageHours) +
+      (followed.has(post.userId) ? 50 : 0) +
+      (post.style && styles.has(post.style) ? 30 : 0) +
+      Math.min(24, post.likes || 0) +
+      (post.saves || 0) * 4
+    );
+  }
+}
+
+export function canSeePractice(post: { userId: string; practice?: boolean; mentorId?: string }, viewerId: string) {
+  if (!post.practice) return true;
+  return post.userId === viewerId || post.mentorId === viewerId;
+}
+

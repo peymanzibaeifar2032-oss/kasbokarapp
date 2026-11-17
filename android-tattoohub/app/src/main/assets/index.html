@@ -6,14 +6,17 @@
 <title>تاتوهاب</title>
 <style>
 :root { --bg:#fff; --ink:#111; --muted:#8e8e8e; --line:#efefef; --soft:#fafafa; --accent:#1aa6a6; }
+html.dark { --bg:#0e0e0e; --ink:#f5f5f5; --muted:#a3a3a3; --line:#2a2a2a; --soft:#171717; }
 * { box-sizing:border-box; }
 html, body { margin:0; background:var(--bg); color:var(--ink); font-family:Vazirmatn,"Noto Naskh Arabic",Tahoma,sans-serif; }
 button, input, textarea, select { font:inherit; color:inherit; }
 button { cursor:pointer; background:none; border:0; padding:0; }
 svg { width:26px; height:26px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
-.top { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; height:54px; padding:0 14px; }
+.top { position:sticky; top:0; z-index:5; background:var(--bg); border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; height:54px; padding:0 14px; }
 .logo { font-weight:800; font-size:22px; letter-spacing:-.4px; }
 .main { padding-bottom:72px; min-height:100dvh; }
+.reel { display:flex; overflow:auto; scroll-snap-type:x mandatory; }
+.reel .shot { min-width:100%; scroll-snap-align:start; }
 .stories { display:flex; gap:14px; overflow:auto; padding:12px 14px 8px; border-bottom:1px solid var(--line); }
 .stories::-webkit-scrollbar { display:none; }
 .story { width:74px; text-align:center; }
@@ -32,7 +35,7 @@ svg { width:26px; height:26px; stroke:currentColor; fill:none; stroke-width:1.8;
 .meta { padding:4px 12px 12px; font-size:14px; line-height:1.6; }
 .meta b { font-weight:700; }
 .muted { color:var(--muted); font-size:13px; }
-.nav { position:fixed; left:0; right:0; bottom:0; height:56px; background:#fff; border-top:1px solid var(--line); display:grid; grid-template-columns:repeat(5,1fr); z-index:6; }
+.nav { position:fixed; left:0; right:0; bottom:0; height:56px; background:var(--bg); border-top:1px solid var(--line); display:grid; grid-template-columns:repeat(5,1fr); z-index:6; }
 .nav button { display:grid; place-items:center; position:relative; color:#111; }
 .nav button.on svg { stroke-width:2.4; }
 .badge { position:absolute; top:6px; inset-inline-start:calc(50% + 6px); min-width:16px; height:16px; border-radius:99px; background:#ed4956; color:#fff; font-size:10px; font-weight:700; display:grid; place-items:center; padding:0 4px; }
@@ -74,28 +77,29 @@ svg { width:26px; height:26px; stroke:currentColor; fill:none; stroke-width:1.8;
 .modes { display:flex; border-bottom:1px solid var(--line); }
 .modes button { flex:1; padding:12px; font-weight:700; color:#8e8e8e; }
 .modes button.on { color:#111; box-shadow:inset 0 -1px #111; }
+.chip { margin-inline-end:8px; margin-top:8px; font-weight:700; }
 </style>
 </head>
 <body>
-<header class="top"><div class="logo">تاتوهاب</div><button id="about" aria-label="درباره">···</button></header>
+<header class="top"><div class="logo">تاتوهاب</div><div style="display:flex;gap:14px;align-items:center"><button id="inbox-btn" data-go="inbox" aria-label="پیام‌ها"><svg viewBox="0 0 24 24"><path d="M21 5 11 13 3 8V5h18zM3 8v11h18V8l-9 6z"/></svg><span id="badge" class="badge" hidden></span></button><button id="about" aria-label="تنظیمات">···</button></div></header>
 <div id="banner" class="banner" hidden></div>
 <main id="app" class="main"></main>
 <nav class="nav">
   <button data-go="feed" class="on" aria-label="خانه"><svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1z"/></svg></button>
   <button data-go="explore" aria-label="جستجو"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-3.5-3.5"/></svg></button>
   <button data-go="create" aria-label="ایجاد"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/></svg></button>
-  <button data-go="inbox" aria-label="پیام‌ها"><svg viewBox="0 0 24 24"><path d="M21 5 11 13 3 8V5h18zM3 8v11h18V8l-9 6z"/></svg><span id="badge" class="badge" hidden></span></button>
+  <button data-go="activity" aria-label="اعلان‌ها"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z"/></svg><span id="activity-badge" class="badge" hidden></span></button>
   <button data-go="profile" aria-label="پروفایل"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 19c1.5-3 3.8-4.5 7-4.5S17.5 16 19 19"/></svg></button>
 </nav>
 <script>
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const API = location.hostname.endsWith("kasbokarapp.com") ? "" : "https://kasbokarapp.com";
 const INKS = ["Eternal","Intenze","World Famous","Kuro Sumi","Solid Ink","Dynamic","Starbrite","Fusion"];
 const NEEDLES = ["Cheyenne","Kwadron","Elite","Da Vinci","Emalla","Bishop"];
 const TYPES = ["RL","RS","RM","M1","Magnum","CM"];
 const MACHINES = ["Cheyenne","FK Irons","Bishop","Mast","Critical","Dragonhawk"];
 const STYLES = ["رئال","فاین‌لاین","سنتی","بلک‌ورک","تریبال","حروف","مینی‌مال","ژاپنی"];
-const state = { screen:"feed", data:null, mode:"post", postId:"", withId:"", thread:[], typing:false, storyIndex:0, storyUser:"", seen:{}, offset:0, more:true, limit:12 };
+const state = { screen:"feed", data:null, mode:"post", feedMode:"foryou", lang:localStorage.getItem("hub-lang")||"fa", theme:localStorage.getItem("hub-theme")||"light", postId:"", withId:"", thread:[], typing:false, storyIndex:0, storyUser:"", seen:{}, offset:0, more:true, limit:12, notesRead:false };
 function esc(value){return String(value ?? "").replace(/[&<>"]/g,(ch)=>({"&":"\u0026amp;","<":"\u0026lt;",">":"\u0026gt;",'"':"\u0026quot;"}[ch]));}
 function token(){try{return localStorage.getItem("hub-token")||"";}catch(e){return"";}}
 async function api(body){
@@ -113,8 +117,10 @@ function posts(){return (state.data&&state.data.posts)||[];}
 function face(item){return item&&item.avatar?`<img class="avatar" alt="" src="${item.avatar}">`:`<div class="avatar ph">${esc((item&&item.name||"؟").slice(0,1))}</div>`;}
 function shot(item){
   const compare=item.compare&&typeof item.compare==="object"?item.compare:null;
-  const src=item.image||(compare&&(compare.fresh||compare.sketch||compare.healed))||"";
-  return src?`<img class="shot" alt="" src="${src}" data-dbl="${esc(item.id)}">`:`<div class="shot" style="height:220px"></div>`;
+  const many=Array.isArray(item.images)?item.images.filter(Boolean):[];
+  const srcs=many.length?many:[item.image||(compare&&(compare.fresh||compare.sketch||compare.healed))||""].filter(Boolean);
+  if(srcs.length>1) return `<div class="reel">${srcs.map((src)=>`<img class="shot" alt="" src="${src}" data-dbl="${esc(item.id)}">`).join("")}</div>`;
+  return srcs[0]?`<img class="shot" alt="" src="${srcs[0]}" data-dbl="${esc(item.id)}">`:`<div class="shot" style="height:220px"></div>`;
 }
 function heart(on){return `<svg viewBox="0 0 24 24" ${on?'style="fill:#ed4956;stroke:#ed4956"':""}><path d="M12 20s-7-4.4-7-9a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4.6-7 9-7 9z"/></svg>`;}
 function card(item){
@@ -135,26 +141,30 @@ function render(){
   const badge=document.getElementById("badge");
   const unread=state.data?state.data.unread||0:0;
   badge.hidden=unread<1; badge.textContent=unread>9?"9+":String(unread);
+  const activity=document.getElementById("activity-badge");
+  const count=state.data?state.data.activity||0:0;
+  if(activity){activity.hidden=count<1; activity.textContent=count>9?"9+":String(count);}
   const root=document.getElementById("app");
   if(!state.data){root.innerHTML=`<div class="note">در حال آوردن فید...</div>`; return;}
   const screen=state.screen;
-  if(screen==="feed") root.innerHTML=`${me()?"":`<div class="note">برای پست، استوری و پیام با گوگل وارد شو.<br><button class="share" id="login" type="button" style="margin-top:8px">ورود با گوگل</button></div>`}${storyRow()}${posts().map(card).join("")||`<div class="note">هنوز پستی نیست. از دکمه + اولین عکس را بگذار.</div>`}`;
-  else if(screen==="explore") root.innerHTML=`<div class="grid">${posts().map((item)=>{const src=item.image||(item.compare&&(item.compare.fresh||item.compare.sketch||item.compare.healed))||""; return `<button data-post="${esc(item.id)}">${src?`<img alt="" src="${src}">`:`<span></span>`}</button>`;}).join("")}</div><div class="muted" style="text-align:center;padding:12px">${state.more?"در حال دیدن بقیه...":"به آخر رسیدی"}</div>`;
+  if(screen==="feed") root.innerHTML=`<div class="modes"><button type="button" data-feed="foryou" class="${state.feedMode==="foryou"?"on":""}">${state.lang==="en"?"For you":"پیشنهادی"}</button><button type="button" data-feed="following" class="${state.feedMode==="following"?"on":""}">${state.lang==="en"?"Following":"دنبال‌شده‌ها"}</button></div>${me()?"":`<div class="note">${state.lang==="en"?"Sign in with Google to post, story and message.":"برای پست، استوری و پیام با گوگل وارد شو."}<br><button class="share" id="login" type="button" style="margin-top:8px">${state.lang==="en"?"Continue with Google":"ورود با گوگل"}</button></div>`}${storyRow()}${posts().map(card).join("")||`<div class="note">${state.lang==="en"?"No posts yet.":"هنوز پستی نیست. از دکمه + اولین عکس را بگذار."}</div>`}`;
+  else if(screen==="explore") root.innerHTML=`<div class="pad"><input id="q" placeholder="${state.lang==="en"?"Name, city, style, brand":"نام، شهر، سبک یا برند"}" style="width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--soft)"></div><div id="found"></div><div class="grid">${posts().map((item)=>{const src=(Array.isArray(item.images)&&item.images[0])||item.image||(item.compare&&(item.compare.fresh||item.compare.sketch||item.compare.healed))||""; return `<button data-post="${esc(item.id)}">${src?`<img alt="" src="${src}">`:`<span></span>`}</button>`;}).join("")}</div>`;
+  else if(screen==="activity") root.innerHTML=activityView();
   else if(screen==="create") root.innerHTML=createView();
   else if(screen==="post") root.innerHTML=postView();
   else if(screen==="inbox") root.innerHTML=inboxView();
   else if(screen==="thread") root.innerHTML=threadView();
   else if(screen==="profile"||screen==="user") root.innerHTML=profileView(screen==="profile"?me():person(state.withId), screen==="profile");
   else if(screen==="edit") root.innerHTML=editView();
-  else if(screen==="about") root.innerHTML=`<div class="pad"><h1 class="h1">درباره</h1><p>فضای آرتیست‌های تاتو.</p><p><b>سازنده:</b> پیمان زیبائی‌فر</p><p><b>نسخه:</b> ${VERSION}</p></div>`;
+  else if(screen==="about") root.innerHTML=`<div class="pad"><h1 class="h1">${state.lang==="en"?"Settings":"تنظیمات"}</h1><p>${state.lang==="en"?"A social home for tattoo artists.":"شبکهٔ آرتیست‌های تاتو."}</p><p><b>${state.lang==="en"?"Maker":"سازنده"}:</b> پیمان زیبائی‌فر</p><p><b>${state.lang==="en"?"Version":"نسخه"}:</b> ${VERSION}</p><button class="share" id="theme" type="button">${state.theme==="dark"?(state.lang==="en"?"Light mode":"حالت روشن"):(state.lang==="en"?"Dark mode":"حالت تیره")}</button><button class="share" id="lang" type="button" style="margin-top:8px;background:#444">${state.lang==="en"?"فارسی":"English"}</button>${state.data&&state.data.admin?`<button class="share" id="reports" type="button" style="margin-top:8px">گزارش‌ها</button><div id="report-list"></div>`:""}</div>`;
   else if(screen==="story") root.innerHTML="";
   bind();
 }
 function createView(){
   const mode=state.mode;
   const opt=(list)=>`<option value="">نمی‌نویسم</option>${list.map((item)=>`<option>${item}</option>`).join("")}`;
-  const files=mode==="compare"?`<div class="grid"><label class="pick">طرح<input name="sketch" type="file" accept="image/*" hidden></label><label class="pick">تازه<input name="fresh" type="file" accept="image/*" hidden></label><label class="pick">هیلد<input name="healed" type="file" accept="image/*" hidden></label></div>`:`<label class="pick">انتخاب عکس از گالری<input id="gallery" name="file" type="file" accept="image/*" hidden></label><img id="preview" class="preview" alt="پیش‌نمایش" hidden>`;
-  const tools=mode==="story"?"":`<details><summary>ابزار، اختیاری</summary><label class="field">سبک<select name="style">${opt(STYLES)}</select></label><label class="field">برند رنگ<select name="ink">${opt(INKS)}</select></label><label class="field">برند سوزن<select name="needle">${opt(NEEDLES)}</select></label><label class="field">نوع سوزن<select name="type">${opt(TYPES)}</select></label><label class="field">دستگاه<select name="machine">${opt(MACHINES)}</select></label></details>`;
+  const files=mode==="compare"?`<div class="grid"><label class="pick">طرح<input name="sketch" type="file" accept="image/*" hidden></label><label class="pick">تازه<input name="fresh" type="file" accept="image/*" hidden></label><label class="pick">هیلد<input name="healed" type="file" accept="image/*" hidden></label></div>`:`<label class="pick">${state.lang==="en"?"Choose photos":"انتخاب عکس از گالری"}<input id="gallery" name="file" type="file" accept="image/*" multiple hidden></label><img id="preview" class="preview" alt="پیش‌نمایش" hidden>`;
+  const tools=mode==="story"?"":`<details open><summary>${state.lang==="en"?"Optional details":"جزئیات اختیاری"}</summary><label class="field">${state.lang==="en"?"Style":"سبک"}<select name="style">${opt(STYLES)}</select></label><div id="tag-suggest" class="muted"></div><label class="field">${state.lang==="en"?"Ink brand":"برند رنگ"}<select name="ink">${opt(INKS)}</select></label><label class="field">${state.lang==="en"?"Needle brand":"برند سوزن"}<select name="needle">${opt(NEEDLES)}</select></label><label class="field">${state.lang==="en"?"Needle type":"نوع سوزن"}<select name="type">${opt(TYPES)}</select></label><label class="field">${state.lang==="en"?"Machine":"دستگاه"}<select name="machine">${opt(MACHINES)}</select></label><label class="field">${state.lang==="en"?"Collab":"همکاری با"}<select name="collab"><option value=""></option>${people().filter((item)=>me()&&item.user_id!==me().user_id).map((item)=>`<option value="${esc(item.user_id)}">${esc(item.name)}</option>`).join("")}</select></label><label class="muted"><input name="practice" type="checkbox"> ${state.lang==="en"?"Private practice for my mentor":"تمرین خصوصی برای استاد"}</label></details>`;
   return `<div class="modes"><button type="button" data-mode="post" class="${mode==="post"?"on":""}">پست</button><button type="button" data-mode="story" class="${mode==="story"?"on":""}">استوری</button><button type="button" data-mode="compare" class="${mode==="compare"?"on":""}">قبل / هیلد</button></div><form id="create-form" class="pad">${files}<label class="field">توضیح<textarea name="caption" placeholder="یک جمله درباره کار"></textarea></label>${tools}<button class="share" type="submit">${mode==="story"?"گذاشتن استوری":"اشتراک‌گذاری"}</button></form>`;
 }
 function postView(){
@@ -186,16 +196,27 @@ function bubble(item){
   const media=item.image?`<img class="shot" alt="" src="${item.image}">`:item.audio?`<audio controls src="${item.audio}"></audio>`:"";
   return `<div class="bubble ${mine?"mine":""}">${media}${esc(item.body||"")}${tick}</div>`;
 }
+function activityView(){
+  const notes=(state.data&&state.data.notes)||[];
+  if(!me()) return `<div class="note">${state.lang==="en"?"Sign in to see activity.":"برای دیدن اعلان وارد شو."}<button class="share" id="login" type="button">Google</button></div>`;
+  if(!state.notesRead){state.notesRead=true; api({action:"readNotes"}).then(()=>refresh()).catch(()=>{});}
+  const pending=(state.data.mentors||[]).filter((item)=>item.mentor_id===me().user_id&&item.status==="pending");
+  const asks=pending.map((item)=>`<div class="row"><span>درخواست کارآموزی</span><button data-accept="${esc(item.apprentice_id)}" data-ok="1">پذیرش</button><button data-accept="${esc(item.apprentice_id)}" data-ok="0">رد</button></div>`).join("");
+  return `<div class="pad"><b>${state.lang==="en"?"Activity":"اعلان‌ها"}</b></div>${asks}`+(notes.map((item)=>`<button class="row" data-user="${esc(item.actor_id)}">${face({name:item.name})}<span><b>${esc(item.name)}</b> ${esc(item.body)}</span></button>`).join("")||`<div class="note">${state.lang==="en"?"No activity yet.":"هنوز اعلانی نیست."}</div>`);
+}
 function profileView(item, self){
   if(!item) return `<div class="note">برای پروفایل وارد شو.<button class="share" id="login" type="button">ورود با گوگل</button></div>`;
   const list=posts().filter((post)=>post.user_id===item.user_id);
   const stories=(state.data.stories||[]).filter((story)=>story.user_id===item.user_id);
-  return `<div class="profile-top">${item.avatar?`<img class="avatar" alt="" src="${item.avatar}">`:`<div class="avatar ph">${esc((item.name||"؟").slice(0,1))}</div>`}<div><div class="stats"><span><b>${list.length}</b> پست</span><span><b>${stories.length}</b> استوری</span></div><div class="h1">${esc(item.name||"")}</div><div class="muted">${esc(item.city||"")}</div></div></div><div class="pad" style="padding-top:0">${esc(item.bio||"")}${self?`<button class="share" data-go="edit" type="button" style="margin-top:12px">ویرایش پروفایل</button>`:""}</div><div class="grid">${list.map((post)=>`<button data-post="${esc(post.id)}">${shot(post)}</button>`).join("")}</div>`;
+  const highlights=(state.data.highlights||[]).filter((row)=>row.user_id===item.user_id);
+  const lights=highlights.length?`<div class="stories">${highlights.map((row)=>`<button class="story"><img class="avatar" alt="" src="${row.image}" style="width:64px;height:64px"><b>${esc(row.title)}</b></button>`).join("")}</div>`:"";
+  const actions=self?`<button class="share" data-go="edit" type="button" style="margin-top:12px">${state.lang==="en"?"Edit profile":"ویرایش پروفایل"}</button>`:`<button class="share" data-follow="${esc(item.user_id)}" type="button" style="margin-top:12px">${item.followed?(state.lang==="en"?"Following":"دنبال می‌کنی"):(state.lang==="en"?"Follow":"دنبال کردن")}</button><button class="chip" data-mentor="${esc(item.user_id)}" type="button">${state.lang==="en"?"Ask as mentor":"درخواست استاد"}</button><button class="chip" data-block="${esc(item.user_id)}" type="button">${state.lang==="en"?"Block":"مسدود"}</button><button class="chip" data-report="${esc(item.user_id)}" type="button">${state.lang==="en"?"Report":"گزارش"}</button>`;
+  return `<div class="profile-top">${item.avatar?`<img class="avatar" alt="" src="${item.avatar}">`:`<div class="avatar ph">${esc((item.name||"؟").slice(0,1))}</div>`}<div><div class="stats"><span><b>${list.length}</b> ${state.lang==="en"?"posts":"پست"}</span><span><b>${item.followers||0}</b> ${state.lang==="en"?"followers":"دنبال‌کننده"}</span><span><b>${item.following||0}</b> ${state.lang==="en"?"following":"دنبال‌شونده"}</span></div><div class="h1">${esc(item.artist_name||item.name||"")} ${item.verified?"✓":""}</div><div class="muted">${esc([item.city,item.country,item.studio].filter(Boolean).join(" · "))}</div><div>${esc(item.note||"")}</div></div></div>${lights}<div class="pad" style="padding-top:0">${esc(item.bio||"")}<div class="muted">${esc(item.role||"")} ${esc(item.gear||"")} ${esc(item.contact||"")} ${esc(item.links||"")}</div>${actions}</div><div class="grid">${list.map((post)=>`<button data-post="${esc(post.id)}">${shot(post)}</button>`).join("")}</div>`;
 }
 function editView(){
   const item=me();
   if(!item) return profileView(null,true);
-  return `<form id="profile-form" class="pad">${item.avatar?`<img id="avatar-preview" class="preview" alt="" src="${item.avatar}">`:`<img id="avatar-preview" class="preview" alt="" hidden>`}<label class="pick">انتخاب عکس پروفایل از گالری<input id="avatar-file" type="file" accept="image/*" hidden></label><label class="field">نام<input name="name" value="${esc(item.name)}" required></label><label class="field">شهر<input name="city" value="${esc(item.city||"")}"></label><label class="field">بیو<textarea name="bio">${esc(item.bio||"")}</textarea></label><button class="share">ذخیره</button></form>`;
+  return `<form id="profile-form" class="pad">${item.avatar?`<img id="avatar-preview" class="preview" alt="" src="${item.avatar}">`:`<img id="avatar-preview" class="preview" alt="" hidden>`}<label class="pick">${state.lang==="en"?"Profile photo":"انتخاب عکس پروفایل از گالری"}<input id="avatar-file" type="file" accept="image/*" hidden></label><label class="pick">${state.lang==="en"?"Cover":"کاور"}<input id="cover-file" type="file" accept="image/*" hidden></label><img id="cover-preview" class="preview" alt="" ${item.cover?`src="${item.cover}"`:"hidden"}><label class="field">${state.lang==="en"?"Name":"نام"}<input name="name" value="${esc(item.name)}" required></label><label class="field">${state.lang==="en"?"Artist name":"نام هنری"}<input name="artistName" value="${esc(item.artist_name||"")}"></label><label class="field">${state.lang==="en"?"City":"شهر"}<input name="city" value="${esc(item.city||"")}"></label><label class="field">${state.lang==="en"?"Country":"کشور"}<input name="country" value="${esc(item.country||"")}"></label><label class="field">${state.lang==="en"?"Studio":"استودیو"}<input name="studio" value="${esc(item.studio||"")}"></label><label class="field">${state.lang==="en"?"Role":"نقش"}<select name="role">${["artist","apprentice","mentor","studio"].map((role)=>`<option ${item.role===role?"selected":""}>${role}</option>`).join("")}</select></label><label class="field">${state.lang==="en"?"Styles":"سبک‌ها"}<input name="styles" value="${esc((item.styles||[]).join("، "))}" placeholder="رئال، فاین‌لاین"></label><label class="field">${state.lang==="en"?"Years":"سابقه"}<input name="years" value="${esc(item.years||"")}"></label><label class="field">${state.lang==="en"?"Gear":"تجهیزات"}<input name="gear" value="${esc(item.gear||"")}"></label><label class="field">${state.lang==="en"?"Contact":"تماس"}<input name="contact" value="${esc(item.contact||"")}"></label><label class="field">${state.lang==="en"?"Links":"لینک‌ها"}<input name="links" value="${esc(item.links||"")}"></label><label class="field">${state.lang==="en"?"Note":"یادداشت کوتاه"}<input name="note" maxlength="60" value="${esc(item.note||"")}"></label><label class="field">${state.lang==="en"?"Bio":"بیو"}<textarea name="bio">${esc(item.bio||"")}</textarea></label><button class="share">${state.lang==="en"?"Save":"ذخیره"}</button></form>`;
 }
 function bind(){
   document.querySelectorAll("[data-go]").forEach((node)=>node.onclick=()=>{state.screen=node.dataset.go; render();});
@@ -205,7 +226,17 @@ function bind(){
   document.querySelectorAll("[data-save]").forEach((node)=>node.onclick=(event)=>{event.stopPropagation(); act(()=>api({action:"save",postId:node.dataset.save,name:"ذخیره‌ها"}));});
   document.querySelectorAll("[data-share]").forEach((node)=>node.onclick=(event)=>{event.stopPropagation(); const item=posts().find((row)=>row.id===node.dataset.share); share(item);});
   document.querySelectorAll("[data-chat]").forEach((node)=>node.onclick=()=>openThread(node.dataset.chat));
+  document.querySelectorAll("[data-feed]").forEach((node)=>node.onclick=()=>{state.feedMode=node.dataset.feed; refresh();});
+  document.querySelectorAll("[data-follow]").forEach((node)=>node.onclick=()=>act(()=>api({action:"follow",userId:node.dataset.follow})));
+  document.querySelectorAll("[data-block]").forEach((node)=>node.onclick=()=>act(()=>api({action:"block",userId:node.dataset.block})));
+  document.querySelectorAll("[data-report]").forEach((node)=>node.onclick=()=>{const reason=prompt(state.lang==="en"?"Why report?":"دلیل گزارش"); if(reason) act(()=>api({action:"report",targetType:"user",targetId:node.dataset.report,reason}));});
+  document.querySelectorAll("[data-accept]").forEach((node)=>node.onclick=()=>act(()=>api({action:"mentorAnswer",apprenticeId:node.dataset.accept,accept:node.dataset.ok==="1"})));
   document.querySelectorAll("[data-mode]").forEach((node)=>node.onclick=()=>{state.mode=node.dataset.mode; render();});
+  const theme=document.getElementById("theme"); if(theme) theme.onclick=()=>{state.theme=state.theme==="dark"?"light":"dark"; localStorage.setItem("hub-theme",state.theme); applyChrome(); render();};
+  const lang=document.getElementById("lang"); if(lang) lang.onclick=()=>{state.lang=state.lang==="en"?"fa":"en"; localStorage.setItem("hub-lang",state.lang); applyChrome(); render();};
+  const reports=document.getElementById("reports"); if(reports) reports.onclick=async()=>{const data=await api({action:"reports"}); const box=document.getElementById("report-list"); if(!box) return; box.innerHTML=(data.reports||[]).map((item)=>`<div class="row"><span>${esc(item.name)} · ${esc(item.reason)}</span></div>`).join("")||"<div class='note'>گزارشی نیست.</div>";};
+  const q=document.getElementById("q");
+  if(q) q.oninput=()=>{clearTimeout(state.searchTimer); state.searchTimer=setTimeout(async()=>{const data=await api({action:"search",q:q.value}).catch(()=>null); const box=document.getElementById("found"); if(!box||!data) return; box.innerHTML=`${(data.people||[]).map((item)=>`<button class="row" data-user="${esc(item.user_id)}">${face(item)}<b>${esc(item.artist_name||item.name)}</b></button>`).join("")}${(data.posts||[]).map((item)=>`<button class="row" data-post="${esc(item.id)}">${esc(item.style||"")} ${esc(item.caption||"")}</button>`).join("")}`; document.querySelectorAll("#found [data-user]").forEach((node)=>node.onclick=()=>{state.withId=node.dataset.user; state.screen="user"; render();}); document.querySelectorAll("#found [data-post]").forEach((node)=>node.onclick=()=>{state.postId=node.dataset.post; state.screen="post"; render();});},300);};
   document.querySelectorAll("[data-open-story]").forEach((node)=>node.onclick=()=>openStory(node.dataset.openStory));
   document.querySelectorAll("[data-dbl]").forEach((node)=>{let last=0; node.onclick=()=>{const now=Date.now(); if(now-last<280) act(()=>api({action:"like",postId:node.dataset.dbl})); last=now;};});
   const login=document.getElementById("login"); if(login) login.onclick=startLogin;
@@ -216,7 +247,7 @@ function bind(){
   const message=document.getElementById("message-form");
   if(message){message.onsubmit=sendChat; document.getElementById("chat-text").oninput=()=>api({action:"typing",withId:state.withId}).catch(()=>{}); document.getElementById("chat-photo").onclick=()=>document.getElementById("chat-file").click(); document.getElementById("chat-file").onchange=sendChatPhoto; document.getElementById("mic").onclick=toggleMic; const log=document.getElementById("log"); if(log) log.scrollTop=log.scrollHeight;}
   const profile=document.getElementById("profile-form");
-  if(profile){profile.onsubmit=submitProfile; document.getElementById("avatar-file").onchange=()=>previewFile(document.getElementById("avatar-file"),"avatar-preview");}
+  if(profile){profile.onsubmit=submitProfile; document.getElementById("avatar-file").onchange=()=>previewFile(document.getElementById("avatar-file"),"avatar-preview"); const cover=document.getElementById("cover-file"); if(cover) cover.onchange=()=>previewFile(cover,"cover-preview");}
 }
 function openStory(userId){
   state.storyUser=userId; state.storyIndex=0; state.seen[userId]=true; showStory();
@@ -228,10 +259,12 @@ function showStory(){
   if(!item){closeStory(); return;}
   const root=document.createElement("div");
   root.className="viewer";
-  root.innerHTML=`<div class="bars">${list.map((_,index)=>`<i class="${index<state.storyIndex?"done":""} ${index===state.storyIndex?"on":""}"></i>`).join("")}</div><div class="phrow">${face(item)}<b>${esc(item.name||"")}</b><button id="close-story" style="margin-inline-start:auto;color:#fff">بستن</button></div>${item.image?`<img alt="" src="${item.image}">`:`<div class="fill" style="display:grid;place-items:center;font-size:22px">${esc(item.body||"")}</div>`}<div class="dock"><input id="story-reply" placeholder="پاسخ به استوری"><button id="story-send" style="color:#fff">بفرست</button></div><div class="reacts">${["❤","🔥","👏"].map((mark)=>`<button data-react="${mark}">${mark}</button>`).join("")}</div>`;
+  root.innerHTML=`<div class="bars">${list.map((_,index)=>`<i class="${index<state.storyIndex?"done":""} ${index===state.storyIndex?"on":""}"></i>`).join("")}</div><div class="phrow">${face(item)}<b>${esc(item.name||"")}</b>${me()&&item.user_id===me().user_id&&item.image?`<button id="pin" style="color:#fff">هایلایت</button>`:""}<button id="close-story" style="margin-inline-start:auto;color:#fff">بستن</button></div>${item.image?`<img alt="" src="${item.image}">`:`<div class="fill" style="display:grid;place-items:center;font-size:22px">${esc(item.body||"")}</div>`}<div class="dock"><input id="story-reply" placeholder="پاسخ به استوری"><button id="story-send" style="color:#fff">بفرست</button></div><div class="reacts">${["❤","🔥","👏"].map((mark)=>`<button data-react="${mark}">${mark}</button>`).join("")}</div>`;
   document.querySelector(".viewer")?.remove();
   document.body.appendChild(root);
   root.querySelector("#close-story").onclick=closeStory;
+  const pin=root.querySelector("#pin");
+  if(pin) pin.onclick=(event)=>{event.stopPropagation(); const title=prompt("عنوان هایلایت"); if(title) api({action:"highlight",title,image:item.image}).then(()=>toast("هایلایت ذخیره شد")).catch((err)=>toast(err.message));};
   root.onclick=(event)=>{if(event.target.closest("input,button")) return; const next=event.clientX<window.innerWidth/2; stepStory(next?-1:1);};
   root.querySelector("#story-send").onclick=()=>replyStory(item.id, root.querySelector("#story-reply").value, "reply");
   root.querySelectorAll("[data-react]").forEach((button)=>button.onclick=(event)=>{event.stopPropagation(); replyStory(item.id, button.dataset.react, "react");});
@@ -253,11 +286,14 @@ async function replyStory(storyId, text, kind){
   toast(kind==="react"?"واکنش ثبت شد":"پاسخ فرستاده شد");
 }
 async function previewFile(input, imageId){
-  const file=input.files&&input.files[0];
-  if(!file) return;
-  input.dataset.image=await compress(file);
+  const files=[...(input.files||[])].slice(0,5);
+  if(!files.length) return;
+  const images=[];
+  for(const file of files) images.push(await compress(file));
+  input.dataset.image=images[0];
+  input.dataset.images=JSON.stringify(images);
   const image=document.getElementById(imageId||"preview");
-  if(image){image.hidden=false; image.src=input.dataset.image;}
+  if(image){image.hidden=false; image.src=images[0];}
 }
 function compress(file){
   return new Promise((resolve,reject)=>{
@@ -284,7 +320,9 @@ async function submitCreate(event){
       await api({action:"post",caption:data.get("caption"),style:data.get("style"),ink:data.get("ink"),needle:data.get("needle"),type:data.get("type"),machine:data.get("machine"),compare:{sketch:read("sketch"),fresh:read("fresh"),healed:read("healed")}});
     }else{
       const file=form.querySelector("#gallery");
-      await api({action:"post",caption:data.get("caption"),image:file&&file.dataset.image||"",style:data.get("style"),ink:data.get("ink"),needle:data.get("needle"),type:data.get("type"),machine:data.get("machine")});
+      const images=file&&file.dataset.images?JSON.parse(file.dataset.images):[];
+      const active=(state.data.mentors||[]).find((item)=>item.apprentice_id===me().user_id&&item.status==="active");
+      await api({action:"post",caption:data.get("caption"),image:images[0]||"",images,style:data.get("style"),ink:data.get("ink"),needle:data.get("needle"),type:data.get("type"),machine:data.get("machine"),collab:data.get("collab"),practice:Boolean(form.practice&&form.practice.checked),mentorId:active?active.mentor_id:""});
     }
     state.screen="feed";
     await refresh();
@@ -295,7 +333,9 @@ async function submitProfile(event){
   event.preventDefault();
   const data=new FormData(event.target);
   const file=document.getElementById("avatar-file");
-  await act(async()=>{await api({action:"profile",name:data.get("name"),city:data.get("city"),bio:data.get("bio"),avatar:(file&&file.dataset.image)||me().avatar||""}); state.screen="profile";});
+  const cover=document.getElementById("cover-file");
+  const styles=String(data.get("styles")||"").split(/[،,]/).map((item)=>item.trim()).filter(Boolean);
+  await act(async()=>{await api({action:"profile",name:data.get("name"),city:data.get("city"),bio:data.get("bio"),artistName:data.get("artistName"),country:data.get("country"),studio:data.get("studio"),role:data.get("role"),gear:data.get("gear"),years:data.get("years"),contact:data.get("contact"),links:data.get("links"),note:data.get("note"),styles,avatar:(file&&file.dataset.image)||me().avatar||"",cover:(cover&&cover.dataset.image)||me().cover||""}); state.screen="profile";});
 }
 async function openThread(id){
   if(!me()) return startLogin();
@@ -355,7 +395,7 @@ function startLogin(){if(window.AndroidHub&&AndroidHub.googleLogin){AndroidHub.g
 async function act(work){try{await work(); await refresh();}catch(err){toast(err.message||"انجام نشد.");}}
 function signature(data){return `${(data.posts||[]).map((item)=>item.id+":"+item.likes+":"+(item.comments||[]).length).join(",")}|${(data.stories||[]).map((item)=>item.id).join(",")}|${data.unread}|${(data.recent||[])[0]?.id||""}`;}
 async function refresh(){
-  const data=await api({action:"feed",limit:Math.max(state.limit, posts().length||12),offset:0});
+  const data=await api({action:"feed",limit:Math.max(state.limit, posts().length||12),offset:0,mode:state.screen==="feed"?state.feedMode:"all"});
   const prev=state.data;
   if(prev&&prev.posts&&data.posts){
     const known=new Set(data.posts.map((item)=>item.id));
@@ -399,6 +439,12 @@ window.addEventListener("scroll",async()=>{
   state.more=data.posts.length>=12;
   render();
 });
+function applyChrome(){
+  document.documentElement.classList.toggle("dark", state.theme==="dark");
+  document.documentElement.lang=state.lang==="en"?"en":"fa";
+  document.documentElement.dir=state.lang==="en"?"ltr":"rtl";
+}
+applyChrome();
 if(window.AndroidHub&&AndroidHub.token&&AndroidHub.token()) localStorage.setItem("hub-token",AndroidHub.token());
 refresh().catch((err)=>document.getElementById("app").innerHTML=`<div class="note">${esc(err.message)}</div>`);
 setInterval(tick,2500);
