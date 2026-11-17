@@ -24,7 +24,12 @@ async function go() {
     document.body.textContent = data.error || "ورود انجام نشد.";
     return;
   }
-  location.replace("tattoohub://auth?token=" + encodeURIComponent(data.token));
+  const token = encodeURIComponent(data.token);
+  const intent = "intent://auth?token=" + token + "#Intent;scheme=tattoohub;package=com.peymanzibaeifar.tattoohub;end";
+  location.replace(intent);
+  setTimeout(() => {
+    document.body.innerHTML = "<p>اگر اپ باز نشد این دکمه را بزن.</p><p><a href='" + intent + "'>بازگشت به تاتوهاب</a></p>";
+  }, 900);
 }
 go();
 </script>

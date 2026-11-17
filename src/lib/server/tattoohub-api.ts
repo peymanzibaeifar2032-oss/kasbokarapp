@@ -75,11 +75,14 @@ export async function handleTattooHub(request: Request) {
     if (action === "typing") return json(await touchTyping(sql, userId, cleanText(body.withId, 80)));
     if (action === "save") return json(await saveCollection(sql, userId, body));
     if (action === "follow") return json(await toggleFollow(sql, userId, cleanText(body.userId, 80)));
+    if (action === "roster") return json(await loadRoster(sql, cleanText(body.userId, 80) || userId));
     if (action === "block") return json(await toggleBlock(sql, userId, cleanText(body.userId, 80)));
     if (action === "report") return json(await fileReport(sql, userId, body));
     if (action === "mentor") return json(await askMentor(sql, userId, cleanText(body.mentorId, 80)));
     if (action === "mentorAnswer") return json(await answerMentor(sql, userId, body));
     if (action === "readNotes") return json(await markNotes(sql, userId));
+    if (action === "removePost") return json(await removePost(sql, userId, cleanText(body.postId, 80)));
+    if (action === "logout") return json(await logoutToken(sql, request));
     if (action === "reports") return json(await adminReports(sql, userId));
     if (action === "verify") return json(await adminVerify(sql, userId, cleanText(body.userId, 80)));
     return json({ error: "این کار شناخته نشد." }, 400);
@@ -340,9 +343,12 @@ async function sendMessage(sql: Sql, userId: string, body: Record<string, unknow
   const image = body.image ? cleanImage(body.image) : "";
   const audio = body.audio ? cleanAudio(body.audio) : "";
   if (!to || to === userId || (!text && !image && !audio)) throw new Error("پیام را بنویس.");
+  const id = /^[0-9a-f-]{36}$/i.test(String(body.clientId || "")) ? String(body.clientId) : crypto.randomUUID();
+  const storyId = cleanText(body.storyId, 80);
   await sql.query(
-    "insert into tattoohub_messages (id, from_id, to_id, body, image, audio) values ($1, $2, $3, $4, $5, $6)",
-    [crypto.randomUUID(), userId, to, text, image, audio],
+    `insert into tattoohub_messages (id, from_id, to_id, body, image, audio, story_id) values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (id) do nothing`,
+    [id, userId, to, text, image, audio, storyId],
   );
   await notify(sql, to, "message", userId, to, text || (image ? "عکس" : "ویس"));
   return loadThread(sql, userId, to);
@@ -372,7 +378,7 @@ async function loadThread(sql: Sql, userId: string, withId: string) {
     [userId, withId],
   );
   const rows = await sql.query(
-    `select id, from_id, to_id, body, image, audio, created_at, read_at from tattoohub_messages
+    `select id, from_id, to_id, body, image, audio, story_id, created_at, read_at from tattoohub_messages
       where (from_id = $1 and to_id = $2) or (from_id = $2 and to_id = $1)
       order by created_at`,
     [userId, withId],
@@ -389,11 +395,18 @@ async function storyReply(sql: Sql, userId: string, body: Record<string, unknown
   const kind = body.kind === "react" ? "react" : "reply";
   const text = cleanText(body.text, 280);
   if (!storyId || !text) throw new Error("پاسخ را بنویس.");
+  const story = await sql.query<{ user_id: string }>("select user_id from tattoohub_stories where id = $1", [storyId]);
+  const owner = story[0]?.user_id || "";
   await sql.query(
     "insert into tattoohub_story_replies (id, story_id, user_id, kind, body) values ($1, $2, $3, $4, $5)",
     [crypto.randomUUID(), storyId, userId, kind, text],
   );
-  return { ok: true };
+  if (owner && owner !== userId && kind === "reply") {
+    await sendMessage(sql, userId, { to: owner, text: `پاسخ استوری: ${text}`, storyId });
+  } else if (owner) {
+    await notify(sql, owner, "story", userId, storyId, kind === "react" ? "به استوری‌ات واکنش داد" : text);
+  }
+  return { ok: true, withId: owner };
 }
 
 async function saveCollection(sql: Sql, userId: string, body: Record<string, unknown>) {
@@ -504,6 +517,33 @@ async function answerMentor(sql: Sql, userId: string, body: Record<string, unkno
 
 async function markNotes(sql: Sql, userId: string) {
   await sql.query("update tattoohub_notifications set read_at = now() where user_id = $1 and read_at is null", [userId]);
+  return { ok: true };
+}
+
+async function loadRoster(sql: Sql, userId: string) {
+  const followers = await sql.query(
+    `select p.user_id, p.name, p.avatar from tattoohub_follows f
+      join tattoohub_profiles p on p.user_id = f.follower_id where f.following_id = $1`,
+    [userId],
+  );
+  const following = await sql.query(
+    `select p.user_id, p.name, p.avatar from tattoohub_follows f
+      join tattoohub_profiles p on p.user_id = f.following_id where f.follower_id = $1`,
+    [userId],
+  );
+  return { followers, following };
+}
+
+async function removePost(sql: Sql, userId: string, postId: string) {
+  if (!postId) throw new Error("پست پیدا نشد.");
+  await sql.query("delete from tattoohub_posts where id = $1 and user_id = $2", [postId, userId]);
+  return { ok: true };
+}
+
+async function logoutToken(sql: Sql, request: Request) {
+  const header = request.headers.get("authorization") || "";
+  const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
+  if (token.startsWith("th_")) await sql.query("delete from tattoohub_tokens where token = $1", [token]);
   return { ok: true };
 }
 

@@ -1,6 +1,6 @@
 /** Shared rules for TattooHub. The feed never filters by the viewer. */
 
-export const HUB_VERSION = "1.2.0";
+export const HUB_VERSION = "1.2.1";
 export const MAX_IMAGE_CHARS = 480_000;
 export const MAX_AUDIO_CHARS = 700_000;
 
@@ -74,4 +74,11 @@ export function canSeePractice(post: { userId: string; practice?: boolean; mento
   if (!post.practice) return true;
   return post.userId === viewerId || post.mentorId === viewerId;
 }
+
+/** Taps on the reply bar or while typing must never advance a story. */
+export function storyTap(where: "dock" | "edge", x: number, width: number, typing: boolean) {
+  if (where === "dock" || typing) return "stay";
+  return x < width / 2 ? "prev" : "next";
+}
+
 

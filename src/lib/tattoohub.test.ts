@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { canSeePractice, cleanAudio, cleanImage, publish, rankForYou, shouldNotify, visibleToEveryone, type HubPost } from "./tattoohub.ts";
+import { canSeePractice, cleanAudio, cleanImage, publish, rankForYou, shouldNotify, storyTap, visibleToEveryone, type HubPost } from "./tattoohub.ts";
 
 describe("tattoohub feed", () => {
   it("shows one artist's post to everyone else", () => {
@@ -32,6 +32,13 @@ describe("tattoohub feed", () => {
     assert.equal(canSeePractice({ userId: "student", practice: true, mentorId: "teacher" }, "other"), false);
   });
 
+  it("keeps the story still while the reply box is used", () => {
+    assert.equal(storyTap("dock", 20, 400, false), "stay");
+    assert.equal(storyTap("edge", 20, 400, true), "stay");
+    assert.equal(storyTap("edge", 20, 400, false), "prev");
+    assert.equal(storyTap("edge", 300, 400, false), "next");
+  });
+
   it("pings a new message only when that chat is not open", () => {
     assert.equal(shouldNotify("m1", "m2", false), true);
     assert.equal(shouldNotify("m1", "m2", true), false);
@@ -49,7 +56,9 @@ describe("tattoohub feed", () => {
     assert.match(page, /اشتراک‌گذاری/);
     assert.match(page, /در حال نوشتن/);
     assert.match(page, /پیمان زیبائی‌فر/);
-    assert.match(page, /1\.2\.0/);
+    assert.match(route, /پاسخ استوری/);
+    assert.match(page, /1\.2\.1/);
+    assert.match(page, /خروج از حساب/);
     assert.match(page, /دنبال‌شده‌ها/);
     assert.match(page, /هایلایت/);
   });

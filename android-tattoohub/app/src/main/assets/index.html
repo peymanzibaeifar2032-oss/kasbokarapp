@@ -38,7 +38,11 @@ svg { width:26px; height:26px; stroke:currentColor; fill:none; stroke-width:1.8;
 .nav { position:fixed; left:0; right:0; bottom:0; height:56px; background:var(--bg); border-top:1px solid var(--line); display:grid; grid-template-columns:repeat(5,1fr); z-index:6; }
 .nav button { display:grid; place-items:center; position:relative; color:#111; }
 .nav button.on svg { stroke-width:2.4; }
-.badge { position:absolute; top:6px; inset-inline-start:calc(50% + 6px); min-width:16px; height:16px; border-radius:99px; background:#ed4956; color:#fff; font-size:10px; font-weight:700; display:grid; place-items:center; padding:0 4px; }
+#inbox-btn, .nav button { position:relative; }
+.badge { position:absolute; top:-4px; inset-inline-end:-8px; inset-inline-start:auto; min-width:16px; height:16px; border-radius:99px; background:#ed4956; color:#fff; font-size:10px; font-weight:700; display:grid; place-items:center; padding:0 4px; }
+.zones { position:absolute; inset:64px 0 132px; display:flex; z-index:1; }
+.zone { flex:1; background:transparent; }
+.viewer .dock, .viewer .reacts, .viewer .phrow, .viewer .bars { position:relative; z-index:2; }
 .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:2px; background:#fff; }
 .grid button { aspect-ratio:1; overflow:hidden; background:#f3f3f3; }
 .grid img, .grid .shot { width:100%; height:100%; max-height:none; object-fit:cover; display:block; }
@@ -92,7 +96,7 @@ svg { width:26px; height:26px; stroke:currentColor; fill:none; stroke-width:1.8;
   <button data-go="profile" aria-label="پروفایل"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5 19c1.5-3 3.8-4.5 7-4.5S17.5 16 19 19"/></svg></button>
 </nav>
 <script>
-const VERSION = "1.2.0";
+const VERSION = "1.2.1";
 const API = location.hostname.endsWith("kasbokarapp.com") ? "" : "https://kasbokarapp.com";
 const INKS = ["Eternal","Intenze","World Famous","Kuro Sumi","Solid Ink","Dynamic","Starbrite","Fusion"];
 const NEEDLES = ["Cheyenne","Kwadron","Elite","Da Vinci","Emalla","Bishop"];
@@ -127,7 +131,7 @@ function card(item){
   const author=person(item.user_id);
   const saved=(state.data.saved||[]).includes(item.id);
   const tags=[item.style,item.technique,item.ink,item.needle,item.needle_type,item.machine].filter(Boolean);
-  return `<article class="post"><div class="phrow" data-user="${esc(item.user_id)}">${face({...author,name:item.name||author.name})}<div><b>${esc(item.name||author.name)}</b><div class="muted">${esc(item.city||author.city||"")}</div></div></div>${shot(item)}<div class="actions"><button data-like="${esc(item.id)}" aria-label="پسند">${heart(item.liked)}</button><button data-post="${esc(item.id)}" aria-label="نظر"><svg viewBox="0 0 24 24"><path d="M6 17 4 21V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/></svg></button><button data-share="${esc(item.id)}" aria-label="اشتراک"><svg viewBox="0 0 24 24"><path d="M21 4 11 14M21 4l-6 16-4-7-7-3z"/></svg></button><button class="end" data-save="${esc(item.id)}" aria-label="ذخیره"><svg viewBox="0 0 24 24" ${saved?'style="fill:#111;stroke:#111"':""}><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3-6 3V5a1 1 0 0 1 1-1z"/></svg></button></div><div class="meta"><b>${item.likes||0} پسند</b><div><b>${esc(item.name||author.name)}</b> ${esc(item.caption||"")}</div>${tags.length?`<div class="muted">${tags.map(esc).join(" · ")}</div>`:""}<button class="muted" data-post="${esc(item.id)}">مشاهده ${((item.comments||[]).length)} نظر</button></div></article>`;
+  return `<article class="post"><div class="phrow" data-user="${esc(item.user_id)}">${face({...author,name:item.name||author.name})}<div><b>${esc(item.name||author.name)} ${item.verified?"✓":""}</b><div class="muted">${esc(item.city||author.city||"")}</div></div></div>${shot(item)}<div class="actions"><button data-like="${esc(item.id)}" aria-label="پسند">${heart(item.liked)}</button><button data-post="${esc(item.id)}" aria-label="نظر"><svg viewBox="0 0 24 24"><path d="M6 17 4 21V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2z"/></svg></button><button data-share="${esc(item.id)}" aria-label="اشتراک"><svg viewBox="0 0 24 24"><path d="M21 4 11 14M21 4l-6 16-4-7-7-3z"/></svg></button><button class="end" data-save="${esc(item.id)}" aria-label="ذخیره"><svg viewBox="0 0 24 24" ${saved?'style="fill:#111;stroke:#111"':""}><path d="M7 4h10a1 1 0 0 1 1 1v15l-6-3-6 3V5a1 1 0 0 1 1-1z"/></svg></button></div><div class="meta"><b>${item.likes||0} پسند</b><div><b>${esc(item.name||author.name)}</b> ${esc(item.caption||"")}</div>${tags.length?`<div class="muted">${tags.map(esc).join(" · ")}</div>`:""}<button class="muted" data-post="${esc(item.id)}">مشاهده ${((item.comments||[]).length)} نظر</button>${me()&&me().user_id===item.user_id?`<button class="muted" data-remove="${esc(item.id)}">حذف پست</button>`:""}</div></article>`;
 }
 function storyRow(){
   const stories=state.data.stories||[];
@@ -149,14 +153,14 @@ function render(){
   const screen=state.screen;
   if(screen==="feed") root.innerHTML=`<div class="modes"><button type="button" data-feed="foryou" class="${state.feedMode==="foryou"?"on":""}">${state.lang==="en"?"For you":"پیشنهادی"}</button><button type="button" data-feed="following" class="${state.feedMode==="following"?"on":""}">${state.lang==="en"?"Following":"دنبال‌شده‌ها"}</button></div>${me()?"":`<div class="note">${state.lang==="en"?"Sign in with Google to post, story and message.":"برای پست، استوری و پیام با گوگل وارد شو."}<br><button class="share" id="login" type="button" style="margin-top:8px">${state.lang==="en"?"Continue with Google":"ورود با گوگل"}</button></div>`}${storyRow()}${posts().map(card).join("")||`<div class="note">${state.lang==="en"?"No posts yet.":"هنوز پستی نیست. از دکمه + اولین عکس را بگذار."}</div>`}`;
   else if(screen==="explore") root.innerHTML=`<div class="pad"><input id="q" placeholder="${state.lang==="en"?"Name, city, style, brand":"نام، شهر، سبک یا برند"}" style="width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--soft)"></div><div id="found"></div><div class="grid">${posts().map((item)=>{const src=(Array.isArray(item.images)&&item.images[0])||item.image||(item.compare&&(item.compare.fresh||item.compare.sketch||item.compare.healed))||""; return `<button data-post="${esc(item.id)}">${src?`<img alt="" src="${src}">`:`<span></span>`}</button>`;}).join("")}</div>`;
-  else if(screen==="activity") root.innerHTML=activityView();
+  else if(screen==="roster") root.innerHTML=`<div class="pad"><b>${state.lang==="en"?"People":"افراد"}</b></div>${(state.roster||[]).map((item)=>`<button class="row" data-user="${esc(item.user_id)}">${face(item)}<b>${esc(item.name)}</b></button>`).join("")||`<div class="note">${state.lang==="en"?"Nobody yet.":"هنوز کسی نیست."}</div>`}`;
   else if(screen==="create") root.innerHTML=createView();
   else if(screen==="post") root.innerHTML=postView();
   else if(screen==="inbox") root.innerHTML=inboxView();
   else if(screen==="thread") root.innerHTML=threadView();
   else if(screen==="profile"||screen==="user") root.innerHTML=profileView(screen==="profile"?me():person(state.withId), screen==="profile");
   else if(screen==="edit") root.innerHTML=editView();
-  else if(screen==="about") root.innerHTML=`<div class="pad"><h1 class="h1">${state.lang==="en"?"Settings":"تنظیمات"}</h1><p>${state.lang==="en"?"A social home for tattoo artists.":"شبکهٔ آرتیست‌های تاتو."}</p><p><b>${state.lang==="en"?"Maker":"سازنده"}:</b> پیمان زیبائی‌فر</p><p><b>${state.lang==="en"?"Version":"نسخه"}:</b> ${VERSION}</p><button class="share" id="theme" type="button">${state.theme==="dark"?(state.lang==="en"?"Light mode":"حالت روشن"):(state.lang==="en"?"Dark mode":"حالت تیره")}</button><button class="share" id="lang" type="button" style="margin-top:8px;background:#444">${state.lang==="en"?"فارسی":"English"}</button>${state.data&&state.data.admin?`<button class="share" id="reports" type="button" style="margin-top:8px">گزارش‌ها</button><div id="report-list"></div>`:""}</div>`;
+  else if(screen==="about") root.innerHTML=`<div class="pad"><h1 class="h1">${state.lang==="en"?"Settings":"تنظیمات"}</h1><p>${state.lang==="en"?"A social home for tattoo artists.":"شبکهٔ آرتیست‌های تاتو."}</p><p><b>${state.lang==="en"?"Maker":"سازنده"}:</b> پیمان زیبائی‌فر</p><p><b>${state.lang==="en"?"Version":"نسخه"}:</b> ${VERSION}</p><button class="share" id="theme" type="button">${state.theme==="dark"?(state.lang==="en"?"Light mode":"حالت روشن"):(state.lang==="en"?"Dark mode":"حالت تیره")}</button><button class="share" id="lang" type="button" style="margin-top:8px;background:#444">${state.lang==="en"?"فارسی":"English"}</button><button class="share" id="logout" type="button" style="margin-top:8px;background:#7f1d1d">${state.lang==="en"?"Log out":"خروج از حساب"}</button>${state.data&&state.data.admin?`<button class="share" id="reports" type="button" style="margin-top:8px">گزارش‌ها</button><div id="report-list"></div>`:""}</div>`;
   else if(screen==="story") root.innerHTML="";
   bind();
 }
@@ -194,7 +198,9 @@ function bubble(item){
   const mine=me()&&item.from_id===me().user_id;
   const tick=mine?`<div class="ticks ${item.read_at?"read":""}">${item.read_at?"دیده شد":"رسید"}</div>`:"";
   const media=item.image?`<img class="shot" alt="" src="${item.image}">`:item.audio?`<audio controls src="${item.audio}"></audio>`:"";
-  return `<div class="bubble ${mine?"mine":""}">${media}${esc(item.body||"")}${tick}</div>`;
+  const label=item.story_id||String(item.body||"").startsWith("پاسخ استوری")?`<div class="muted">پاسخ استوری</div>`:"";
+  const pending=item.pending?`<div class="ticks">در حال ارسال</div>`:"";
+  return `<div class="bubble ${mine?"mine":""}">${label}${media}${esc(item.body||"")}${tick}${pending}</div>`;
 }
 function activityView(){
   const notes=(state.data&&state.data.notes)||[];
@@ -211,7 +217,7 @@ function profileView(item, self){
   const highlights=(state.data.highlights||[]).filter((row)=>row.user_id===item.user_id);
   const lights=highlights.length?`<div class="stories">${highlights.map((row)=>`<button class="story"><img class="avatar" alt="" src="${row.image}" style="width:64px;height:64px"><b>${esc(row.title)}</b></button>`).join("")}</div>`:"";
   const actions=self?`<button class="share" data-go="edit" type="button" style="margin-top:12px">${state.lang==="en"?"Edit profile":"ویرایش پروفایل"}</button>`:`<button class="share" data-follow="${esc(item.user_id)}" type="button" style="margin-top:12px">${item.followed?(state.lang==="en"?"Following":"دنبال می‌کنی"):(state.lang==="en"?"Follow":"دنبال کردن")}</button><button class="chip" data-mentor="${esc(item.user_id)}" type="button">${state.lang==="en"?"Ask as mentor":"درخواست استاد"}</button><button class="chip" data-block="${esc(item.user_id)}" type="button">${state.lang==="en"?"Block":"مسدود"}</button><button class="chip" data-report="${esc(item.user_id)}" type="button">${state.lang==="en"?"Report":"گزارش"}</button>`;
-  return `<div class="profile-top">${item.avatar?`<img class="avatar" alt="" src="${item.avatar}">`:`<div class="avatar ph">${esc((item.name||"؟").slice(0,1))}</div>`}<div><div class="stats"><span><b>${list.length}</b> ${state.lang==="en"?"posts":"پست"}</span><span><b>${item.followers||0}</b> ${state.lang==="en"?"followers":"دنبال‌کننده"}</span><span><b>${item.following||0}</b> ${state.lang==="en"?"following":"دنبال‌شونده"}</span></div><div class="h1">${esc(item.artist_name||item.name||"")} ${item.verified?"✓":""}</div><div class="muted">${esc([item.city,item.country,item.studio].filter(Boolean).join(" · "))}</div><div>${esc(item.note||"")}</div></div></div>${lights}<div class="pad" style="padding-top:0">${esc(item.bio||"")}<div class="muted">${esc(item.role||"")} ${esc(item.gear||"")} ${esc(item.contact||"")} ${esc(item.links||"")}</div>${actions}</div><div class="grid">${list.map((post)=>`<button data-post="${esc(post.id)}">${shot(post)}</button>`).join("")}</div>`;
+  return `<div class="profile-top">${item.avatar?`<img class="avatar" alt="" src="${item.avatar}">`:`<div class="avatar ph">${esc((item.name||"؟").slice(0,1))}</div>`}<div><div class="stats"><button data-roster="posts" data-who="${esc(item.user_id)}"><b>${list.length}</b> ${state.lang==="en"?"posts":"پست"}</button><button data-roster="followers" data-who="${esc(item.user_id)}"><b>${item.followers||0}</b> ${state.lang==="en"?"followers":"دنبال‌کننده"}</button><button data-roster="following" data-who="${esc(item.user_id)}"><b>${item.following||0}</b> ${state.lang==="en"?"following":"دنبال‌شونده"}</button></div><div class="h1">${esc(item.artist_name||item.name||"")} ${item.verified?"✓":""}</div><div class="muted">${esc([item.city,item.country,item.studio].filter(Boolean).join(" · "))}</div><div>${esc(item.note||"")}</div></div></div>${lights}<div class="pad" style="padding-top:0">${esc(item.bio||"")}<div class="muted">${esc(item.role||"")} ${esc(item.gear||"")} ${esc(item.contact||"")} ${esc(item.links||"")}</div>${actions}</div><div class="grid">${list.map((post)=>`<button data-post="${esc(post.id)}">${shot(post)}</button>`).join("")}</div>`;
 }
 function editView(){
   const item=me();
@@ -227,11 +233,25 @@ function bind(){
   document.querySelectorAll("[data-share]").forEach((node)=>node.onclick=(event)=>{event.stopPropagation(); const item=posts().find((row)=>row.id===node.dataset.share); share(item);});
   document.querySelectorAll("[data-chat]").forEach((node)=>node.onclick=()=>openThread(node.dataset.chat));
   document.querySelectorAll("[data-feed]").forEach((node)=>node.onclick=()=>{state.feedMode=node.dataset.feed; refresh();});
-  document.querySelectorAll("[data-follow]").forEach((node)=>node.onclick=()=>act(()=>api({action:"follow",userId:node.dataset.follow})));
+  document.querySelectorAll("[data-follow]").forEach((node)=>node.onclick=async(event)=>{
+    event.stopPropagation();
+    if(!me()) return startLogin();
+    node.disabled=true;
+    try{
+      const result=await api({action:"follow",userId:node.dataset.follow});
+      const row=people().find((item)=>item.user_id===node.dataset.follow);
+      if(row) row.followed=result.followed;
+      node.textContent=result.followed?(state.lang==="en"?"Following":"دنبال می‌کنی"):(state.lang==="en"?"Follow":"دنبال کردن");
+      await refresh();
+    }catch(err){toast(err.message||"دنبال‌کردن انجام نشد."); node.disabled=false;}
+  });
   document.querySelectorAll("[data-block]").forEach((node)=>node.onclick=()=>act(()=>api({action:"block",userId:node.dataset.block})));
   document.querySelectorAll("[data-report]").forEach((node)=>node.onclick=()=>{const reason=prompt(state.lang==="en"?"Why report?":"دلیل گزارش"); if(reason) act(()=>api({action:"report",targetType:"user",targetId:node.dataset.report,reason}));});
   document.querySelectorAll("[data-accept]").forEach((node)=>node.onclick=()=>act(()=>api({action:"mentorAnswer",apprenticeId:node.dataset.accept,accept:node.dataset.ok==="1"})));
   document.querySelectorAll("[data-mode]").forEach((node)=>node.onclick=()=>{state.mode=node.dataset.mode; render();});
+  document.querySelectorAll("[data-remove]").forEach((node)=>node.onclick=async(event)=>{event.stopPropagation(); if(!confirm(state.lang==="en"?"Delete this post?":"این پست حذف شود؟")) return; await act(()=>api({action:"removePost",postId:node.dataset.remove})); state.screen="profile";});
+  document.querySelectorAll("[data-roster]").forEach((node)=>node.onclick=async(event)=>{event.stopPropagation(); if(node.dataset.roster==="posts") return; const data=await api({action:"roster",userId:node.dataset.who}); state.roster=node.dataset.roster==="followers"?data.followers:data.following; state.screen="roster"; render();});
+  const logout=document.getElementById("logout"); if(logout) logout.onclick=doLogout;
   const theme=document.getElementById("theme"); if(theme) theme.onclick=()=>{state.theme=state.theme==="dark"?"light":"dark"; localStorage.setItem("hub-theme",state.theme); applyChrome(); render();};
   const lang=document.getElementById("lang"); if(lang) lang.onclick=()=>{state.lang=state.lang==="en"?"fa":"en"; localStorage.setItem("hub-lang",state.lang); applyChrome(); render();};
   const reports=document.getElementById("reports"); if(reports) reports.onclick=async()=>{const data=await api({action:"reports"}); const box=document.getElementById("report-list"); if(!box) return; box.innerHTML=(data.reports||[]).map((item)=>`<div class="row"><span>${esc(item.name)} · ${esc(item.reason)}</span></div>`).join("")||"<div class='note'>گزارشی نیست.</div>";};
@@ -259,17 +279,27 @@ function showStory(){
   if(!item){closeStory(); return;}
   const root=document.createElement("div");
   root.className="viewer";
-  root.innerHTML=`<div class="bars">${list.map((_,index)=>`<i class="${index<state.storyIndex?"done":""} ${index===state.storyIndex?"on":""}"></i>`).join("")}</div><div class="phrow">${face(item)}<b>${esc(item.name||"")}</b>${me()&&item.user_id===me().user_id&&item.image?`<button id="pin" style="color:#fff">هایلایت</button>`:""}<button id="close-story" style="margin-inline-start:auto;color:#fff">بستن</button></div>${item.image?`<img alt="" src="${item.image}">`:`<div class="fill" style="display:grid;place-items:center;font-size:22px">${esc(item.body||"")}</div>`}<div class="dock"><input id="story-reply" placeholder="پاسخ به استوری"><button id="story-send" style="color:#fff">بفرست</button></div><div class="reacts">${["❤","🔥","👏"].map((mark)=>`<button data-react="${mark}">${mark}</button>`).join("")}</div>`;
+  root.innerHTML=`<div class="bars">${list.map((_,index)=>`<i class="${index<state.storyIndex?"done":""} ${index===state.storyIndex?"on":""}"></i>`).join("")}</div><div class="phrow">${face(item)}<b>${esc(item.name||"")}</b>${me()&&item.user_id===me().user_id&&item.image?`<button id="pin" style="color:#fff">هایلایت</button>`:""}<button id="close-story" style="margin-inline-start:auto;color:#fff">بستن</button></div><div class="zones"><button class="zone" type="button" data-story-nav="-1" aria-label="قبلی"></button><button class="zone" type="button" data-story-nav="1" aria-label="بعدی"></button></div>${item.image?`<img alt="" src="${item.image}">`:`<div class="fill" style="display:grid;place-items:center;font-size:22px">${esc(item.body||"")}</div>`}<div class="dock" id="story-dock"><input id="story-reply" placeholder="پاسخ به استوری"><button id="story-send" type="button" style="color:#fff">بفرست</button></div><div class="reacts">${["❤","🔥","👏"].map((mark)=>`<button type="button" data-react="${mark}">${mark}</button>`).join("")}</div>`;
   document.querySelector(".viewer")?.remove();
   document.body.appendChild(root);
-  root.querySelector("#close-story").onclick=closeStory;
+  const reply=root.querySelector("#story-reply");
+  const dock=root.querySelector("#story-dock");
+  dock.addEventListener("pointerdown",(event)=>event.stopPropagation());
+  reply.addEventListener("pointerdown",(event)=>event.stopPropagation());
+  reply.addEventListener("focus",()=>{state.storyPaused=true; clearTimeout(state.storyTimer);});
+  reply.addEventListener("blur",()=>{state.storyPaused=false; armStory();});
+  root.querySelector("#close-story").onclick=(event)=>{event.stopPropagation(); closeStory();};
   const pin=root.querySelector("#pin");
   if(pin) pin.onclick=(event)=>{event.stopPropagation(); const title=prompt("عنوان هایلایت"); if(title) api({action:"highlight",title,image:item.image}).then(()=>toast("هایلایت ذخیره شد")).catch((err)=>toast(err.message));};
-  root.onclick=(event)=>{if(event.target.closest("input,button")) return; const next=event.clientX<window.innerWidth/2; stepStory(next?-1:1);};
-  root.querySelector("#story-send").onclick=()=>replyStory(item.id, root.querySelector("#story-reply").value, "reply");
+  root.querySelectorAll("[data-story-nav]").forEach((zone)=>zone.onclick=(event)=>{event.stopPropagation(); if(state.storyPaused) return; stepStory(Number(zone.dataset.storyNav));});
+  root.querySelector("#story-send").onclick=async(event)=>{event.stopPropagation(); const text=reply.value; const sent=await replyStory(item.id, text, "reply"); if(sent) reply.value="";};
   root.querySelectorAll("[data-react]").forEach((button)=>button.onclick=(event)=>{event.stopPropagation(); replyStory(item.id, button.dataset.react, "react");});
+  armStory();
+}
+function armStory(){
   clearTimeout(state.storyTimer);
-  state.storyTimer=setTimeout(()=>stepStory(1),5000);
+  if(state.storyPaused) return;
+  state.storyTimer=setTimeout(()=>{if(!state.storyPaused) stepStory(1);},5000);
 }
 function stepStory(delta){
   const list=userStories();
@@ -280,10 +310,13 @@ function stepStory(delta){
 }
 function closeStory(){clearTimeout(state.storyTimer); document.querySelector(".viewer")?.remove(); render();}
 async function replyStory(storyId, text, kind){
-  if(!me()) return startLogin();
-  if(!String(text||"").trim()) return;
-  await api({action:"storyReply",storyId,text,kind}).catch((err)=>toast(err.message));
-  toast(kind==="react"?"واکنش ثبت شد":"پاسخ فرستاده شد");
+  if(!me()) { startLogin(); return false; }
+  if(!String(text||"").trim()) return false;
+  try{
+    await api({action:"storyReply",storyId,text,kind});
+    toast(kind==="react"?"واکنش ثبت شد":"پاسخ به دایرکت صاحب استوری رفت");
+    return true;
+  }catch(err){toast(err.message); return false;}
 }
 async function previewFile(input, imageId){
   const files=[...(input.files||[])].slice(0,5);
@@ -348,10 +381,28 @@ async function sendChat(event){
   event.preventDefault();
   const input=document.getElementById("chat-text");
   const text=input.value.trim();
-  if(!text) return;
+  if(!text||state.sending) return;
+  const clientId=crypto.randomUUID();
+  state.sending=true;
+  state.thread=state.thread.concat([{id:clientId,from_id:me().user_id,body:text,pending:true}]);
   input.value="";
-  const data=await api({action:"send",to:state.withId,text});
-  state.thread=data.messages||[]; state.typing=false; render();
+  paintThread();
+  try{
+    const data=await api({action:"send",to:state.withId,text,clientId});
+    state.thread=data.messages||[];
+    paintThread();
+  }catch(err){
+    input.value=text;
+    state.thread=state.thread.filter((item)=>item.id!==clientId);
+    paintThread();
+    toast(err.message||"پیام ارسال نشد.");
+  }finally{state.sending=false;}
+}
+function paintThread(){
+  const log=document.getElementById("log");
+  if(!log) return render();
+  log.innerHTML=`${(state.thread||[]).map(bubble).join("")}${state.typing?`<div class="muted">در حال نوشتن...</div>`:""}`;
+  log.scrollTop=log.scrollHeight;
 }
 async function sendChatPhoto(){
   const input=document.getElementById("chat-file");
@@ -363,21 +414,55 @@ async function sendChatPhoto(){
 }
 let recorder=null;
 async function toggleMic(){
+  if(window.AndroidHub&&AndroidHub.startVoice){
+    if(state.recording){AndroidHub.stopVoice(); return;}
+    const result=AndroidHub.startVoice();
+    if(result==="denied") return toast("اجازه میکروفن داده نشد. دوباره ویس را بزن.");
+    if(result==="settings") return toast("میکروفن در تنظیمات گوشی بسته است.");
+    if(result!=="ok") return toast("ضبط شروع نشد.");
+    state.recording=true;
+    state.voiceAt=Date.now();
+    showVoiceBar();
+    return;
+  }
   if(recorder){recorder.stop(); recorder=null; return;}
-  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-  const rec=new MediaRecorder(stream);
-  const chunks=[];
-  rec.ondataavailable=(event)=>chunks.push(event.data);
-  rec.onstop=async()=>{
-    stream.getTracks().forEach((track)=>track.stop());
-    const blob=new Blob(chunks,{type:rec.mimeType||"audio/webm"});
-    const audio=await blobToData(blob);
-    const data=await api({action:"send",to:state.withId,audio});
-    state.thread=data.messages||[]; render();
-  };
-  rec.start(); recorder=rec; toast("در حال ضبط... دوباره بزن تا فرستاده شود");
-  setTimeout(()=>{if(recorder){recorder.stop(); recorder=null;}},20000);
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    const rec=new MediaRecorder(stream);
+    const chunks=[];
+    rec.ondataavailable=(event)=>{if(event.data&&event.data.size) chunks.push(event.data);};
+    rec.onstop=async()=>{
+      stream.getTracks().forEach((track)=>track.stop());
+      const blob=new Blob(chunks,{type:rec.mimeType||"audio/webm"});
+      if(blob.size<400) return toast("ویس خالی است.");
+      const audio=await blobToData(blob);
+      const data=await api({action:"send",to:state.withId,audio,clientId:crypto.randomUUID()});
+      state.thread=data.messages||[]; paintThread();
+    };
+    rec.start(); recorder=rec; toast("در حال ضبط... دوباره بزن تا فرستاده شود");
+    setTimeout(()=>{if(recorder){recorder.stop(); recorder=null;}},20000);
+  }catch(err){toast("میکروفن در دسترس نیست.");}
 }
+function showVoiceBar(){
+  clearInterval(state.voiceTimer);
+  let bar=document.getElementById("voice-bar");
+  if(!bar){bar=document.createElement("div"); bar.id="voice-bar"; bar.className="composer"; document.querySelector(".chat")?.appendChild(bar);}
+  const draw=()=>{const secs=Math.max(0,Math.round((Date.now()-state.voiceAt)/1000)); bar.innerHTML=`<span>در حال ضبط ${secs}ث</span><button type="button" id="voice-cancel">لغو</button><button type="button" id="voice-send">ارسال ویس</button>`; document.getElementById("voice-cancel").onclick=()=>{state.recording=false; clearInterval(state.voiceTimer); bar.remove(); AndroidHub.cancelVoice&&AndroidHub.cancelVoice();}; document.getElementById("voice-send").onclick=()=>{state.recording=false; clearInterval(state.voiceTimer); bar.remove(); AndroidHub.stopVoice();};};
+  draw();
+  state.voiceTimer=setInterval(draw,1000);
+}
+window.hubVoiceReady=function(){toast("اجازه داده شد. ویس را دوباره بزن.");};
+window.hubVoice=async function(dataUrl){
+  state.recording=false;
+  clearInterval(state.voiceTimer);
+  document.getElementById("voice-bar")?.remove();
+  if(!dataUrl) return toast("ضبط لغو شد.");
+  try{
+    const data=await api({action:"send",to:state.withId,audio:dataUrl,clientId:crypto.randomUUID()});
+    state.thread=data.messages||[];
+    paintThread();
+  }catch(err){toast(err.message||"ویس ارسال نشد.");}
+};
 function blobToData(blob){return new Promise((resolve)=>{const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.readAsDataURL(blob);});}
 async function share(item){
   const text=`${item?.caption||"کار جدید در تاتوهاب"}\nتاتوهاب`;
@@ -419,13 +504,30 @@ async function tick(){
   try{
     if(state.screen==="thread"&&state.withId){
       const data=await api({action:"thread",withId:state.withId});
-      const before=(state.thread||[]).length;
-      state.thread=data.messages||[]; state.typing=data.typing;
-      if(state.thread.length!==before||data.typing) render();
+      const before=(state.thread||[]).map((item)=>item.id).join();
+      const next=(data.messages||[]).map((item)=>item.id).join();
+      state.typing=data.typing;
+      if(before!==next||data.typing){state.thread=data.messages||[]; paintThread();}
+      return;
     }
     await refresh();
   }catch(e){}
 }
+async function doLogout(){
+  if(!confirm(state.lang==="en"?"Log out of this account?":"از این حساب خارج شوی؟")) return;
+  try{await api({action:"logout"});}catch(e){}
+  localStorage.removeItem("hub-token");
+  if(window.AndroidHub&&AndroidHub.logout) AndroidHub.logout();
+  state.data=null; state.screen="feed"; state.thread=[];
+  await refresh().catch(()=>{});
+  render();
+}
+window.hubBack=function(){
+  if(document.querySelector(".viewer")){closeStory(); return true;}
+  if(state.screen==="thread"){state.screen="inbox"; render(); return true;}
+  if(state.screen!=="feed"){state.screen="feed"; render(); return true;}
+  return false;
+};
 document.querySelectorAll(".nav button").forEach((button)=>button.onclick=()=>{state.screen=button.dataset.go; render();});
 document.getElementById("about").onclick=()=>{state.screen="about"; render();};
 window.hubSignedIn=async function(value){localStorage.setItem("hub-token",value); await refresh();};
