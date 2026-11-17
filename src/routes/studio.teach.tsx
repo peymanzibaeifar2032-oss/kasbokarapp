@@ -177,22 +177,18 @@ function TeachPage() {
               ))}
             </div>
           ) : null}
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs font-bold">
+          <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs font-bold">
             <a href="/studio/class" className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl bg-[#eef3ff] px-1 py-2 text-[#2d5bd8]">
               <Eye className="size-4 shrink-0" />
               <span>صفحهٔ کلاس</span>
               <span className="text-[10px] font-medium" dir="ltr">kasbokarapp.com/studio/class</span>
             </a>
-            <a href="/api/tattoo-apk" className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl bg-[#f3f4fb] px-1 py-2 text-[#3a4466]">
-              <Download className="size-4 shrink-0" />
-              دانلود اپ ۱.۵.۰
-            </a>
             <a href="https://kasbokarapp.netlify.app/downloads/tattoo-class-1.6.0.apk" className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl bg-[#f2f0ff] px-1 py-2 text-[#5b4ddb]">
               <Download className="size-4 shrink-0" />
-              دانلود اپ ۱.۶.۰ (طرح رنگی، پیشرفت، PDF)
+              دانلود اپ ۱.۶.۰
             </a>
           </div>
-          <p className="mt-1 text-[11px] leading-5 text-muted">اپ ۱.۶.۰: پیش از نصب، نسخهٔ ۱.۵.۰ را پاک کن.</p>
+          <p className="mt-1 text-[11px] leading-5 text-muted">فقط همین نسخه روی گوشی بماند. نسخه‌های قدیمی‌تر را نصب نکن.</p>
           {snap?.ownerCode ? (
             <label className="mt-2 grid gap-1 rounded-2xl bg-[#fff6ec] p-2">
               <span className="px-1 text-xs font-bold text-[#b45f0e]">کد ورود خودت، مثل کارآموز</span>
