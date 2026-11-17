@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ورود تاتوهاب</title>
 </head>
-<body style="font-family:Tahoma,sans-serif;padding:24px">
-<p>در حال اتصال حساب گوگل به تاتوهاب...</p>
+<body style="font-family:Tahoma,sans-serif;background:#fff;color:#111;padding:24px;line-height:1.8">
+<p id="status">در حال اتصال حساب گوگل به تاتوهاب...</p>
+<p><a id="open" hidden style="display:inline-block;background:#111;color:#fff;text-decoration:none;border-radius:12px;padding:12px 18px">بازگشت به تاتوهاب</a></p>
 <script>
 async function go() {
   const res = await fetch("/api/tattoohub", {
@@ -21,15 +22,15 @@ async function go() {
   }
   const data = await res.json().catch(() => ({}));
   if (!data.token) {
-    document.body.textContent = data.error || "ورود انجام نشد.";
+    document.getElementById("status").textContent = data.error || "ورود انجام نشد.";
     return;
   }
-  const token = encodeURIComponent(data.token);
-  const intent = "intent://auth?token=" + token + "#Intent;scheme=tattoohub;package=com.peymanzibaeifar.tattoohub;end";
-  location.replace(intent);
-  setTimeout(() => {
-    document.body.innerHTML = "<p>اگر اپ باز نشد این دکمه را بزن.</p><p><a href='" + intent + "'>بازگشت به تاتوهاب</a></p>";
-  }, 900);
+  const openUrl = "tattoohub://auth?token=" + encodeURIComponent(data.token);
+  const link = document.getElementById("open");
+  link.href = openUrl;
+  link.hidden = false;
+  document.getElementById("status").textContent = "اگر اپ خودش باز نشد، دکمه را بزن.";
+  location.href = openUrl;
 }
 go();
 </script>
