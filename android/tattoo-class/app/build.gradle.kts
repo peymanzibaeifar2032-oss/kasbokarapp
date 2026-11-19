@@ -13,8 +13,8 @@ android {
         applicationId = "com.kasbokar.tattooclass"
         minSdk = 24
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.6.0"
+        versionCode = 9
+        versionName = "1.6.1"
     }
 
     val keystorePropertiesFile = rootProject.file("keystore.properties")
