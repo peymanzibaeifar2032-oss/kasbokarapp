@@ -47,6 +47,8 @@ class MainActivity : Activity() {
     private var level = ""
     private var onlyUnread = false
     private var synced = false
+    /** Last percentage each bar showed, so a redraw glides from there instead of jumping. */
+    private val shownPercent = mutableMapOf<String, Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +57,12 @@ class MainActivity : Activity() {
             setContentView(frame)
             window.decorView.setBackgroundColor(pageColor())
             token = prefs.getString("token", "").orEmpty()
+            val preview = Hooks.index(intent)
+            if (preview != null) {
+                remember(preview)
+                show(Hooks.screen(intent) ?: "home", reset = true)
+                return
+            }
             show(if (token.isBlank()) "gate" else "home", reset = true)
         } catch (error: Throwable) {
             val text = TextView(this)
@@ -110,6 +118,7 @@ class MainActivity : Activity() {
             "progress" -> progressScreen(page)
             else -> if (screen.startsWith("lesson:")) lesson(page, screen.removePrefix("lesson:"))
         }
+        Hooks.afterRender(this, view, pageColor())
     }
 
     // ---------- gate ----------
@@ -119,7 +128,7 @@ class MainActivity : Activity() {
         page.addView(space(24))
         val logo = ImageView(this).apply { setImageResource(R.mipmap.ic_launcher) }
         page.addView(logo, LinearLayout.LayoutParams(dp(88), dp(88)).apply { gravity = Gravity.CENTER_HORIZONTAL })
-        page.addView(kicker("نسخه ۱.۶.۰", VIOLET).apply { gravity = Gravity.CENTER; setPadding(0, dp(12), 0, 0) }, match())
+        page.addView(kicker("نسخه ۱.۶.۱", VIOLET).apply { gravity = Gravity.CENTER; setPadding(0, dp(12), 0, 0) }, match())
         page.addView(brandTitle(30f).apply { gravity = Gravity.CENTER }, match())
         page.addView(body("این کلاس فقط برای کسی است که پرداخت کرده و کد ورود گرفته. بدون کد، درسی نشان داده نمی‌شود.").apply { gravity = Gravity.CENTER })
         val input = EditText(this).apply {
@@ -167,6 +176,10 @@ class MainActivity : Activity() {
         header(page)
         val host = column().apply { setPadding(0, 0, 0, 0) }
         page.addView(host)
+        if (Hooks.index(intent) != null) {
+            lastIndex?.let { homeView(host, it) }
+            return
+        }
         val cached = lastIndex
         if (cached != null) {
             homeView(host, cached)
@@ -257,24 +270,19 @@ class MainActivity : Activity() {
         val card = column()
         card.background = gradient(intArrayOf(VIOLET, 0xFF5B8DEF.toInt()))
         card.setPadding(dp(18), dp(16), dp(18), dp(16))
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(TextView(this).apply { text = "پیشرفت من"; textSize = 14f; setTextColor(0xE6FFFFFF.toInt()) })
-        texts.addView(TextView(this).apply {
+        // The 100% glow may spill into the padding.
+        card.clipChildren = false
+        card.clipToPadding = false
+        card.addView(TextView(this).apply { text = "پیشرفت من"; textSize = 14f; setTypeface(typeface, Typeface.BOLD); setTextColor(0xE6FFFFFF.toInt()) })
+        // The percentage lives above the apprentice only; it is not repeated beside the bar.
+        card.addView(apprenticeBar("all", percent, compact = false, fromZero = true), match().apply { topMargin = dp(4) })
+        card.addView(TextView(this).apply {
             text = "${fa(finished)} از ${fa(all.size)} درس تمام شده"
-            textSize = 17f
+            textSize = 16f
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
+            setPadding(0, dp(8), 0, 0)
         })
-        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(TextView(this).apply {
-            text = "${fa(percent)}٪"
-            textSize = 30f
-            setTypeface(typeface, Typeface.BOLD)
-            setTextColor(0xFFFFFFFF.toInt())
-        })
-        card.addView(row)
-        card.addView(bar(percent, 0xFFFFFFFF.toInt(), 0x40FFFFFF), match().apply { topMargin = dp(10) })
         val partsDone = index.parts.count { part -> part.lessons().let { list -> list.isNotEmpty() && list.all { it.id in done } } }
         val line = when {
             all.isNotEmpty() && finished == all.size -> "🏅 نشان کامل دوره: همهٔ درس‌ها را تمام کردی!"
@@ -382,10 +390,10 @@ class MainActivity : Activity() {
         if (all.isNotEmpty() && finished == all.size) top.addView(badge("🎖 کامل", 0x33000000))
         band.addView(top)
         band.addView(TextView(this).apply { text = part.title; textSize = 19f; setTypeface(typeface, Typeface.BOLD); setTextColor(0xFFFFFFFF.toInt()); setPadding(0, dp(4), 0, 0) })
-        val progressRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        progressRow.addView(bar(percent, 0xFFFFFFFF.toInt(), 0x40FFFFFF), LinearLayout.LayoutParams(0, dp(8), 1f))
-        progressRow.addView(TextView(this).apply { text = "  ${fa(finished)}/${fa(all.size)} · ${fa(percent)}٪"; textSize = 12f; setTextColor(0xFFFFFFFF.toInt()) })
-        band.addView(progressRow, match().apply { topMargin = dp(8) })
+        band.clipChildren = false
+        band.clipToPadding = false
+        band.addView(apprenticeBar("part:${part.title}", percent, compact = true), match().apply { topMargin = dp(6) })
+        band.addView(TextView(this).apply { text = "${fa(finished)} از ${fa(all.size)} درس تمام شده"; textSize = 12f; setTypeface(typeface, Typeface.BOLD); setTextColor(0xF2FFFFFF.toInt()); setPadding(0, dp(4), 0, 0) })
         card.addView(band, match())
         val key = part.title
         val open = filtering || key !in closedParts
@@ -481,10 +489,13 @@ class MainActivity : Activity() {
             }, LinearLayout.LayoutParams(dp(44), LinearLayout.LayoutParams.WRAP_CONTENT))
             val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             texts.addView(title(part.title, 16f))
-            texts.addView(TextView(this).apply { text = "${part.level.ifBlank { "—" }} · ${fa(finished)} از ${fa(all.size)} · ${fa(percent)}٪"; textSize = 12f; setTextColor(muted()) })
+            texts.addView(TextView(this).apply { text = part.level.ifBlank { "—" }; textSize = 12f; setTextColor(muted()) })
             row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
             card.addView(row)
-            card.addView(bar(percent, color, if (night()) 0x33FFFFFF else 0x14000000), match().apply { topMargin = dp(10) })
+            card.clipChildren = false
+            card.clipToPadding = false
+            card.addView(apprenticeBar("badge:${part.title}", percent, compact = true, onLight = !night(), rim = night(), fromZero = true), match().apply { topMargin = dp(8) })
+            card.addView(TextView(this).apply { text = "${fa(finished)} از ${fa(all.size)} درس تمام شده"; textSize = 12f; setTextColor(muted()); setPadding(0, dp(4), 0, 0) })
             page.addView(card, match().apply { topMargin = dp(12) })
         }
         page.addView(body("تیک هر درس روی همین گوشی ذخیره می‌شود و با کد ورودت روی سایت هم نگه داشته می‌شود؛ اگر گوشی را عوض کنی، برمی‌گردد.").apply { textSize = 13f; setTextColor(muted()) })
@@ -814,7 +825,7 @@ class MainActivity : Activity() {
         page.addView(stripe())
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, dp(12), 0, 0) }
         val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        texts.addView(kicker("استودیو پیمان زیبائی‌فر · نسخه ۱.۶.۰", TEAL))
+        texts.addView(kicker("استودیو پیمان زیبائی‌فر · نسخه ۱.۶.۱", TEAL))
         texts.addView(brandTitle(23f))
         row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(smallChip(if (night()) "☀ روشن" else "☾ تیره") {
@@ -876,7 +887,7 @@ class MainActivity : Activity() {
 
     // ---------- progress store ----------
 
-    private fun done(): Set<String> = prefs.getStringSet("done", emptySet()).orEmpty()
+    private fun done(): Set<String> = Hooks.done(intent) ?: prefs.getStringSet("done", emptySet()).orEmpty()
 
     private fun setDone(id: String, value: Boolean) {
         val next = done().toMutableSet()
@@ -1052,20 +1063,14 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
-    private fun bar(percent: Int, color: Int, track: Int): View {
-        val outer = FrameLayout(this)
-        outer.background = fill(track, 999)
-        val inner = View(this).apply { background = fill(color, 999) }
-        outer.addView(inner, FrameLayout.LayoutParams(0, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.START))
-        outer.layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(8))
-        outer.addOnLayoutChangeListener { v, left, _, right, _, _, _, _, _ ->
-            val width = ((right - left) * percent.coerceIn(0, 100) / 100)
-            if (inner.layoutParams.width != width) {
-                inner.layoutParams = (inner.layoutParams as FrameLayout.LayoutParams).apply { this.width = width }
-                v.post { inner.requestLayout() }
-            }
-        }
-        return outer
+    /** The moving-apprentice bar. [fromZero] replays the fill when a screen opens; otherwise it glides from the last value. */
+    private fun apprenticeBar(key: String, percent: Int, compact: Boolean, onLight: Boolean = false, rim: Boolean = false, fromZero: Boolean = false): View {
+        val view = ApprenticeProgressView(this, compact, onLight, rim)
+        val from = if (fromZero) 0 else shownPercent[key] ?: 0
+        shownPercent[key] = percent
+        view.setProgress(percent, from = from)
+        if (Hooks.holdGlow(intent)) view.holdGlow = true
+        return view
     }
 
     private fun cardButton(kicker: String, heading: String, detail: String, onClick: () -> Unit): View {
