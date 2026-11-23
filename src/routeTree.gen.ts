@@ -18,7 +18,9 @@ import { Route as DownloadRouteImport } from './routes/download'
 import { Route as KharidVamMehrRouteImport } from './routes/kharid-vam-mehr'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as PeymanZibaeifarRouteImport } from './routes/peyman-zibaeifar'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SearchEngineRouteImport } from './routes/search-engine'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as TattooPrepRouteImport } from './routes/tattoo-prep'
 import { Route as TermsRouteImport } from './routes/terms'
@@ -35,6 +37,7 @@ import { Route as ApiPasswordResetRouteImport } from './routes/api/password-rese
 import { Route as ApiPocketLicenseRouteImport } from './routes/api/pocket-license'
 import { Route as ApiPocketRequestRouteImport } from './routes/api/pocket-request'
 import { Route as ApiSaveRouteImport } from './routes/api/save'
+import { Route as ApiSearchEngineRouteImport } from './routes/api/search-engine'
 import { Route as ApiSearchTraceRouteImport } from './routes/api/search-trace'
 import { Route as ApiSetAppPasswordRouteImport } from './routes/api/set-app-password'
 import { Route as ApiTattooApkRouteImport } from './routes/api/tattoo-apk'
@@ -112,9 +115,19 @@ const NotificationsRoute = NotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PeymanZibaeifarRoute = PeymanZibaeifarRouteImport.update({
+  id: '/peyman-zibaeifar',
+  path: '/peyman-zibaeifar',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SearchEngineRoute = SearchEngineRouteImport.update({
+  id: '/search-engine',
+  path: '/search-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudioRoute = StudioRouteImport.update({
@@ -195,6 +208,11 @@ const ApiPocketRequestRoute = ApiPocketRequestRouteImport.update({
 const ApiSaveRoute = ApiSaveRouteImport.update({
   id: '/api/save',
   path: '/api/save',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSearchEngineRoute = ApiSearchEngineRouteImport.update({
+  id: '/api/search-engine',
+  path: '/api/search-engine',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSearchTraceRoute = ApiSearchTraceRouteImport.update({
@@ -363,7 +381,9 @@ export interface FileRoutesByFullPath {
   '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/peyman-zibaeifar': typeof PeymanZibaeifarRoute
   '/privacy': typeof PrivacyRoute
+  '/search-engine': typeof SearchEngineRoute
   '/studio': typeof StudioRouteWithChildren
   '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
@@ -380,6 +400,7 @@ export interface FileRoutesByFullPath {
   '/api/pocket-license': typeof ApiPocketLicenseRoute
   '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
+  '/api/search-engine': typeof ApiSearchEngineRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
@@ -422,7 +443,9 @@ export interface FileRoutesByTo {
   '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/peyman-zibaeifar': typeof PeymanZibaeifarRoute
   '/privacy': typeof PrivacyRoute
+  '/search-engine': typeof SearchEngineRoute
   '/studio': typeof StudioRouteWithChildren
   '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
@@ -439,6 +462,7 @@ export interface FileRoutesByTo {
   '/api/pocket-license': typeof ApiPocketLicenseRoute
   '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
+  '/api/search-engine': typeof ApiSearchEngineRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
@@ -482,7 +506,9 @@ export interface FileRoutesById {
   '/kharid-vam-mehr': typeof KharidVamMehrRouteWithChildren
   '/login': typeof LoginRoute
   '/notifications': typeof NotificationsRoute
+  '/peyman-zibaeifar': typeof PeymanZibaeifarRoute
   '/privacy': typeof PrivacyRoute
+  '/search-engine': typeof SearchEngineRoute
   '/studio': typeof StudioRouteWithChildren
   '/tattoo-prep': typeof TattooPrepRoute
   '/terms': typeof TermsRoute
@@ -499,6 +525,7 @@ export interface FileRoutesById {
   '/api/pocket-license': typeof ApiPocketLicenseRoute
   '/api/pocket-request': typeof ApiPocketRequestRoute
   '/api/save': typeof ApiSaveRoute
+  '/api/search-engine': typeof ApiSearchEngineRoute
   '/api/search-trace': typeof ApiSearchTraceRoute
   '/api/set-app-password': typeof ApiSetAppPasswordRoute
   '/api/tattoo-apk': typeof ApiTattooApkRoute
@@ -543,7 +570,9 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
+    | '/peyman-zibaeifar'
     | '/privacy'
+    | '/search-engine'
     | '/studio'
     | '/tattoo-prep'
     | '/terms'
@@ -560,6 +589,7 @@ export interface FileRouteTypes {
     | '/api/pocket-license'
     | '/api/pocket-request'
     | '/api/save'
+    | '/api/search-engine'
     | '/api/search-trace'
     | '/api/set-app-password'
     | '/api/tattoo-apk'
@@ -602,7 +632,9 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
+    | '/peyman-zibaeifar'
     | '/privacy'
+    | '/search-engine'
     | '/studio'
     | '/tattoo-prep'
     | '/terms'
@@ -619,6 +651,7 @@ export interface FileRouteTypes {
     | '/api/pocket-license'
     | '/api/pocket-request'
     | '/api/save'
+    | '/api/search-engine'
     | '/api/search-trace'
     | '/api/set-app-password'
     | '/api/tattoo-apk'
@@ -661,7 +694,9 @@ export interface FileRouteTypes {
     | '/kharid-vam-mehr'
     | '/login'
     | '/notifications'
+    | '/peyman-zibaeifar'
     | '/privacy'
+    | '/search-engine'
     | '/studio'
     | '/tattoo-prep'
     | '/terms'
@@ -678,6 +713,7 @@ export interface FileRouteTypes {
     | '/api/pocket-license'
     | '/api/pocket-request'
     | '/api/save'
+    | '/api/search-engine'
     | '/api/search-trace'
     | '/api/set-app-password'
     | '/api/tattoo-apk'
@@ -721,7 +757,9 @@ export interface RootRouteChildren {
   KharidVamMehrRoute: typeof KharidVamMehrRouteWithChildren
   LoginRoute: typeof LoginRoute
   NotificationsRoute: typeof NotificationsRoute
+  PeymanZibaeifarRoute: typeof PeymanZibaeifarRoute
   PrivacyRoute: typeof PrivacyRoute
+  SearchEngineRoute: typeof SearchEngineRoute
   StudioRoute: typeof StudioRouteWithChildren
   TattooPrepRoute: typeof TattooPrepRoute
   TermsRoute: typeof TermsRoute
@@ -738,6 +776,7 @@ export interface RootRouteChildren {
   ApiPocketLicenseRoute: typeof ApiPocketLicenseRoute
   ApiPocketRequestRoute: typeof ApiPocketRequestRoute
   ApiSaveRoute: typeof ApiSaveRoute
+  ApiSearchEngineRoute: typeof ApiSearchEngineRoute
   ApiSearchTraceRoute: typeof ApiSearchTraceRoute
   ApiSetAppPasswordRoute: typeof ApiSetAppPasswordRoute
   ApiTattooApkRoute: typeof ApiTattooApkRoute
@@ -820,11 +859,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/peyman-zibaeifar': {
+      id: '/peyman-zibaeifar'
+      path: '/peyman-zibaeifar'
+      fullPath: '/peyman-zibaeifar'
+      preLoaderRoute: typeof PeymanZibaeifarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
       id: '/privacy'
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search-engine': {
+      id: '/search-engine'
+      path: '/search-engine'
+      fullPath: '/search-engine'
+      preLoaderRoute: typeof SearchEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/studio': {
@@ -937,6 +990,13 @@ declare module '@tanstack/react-router' {
       path: '/api/save'
       fullPath: '/api/save'
       preLoaderRoute: typeof ApiSaveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/search-engine': {
+      id: '/api/search-engine'
+      path: '/api/search-engine'
+      fullPath: '/api/search-engine'
+      preLoaderRoute: typeof ApiSearchEngineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/search-trace': {
@@ -1220,7 +1280,9 @@ const rootRouteChildren: RootRouteChildren = {
   KharidVamMehrRoute: KharidVamMehrRouteWithChildren,
   LoginRoute: LoginRoute,
   NotificationsRoute: NotificationsRoute,
+  PeymanZibaeifarRoute: PeymanZibaeifarRoute,
   PrivacyRoute: PrivacyRoute,
+  SearchEngineRoute: SearchEngineRoute,
   StudioRoute: StudioRouteWithChildren,
   TattooPrepRoute: TattooPrepRoute,
   TermsRoute: TermsRoute,
@@ -1237,6 +1299,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPocketLicenseRoute: ApiPocketLicenseRoute,
   ApiPocketRequestRoute: ApiPocketRequestRoute,
   ApiSaveRoute: ApiSaveRoute,
+  ApiSearchEngineRoute: ApiSearchEngineRoute,
   ApiSearchTraceRoute: ApiSearchTraceRoute,
   ApiSetAppPasswordRoute: ApiSetAppPasswordRoute,
   ApiTattooApkRoute: ApiTattooApkRoute,

@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { BadgeCheck, CalendarDays, MapPinned, MessageCircle, Store } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { BadgeCheck, CalendarDays, MapPinned, MessageCircle, Store, User } from "lucide-react";
 import { Shell } from "@/components/layout/shell";
 
 export const Route = createFileRoute("/about")({ component: About });
@@ -20,6 +20,7 @@ function About() {
         <Feature icon={BadgeCheck} title="بررسی مدیریت" text="تأیید کسب‌وکار پیش از نمایش عمومی." />
         <Feature icon={Store} title="ثبت رایگان" text="۷ روز نمایش رایگان پس از تأیید." />
       </div>
+
       <section className="mt-10 max-w-lg rounded-2xl border border-border bg-surface p-5">
         <p className="text-sm text-muted">سازنده محصول</p>
         <h2 className="mt-1 text-xl font-semibold">پیمان زیبائی‌فر</h2>
@@ -28,6 +29,13 @@ function About() {
           <br />
           ۰۹۲۱۶۸۱۲۸۵۲
         </p>
+        <Link
+          to="/peyman-zibaeifar"
+          className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-accent hover:underline"
+        >
+          <User className="size-4" />
+          رزومه و بیوگرافی حرفه‌ای تاتو آرتیست
+        </Link>
       </section>
     </Shell>
   );
