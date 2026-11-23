@@ -57,6 +57,7 @@ import { Route as StudioLearnRouteImport } from './routes/studio.learn'
 import { Route as StudioLicensesRouteImport } from './routes/studio.licenses'
 import { Route as StudioOpenRouteImport } from './routes/studio.open'
 import { Route as StudioPocketRouteImport } from './routes/studio.pocket'
+import { Route as StudioPocketContactsRouteImport } from './routes/studio.pocket-contacts'
 import { Route as StudioRequestRouteImport } from './routes/studio.request'
 import { Route as StudioStatusRouteImport } from './routes/studio.status'
 import { Route as StudioTeachRouteImport } from './routes/studio.teach'
@@ -306,6 +307,11 @@ const StudioPocketRoute = StudioPocketRouteImport.update({
   path: '/pocket',
   getParentRoute: () => StudioRoute,
 } as any)
+const StudioPocketContactsRoute = StudioPocketContactsRouteImport.update({
+  id: '/pocket-contacts',
+  path: '/pocket-contacts',
+  getParentRoute: () => StudioRoute,
+} as any)
 const StudioRequestRoute = StudioRequestRouteImport.update({
   id: '/request',
   path: '/request',
@@ -396,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/studio/licenses': typeof StudioLicensesRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
+  '/studio/pocket-contacts': typeof StudioPocketContactsRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
   '/studio/teach': typeof StudioTeachRoute
@@ -454,6 +461,7 @@ export interface FileRoutesByTo {
   '/studio/licenses': typeof StudioLicensesRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
+  '/studio/pocket-contacts': typeof StudioPocketContactsRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
   '/studio/teach': typeof StudioTeachRoute
@@ -513,6 +521,7 @@ export interface FileRoutesById {
   '/studio/licenses': typeof StudioLicensesRoute
   '/studio/open': typeof StudioOpenRoute
   '/studio/pocket': typeof StudioPocketRoute
+  '/studio/pocket-contacts': typeof StudioPocketContactsRoute
   '/studio/request': typeof StudioRequestRoute
   '/studio/status': typeof StudioStatusRoute
   '/studio/teach': typeof StudioTeachRoute
@@ -573,6 +582,7 @@ export interface FileRouteTypes {
     | '/studio/licenses'
     | '/studio/open'
     | '/studio/pocket'
+    | '/studio/pocket-contacts'
     | '/studio/request'
     | '/studio/status'
     | '/studio/teach'
@@ -631,6 +641,7 @@ export interface FileRouteTypes {
     | '/studio/licenses'
     | '/studio/open'
     | '/studio/pocket'
+    | '/studio/pocket-contacts'
     | '/studio/request'
     | '/studio/status'
     | '/studio/teach'
@@ -689,6 +700,7 @@ export interface FileRouteTypes {
     | '/studio/licenses'
     | '/studio/open'
     | '/studio/pocket'
+    | '/studio/pocket-contacts'
     | '/studio/request'
     | '/studio/status'
     | '/studio/teach'
@@ -1081,6 +1093,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudioPocketRouteImport
       parentRoute: typeof StudioRoute
     }
+    '/studio/pocket-contacts': {
+      id: '/studio/pocket-contacts'
+      path: '/pocket-contacts'
+      fullPath: '/studio/pocket-contacts'
+      preLoaderRoute: typeof StudioPocketContactsRouteImport
+      parentRoute: typeof StudioRoute
+    }
     '/studio/request': {
       id: '/studio/request'
       path: '/request'
@@ -1164,6 +1183,7 @@ interface StudioRouteChildren {
   StudioLicensesRoute: typeof StudioLicensesRoute
   StudioOpenRoute: typeof StudioOpenRoute
   StudioPocketRoute: typeof StudioPocketRoute
+  StudioPocketContactsRoute: typeof StudioPocketContactsRoute
   StudioRequestRoute: typeof StudioRequestRoute
   StudioStatusRoute: typeof StudioStatusRoute
   StudioTeachRoute: typeof StudioTeachRoute
@@ -1181,6 +1201,7 @@ const StudioRouteChildren: StudioRouteChildren = {
   StudioLicensesRoute: StudioLicensesRoute,
   StudioOpenRoute: StudioOpenRoute,
   StudioPocketRoute: StudioPocketRoute,
+  StudioPocketContactsRoute: StudioPocketContactsRoute,
   StudioRequestRoute: StudioRequestRoute,
   StudioStatusRoute: StudioStatusRoute,
   StudioTeachRoute: StudioTeachRoute,

@@ -34,6 +34,8 @@ export class LicenseError extends Error {
 export type LicensePayload = {
   v: number; iss: string; aud: string; kid: string; lid: string; dev: string;
   iat: number; nbf: number; exp: number; olu: number; self: boolean; n: string;
+  /** Contact codes only: "local" = this phone keeps its own data offline; never an owner-data grant. */
+  scope?: "local";
 };
 
 const b64u = (b: Buffer) => b.toString("base64url");
@@ -167,6 +169,7 @@ type LicenseRow = {
   id: string; owner_user_id: string; label: string; is_self: boolean; status: string;
   valid_from: string | Date; expires_at: string | Date; max_devices: number; active_devices: number;
   offline_lease_hours: number; created_at: string | Date; revoked_at: string | Date | null;
+  kind?: string | null; note?: string | null;
 };
 
 const ms = (d: string | Date) => new Date(d).getTime();
@@ -178,6 +181,7 @@ function issueToken(key: SigningKey, lic: LicenseRow, device: string, now: numbe
     v: LICENSE_VERSION, iss: LICENSE_ISS, aud: LICENSE_AUD, kid: key.kid, lid: lic.id, dev: device,
     iat: nowS, nbf: Math.floor(ms(lic.valid_from) / 1000), exp,
     olu: Math.min(exp, nowS + lic.offline_lease_hours * 3600), self: !!lic.is_self, n: randomBytes(8).toString("hex"),
+    ...(lic.kind === "contact" && !lic.is_self ? { scope: "local" as const } : {}),
   };
   return { token: signLicense(payload, key), payload, serverNow: nowS };
 }
@@ -270,6 +274,8 @@ function publicView(l: LicenseRow) {
     id: l.id, label: l.label, self: !!l.is_self, status: l.status,
     validFrom: new Date(l.valid_from).toISOString(), expiresAt: new Date(l.expires_at).toISOString(),
     maxDevices: l.max_devices, activeDevices: l.active_devices, offlineLeaseHours: l.offline_lease_hours,
+    kind: l.kind === "contact" ? "contact" as const : "customer" as const, note: l.note ?? null,
+    createdAt: new Date(l.created_at).toISOString(), revokedAt: l.revoked_at ? new Date(l.revoked_at).toISOString() : null,
   };
 }
 
@@ -295,12 +301,14 @@ export async function ownerIssue(sql: LicenseSql, ownerUserId: string, raw: Reco
   const expiresAt = parseExpiry(raw.expiresAt, now);
   const maxDevices = intIn(raw.maxDevices, 1, MAX_DEVICES, 1, `تعداد دستگاه ۱ تا ${MAX_DEVICES}.`);
   const lease = intIn(raw.offlineLeaseHours, 1, MAX_OFFLINE_LEASE_HOURS, DEFAULT_OFFLINE_LEASE_HOURS, "مهلت آفلاین ۱ تا ۱۶۸ ساعت.");
+  const kind = raw.kind === "contact" ? "contact" : "customer";
+  const note = typeof raw.note === "string" && raw.note.trim() ? raw.note.trim().slice(0, 300) : null;
   const code = generateActivationCode();
   const id = `lic_${randomUUID()}`;
   await sql.query(
-    `insert into pocket_licenses (id, owner_user_id, label, code_hash, expires_at, max_devices, offline_lease_hours, valid_from)
-     values ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [id, ownerUserId, label, hmac(secret, "code", normalizeCode(code)!), expiresAt, maxDevices, lease, new Date(now).toISOString()],
+    `insert into pocket_licenses (id, owner_user_id, label, code_hash, expires_at, max_devices, offline_lease_hours, valid_from, kind, note)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [id, ownerUserId, label, hmac(secret, "code", normalizeCode(code)!), expiresAt, maxDevices, lease, new Date(now).toISOString(), kind, note],
   );
   return { id, code }; // code is returned exactly once; never stored in plaintext
 }
@@ -336,6 +344,29 @@ export async function ownerRevoke(sql: LicenseSql, raw: Record<string, unknown>)
     [String(raw.id ?? "")],
   );
   if (!rows[0]) throw new LicenseError("bad_request", "مجوز پیدا نشد (مجوز شخصی صاحب برنامه لغوشدنی نیست).");
+  return { ok: true };
+}
+
+/** Re-enable a revoked (non-self) code. Devices bound before the revoke stay bound; the code is unchanged. */
+export async function ownerReactivate(sql: LicenseSql, raw: Record<string, unknown>, now = Date.now()) {
+  const rows = await sql.query<{ id: string }>(
+    "update pocket_licenses set status = 'active', revoked_at = null, updated_at = now() where id = $1 and not is_self and status = 'revoked' and expires_at > $2 returning id",
+    [String(raw.id ?? ""), new Date(now).toISOString()],
+  );
+  if (!rows[0]) throw new LicenseError("bad_request", "مجوز لغوشده پیدا نشد (یا مهلتش تمام شده؛ اول تاریخ را تمدید کنید).");
+  return { ok: true };
+}
+
+/** Owner edits the label/note of a code (bookkeeping only; never changes access). */
+export async function ownerNote(sql: LicenseSql, raw: Record<string, unknown>) {
+  const label = String(raw.label ?? "").trim().slice(0, 80);
+  if (label.length < 2) throw new LicenseError("bad_request", "نام را بنویسید.");
+  const note = typeof raw.note === "string" && raw.note.trim() ? raw.note.trim().slice(0, 300) : null;
+  const rows = await sql.query<{ id: string }>(
+    "update pocket_licenses set label = $2, note = $3, updated_at = now() where id = $1 and not is_self returning id",
+    [String(raw.id ?? ""), label, note],
+  );
+  if (!rows[0]) throw new LicenseError("bad_request", "مجوز پیدا نشد.");
   return { ok: true };
 }
 
