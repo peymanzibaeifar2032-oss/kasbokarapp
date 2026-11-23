@@ -467,9 +467,14 @@ function StudioAdminPage() {
           </div>
           <div className="flex items-center gap-2">
             {owner ? (
-              <a href="/studio/teach" className="inline-flex h-9 items-center rounded-full bg-[#f2f0ff] px-3 text-sm font-bold text-[#5b4ddb]">
-                آموزش تاتو
-              </a>
+              <>
+                <a href="/studio/teach" className="inline-flex h-9 items-center rounded-full bg-[#f2f0ff] px-3 text-sm font-bold text-[#5b4ddb]">
+                  آموزش تاتو
+                </a>
+                <a href="/studio/pocket-contacts" className="inline-flex h-9 items-center rounded-full bg-[#e8f6ff] px-3 text-sm font-bold text-[#0f6aa8]">
+                  کد مخاطبین تقویم
+                </a>
+              </>
             ) : null}
             <Button variant="outline" size="sm" className="rounded-full bg-white" onClick={() => void refresh()}>
               <RefreshCw className="size-4" /> تازه‌سازی
@@ -589,10 +594,15 @@ function StudioAdminPage() {
               ) : null,
             )}
             {owner ? (
-              <a href="/studio/teach" className="admin-grad flex h-12 items-center gap-2 rounded-2xl px-3 text-sm font-bold shadow-sm">
-                <Mark name="guide" className="size-4" />
-                آموزش تاتو
-              </a>
+              <>
+                <a href="/studio/teach" className="admin-grad flex h-12 items-center gap-2 rounded-2xl px-3 text-sm font-bold shadow-sm">
+                  <Mark name="guide" className="size-4" />
+                  آموزش تاتو
+                </a>
+                <a href="/studio/pocket-contacts" className="flex h-12 items-center gap-2 rounded-2xl bg-[#e8f6ff] px-3 text-sm font-bold text-[#0f6aa8] shadow-sm">
+                  کد مخاطبین تقویم
+                </a>
+              </>
             ) : null}
           </nav>
         </div>

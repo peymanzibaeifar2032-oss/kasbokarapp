@@ -29,3 +29,10 @@ No payments, subscriptions, prices or gateways. No telemetry/revenue derived fro
 
 ## Rotation
 New key = new `kid`. Ship an APK pinning old+new kids first, then switch the server slot. Migration 0059 is additive.
+
+## Contact codes (local-only phones) — migration 0077
+Owner panel: https://kasbokarapp.com/studio/pocket-contacts (owner-only, same gate as /studio/licenses).
+- One code per contact (name + note), `kind = 'contact'`. Token gets an extra signed claim `scope: "local"`; older APKs ignore it (no APK change needed).
+- A license token is **never** a site credential: `/api/save` identifies users only from the Better Auth session, so a contact phone gets 401 on every owner action (export/import/finance/jobs/license admin); a signed-in non-owner gets 403. The app's owner download needs the owner's own site session cookie, which a contact phone never has. Data entered on the contact phone stays in that phone's IndexedDB/localStorage.
+- Manage: list, devices + last check, rename/note (`pocketLicenseNote`), extend/devices/offline lease (`pocketLicenseUpdate`), new code (`pocketLicenseReissueCode`), disable (`pocketLicenseRevoke`), re-enable (`pocketLicenseReactivate`, only if not expired), release a phone. Disabling never deletes the contact's data; it takes effect at the phone's next online refresh or at its offline-lease end (max 168 h).
+- Tests: `src/lib/server/pocket-license-contacts.test.ts` (unit + contract), `scripts/pocket-contact-isolation-e2e.mjs` (real route handlers + Better Auth on in-process PGlite).

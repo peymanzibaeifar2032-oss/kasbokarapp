@@ -4911,6 +4911,8 @@ async function performPocketLicenseOwnerAction(userId: string, type: string, pay
       case "pocketLicenseRevoke": return await lic.ownerRevoke(sql, raw);
       case "pocketLicenseReissueCode": return await lic.ownerReissueCode(sql, raw);
       case "pocketLicenseReleaseDevice": return await lic.ownerReleaseDevice(sql, raw);
+      case "pocketLicenseReactivate": return await lic.ownerReactivate(sql, raw);
+      case "pocketLicenseNote": return await lic.ownerNote(sql, raw);
       case "pocketLicenseSelf": return await lic.selfLicense(sql, userId, { device: raw.device });
     }
   } catch (err) {
@@ -5087,6 +5089,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
     case "pocketLicenseRevoke":
     case "pocketLicenseReissueCode":
     case "pocketLicenseReleaseDevice":
+    case "pocketLicenseReactivate":
+    case "pocketLicenseNote":
     case "pocketLicenseSelf":
       return performPocketLicenseOwnerAction(userId, type, payload);
     case "studioPocketImport":
