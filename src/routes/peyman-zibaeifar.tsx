@@ -37,6 +37,8 @@ const IG = "https://www.instagram.com/peyman_zibaeifar_tattoo/";
 const TG = "https://t.me/Peyman_ART";
 const PINTEREST = "https://pin.it/5OMjDGMiD";
 const DHA = "https://www.dha.com.tr/gundem/dovme-sanatcilari-yaristi-1870315";
+const YENI_ALANYA = "https://www.yenialanya.com/cleopatra-inkten-dikkat-ceken-etkinlik";
+const ANTALYA_GUNCEL = "https://www.antalyaguncelhaber.com/alanya-haberleri-dovme-sanatcilari-yaristi-70480.html";
 
 function PeymanBio() {
   const schema = {
@@ -139,17 +141,37 @@ function PeymanBio() {
           <div className="mt-4 rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-50 to-orange-50 p-6 dark:from-amber-950/40 dark:to-orange-950/30">
             <h3 className="text-lg font-bold">مقام سوم سبک مینیمال – Cleopatra Ink Life Tattoo Gallery ۲۰۲۱</h3>
             <p className="mt-2 text-sm leading-7 text-muted">
-              آلانیا، ترکیه – دسامبر ۲۰۲۱. این مسابقه بین‌المللی توسط رسانه‌های ترکیه از جمله DHA و CNN Türk پوشش داده شد.
+              آلانیا، ترکیه – دسامبر ۲۰۲۱. نتیجهٔ مقام سوم سبک مینیمال در گزارش‌های مستقل خبری ترکیه ثبت شده است.
             </p>
-            <a
-              href={DHA}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-amber-700 hover:underline dark:text-amber-400"
-            >
-              گزارش کامل DHA
-              <ExternalLink className="size-4" />
-            </a>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <a
+                href={DHA}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+              >
+                گزارش DHA
+                <ExternalLink className="size-4" />
+              </a>
+              <a
+                href={YENI_ALANYA}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+              >
+                Yeni Alanya
+                <ExternalLink className="size-4" />
+              </a>
+              <a
+                href={ANTALYA_GUNCEL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+              >
+                Antalya Güncel
+                <ExternalLink className="size-4" />
+              </a>
+            </div>
             <p className="mt-3 text-xs text-muted" dir="ltr">
               3rd Place in Minimal Category at Cleopatra Ink Life Tattoo Gallery 2021, Alanya, Turkey.
             </p>
