@@ -37,6 +37,7 @@ const IG = "https://www.instagram.com/peyman_zibaeifar_tattoo/";
 const TG = "https://t.me/Peyman_ART";
 const PINTEREST = "https://pin.it/5OMjDGMiD";
 const DHA = "https://www.dha.com.tr/gundem/dovme-sanatcilari-yaristi-1870315";
+const CNN_TURK = "https://www.cnnturk.com/yerel-haberler/antalya/alanya/dovme-sanatcilari-yaristi-1742189";
 const YENI_ALANYA = "https://www.yenialanya.com/cleopatra-inkten-dikkat-ceken-etkinlik";
 const ANTALYA_GUNCEL = "https://www.antalyaguncelhaber.com/alanya-haberleri-dovme-sanatcilari-yaristi-70480.html";
 
@@ -151,6 +152,15 @@ function PeymanBio() {
                 className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
               >
                 گزارش DHA
+                <ExternalLink className="size-4" />
+              </a>
+              <a
+                href={CNN_TURK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+              >
+                CNN Türk
                 <ExternalLink className="size-4" />
               </a>
               <a
