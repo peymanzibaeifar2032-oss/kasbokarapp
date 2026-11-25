@@ -80,6 +80,23 @@ function ContactCodesPage() {
           </ul>
         </section>
 
+        {data ? (
+          <section className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border bg-white p-4 text-center">
+              <p className="text-xs text-muted">کدهای مخاطب فعال</p>
+              <p className="mt-1 text-2xl font-bold">{contacts.filter((c) => c.status === "active").length}</p>
+            </div>
+            <div className="rounded-2xl border bg-white p-4 text-center">
+              <p className="text-xs text-muted">دستگاه‌های فعال‌شده</p>
+              <p className="mt-1 text-2xl font-bold">{contacts.reduce((n, c) => n + c.devices.length, 0)}</p>
+            </div>
+            <div className="rounded-2xl border bg-white p-4 text-center">
+              <p className="text-xs text-muted">کل کدها (فعال + غیرفعال)</p>
+              <p className="mt-1 text-2xl font-bold">{contacts.length}</p>
+            </div>
+          </section>
+        ) : null}
+
         {error ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p> : null}
         {data && !data.keyStatus.ok ? (
           <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">کلید امضای سرور آماده نیست: {data.keyStatus.error}</p>

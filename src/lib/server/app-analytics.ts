@@ -139,17 +139,64 @@ export async function performAppAnalyticsReport(
       limit 1200`,
   );
 
+  // Active license activations (contact/customer codes). These are real devices that entered a code.
+  // device_hash is never exposed. Label + kind + last seen are enough for the owner to recognize them.
+  const licenseDevices = await sql.query<{
+    id: string;
+    label: string;
+    kind: string;
+    is_self: boolean;
+    device_label: string | null;
+    created_at: string;
+    last_seen_at: string;
+  }>(
+    `select a.id, l.label, l.kind, l.is_self, a.device_label, a.created_at::text, a.last_seen_at::text
+       from pocket_license_activations a
+       join pocket_licenses l on l.id = a.license_id
+      where a.released_at is null
+      order by a.last_seen_at desc
+      limit 200`,
+  );
+
+  const selfReportedInstalls = Number(installs[0]?.c || 0);
+  const licensedInstalls = licenseDevices.length;
+  // Show the higher of the two so activated codes are not hidden when the app does not self-report.
+  const totalInstalls = Math.max(selfReportedInstalls, licensedInstalls);
+
+  // Surface activated license devices in the accounts list so the existing app UI shows them
+  // even though contact codes have no email. Label is used as the identifier.
+  const licenseAccounts = licenseDevices.map((row) => ({
+    email: row.is_self ? "دستگاه خودم" : `${row.label}${row.device_label ? ` (${row.device_label})` : ""}`,
+    devices: 1,
+    lastSeenAt: row.last_seen_at,
+  }));
+
   return {
     // Provenance: downloads = server-observed (APK served by this server, rate-limited per IP; mirror
     // downloads e.g. Netlify are NOT counted). installs/accounts = self-reported by the app.
     // monthlyRevenue = self-reported cash-box totals from each signed-in account, not verified income.
-    provenance: { downloads: "server-observed", installs: "self-reported", monthlyRevenue: "self-reported" } as const,
-    installs: Number(installs[0]?.c || 0),
+    // licenseDevices = devices that activated a pocket license code (contact or customer).
+    provenance: { downloads: "server-observed", installs: "self-reported", monthlyRevenue: "self-reported", licenseDevices: "server-observed" } as const,
+    installs: totalInstalls,
+    selfReportedInstalls,
+    licensedInstalls,
     downloads: Number(downloads[0]?.c || 0),
-    accounts: accounts.map((row) => ({
-      email: row.email,
-      devices: Number(row.devices || 0),
-      lastSeenAt: row.last_seen,
+    accounts: [
+      ...accounts.map((row) => ({
+        email: row.email,
+        devices: Number(row.devices || 0),
+        lastSeenAt: row.last_seen,
+      })),
+      ...licenseAccounts,
+    ],
+    licenseDevices: licenseDevices.map((row) => ({
+      id: row.id,
+      label: row.label,
+      kind: row.kind,
+      self: row.is_self,
+      deviceLabel: row.device_label,
+      createdAt: row.created_at,
+      lastSeenAt: row.last_seen_at,
     })),
     monthlyRevenue: months.map((row) => ({
       email: row.account_email,

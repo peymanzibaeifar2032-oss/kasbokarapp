@@ -26,6 +26,8 @@ export type PocketExportBooking = {
   sessionMinutes: number;
   bookingId: string;
   slotStart: string;
+  /** First reference image (design) as data URL, if present and under size limit. */
+  photo?: string;
 };
 
 function tehranParts(date: Date) {
@@ -66,12 +68,14 @@ export async function exportPocketBookings(sql: Sql): Promise<PocketExportBookin
     session_minutes: number | string | null;
     booking_id: string | null;
     slot_start: string | Date;
+    reference_images: unknown;
   }>(
     `select r.id, r.customer_name, r.customer_phone, r.customer_phone_2, r.customer_instagram,
             r.style, r.placement, r.size_cm, r.request_type, r.idea,
             r.price_min_toman, r.price_max_toman, r.deposit_toman, r.paid_toman,
             r.session_count, r.session_minutes, b.id as booking_id,
-            coalesce(b.slot_start, r.proposed_slot_start) as slot_start
+            coalesce(b.slot_start, r.proposed_slot_start) as slot_start,
+            r.reference_images
        from tattoo_requests r
        left join bookings b on b.id = r.booking_id and b.status <> 'cancelled'
       where r.status = 'booked'
@@ -111,6 +115,16 @@ export async function exportPocketBookings(sql: Sql): Promise<PocketExportBookin
       sessionMinutes: money(row.session_minutes),
       bookingId: row.booking_id || "",
       slotStart: when.toISOString(),
+      photo: firstPhoto(row.reference_images),
     }];
   });
+}
+
+function firstPhoto(raw: unknown): string {
+  if (!Array.isArray(raw) || raw.length === 0) return "";
+  const first = raw[0];
+  if (typeof first !== "string") return "";
+  // Keep only reasonable data URLs so the payload stays usable.
+  if (!first.startsWith("data:image/") || first.length > 300_000) return "";
+  return first;
 }

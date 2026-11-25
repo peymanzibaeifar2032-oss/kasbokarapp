@@ -22,6 +22,7 @@ export type PocketIncoming = {
   phone: string;
   style: string;
   placement: string;
+  photo?: string;
 };
 
 const DB_NAME = "tattoo-pocket";
@@ -98,7 +99,7 @@ export function applyDownload(local: PocketBooking[], incoming: PocketIncoming[]
       note: existing?.note || "",
       priceToman: existing?.priceToman || 0,
       sizeCm: existing?.sizeCm || "",
-      photo: existing?.photo || "",
+      photo: item.photo || existing?.photo || "",
       pinned: false,
     });
   }
