@@ -204,6 +204,30 @@ function PeymanBio() {
             <p className="mt-1 text-xs text-muted" dir="ltr">
               Coverage in Inkjection magazine (Cleopatra Ink’s tattoo industry magazine) and official announcement by the Cleopatra Ink Kocaeli Instagram account.
             </p>
+
+            {/* Award photos */}
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <figure className="overflow-hidden rounded-xl border border-amber-300/50">
+                <img src="/bio/trophy.jpg" alt="کاپ مقام سوم Life Tattoo Gallery 2021" className="h-40 w-full object-cover" />
+                <figcaption className="bg-amber-50 px-2 py-1 text-center text-xs dark:bg-amber-950/40">کاپ مقام سوم</figcaption>
+              </figure>
+              <figure className="overflow-hidden rounded-xl border border-amber-300/50">
+                <img src="/bio/with-trophy.jpg" alt="پیمان زیبائی‌فر با کاپ" className="h-40 w-full object-cover" />
+                <figcaption className="bg-amber-50 px-2 py-1 text-center text-xs dark:bg-amber-950/40">با کاپ در مسابقه</figcaption>
+              </figure>
+              <figure className="overflow-hidden rounded-xl border border-amber-300/50">
+                <img src="/bio/magazine.jpg" alt="صفحه مجله Inkjection با نام پیمان زیبائی‌فر" className="h-40 w-full object-cover" />
+                <figcaption className="bg-amber-50 px-2 py-1 text-center text-xs dark:bg-amber-950/40">مجله Inkjection</figcaption>
+              </figure>
+              <figure className="overflow-hidden rounded-xl border border-amber-300/50">
+                <img src="/bio/announcement.jpg" alt="اعلام رسمی Cleopatra Ink" className="h-40 w-full object-cover" />
+                <figcaption className="bg-amber-50 px-2 py-1 text-center text-xs dark:bg-amber-950/40">اعلام رسمی کلئوپاترا</figcaption>
+              </figure>
+              <figure className="overflow-hidden rounded-xl border border-amber-300/50">
+                <img src="/bio/heisenberg.jpg" alt="تاتو هایزنبرگ ۱۰ سانتی‌متری" className="h-40 w-full object-cover" />
+                <figcaption className="bg-amber-50 px-2 py-1 text-center text-xs dark:bg-amber-950/40">تاتو هایزنبرگ (۱۰cm)</figcaption>
+              </figure>
+            </div>
             <p className="mt-3 text-xs text-muted" dir="ltr">
               3rd Place in Minimal Category at Cleopatra Ink Life Tattoo Gallery 2021, Alanya, Turkey.
             </p>
