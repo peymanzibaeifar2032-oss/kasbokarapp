@@ -157,6 +157,12 @@ function StudioLanding() {
               >
                 اینستاگرام @peyman_zibaeifar_tattoo
               </a>
+              <a
+                href="/peyman-zibaeifar"
+                className="mt-2 inline-block text-sm font-bold text-[#b7955b] underline underline-offset-4"
+              >
+                رزومه و بیوگرافی کامل پیمان زیبائی‌فر
+              </a>
             </div>
           </div>
         </section>
