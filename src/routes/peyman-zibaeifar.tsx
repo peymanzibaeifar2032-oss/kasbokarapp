@@ -39,7 +39,8 @@ const PINTEREST = "https://pin.it/5OMjDGMiD";
 const DHA = "https://www.dha.com.tr/gundem/dovme-sanatcilari-yaristi-1870315";
 const CNN_TURK = "https://www.cnnturk.com/yerel-haberler/antalya/alanya/dovme-sanatcilari-yaristi-1742189";
 const YENI_ALANYA = "https://www.yenialanya.com/cleopatra-inkten-dikkat-ceken-etkinlik";
-const ANTALYA_GUNCEL = "https://www.antalyaguncelhaber.com/alanya-haberleri-dovme-sanatcilari-yaristi-70480.html";
+const INSTAGRAM_REEL = "https://www.instagram.com/reel/CYCAtGts__M/?knvt=azU3bThzMTk2YWd2";
+const CLEOPATRA_KOCAELI = "https://www.instagram.com/cleopatraink.kocaeli/";
 
 function PeymanBio() {
   const schema = {
@@ -130,6 +131,9 @@ function PeymanBio() {
             <p>
               Beyond tattooing, Peyman has developed specialized digital tools for the tattoo community, including appointment calendar and tattoo education applications, to help artists and students manage their work more professionally.
             </p>
+            <p>
+              In December 2021 he placed third in the Minimal category at the Cleopatra Ink Life Tattoo Gallery competition in Alanya, Turkey. The result was reported by DHA, CNN Türk, and other Turkish outlets, and was also published in the Inkjection tattoo magazine. The moment his name was announced is available on his Instagram.
+            </p>
           </div>
         </section>
 
@@ -142,9 +146,21 @@ function PeymanBio() {
           <div className="mt-4 rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-50 to-orange-50 p-6 dark:from-amber-950/40 dark:to-orange-950/30">
             <h3 className="text-lg font-bold">مقام سوم سبک مینیمال – Cleopatra Ink Life Tattoo Gallery ۲۰۲۱</h3>
             <p className="mt-2 text-sm leading-7 text-muted">
-              آلانیا، ترکیه – دسامبر ۲۰۲۱. نتیجهٔ مقام سوم سبک مینیمال در گزارش‌های مستقل خبری ترکیه ثبت شده است.
+              آلانیا، ترکیه – دسامبر ۲۰۲۱. نتیجهٔ مقام سوم سبک مینیمال در گزارش‌های مستقل خبری ترکیه (DHA، CNN Türk و سایر منابع) و همچنین در مجلهٔ صنعت تاتو Inkjection ثبت شده است. اعلام رسمی نام توسط برند Cleopatra Ink نیز در اینستاگرام منتشر شد.
+            </p>
+            <p className="mt-1 text-sm leading-7 text-muted" dir="ltr">
+              Alanya, Turkey – December 2021. 3rd place in the Minimal category, documented in independent Turkish news (DHA, CNN Türk, and others) and in the Inkjection tattoo industry magazine. Official announcement by Cleopatra Ink was also published on Instagram.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
+              <a
+                href={INSTAGRAM_REEL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+              >
+                لحظهٔ اعلام اسم (اینستاگرام)
+                <ExternalLink className="size-4" />
+              </a>
               <a
                 href={DHA}
                 target="_blank"
@@ -182,6 +198,12 @@ function PeymanBio() {
                 <ExternalLink className="size-4" />
               </a>
             </div>
+            <p className="mt-3 text-xs text-muted">
+              پوشش در مجله Inkjection (مجلهٔ صنعت تاتو مرتبط با Cleopatra Ink) و اعلام رسمی توسط حساب اینستاگرام Cleopatra Ink Kocaeli.
+            </p>
+            <p className="mt-1 text-xs text-muted" dir="ltr">
+              Coverage in Inkjection magazine (Cleopatra Ink’s tattoo industry magazine) and official announcement by the Cleopatra Ink Kocaeli Instagram account.
+            </p>
             <p className="mt-3 text-xs text-muted" dir="ltr">
               3rd Place in Minimal Category at Cleopatra Ink Life Tattoo Gallery 2021, Alanya, Turkey.
             </p>
