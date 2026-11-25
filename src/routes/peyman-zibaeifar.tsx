@@ -19,8 +19,12 @@ export const Route = createFileRoute("/peyman-zibaeifar")({
         content: "تاتو آرتیست کرمانشاه با بیش از یک دهه تجربه. مقام سوم آلانیا ۲۰۲۱. سازنده اپ‌های تخصصی تاتو.",
       },
       { property: "og:type", content: "profile" },
+      { property: "og:url", content: "https://kasbokarapp.com/peyman-zibaeifar" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "پیمان زیبائی فر | تاتو آرتیست کرمانشاه" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://kasbokarapp.com/peyman-zibaeifar" },
     ],
   }),
   component: PeymanBio,
@@ -35,8 +39,33 @@ const PINTEREST = "https://pin.it/5OMjDGMiD";
 const DHA = "https://www.dha.com.tr/gundem/dovme-sanatcilari-yaristi-1870315";
 
 function PeymanBio() {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    mainEntity: {
+      "@type": "Person",
+      name: "پیمان زیبائی‌فر",
+      alternateName: ["Peyman Zibaeifar", "Peyman Zibaifar"],
+      jobTitle: "Tattoo Artist",
+      description: "تاتو آرتیست حرفه‌ای کرمانشاه با بیش از یک دهه تجربه. مقام سوم مسابقات بین‌المللی تاتو آلانیا ۲۰۲۱.",
+      url: "https://kasbokarapp.com/peyman-zibaeifar",
+      image: "https://kasbokarapp.com/og.jpg",
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: "کرمانشاه",
+        addressCountry: "IR",
+      },
+      sameAs: [
+        "https://www.instagram.com/peyman_zibaeifar_tattoo/",
+        "https://t.me/Peyman_ART",
+      ],
+      knowsAbout: ["Realistic Tattoo", "Black and Grey", "Portrait Tattoo", "Cover-up Tattoo", "Minimal Tattoo"],
+    },
+  };
+
   return (
     <Shell>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
       <div className="mx-auto max-w-4xl pb-10">
         {/* Hero */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-600 via-cyan-600 to-blue-700 p-6 text-white shadow-xl sm:p-10">
