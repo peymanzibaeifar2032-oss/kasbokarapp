@@ -542,3 +542,22 @@
 .pocket-facts dt { font-weight: 800; color: #475569; }
 .pocket-facts dd { margin: 0; color: #0f172a; }
 .pocket-owner-badge { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; font-size: 0.78rem; font-weight: 800; }
+
+/* Design photo (site design cached offline, or phone photo) + full-screen viewer */
+.pocket-design { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem; min-width: 0; }
+.pocket-design-thumb { flex: none; width: 5.5rem; height: 5.5rem; padding: 0; border: 1px solid rgba(15, 23, 42, 0.12); border-radius: 0.9rem; overflow: hidden; background: #f8fafc; cursor: zoom-in; }
+.pocket-design-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pocket-design-side { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; min-width: 0; }
+.pocket-design-open { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.pocket-design-source { font-size: 0.75rem; overflow-wrap: anywhere; }
+.pocket-design-missing { display: flex; align-items: flex-start; gap: 0.3rem; margin-top: 0.4rem; font-size: 0.78rem; }
+.pocket-viewer { position: fixed; inset: 0; z-index: 2147483000; display: flex; flex-direction: column; background: #0f172a; color: #fff; direction: rtl; font-family: inherit; }
+.pocket-viewer-bar { display: flex; align-items: center; gap: 0.5rem; padding: max(0.6rem, env(safe-area-inset-top)) 0.75rem 0.6rem; }
+.pocket-viewer-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.95rem; }
+.pocket-viewer-btn { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 2.5rem; padding: 0 0.75rem; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.12); color: #fff; font-weight: 700; font-size: 0.85rem; }
+.pocket-viewer-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: auto; padding: 0.5rem; touch-action: pan-x pan-y pinch-zoom; }
+.pocket-viewer-stage img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0.5rem; background: #fff; }
+.pocket-viewer-stage.is-zoom { align-items: flex-start; justify-content: flex-start; }
+.pocket-viewer-stage.is-zoom img { max-width: none; max-height: none; width: 250%; }
+@media (min-width: 700px) { .pocket-viewer-stage.is-zoom img { width: 180%; } }
+@media (max-width: 340px) { .pocket-viewer-btn span { display: none; } .pocket-design-thumb { width: 4.75rem; height: 4.75rem; } }

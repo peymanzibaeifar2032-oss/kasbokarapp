@@ -90,7 +90,7 @@ function tolerantServerDetails(raw: Record<string, unknown>) {
   return out as z.infer<typeof serverDetailsSchema>;
 }
 
-const SERVER_DETAIL_KEYS = ["phone2", "instagram", "sizeCm", "priceMinToman", "paidToman", "bookingId", "slotStart"];
+const SERVER_DETAIL_KEYS = ["phone2", "instagram", "sizeCm", "priceMinToman", "paidToman", "bookingId", "slotStart", "photoKey"];
 
 const jalaliDay = z.string().regex(/^1[34]\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/);
 const toman = z.number().int().finite().min(0).max(2_000_000_000_000);
