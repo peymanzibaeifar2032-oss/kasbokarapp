@@ -16,6 +16,25 @@ export const Route = createFileRoute("/studio/pocket")({
   }),
 });
 
+/** Fetch design images a few at a time (the export only carries a key); failures keep the phone's copy. */
+async function attachSitePhotos(incoming: PocketIncoming[]) {
+  const queue = incoming.filter((row) => row.photoKey).map((row) => row.serverId);
+  const byId = new Map(incoming.map((row) => [row.serverId, row]));
+  for (let guard = 0; queue.length && guard < 200; guard += 1) {
+    const ids = queue.splice(0, 4);
+    try {
+      const reply = await saveAction<{ photos: { serverId: string; data: string }[]; deferred: string[] }>("studioPocketPhotos", { ids });
+      for (const photo of reply.photos || []) {
+        const row = byId.get(photo.serverId);
+        if (row) row.photo = photo.data;
+      }
+      queue.push(...(reply.deferred || []).filter((id) => ids.includes(id)));
+    } catch {
+      return;
+    }
+  }
+}
+
 const WEEK = ["شنبه", "یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه"] as const;
 const WEEK_SHORT = ["ش", "ی", "د", "س", "چ", "پ", "ج"] as const;
 
@@ -153,6 +172,7 @@ function PocketCalendarPage() {
     try {
       const data = await saveAction<{ bookings: PocketIncoming[] }>("studioPocketExport");
       const incoming = data.bookings || [];
+      await attachSitePhotos(incoming);
       const next = applyDownload(rows, incoming);
       await persist(next);
       setBanner(incoming.length ? `بارگذاری کامل شد. ${toFaDigits(incoming.length)} نوبت روی روزها نشست.` : "از سرور نوبتی نیامد.");

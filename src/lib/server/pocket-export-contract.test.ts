@@ -3,7 +3,7 @@ import { describe, it, before } from "node:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
-import { exportPocketBookings } from "./pocket-bookings-export.ts";
+import { exportPocketBookings, exportPocketPhotos, POCKET_PHOTO_BUDGET_CHARS } from "./pocket-bookings-export.ts";
 import { exportPocketTrainees } from "./pocket-trainees-export.ts";
 import { exportPocketFinance } from "./pocket-finance-export.ts";
 
@@ -127,3 +127,77 @@ describe("full export isolates sections", () => {
     assert.ok(fn.indexOf('actor.role !== "owner"') < fn.indexOf("exportPocketBookings(sql)"));
   });
 });
+
+describe("pocket design photos (synthetic images)", () => {
+  // Tiny synthetic "images": valid data-URL syntax, not real photos.
+  const panelImg = "data:image/jpeg;base64," + "A".repeat(4000);
+  const fileImg = "data:image/png;base64," + "B".repeat(3000);
+  const big = "data:image/jpeg;base64," + "C".repeat(1_200_000);
+  const fid = "11111111-2222-3333-4444-555555555555";
+  const otherFid = "99999999-2222-3333-4444-555555555555";
+  const near = (n: number) => "data:image/jpeg;base64," + "D".repeat(n);
+  before(async () => {
+    await db.query(
+      `insert into tattoo_requests (id, customer_id, customer_phone, customer_name, request_type, style, idea, placement, size_cm, status,
+         price_min_toman, price_max_toman, session_count, session_minutes, deposit_toman, paid_toman, proposed_slot_start,
+         tracking_code, reference_images)
+       values ($1,'c','0912','طرح پنل','new','s','i','p','1','booked',0,0,1,60,0,0,'2026-11-11T10:00:00Z','P1',$2::jsonb),
+              ($3,'c','0912','طرح مشتری','new','s','i','p','1','booked',0,0,1,60,0,0,'2026-11-12T10:00:00Z','P2',$4::jsonb),
+              ($5,'c','0912','بزرگ','new','s','i','p','1','booked',0,0,1,60,0,0,'2026-11-13T10:00:00Z','P3',$6::jsonb),
+              ($7,'c','0912','پیشنهادی','new','s','i','p','1','submitted',0,0,1,60,0,0,'2026-11-14T10:00:00Z','P4',$2::jsonb),
+              ($8,'c','0912','فایل دیگری','new','s','i','p','1','booked',0,0,1,60,0,0,'2026-11-15T10:00:00Z','P5',$9::jsonb),
+              ($10,'c','0912','ب۱','new','s','i','p','1','booked',0,0,1,60,0,0,'2026-11-16T10:00:00Z','P6',$11::jsonb),
+              ($12,'c','0912','ب۲','new','s','i','p','1','booked',0,0,1,60,0,0,'2026-11-17T10:00:00Z','P7',$13::jsonb)`,
+      [
+        "ph1", JSON.stringify([panelImg]),
+        "ph2", JSON.stringify([`/api/tattoo-file?id=${fid}`]),
+        "ph3", JSON.stringify([big]),
+        "ph4",
+        "ph5", JSON.stringify([`/api/tattoo-file?id=${otherFid}`]),
+        "ph6", JSON.stringify([near(900_000)]),
+        "ph7", JSON.stringify([near(1_000_000)]),
+      ],
+    );
+    await db.query(`insert into tattoo_request_files (id, request_id, kind, data) values ($1,'ph2','reference',$2), ($3,'ph1','reference',$4)`, [
+      fid, fileImg, otherFid, fileImg,
+    ]);
+  });
+
+  it("export carries a key, never the image bytes (keeps the 4 MB app response cap safe)", async () => {
+    const rows = await exportPocketBookings(sql);
+    const by = new Map(rows.map((r) => [r.serverId, r]));
+    assert.match(by.get("ph1")!.photoKey, /^d[0-9a-f]{32}$/);
+    assert.equal(by.get("ph2")!.photoKey, "f" + fid);
+    assert.equal(by.get("r1")!.photoKey, "");
+    assert.equal(by.has("ph4"), false);
+    assert.ok(JSON.stringify(rows).length < 20_000, "no inline images");
+    assert.equal(rows.some((r) => "photo" in r), false);
+  });
+
+  it("photos: panel data URL and customer tattoo-file both resolve with the same key as the export", async () => {
+    const keys = new Map((await exportPocketBookings(sql)).map((r) => [r.serverId, r.photoKey]));
+    const reply = await exportPocketPhotos(sql, ["ph1", "ph2"]);
+    assert.deepEqual(reply.photos.map((p) => p.serverId), ["ph1", "ph2"]);
+    assert.equal(reply.photos[0].data, panelImg);
+    assert.equal(reply.photos[1].data, fileImg);
+    assert.equal(reply.photos[0].key, keys.get("ph1"));
+    assert.equal(reply.photos[1].key, keys.get("ph2"));
+  });
+
+  it("photos: oversize, non-booked, unknown and another job's file are never returned", async () => {
+    const reply = await exportPocketPhotos(sql, ["ph3", "ph4", "nope", "ph5", "r1"]);
+    assert.equal(reply.photos.length, 0);
+    assert.deepEqual(reply.missing.sort(), ["nope", "ph3", "ph4", "ph5", "r1"].sort());
+  });
+
+  it("photos: response stays under budget; the rest is deferred, not dropped", async () => {
+    // Real budget: three near-max images (2.9M chars) fit, nothing is lost.
+    const full = await exportPocketPhotos(sql, ["ph6", "ph7", "ph1"]);
+    assert.ok(full.photos.reduce((n, p) => n + p.data.length, 0) <= POCKET_PHOTO_BUDGET_CHARS);
+    // Smaller budget: the second large image is deferred to the next call, the small one still fits.
+    const reply = await exportPocketPhotos(sql, ["ph6", "ph7", "ph1"], 1_000_000);
+    assert.deepEqual(reply.photos.map((p) => p.serverId), ["ph6", "ph1"]);
+    assert.deepEqual(reply.deferred, ["ph7"]);
+  });
+});
+
