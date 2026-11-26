@@ -2,11 +2,13 @@ import { saveAction } from "@/lib/save";
 import { parsePocketSnapshot } from "@/lib/pocket/sync-response";
 
 import { pocketAccessResult } from "@/lib/pocket/access-status";
+import { parseSitePhotoReply } from "@/lib/pocket/site-photos";
 
 export const POCKET_EXPORT_ENDPOINT = "https://kasbokarapp.com/api/save";
 type ExportResult = { requestId: string; status: number; data?: unknown; error?: string };
 type PocketBridge = {
   downloadPocketBookings?: (requestId: string) => void;
+  downloadPocketPhotos?: (requestId: string, ids: string) => void;
   verifyPocketAccount?: (requestId: string) => void;
   openPocketLogin?: () => void;
   activatePocketLicense?: (requestId: string, code: string, device: string) => void;
@@ -41,7 +43,7 @@ export function openPocketLogin() {
 }
 
 /** Calls one of the fixed native read-only actions; JS never supplies a URL, action body or cookie. */
-function nativeCall(method: "downloadPocketBookings" | "verifyPocketAccount", timeoutMs: number) {
+function nativeCall(method: "downloadPocketBookings" | "verifyPocketAccount" | "downloadPocketPhotos", timeoutMs: number, extra: string[] = []) {
   const native = bridge();
   const fn = native?.[method];
   if (!native || !fn)
@@ -73,12 +75,27 @@ function nativeCall(method: "downloadPocketBookings" | "verifyPocketAccount", ti
     }, timeoutMs);
     window.addEventListener("pocket-export-result", receive);
     try {
-      fn.call(native, requestId);
+      (fn as (...a: string[]) => void).call(native, requestId, ...extra);
     } catch (error) {
       cleanup();
       reject(error);
     }
   });
+}
+
+const PHOTO_ID = /^[A-Za-z0-9_.:-]{1,100}$/;
+
+/** Design images for a few downloaded jobs (owner-only on the server, read-only). */
+export async function downloadSitePhotos(ids: string[]) {
+  const clean = ids.filter((id) => PHOTO_ID.test(id)).slice(0, 8);
+  if (!clean.length) return { photos: [], missing: [], deferred: [] };
+  if (!isOfflinePocket()) return parseSitePhotoReply(200, await saveAction("studioPocketPhotos", { ids: clean }));
+  const result = await nativeCall("downloadPocketPhotos", 60000, [clean.join(",")]);
+  return parseSitePhotoReply(result.status, result.data);
+}
+
+export function canDownloadSitePhotos() {
+  return !isOfflinePocket() || typeof bridge()?.downloadPocketPhotos === "function";
 }
 
 export async function downloadPocketSnapshot() {

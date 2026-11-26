@@ -40,6 +40,8 @@ export type PocketServerDetails = {
   sessionMinutes: number;
   bookingId: string;
   slotStart: string;
+  /** Key of the site's first design image ("" = none). Image bytes live in the offline photo cache. */
+  photoKey?: string;
 };
 
 export type PocketIncoming = {

@@ -685,6 +685,29 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void downloadPocketPhotos(String requestId, String idsCsv) {
+            if (requestId == null || !requestId.matches("[a-zA-Z0-9-]{1,80}")) return;
+            runOnUiThread(() -> {
+                if (!isOfflinePage()) return;
+                final String cookie = CookieManager.getInstance().getCookie(PocketExportClient.ENDPOINT);
+                if (cookie == null || cookie.isEmpty()) {
+                    deliverPocketExport(requestId, 401, "{}", null);
+                    return;
+                }
+                new Thread(() -> {
+                    try {
+                        PocketExportClient.Result result = PocketExportClient.photos(cookie, idsCsv);
+                        runOnUiThread(() -> deliverPocketExport(requestId, result.status, result.body, null));
+                    } catch (IllegalArgumentException bad) {
+                        runOnUiThread(() -> deliverPocketExport(requestId, 400, "{}", null));
+                    } catch (Exception error) {
+                        runOnUiThread(() -> deliverPocketExport(requestId, 0, null, "NETWORK_OR_SERVER_ERROR"));
+                    }
+                }, "pocket-photos").start();
+            });
+        }
+
+        @JavascriptInterface
         public void verifyPocketAccount(String requestId) {
             if (requestId == null || !requestId.matches("[a-zA-Z0-9-]{1,80}")) return;
             runOnUiThread(() -> {

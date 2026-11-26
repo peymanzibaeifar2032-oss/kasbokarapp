@@ -27,6 +27,8 @@ const date = z
     return d <= jalaliMonthLength(y, m);
   });
 const amount = z.number().finite().min(0).max(2_000_000_000_000);
+/** Site design image key: "d"+md5 (panel upload) or "f"+uuid (customer upload); "" = none. */
+export const SITE_PHOTO_KEY = /^$|^(d[0-9a-f]{32}|f[0-9a-f-]{36})$/;
 const photo = z
   .string()
   .max(1024 * 1024)
@@ -76,6 +78,7 @@ export const serverDetailsSchema = z.object({
     .max(40)
     .refine((s) => !s || !Number.isNaN(Date.parse(s)))
     .default(""),
+  photoKey: z.string().regex(SITE_PHOTO_KEY).catch(""),
 });
 const booking = z.object({
   id,

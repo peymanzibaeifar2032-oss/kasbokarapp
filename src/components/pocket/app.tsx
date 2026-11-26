@@ -57,7 +57,9 @@ import { bookingTotals, newPaymentId, parsePaymentToman, recordBookingPayment } 
 import type { PocketAppStats, PocketServerAccount } from "@/lib/pocket/sync-response";
 import { canRequestServerSync } from "@/lib/pocket/professions";
 import { friendlyError } from "@/lib/save";
-import { OFFLINE_MESSAGE, deviceOffline, downloadPocketSnapshot, openPocketLogin, verifyPocketAccess } from "@/lib/pocket/sync";
+import { OFFLINE_MESSAGE, canDownloadSitePhotos, deviceOffline, downloadPocketSnapshot, downloadSitePhotos, openPocketLogin, verifyPocketAccess } from "@/lib/pocket/sync";
+import { syncSitePhotos } from "@/lib/pocket/site-photos";
+import { DesignPhoto } from "./design-photo";
 import { WEEK_EN_SUN, formatGregorian, gregorianMonthGrid, gregorianOfKey, shiftGregorianMonth } from "@/lib/pocket/gregorian";
 
 import { pocketAccessMessage, type PocketAccessState } from "@/lib/pocket/access-status";
@@ -604,6 +606,41 @@ function PocketShell(props: {
   }
 
   const downloadBusy = useRef(false);
+  const photoBusy = useRef(false);
+  const [photoRevision, setPhotoRevision] = useState(0);
+  const [photoStatus, setPhotoStatus] = useState("");
+  /** Background step after a download: cache the site's design images on the phone (owner only). */
+  async function syncDesignPhotos(incoming: { serverId: string; server?: { photoKey?: string } }[]) {
+    if (photoBusy.current || !canDownloadSitePhotos()) return;
+    const wanted = incoming.map((row) => ({ serverId: row.serverId, photoKey: row.server?.photoKey || "" })).filter((r) => r.photoKey);
+    if (!wanted.length) return;
+    photoBusy.current = true;
+    setPhotoStatus(locale === "en" ? "Saving designs on the phone…" : "در حال ذخیرهٔ طرح‌ها روی گوشی…");
+    try {
+      let shown = 0;
+      const result = await syncSitePhotos(wanted, downloadSitePhotos, () => {
+        shown += 1;
+        if (shown % 4 === 0) setPhotoRevision((v) => v + 1);
+      });
+      setPhotoRevision((v) => v + 1);
+      const parts: string[] = [];
+      if (locale === "en") {
+        parts.push(result.saved ? `${result.saved} designs saved on the phone.` : "All designs are already on the phone.");
+        if (result.missing) parts.push(`${result.missing} had no usable image on the site.`);
+        if (result.failed || result.pending) parts.push("Some designs were not received; download again later.");
+      } else {
+        parts.push(result.saved ? `${toFaDigits(result.saved)} طرح روی گوشی ذخیره شد.` : "طرح‌ها از قبل روی گوشی هستند.");
+        if (result.missing) parts.push(`${toFaDigits(result.missing)} نوبت در سایت عکس قابل‌نمایش نداشت.`);
+        if (result.failed || result.pending) parts.push("بعضی طرح‌ها نرسید؛ بعداً دوباره «بارگذاری» را بزنید.");
+      }
+      setPhotoStatus(parts.join(" "));
+    } catch {
+      setPhotoStatus(locale === "en" ? "Designs could not be saved on this phone." : "ذخیرهٔ طرح‌ها روی گوشی انجام نشد؛ نوبت‌ها دست نخورده‌اند.");
+    } finally {
+      photoBusy.current = false;
+    }
+  }
+
   async function download() {
     // One download at a time (calendar, cash and trainee buttons all trigger it).
     if (downloadBusy.current) return;
@@ -705,6 +742,7 @@ function PocketShell(props: {
           cashNote,
       );
       toast.success(locale === "en" ? "Download complete" : "بارگذاری نوبت‌ها کامل شد");
+      if (snapshot.account?.isOwner) void syncDesignPhotos(incoming);
     } catch (error) {
       if (request === accessRequest.current) void refreshAccount();
       const message = friendlyError(error);
@@ -1045,6 +1083,7 @@ function PocketShell(props: {
                 </div>
               ) : null}
               {banner ? <p className="pocket-banner">{banner}</p> : null}
+              {photoStatus ? <p className="pocket-muted" role="status">{photoStatus}</p> : null}
               {movingId ? (
                 <p className="pocket-banner">
                   {locale === "en"
@@ -1076,13 +1115,7 @@ function PocketShell(props: {
                       </span>
                     </div>
                     <BookingPayment row={row} cash={cashRows} locale={locale} todayKey={todayKey} onSaved={reloadCash} />
-                    {row.photo ? (
-                      <img
-                        src={row.photo}
-                        alt=""
-                        className="mt-2 h-24 w-24 rounded-xl object-cover"
-                      />
-                    ) : null}
+                    <DesignPhoto row={row} locale={locale} revision={photoRevision} />
                     <p className="pocket-muted" style={{ marginTop: "0.35rem" }}>
                       {[
                         row.time,

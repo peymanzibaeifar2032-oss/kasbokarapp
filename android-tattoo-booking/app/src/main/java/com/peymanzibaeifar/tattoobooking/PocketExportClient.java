@@ -30,6 +30,36 @@ public final class PocketExportClient {
     private static final java.util.regex.Pattern CODE = java.util.regex.Pattern.compile("^[0-9A-Z]{5}(-[0-9A-Z]{5}){3}$");
     private static final java.util.regex.Pattern TOKEN = java.util.regex.Pattern.compile("^[A-Za-z0-9_-]{10,3500}\\.[A-Za-z0-9_-]{40,200}$");
 
+    private static final java.util.regex.Pattern PHOTO_ID = java.util.regex.Pattern.compile("^[A-Za-z0-9_.:-]{1,100}$");
+
+    /**
+     * Read-only design images of already exported jobs (owner-gated on the server). JS supplies only a
+     * comma-separated list of at most 8 job ids, each validated here; the action name is fixed.
+     */
+    public static Result photos(String cookie, String idsCsv) throws Exception {
+        if (idsCsv == null || idsCsv.length() > 900) throw new IllegalArgumentException("BAD_IDS");
+        String[] parts = idsCsv.split(",");
+        if (parts.length == 0 || parts.length > 8) throw new IllegalArgumentException("BAD_IDS");
+        org.json.JSONArray ids = new org.json.JSONArray();
+        for (String id : parts) {
+            if (!PHOTO_ID.matcher(id).matches()) throw new IllegalArgumentException("BAD_IDS");
+            ids.put(id);
+        }
+        org.json.JSONObject payload = new org.json.JSONObject();
+        payload.put("ids", ids);
+        org.json.JSONObject body = new org.json.JSONObject();
+        body.put("type", "studioPocketPhotos");
+        body.put("payload", payload);
+        String text = body.toString();
+        try {
+            return post(ENDPOINT, cookie, text);
+        } catch (java.net.SocketTimeoutException | java.net.UnknownHostException
+                 | javax.net.ssl.SSLException | java.net.SocketException first) {
+            Thread.sleep(1500);
+            return post(ENDPOINT, cookie, text);
+        }
+    }
+
     public static Result download(String cookie) throws Exception {
         return send(cookie, Action.EXPORT);
     }
