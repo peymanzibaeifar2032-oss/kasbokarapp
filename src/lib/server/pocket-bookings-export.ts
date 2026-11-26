@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { gregorianToJalali } from "../calendar/jalali.ts";
 
 type Sql = { query: <T>(query: string, params: unknown[]) => Promise<T[]> };
@@ -26,8 +27,12 @@ export type PocketExportBooking = {
   sessionMinutes: number;
   bookingId: string;
   slotStart: string;
-  /** First reference image (design) as data URL, if present and under size limit. */
-  photo?: string;
+  /**
+   * Stable key of the first reference image (design), "" when there is none. The image itself is NOT
+   * inlined: the Android client caps one response at 4 MB, so a few inline designs could fail the whole
+   * sync. The app fetches images in small batches with `studioPocketPhotos` and caches them offline.
+   */
+  photoKey: string;
 };
 
 function tehranParts(date: Date) {
@@ -68,19 +73,17 @@ export async function exportPocketBookings(sql: Sql): Promise<PocketExportBookin
     session_minutes: number | string | null;
     booking_id: string | null;
     slot_start: string | Date;
-    reference_images: unknown;
+    photo_key: string | null;
   }>(
     `select r.id, r.customer_name, r.customer_phone, r.customer_phone_2, r.customer_instagram,
             r.style, r.placement, r.size_cm, r.request_type, r.idea,
             r.price_min_toman, r.price_max_toman, r.deposit_toman, r.paid_toman,
             r.session_count, r.session_minutes, b.id as booking_id,
             coalesce(b.slot_start, r.proposed_slot_start) as slot_start,
-            r.reference_images
+            ${PHOTO_KEY_SQL} as photo_key
        from tattoo_requests r
        left join bookings b on b.id = r.booking_id and b.status <> 'cancelled'
-      where r.status = 'booked'
-        and coalesce(b.slot_start, r.proposed_slot_start) is not null
-        and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')
+      where ${EXPORTABLE_SQL}
       order by coalesce(b.slot_start, r.proposed_slot_start)
       limit 2000`,
     [],
@@ -115,16 +118,96 @@ export async function exportPocketBookings(sql: Sql): Promise<PocketExportBookin
       sessionMinutes: money(row.session_minutes),
       bookingId: row.booking_id || "",
       slotStart: when.toISOString(),
-      photo: firstPhoto(row.reference_images),
+      photoKey: row.photo_key || "",
     }];
   });
 }
 
-function firstPhoto(raw: unknown): string {
-  if (!Array.isArray(raw) || raw.length === 0) return "";
-  const first = raw[0];
-  if (typeof first !== "string") return "";
-  // Keep only reasonable data URLs so the payload stays usable.
-  if (!first.startsWith("data:image/") || first.length > 300_000) return "";
-  return first;
+/** Same row set the owner export sends (booked, scheduled, not an own-deal artist's job). */
+const EXPORTABLE_SQL = `r.status = 'booked'
+        and coalesce(b.slot_start, r.proposed_slot_start) is not null
+        and not exists (select 1 from studio_artists a where a.id = r.artist_id and a.deal = 'own')`;
+
+/**
+ * Key of reference_images[0] computed in SQL so the export never reads image bytes:
+ * panel uploads are data URLs (key "d"+md5), customer uploads are /api/tattoo-file?id=<uuid> (key "f"+uuid).
+ */
+const PHOTO_KEY_SQL = `(case
+      when jsonb_typeof(r.reference_images) = 'array' and jsonb_typeof(r.reference_images->0) = 'string' then
+        case
+          when left(r.reference_images->>0, 11) = 'data:image/' then 'd' || md5(r.reference_images->>0)
+          when r.reference_images->>0 ~ '^/api/tattoo-file\\?id=[0-9a-fA-F-]{36}$' then 'f' || lower(substr(r.reference_images->>0, 21))
+          else ''
+        end
+      else ''
+    end)`;
+
+const IMAGE_DATA = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+/** Same cap as the app's backup schema for one photo. */
+export const POCKET_PHOTO_MAX_CHARS = 1024 * 1024;
+/** Per-response budget, well under the Android client's 4 MB response cap. */
+export const POCKET_PHOTO_BUDGET_CHARS = 3 * 1024 * 1024;
+export const POCKET_PHOTO_MAX_IDS = 8;
+
+export type PocketPhotoReply = {
+  photos: { serverId: string; key: string; data: string }[];
+  /** No usable image (none, removed, unsupported format or larger than the cap). */
+  missing: string[];
+  /** Valid but did not fit this response's budget: ask again. */
+  deferred: string[];
+};
+
+/**
+ * First reference image of the given exported jobs. Read-only. Caller MUST have verified the session and
+ * the studio-owner role first. Only rows the export would send are readable, and a tattoo-file reference
+ * is resolved only inside its own request (file.request_id = job id).
+ */
+export async function exportPocketPhotos(
+  sql: Sql,
+  ids: string[],
+  budget = POCKET_PHOTO_BUDGET_CHARS,
+): Promise<PocketPhotoReply> {
+  const wanted = [...new Set(ids)].slice(0, POCKET_PHOTO_MAX_IDS);
+  const reply: PocketPhotoReply = { photos: [], missing: [], deferred: [] };
+  if (!wanted.length) return reply;
+  const rows = await sql.query<{ id: string; first: string | null }>(
+    `select r.id,
+            case when jsonb_typeof(r.reference_images) = 'array' then r.reference_images->>0 else null end as first
+       from tattoo_requests r
+       left join bookings b on b.id = r.booking_id and b.status <> 'cancelled'
+      where r.id = any($1::text[]) and ${EXPORTABLE_SQL}`,
+    [wanted],
+  );
+  const byId = new Map(rows.map((row) => [row.id, row.first || ""]));
+  let used = 0;
+  for (const id of wanted) {
+    const first = byId.get(id) || "";
+    let data = "";
+    let key = "";
+    if (first.startsWith("data:image/")) {
+      data = first;
+      key = "d" + createHash("md5").update(first, "utf8").digest("hex");
+    } else {
+      const file = /^\/api\/tattoo-file\?id=([0-9a-fA-F-]{36})$/.exec(first);
+      if (file) {
+        const found = await sql.query<{ data: string }>(
+          `select data from tattoo_request_files where id = $1 and request_id = $2`,
+          [file[1], id],
+        );
+        data = found[0]?.data || "";
+        key = "f" + file[1].toLowerCase();
+      }
+    }
+    if (!data || data.length > POCKET_PHOTO_MAX_CHARS || !IMAGE_DATA.test(data)) {
+      reply.missing.push(id);
+      continue;
+    }
+    if (reply.photos.length && used + data.length > budget) {
+      reply.deferred.push(id);
+      continue;
+    }
+    used += data.length;
+    reply.photos.push({ serverId: id, key, data });
+  }
+  return reply;
 }

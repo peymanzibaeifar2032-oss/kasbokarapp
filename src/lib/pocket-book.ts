@@ -22,6 +22,8 @@ export type PocketIncoming = {
   phone: string;
   style: string;
   placement: string;
+  /** Key of the site's first design image; the image is fetched separately (studioPocketPhotos). */
+  photoKey?: string;
   photo?: string;
 };
 

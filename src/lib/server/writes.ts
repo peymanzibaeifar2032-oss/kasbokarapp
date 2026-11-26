@@ -1,6 +1,6 @@
 import { exportPocketTrainees } from "./pocket-trainees-export";
 import { exportPocketFinance } from "./pocket-finance-export";
-import { exportPocketBookings } from "./pocket-bookings-export";
+import { exportPocketBookings, exportPocketPhotos, POCKET_PHOTO_MAX_IDS } from "./pocket-bookings-export";
 import { exportPocketReferrals } from "./pocket-referrals-export";
 import { z } from "zod";
 import { DEFAULT_HOURS, KERMANSHAH_CENTER } from "@/lib/data/catalog";
@@ -3778,6 +3778,19 @@ async function performStudioPocketExport(userId: string, options: { full?: boole
   };
 }
 
+/** Design photos for exported jobs, a few per call (owner only, read-only; same gate as the export). */
+async function performStudioPocketPhotos(userId: string, raw: unknown) {
+  const actor = await requireStudioStaff(userId);
+  if (actor.role !== "owner") {
+    throw new Error("بارگذاری از سرور فقط برای صاحب استودیو با ایمیل ثبت‌شده فعال است.");
+  }
+  const data = z
+    .object({ ids: z.array(z.string().regex(/^[A-Za-z0-9_.:-]{1,100}$/)).min(1).max(POCKET_PHOTO_MAX_IDS) })
+    .parse(raw);
+  const sql = await getSql();
+  return exportPocketPhotos(sql, data.ids);
+}
+
 /**
  * Lightweight role probe for the Pocket app. Flags derive ONLY from the verified session user id
  * (studioActor + requireAdmin + app-analytics owner check); the request payload is ignored.
@@ -5083,6 +5096,8 @@ export async function dispatchSave(userId: string, type: string, payload: unknow
       return performStudioPocketExport(userId, { full: true });
     case "studioPocketAccess":
       return performStudioPocketAccess(userId);
+    case "studioPocketPhotos":
+      return performStudioPocketPhotos(userId, payload);
     case "pocketLicenseList":
     case "pocketLicenseIssue":
     case "pocketLicenseUpdate":

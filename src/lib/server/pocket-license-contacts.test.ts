@@ -109,7 +109,7 @@ describe("isolation contract: a contact license can never reach owner data", () 
   });
 
   it("owner-data actions (export/import/finance) are owner-role gated; new contact actions sit behind the license owner gate", () => {
-    for (const fn of ["performStudioPocketExport", "performStudioPocketImport"]) {
+    for (const fn of ["performStudioPocketExport", "performStudioPocketImport", "performStudioPocketPhotos"]) {
       const body = writes.slice(writes.indexOf(`async function ${fn}`), writes.indexOf(`async function ${fn}`) + 600);
       assert.match(body, /requireStudioStaff\(userId\)/);
       assert.match(body, /actor\.role !== "owner"/);
