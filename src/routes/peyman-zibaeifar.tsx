@@ -41,8 +41,6 @@ const CNN_TURK = "https://www.cnnturk.com/yerel-haberler/antalya/alanya/dovme-sa
 const YENI_ALANYA = "https://www.yenialanya.com/cleopatra-inkten-dikkat-ceken-etkinlik";
 const ANTALYA_GUNCEL = "https://www.antalyaguncelhaber.com/alanya-haberleri-dovme-sanatcilari-yaristi-70480.html";
 const INSTAGRAM_REEL = "https://www.instagram.com/reel/CYCAtGts__M/?knvt=azU3bThzMTk2YWd2";
-const YENI_ALANYA = "https://www.yenialanya.com/cleopatra-inkten-dikkat-ceken-etkinlik";
-const INSTAGRAM_REEL = "https://www.instagram.com/reel/CYCAtGts__M/?knvt=azU3bThzMTk2YWd2";
 const CLEOPATRA_KOCAELI = "https://www.instagram.com/cleopatraink.kocaeli/";
 
 function PeymanBio() {
